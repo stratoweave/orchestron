@@ -12,5 +12,5 @@ import respnet.cfs
 
 
 def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?ttt.Path,?ttt.Layer)->ttt.Node:
-    r = ttt.Container({yang.gdata.Id("http://example.com/foo", "c1"): ttt.Container({yang.gdata.Id("http://example.com/foo", "foo"): ttt.List(ttt.Container({yang.gdata.Id("http://example.com/foo", "bar"): ttt.List(ttt.Transform(respnet.cfs.Foobar, None, lower, log_handler), [yang.gdata.Id("http://example.com/foo", "name")])}), [yang.gdata.Id("http://example.com/foo", "name")])}, ns='http://example.com/foo', module='foo')})
+    r = ttt.Container({yang.gdata.Id("http://example.com/foo", "c1"): ttt.Container({yang.gdata.Id("http://example.com/foo", "foo"): ttt.List(ttt.Container({yang.gdata.Id("http://example.com/foo", "bar"): ttt.List(ttt.Transform(respnet.cfs.Foobar, None, None, lower, log_handler), [yang.gdata.Id("http://example.com/foo", "name")])}), [yang.gdata.Id("http://example.com/foo", "name")])}, ns='http://example.com/foo', module='foo')})
     return r

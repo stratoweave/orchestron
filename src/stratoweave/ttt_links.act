@@ -1,0 +1,278 @@
+
+import yang.schema as schema
+import yang.xpath as xpath
+
+
+class Link(value):
+    """Base IR node for a single link declaration within a transform.
+
+    filter_path is the exact schema path used to build the runtime gdata filter.
+    linked_input_path is the schema path to the root of the linked transform,
+    derived from filter_path by _find_linked_transform.
+    """
+    filter_path: list[schema.DNode]
+    linked_input_path: list[schema.DNode]
+
+    def __init__(self, filter_path: list[schema.DNode], linked_input_path: list[schema.DNode]):
+        self.filter_path = filter_path
+        self.linked_input_path = linked_input_path
+
+class StaticLink(Link):
+    """A link with a fixed filter path from a nested sw:path."""
+
+    def __init__(self, filter_path: list[schema.DNode], linked_input_path: list[schema.DNode]):
+        Link.__init__(self, filter_path, linked_input_path)
+
+class LeafrefLink(Link):
+    """A link whose filter value comes from a leafref source leaf."""
+    source_path_from_transform: list[schema.DNode]
+
+    def __init__(self, filter_path: list[schema.DNode], linked_input_path: list[schema.DNode], source_path_from_transform: list[schema.DNode]):
+        Link.__init__(self, filter_path, linked_input_path)
+        self.source_path_from_transform = source_path_from_transform
+
+class LinkedInput(value):
+    """Single tagged link with cardinality information."""
+    link: Link
+
+    def __init__(self, link: Link):
+        self.link = link
+
+class SingleLinkedInput(LinkedInput):
+    """Cardinality 1: exactly one linked input."""
+
+    def __init__(self, link: Link):
+        LinkedInput.__init__(self, link)
+
+class OptionalLinkedInput(LinkedInput):
+    """Cardinality 0..1: at most one linked input."""
+
+    def __init__(self, link: Link):
+        LinkedInput.__init__(self, link)
+
+class MultiLinkedInput(LinkedInput):
+    """Cardinality 0..n or 1..n: multiple linked inputs from a list traversal."""
+
+    def __init__(self, link: Link):
+        LinkedInput.__init__(self, link)
+
+def xpath_to_spath(root: schema.DRoot, path: xpath.AbsoluteLocationPath, context_module: str) -> list[schema.DNode]:
+    """Resolve an absolute XPath to a schema path (list of DNode from the root)
+
+    context_module is the module of the node that owns the path (e.g. the leafref's module).
+    Unprefixed steps are resolved in this module's namespace, matching the YANG leafref semantics.
+    """
+    n = root
+    result = []
+    for step in path.steps:
+        if isinstance(step, xpath.NodeTestStep):
+            if len(step.predicates) > 0:
+                raise ValueError("Unsupported: predicates in path step: {step}")
+            step_prefix = step.prefix
+            if step_prefix is not None:
+                n = n.get(step.name, prefix=step_prefix)
+            else:
+                # Unqualified (no prefix) nodes belong the namespace of the current node
+                n = n.get(step.name, module=context_module)
+            result.append(n)
+        else:
+            raise ValueError("Unsupported: non-NodeTestStep in path: {step}")
+    return result
+
+SW_NS = "http://stratoweave.org/yang/stratoweave.yang"
+
+def _find_linked_transform(filter_path: list[schema.DNode]) -> list[schema.DNode]:
+    """Find the linked transform by walking filter_path from the end.
+
+    Returns the prefix of filter_path up to and including the node that
+    carries sw:transform or sw:rfs-transform.
+    """
+    i = len(filter_path) - 1
+    while i >= 0:
+        for ext in filter_path[i].exts:
+            if ext.namespace == SW_NS and (ext.name == "transform" or ext.name == "rfs-transform"):
+                return filter_path[:i + 1]
+        i -= 1
+    raise ValueError("No sw:transform found along filter path: {schema.get_path(filter_path)}")
+
+def _subtree_has_link(sn: schema.DNode) -> bool:
+    """Return True if sn or any descendant carries sw:link."""
+    for ext in sn.exts:
+        if ext.namespace == SW_NS and ext.name == "link":
+            return True
+    if isinstance(sn, schema.DNodeInner):
+        for child in sn.children:
+            if _subtree_has_link(child):
+                return True
+    return False
+
+def _collect_links(sn: schema.DNode, root: schema.DRoot, path_from_transform: list[schema.DNode], links_by_tag: dict[str, Link]):
+    """Recursively find sw:link declarations in a transform subtree.
+
+    Walks the input schema tree under a transform node and collects one Link
+    per tag. Duplicate tags are not allowed. Nodes containing the sw:memory or
+    sw:dynstate extensions are also not allowed to contain links.
+    """
+    for ext in sn.exts:
+        if ext.namespace == SW_NS and ext.name == "link":
+            tag = ext.arg
+            if tag is not None:
+                link: ?Link = None
+                if isinstance(sn, schema.DLeaf):
+                    # Leafref link: resolve from the leaf's compiled type
+                    leaf_type = sn.type_
+                    if isinstance(leaf_type, schema.DTypeLeafref):
+                        filter_path = xpath_to_spath(root, leaf_type.path, sn.module)
+                        linked_input_path = _find_linked_transform(filter_path)
+                        link = LeafrefLink(filter_path, linked_input_path, path_from_transform)
+                    else:
+                        raise ValueError("sw:link on leaf {sn.name} requires leafref type")
+                else:
+                    # Static link: resolve the nested sw:path
+                    path_arg = None
+                    for subext in ext.exts:
+                        if subext.namespace == SW_NS and subext.name == "path":
+                            path_arg = subext.arg
+                    if path_arg is not None:
+                        parsed = xpath.try_parse_location_path(path_arg)
+                        if isinstance(parsed, xpath.AbsoluteLocationPath):
+                            filter_path = xpath_to_spath(root, parsed, sn.module)
+                            linked_input_path = _find_linked_transform(filter_path)
+                            link = StaticLink(filter_path, linked_input_path)
+                        else:
+                            raise ValueError("sw:path on node {sn.name} must be an absolute path, got: {path_arg}")
+                    else:
+                        raise ValueError("sw:link on non-leaf {sn.name} requires sw:path substatement")
+
+                if link is not None:
+                    if tag in links_by_tag:
+                        raise ValueError("Duplicate sw:link tag '{tag}' in transform subtree; only one declaration per tag is supported")
+                    links_by_tag[tag] = link
+            else:
+                raise ValueError("sw:link on node {sn.name} requires a tag argument")
+    if isinstance(sn, schema.DNodeInner):
+        for child in sn.children:
+            child_scope = None
+            for ext in child.exts:
+                if ext.namespace == SW_NS:
+                    if ext.name == "memory":
+                        child_scope = "sw:memory"
+                    elif ext.name == "dynstate":
+                        child_scope = "sw:dynstate"
+            if child_scope is not None:
+                if _subtree_has_link(child):
+                    raise ValueError("sw:link under {child_scope} is not supported; linked sources must be in the transform input subtree")
+                continue
+            _collect_links(child, root, path_from_transform + [child], links_by_tag)
+
+def extract_links(transform_node: schema.DNodeInner, root: schema.DRoot) -> dict[str, LinkedInput]:
+    """Extract sw:link declarations from a transform subtree.
+
+    Resolves each link against the compiled schema and wraps it in a
+    LinkedInput subtype based on cardinality:
+
+    - static links are always optional (target data may not exist)
+    - leafref links crossing a list produce multiple link demands
+    - leafref links without a list crossing are optional
+    """
+    links_by_tag: dict[str, Link] = {}
+    _collect_links(transform_node, root, [], links_by_tag)
+
+    result: dict[str, LinkedInput] = {}
+    for tag, link in links_by_tag.items():
+        if isinstance(link, StaticLink):
+            result[tag] = OptionalLinkedInput(link)
+        elif isinstance(link, LeafrefLink):
+            crosses_list = False
+            for step in link.source_path_from_transform:
+                if isinstance(step, schema.DList):
+                    crosses_list = True
+            if crosses_list:
+                result[tag] = MultiLinkedInput(link)
+            else:
+                result[tag] = OptionalLinkedInput(link)
+    return result
+
+def _gen_id(node: schema.DNode) -> str:
+    return 'yang.gdata.Id("{node.namespace}", "{node.name}")'
+
+def _gen_fnode(path: list[schema.DNode], value_match_var: ?str=None) -> str:
+    """Generate nested gdata.FNode(...) literal from a schema path."""
+    last = path[-1]
+    if value_match_var is not None:
+        s = "yang.gdata.FNode({_gen_id(last)}, value_match={value_match_var})"
+    else:
+        s = "yang.gdata.FNode({_gen_id(last)})"
+    i = len(path) - 2
+    while i >= 0:
+        step = path[i]
+        s = "yang.gdata.FNode({_gen_id(step)}, children=[{s}])"
+        i -= 1
+    return s
+
+def _gen_source_traversal(tag: str, link: LeafrefLink, indent: int) -> list[str]:
+    """Generate gdata traversal code that reads leafref source values.
+
+    Walks source_path_from_transform and emits get_opt_cnt / get_opt_list /
+    get_opt_value calls for each schema step. Consecutive container steps are
+    collapsed into a single optional chain (using ?.). List steps produce a loop
+    over elements. Once the source leaf is reached, its value is captured in a
+    _vN variable and embedded in an FNode filter expression.
+    """
+    lines = []
+    path = link.source_path_from_transform
+    cur = "conf"
+    depth = 0
+    ind = indent
+    chain_parts = []
+
+    for step in path:
+        qn = _gen_id(step)
+        if isinstance(step, schema.DLeaf):
+            chain_parts.append("get_opt_value({qn})")
+            vname = "_v{depth}"
+            lines.append("{' ' * ind}{vname} = {cur}.{"?.".join(chain_parts)}")
+            lines.append("{' ' * ind}if {vname} is not None:")
+            ind += 4
+            fnode = _gen_fnode(link.filter_path, value_match_var=vname)
+            lines.append("{' ' * ind}res.append(ttt.TaggedPath({repr(tag)}, {fnode}))")
+        elif isinstance(step, schema.DList):
+            chain_parts.append("get_opt_list({qn})")
+            lname = "_l{depth}"
+            lines.append("{' ' * ind}{lname} = {cur}.{"?.".join(chain_parts)}")
+            lines.append("{' ' * ind}if {lname} is not None:")
+            ind += 4
+            ename = "_e{depth}"
+            lines.append("{' ' * ind}for {ename} in {lname}.elements:")
+            ind += 4
+            cur = ename
+            chain_parts = []
+        elif isinstance(step, schema.DContainer):
+            chain_parts.append("get_opt_cnt({qn})")
+        depth += 1
+    return lines
+
+def gen_build_target_links(fname: str, linked_fields: dict[str, LinkedInput], indent=0) -> list[str]:
+    """Generate a function that computes a transform's link demands at runtime.
+
+    Emits a module-level build_target_links function with the given name. The
+    generated function traverses the transform input gdata subtree and returns
+    the list of gdata filters describing which linked transform inputs this
+    transform needs. Source leafref values are embedded in the FNode
+    expressions.
+    """
+    lines = []
+    lines.append("{' ' * indent}def {fname}(conf: yang.gdata.Node) -> list[ttt.TaggedPath]:")
+    body_indent = indent + 4
+    lines.append("{' ' * body_indent}res = []")
+    for tag, field in linked_fields.items():
+        link = field.link
+        if isinstance(link, StaticLink):
+            fnode = _gen_fnode(link.filter_path)
+            lines.append("{' ' * body_indent}# static link: {tag}")
+            lines.append("{' ' * body_indent}res.append(ttt.TaggedPath({repr(tag)}, {fnode}))")
+        elif isinstance(link, LeafrefLink):
+            lines.append("{' ' * body_indent}# leafref link: {tag}")
+            lines.extend(_gen_source_traversal(tag, link, body_indent))
+    lines.append("{' ' * body_indent}return res")
+    return lines

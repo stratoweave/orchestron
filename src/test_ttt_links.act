@@ -1,0 +1,280 @@
+import testing
+
+import yang
+import yang.gdata as gdata
+import yang.schema as schema
+import yang.xpath as xpath
+import stratoweave.ttt_links as ttt_links
+import stratoweave.yang as swyang
+
+
+########################
+# Test YANG modules
+########################
+
+ys_netinfra = r"""module netinfra {
+  yang-version "1.1";
+  namespace "http://example.com/netinfra";
+  prefix "netinfra";
+  import stratoweave {
+    prefix sw;
+  }
+  container global-settings {
+    sw:transform respnet.cfs.GlobalSettings;
+
+    leaf asn {
+      type uint32;
+      mandatory true;
+    }
+  }
+}
+"""
+
+ys_linked_l3vpn = r"""module ietf-l3vpn-svc {
+  yang-version "1.1";
+  namespace "urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc";
+  prefix "l3vpn-svc";
+  import stratoweave {
+    prefix sw;
+  }
+  import netinfra {
+    prefix netinfra;
+  }
+  container l3vpn-svc {
+    container vpn-services {
+      list vpn-service {
+        key vpn-id;
+
+        sw:transform respnet.cfs.L3VpnVpnService;
+
+        leaf vpn-id {
+          type string;
+        }
+      }
+    }
+
+    container sites {
+      list site {
+        key site-id;
+
+        sw:transform respnet.cfs.L3VpnSite;
+        sw:link global {
+          // TODO: fix extension substatements such that *any* valid substatement is parsed
+          sw:path /netinfra:global-settings;
+        }
+
+        leaf site-id {
+          type string;
+        }
+
+        container site-network-accesses {
+          list site-network-access {
+            key site-network-access-id;
+
+            leaf site-network-access-id {
+              type string;
+            }
+
+            container vpn-attachment {
+              leaf vpn-id {
+                sw:link vpn;
+                type leafref {
+                  path "/l3vpn-svc/vpn-services/vpn-service/vpn-id";
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+ys_link_in_memory = r"""module link-in-memory {
+  yang-version "1.1";
+  namespace "http://example.com/link-in-memory";
+  prefix "lim";
+  import stratoweave {
+    prefix sw;
+  }
+
+  container targets {
+    list target {
+      key id;
+
+      sw:transform respnet.cfs.Target;
+
+      leaf id {
+        type string;
+      }
+    }
+  }
+
+  container service {
+    sw:transform respnet.cfs.Service;
+
+    leaf name {
+      type string;
+    }
+
+    container memory {
+      sw:memory;
+
+      leaf target-id {
+        sw:link peer;
+        type leafref {
+          path "/targets/target/id";
+        }
+      }
+    }
+  }
+}
+"""
+
+ys_link_in_dynstate = r"""module link-in-dynstate {
+  yang-version "1.1";
+  namespace "http://example.com/link-in-dynstate";
+  prefix "lid";
+  import stratoweave {
+    prefix sw;
+  }
+
+  container targets {
+    list target {
+      key id;
+
+      sw:transform respnet.cfs.Target;
+
+      leaf id {
+        type string;
+      }
+    }
+  }
+
+  container service {
+    sw:transform respnet.cfs.Service;
+
+    leaf name {
+      type string;
+    }
+
+    container dynstate {
+      sw:dynstate;
+
+      leaf target-id {
+        sw:link peer;
+        type leafref {
+          path "/targets/target/id";
+        }
+      }
+    }
+  }
+}
+"""
+
+########################
+# Helpers
+########################
+
+def _find_child(parent: schema.DNodeInner, name: str) -> schema.DNode:
+    for child in parent.children:
+        if child.name == name:
+            return child
+    raise ValueError("Child not found: " + name)
+
+def _as_inner(node: schema.DNode) -> schema.DNodeInner:
+    if isinstance(node, schema.DNodeInner):
+        return node
+    raise ValueError("Expected DNodeInner")
+
+def _as_leaf(node: schema.DNode) -> schema.DLeaf:
+    if isinstance(node, schema.DLeaf):
+        return node
+    raise ValueError("Expected DLeaf")
+
+
+########################
+# Tests
+########################
+
+def _test_resolve_schema_path_leafref():
+    """xpath_to_spath produces the same nodes as manual navigation for the vpn-id leafref."""
+    y = yang.compile([ys_netinfra, ys_linked_l3vpn, swyang.stratoweave])
+
+    # Get the leafref path from the compiled schema
+    l3vpn_svc = _as_inner(_find_child(y, "l3vpn-svc"))
+    sites = _as_inner(_find_child(l3vpn_svc, "sites"))
+    site = _as_inner(_find_child(sites, "site"))
+    sna_cnt = _as_inner(_find_child(site, "site-network-accesses"))
+    sna_list_node = _find_child(sna_cnt, "site-network-access")
+    sna_inner = _as_inner(sna_list_node)
+    vpn_attachment = _as_inner(_find_child(sna_inner, "vpn-attachment"))
+    vpn_id_source = _as_leaf(_find_child(vpn_attachment, "vpn-id"))
+    leafref_type = vpn_id_source.type_
+    if isinstance(leafref_type, schema.DTypeLeafref):
+        resolved = ttt_links.xpath_to_spath(y, leafref_type.path, vpn_id_source.module)
+        testing.assertEqual(schema.get_path(resolved), "l3vpn-svc/vpn-services/vpn-service/vpn-id")
+    else:
+        testing.error("Expected DTypeLeafref")
+
+
+def _test_extract_links():
+    """extract_links produces the expected IR from the compiled schema."""
+    y = yang.compile([ys_netinfra, ys_linked_l3vpn, swyang.stratoweave])
+
+    # Find the site transform node
+    l3vpn_svc = _as_inner(_find_child(y, "l3vpn-svc"))
+    sites = _as_inner(_find_child(l3vpn_svc, "sites"))
+    site = _as_inner(_find_child(sites, "site"))
+
+    extracted = ttt_links.extract_links(site, y)
+
+    # global: static link -> OptionalLinkedFieldIR
+    testing.assertEqual("global" in extracted, True)
+    global_field = extracted["global"]
+    testing.assertEqual(isinstance(global_field, ttt_links.OptionalLinkedInput), True)
+    global_link = global_field.link
+    testing.assertEqual(isinstance(global_link, ttt_links.StaticLink), True)
+    testing.assertEqual(schema.get_path(global_link.filter_path), "global-settings")
+    testing.assertEqual(schema.get_path(global_link.linked_input_path), "global-settings")
+
+    # vpn: leafref link -> MultiLinkedFieldIR
+    testing.assertEqual("vpn" in extracted, True)
+    vpn_field = extracted["vpn"]
+    testing.assertEqual(isinstance(vpn_field, ttt_links.MultiLinkedInput), True)
+    vpn_link = vpn_field.link
+    testing.assertEqual(isinstance(vpn_link, ttt_links.LeafrefLink), True)
+    if isinstance(vpn_link, ttt_links.LeafrefLink):
+        testing.assertEqual(schema.get_path(vpn_link.filter_path), "l3vpn-svc/vpn-services/vpn-service/vpn-id")
+        testing.assertEqual(schema.get_path(vpn_link.linked_input_path), "l3vpn-svc/vpn-services/vpn-service")
+        testing.assertEqual(schema.get_path(vpn_link.source_path_from_transform), "site-network-accesses/site-network-access/vpn-attachment/vpn-id")
+
+def _test_extract_links_rejects_links_in_memory():
+    """Links under sw:memory are rejected because build_target_links only sees conf."""
+    y = yang.compile([ys_link_in_memory, swyang.stratoweave])
+    service = _as_inner(_find_child(y, "service"))
+    try:
+        ttt_links.extract_links(service, y)
+        testing.error("Expected extract_links to reject sw:link under sw:memory")
+    except ValueError as e:
+        testing.assertEqual("sw:memory" in e.error_message, True)
+
+def _test_extract_links_rejects_links_in_dynstate():
+    """Links under sw:dynstate are rejected because build_target_links only sees conf."""
+    y = yang.compile([ys_link_in_dynstate, swyang.stratoweave])
+    service = _as_inner(_find_child(y, "service"))
+    try:
+        ttt_links.extract_links(service, y)
+        testing.error("Expected extract_links to reject sw:link under sw:dynstate")
+    except ValueError as e:
+        testing.assertEqual("sw:dynstate" in e.error_message, True)
+
+def _test_gen_build_target_links():
+    y = yang.compile([ys_netinfra, ys_linked_l3vpn, swyang.stratoweave])
+    l3vpn_svc = _as_inner(_find_child(y, "l3vpn-svc"))
+    sites = _as_inner(_find_child(l3vpn_svc, "sites"))
+    site = _as_inner(_find_child(sites, "site"))
+    extracted = ttt_links.extract_links(site, y)
+    lines = ttt_links.gen_build_target_links("build_target_links_test", extracted)
+    return "\n".join(lines)

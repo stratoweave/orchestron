@@ -1,0 +1,12 @@
+def build_target_links_test(conf: yang.gdata.Node) -> list[ttt.TaggedPath]:
+    res = []
+    # static link: global
+    res.append(ttt.TaggedPath('global', yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "global-settings"))))
+    # leafref link: vpn
+    _l1 = conf.get_opt_cnt(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "site-network-accesses"))?.get_opt_list(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "site-network-access"))
+    if _l1 is not None:
+        for _e1 in _l1.elements:
+            _v3 = _e1.get_opt_cnt(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-attachment"))?.get_opt_value(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-id"))
+            if _v3 is not None:
+                res.append(ttt.TaggedPath('vpn', yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "l3vpn-svc"), children=[yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-services"), children=[yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-service"), children=[yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-id"), value_match=_v3)])])])))
+    return res

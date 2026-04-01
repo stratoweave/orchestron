@@ -2,6 +2,7 @@
 import re
 import yang
 import yang.schema as schema
+import stratoweave.ttt_links as ttt_links
 
 
 def _fq_list_keys(l: schema.DList) -> str:
@@ -47,7 +48,7 @@ class TTTSrc(object):
         self.base_defs = base_defs
         self.act_defs = act_defs
 
-def children_to_tttsrc(sn: schema.DNodeInner, spath: list[schema.DNode]) -> TTTSrc:
+def children_to_tttsrc(sn: schema.DNodeInner, spath: list[schema.DNode], root: schema.DRoot) -> TTTSrc:
     input_classes = []
     state_classes = []
     imports = []
@@ -58,7 +59,7 @@ def children_to_tttsrc(sn: schema.DNodeInner, spath: list[schema.DNode]) -> TTTS
     for child in sn.children:
         if isinstance(child, schema.DLeaf):
             continue
-        res = dschema_to_tttsrc(child, spath + [child], set_ns=child.namespace!=sn.namespace)
+        res = dschema_to_tttsrc(child, spath + [child], root, set_ns=child.namespace!=sn.namespace)
         input_classes.extend(res.input_classes)
         state_classes.extend(res.state_classes)
         imports.extend(res.imports)
@@ -69,7 +70,7 @@ def children_to_tttsrc(sn: schema.DNodeInner, spath: list[schema.DNode]) -> TTTS
     children_src = ", ".join(elems)
     return TTTSrc(src=children_src, input_classes=input_classes, state_classes=state_classes, imports=imports, defs=defs, base_defs=base_defs, act_defs=act_defs)
 
-def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], indent=0, set_ns=True) -> TTTSrc:
+def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.DRoot, indent=0, set_ns=True) -> TTTSrc:
     input_classes = []
     state_classes = []
     imports = []
@@ -155,6 +156,13 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], indent=0, set
         deserializer = root_path[:-1]
 
         if ext.name == "transform":
+            linked_fields = ttt_links.extract_links(sn, root)
+            if len(linked_fields) > 0:
+                build_links_fn = "_build_target_links_{input_class}"
+                defs.append("\n".join(ttt_links.gen_build_target_links(build_links_fn, linked_fields)))
+            else:
+                build_links_fn = "None"
+
             base_defs.append("""class {transform.name}(ttt.TransformFunction):
     transform: mut({input_class}{transform_extra_typed_params}) -> {transform_output}
 {type_helpers}
@@ -174,12 +182,16 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], indent=0, set
         {wrapper_return}
 """)
             if isinstance(sn, schema.DList):
-                src = "ttt.List(ttt.Transform({transform.fqname}, {transform_actor_ctor}, lower, log_handler), {_fq_list_keys(sn)}{nsq(sn)})"
+                src = "ttt.List(ttt.Transform({transform.fqname}, {transform_actor_ctor}, {build_links_fn}, lower, log_handler), {_fq_list_keys(sn)}{nsq(sn)})"
             else:
-                src = "ttt.Transform({transform.fqname}, {transform_actor_ctor}, lower, log_handler)"
+                src = "ttt.Transform({transform.fqname}, {transform_actor_ctor}, {build_links_fn}, lower, log_handler)"
             return TTTSrc(src=src, input_classes=input_classes, state_classes=state_classes, imports=imports, defs=defs, base_defs=base_defs, act_defs=act_defs)
 
         elif ext.name == "rfs-transform":
+            linked_fields = ttt_links.extract_links(sn, root)
+            if len(linked_fields) > 0:
+                raise ValueError("sw:link is not supported on rfs-transform at {schema.get_path(spath)}")
+
             base_defs.append("""class {transform.name}(ttt.RFSFunction):
     transform: mut({input_class}, ttt.DeviceInfo{transform_extra_typed_params}) -> {transform_output}
 {type_helpers}
@@ -221,7 +233,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], indent=0, set
                     return TTTSrc(src="ttt.List(ttt.DeviceConfig(dev_registry, log_handler), {_fq_list_keys(sn)}{nsq(sn)})", input_classes=input_classes, state_classes=state_classes, imports=imports, defs=defs, base_defs=base_defs, act_defs=act_defs)
 
         # List without an extension
-        children_res = children_to_tttsrc(sn, spath)
+        children_res = children_to_tttsrc(sn, spath, root)
         input_classes.extend(children_res.input_classes)
         state_classes.extend(children_res.state_classes)
         imports.extend(children_res.imports)
@@ -236,7 +248,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], indent=0, set
                 if ext.name == "transform" or ext.name == "rfs-transform":
                     return transform_ext_to_tttsrc(sn, ext)
         sn_children = sn.children
-        children_res = children_to_tttsrc(sn, spath)
+        children_res = children_to_tttsrc(sn, spath, root)
         input_classes.extend(children_res.input_classes)
         state_classes.extend(children_res.state_classes)
         imports.extend(children_res.imports)
@@ -247,8 +259,8 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], indent=0, set
 
     raise NotImplementedError("Unhandled schema type: {type(sn)}: {schema.get_path_name(spath)}")
 
-def ttt_prsrc(sn: schema.DNode, input_yang_module: str, output_yang_module: ?str) -> (base: str, ttt: str):
-    ts = dschema_to_tttsrc(sn, [sn])
+def ttt_prsrc(root: schema.DRoot, input_yang_module: str, output_yang_module: ?str) -> (base: str, ttt: str):
+    ts = dschema_to_tttsrc(root, [root], root)
 
     base_src = "# WARNING WARNING WARNING WARNING WARNING\n"
     base_src += "# DO NOT MODIFY THIS FILE!! This file is generated!\n"
@@ -278,6 +290,9 @@ def ttt_prsrc(sn: schema.DNode, input_yang_module: str, output_yang_module: ?str
     ttt_src += "\n"
     ttt_src += "def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?ttt.Path,?ttt.Layer)->ttt.Node:\n"
     ttt_src += "    r = {ts.src}\n    return r\n"
+    if len(ts.defs) > 0:
+        ttt_src += "\n"
+    ttt_src += "\n\n".join(ts.defs)
     if len(ts.act_defs) > 0:
         ttt_src += "\n"
     ttt_src += "\n\n".join(list(set(ts.act_defs)))

@@ -1,0 +1,29 @@
+# WARNING WARNING WARNING WARNING WARNING
+# DO NOT MODIFY THIS FILE!! This file is generated!
+# WARNING WARNING WARNING WARNING WARNING
+
+import logging
+
+import stratoweave.device as swdev
+import stratoweave.ttt as ttt
+import yang.gdata
+
+import respnet.cfs
+
+
+def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?ttt.Path,?ttt.Layer)->ttt.Node:
+    r = ttt.Container({yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "global-settings"): ttt.Transform(respnet.cfs.GlobalSettings, None, None, lower, log_handler), yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "l3vpn-svc"): ttt.Container({yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-services"): ttt.Container({yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-service"): ttt.List(ttt.Transform(respnet.cfs.L3VpnVpnService, None, None, lower, log_handler), [yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-id")])}), yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "sites"): ttt.Container({yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "site"): ttt.List(ttt.Transform(respnet.cfs.L3VpnSite, None, _build_target_links_ietf_l3vpn_svc__l3vpn_svc__sites__site_entry, lower, log_handler), [yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "site-id")])})}, ns='urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc', module='ietf-l3vpn-svc')})
+    return r
+
+def _build_target_links_ietf_l3vpn_svc__l3vpn_svc__sites__site_entry(conf: yang.gdata.Node) -> list[ttt.TaggedPath]:
+    res = []
+    # static link: global
+    res.append(ttt.TaggedPath('global', yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "global-settings"))))
+    # leafref link: vpn
+    _l1 = conf.get_opt_cnt(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "site-network-accesses"))?.get_opt_list(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "site-network-access"))
+    if _l1 is not None:
+        for _e1 in _l1.elements:
+            _v3 = _e1.get_opt_cnt(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-attachment"))?.get_opt_value(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-id"))
+            if _v3 is not None:
+                res.append(ttt.TaggedPath('vpn', yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "l3vpn-svc"), children=[yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-services"), children=[yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-service"), children=[yang.gdata.FNode(yang.gdata.Id("urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc", "vpn-id"), value_match=_v3)])])])))
+    return res

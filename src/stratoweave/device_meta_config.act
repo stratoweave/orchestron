@@ -300,6 +300,20 @@ def src_yang():
       function inputs with an additional read-only structure. The transform
       function may update this subtree by returning new data.";
   }
+  extension link {
+    description
+      "Declares a link demand from this transform towards another (linked)
+      transform. The argument is a tag that identifies the link. On a leafref
+      leaf, the link target is derived from the leafref path. On other nodes,
+      a nested sw:path substatement provides the target path.";
+    argument "tag";
+  }
+  extension path {
+    description
+      "Substatement of sw:link that provides an explicit absolute schema path
+      to the linked transform target.";
+    argument "path";
+  }
 }""")
     res.append(r"""module ietf-inet-types {
 

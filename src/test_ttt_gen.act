@@ -167,3 +167,79 @@ def _test_ttt_gen_invalid_transform_module_name():
     except ValueError as e:
         if "not a valid Acton name" not in e.error_message:
             raise e
+
+ys_linked_leafref_l3vpn = r"""module ietf-l3vpn-svc {
+  yang-version "1.1";
+  namespace "urn:ietf:params:xml:ns:yang:ietf-l3vpn-svc";
+  prefix "l3vpn-svc";
+  import stratoweave {
+    prefix sw;
+  }
+  container global-settings {
+    sw:transform respnet.cfs.GlobalSettings;
+
+    leaf asn {
+      type uint32;
+      mandatory true;
+    }
+  }
+  container l3vpn-svc {
+    container vpn-services {
+      list vpn-service {
+        key vpn-id;
+
+        sw:transform respnet.cfs.L3VpnVpnService;
+
+        leaf vpn-id {
+          type string;
+        }
+      }
+    }
+
+    container sites {
+      list site {
+        key site-id;
+
+        sw:transform respnet.cfs.L3VpnSite;
+        sw:link global {
+          // TODO: fix extension substatements such that *any* valid substatement is parsed
+          sw:path /global-settings;
+        }
+
+        leaf site-id {
+          type string;
+        }
+
+        container site-network-accesses {
+          list site-network-access {
+            key site-network-access-id;
+
+            leaf site-network-access-id {
+              type string;
+            }
+
+            container vpn-attachment {
+              leaf vpn-id {
+                sw:link vpn;
+                type leafref {
+                  path "/l3vpn-svc/vpn-services/vpn-service/vpn-id";
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+def _test_ttt_gen_linked_leafref_l3vpn_base():
+    y = yang.compile([ys_linked_leafref_l3vpn, swyang.stratoweave])
+    r = ttt_gen.ttt_prsrc(y, 'respnet.layers.y_0', 'respnet.layers.y_1_loose')
+    return r.base
+
+def _test_ttt_gen_linked_leafref_l3vpn_ttt():
+    y = yang.compile([ys_linked_leafref_l3vpn, swyang.stratoweave])
+    r = ttt_gen.ttt_prsrc(y, 'respnet.layers.y_0', 'respnet.layers.y_1_loose')
+    return r.ttt
