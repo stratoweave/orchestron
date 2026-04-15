@@ -93,7 +93,7 @@ rejected by that driver.
 ## Internal Model
 
 `SubscriptionManager` is the declarative owner-facing API. Internally,
-Orchestron splits subscriptions into two layers:
+StratoWeave splits subscriptions into two layers:
 
 - `SubscriptionOwner`: one logical subscriber with one callback and one
   desired `set[SubscriptionSpec]`

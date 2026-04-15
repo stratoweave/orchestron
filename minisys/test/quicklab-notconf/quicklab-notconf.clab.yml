@@ -16,9 +16,9 @@ topology:
     rtr1:
       kind: linux
       image: ghcr.io/notconf/notconf-ietf:latest
-    otron:
+    sweave:
       kind: linux
-      image: mini-otron-base
+      image: mini-sweave-base
       ports:
         - "80/tcp"
         - "830/tcp"

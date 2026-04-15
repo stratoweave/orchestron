@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Check for inconsistencies in package versions across build.act.json files.
-Excludes local "orchestron" dependencies (those with a "path" field).
+Excludes local "stratoweave" dependencies (those with a "path" field).
 """
 
 import json
@@ -15,7 +15,7 @@ def extract_dependencies(file_path: Path) -> Dict[str, Dict[str, str]]:
     """
     Extract external dependencies from a build.act.json file.
     Returns a dict of package_name -> {url, hash}.
-    Excludes packages with "path" field (local dependencies like orchestron).
+    Excludes packages with "path" field (local dependencies like stratoweave).
     """
     try:
         with open(file_path) as f:
