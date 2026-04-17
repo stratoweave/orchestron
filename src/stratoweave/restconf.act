@@ -273,13 +273,15 @@ actor RestconfServer(
     ]
     _restconf_view_by_module = _build_restconf_view_by_module(_restconf_views)
 
-    def _router_make_config_done(respond):
-        def config_done(result):
+    def _router_make_edit_done(respond, success_status: int):
+        def on_done(result):
             if isinstance(result, Exception):
-                respond(400, {}, json.encode({"status": "error", "message": str(result)}))
-                return
-            respond(200, {}, json.encode({"status": "ok"}))
-        return config_done
+                # TODO: extract more context from error
+                respond(500, {}, str(result))
+            else:
+                # TODO: location redirect?
+                respond(success_status, {}, "")
+        return on_done
 
     def _router_handle_restconf_get(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         accept = ctx.request.headers.get("accept")
@@ -314,37 +316,48 @@ actor RestconfServer(
     def _router_handle_restconf_delete(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         input_config = yang.json.from_json_path(top_schema, {}, _split_restconf_path(ctx.param("rest_path")), "remove", loose=True)
         session = cfs.newsession()
-        session.edit_config(input_config, _router_make_config_done(respond))
+        session.edit_config(input_config, _router_make_edit_done(respond, 204))
 
-    def _router_handle_restconf_write(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
-        input_config = None
+    def _router_parse_write_body(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None) -> ?yang.gdata.Container:
         content_type = ctx.request.headers.get("content-type")
-
         if content_type == "application/yang-data+json":
             try:
                 json_in = json.decode(ctx.request.body.decode())
-                input_config = yang.json.from_json_path(top_schema, json_in, _split_restconf_path(ctx.param("rest_path")), loose=True)
+                return yang.json.from_json_path(top_schema, json_in, _split_restconf_path(ctx.param("rest_path")), loose=True)
             except Exception as e:
                 respond(400, {}, "Error parsing JSON: {e}")
-                return
-        elif content_type == "application/yang-data+xml":
+                return None
+        if content_type == "application/yang-data+xml":
             try:
                 xml_in = xml.decode(ctx.request.body.decode())
-                input_config = yang.xml.from_xml(top_schema, xml_in, loose=True)
+                return yang.xml.from_xml(top_schema, xml_in, loose=True)
             except Exception as e:
                 respond(400, {}, "Error parsing XML: {e}")
-                return
-        else:
-            respond(415, {}, "Unsupported media type")
-            return
+                return None
+        respond(415, {}, "Unsupported media type")
+        return None
 
+    def _router_apply_write(ctx: http_router.Context, input_config: yang.gdata.Node, on_done: action(value) -> None):
+        session = cfs.newsession()
+        if ctx.request.headers.get("async") == "true":
+            http_log.info("Client requests async behavior")
+            session.edit_config(input_config, on_done)
+        else:
+            session.edit_config(input_config, None, on_done)
+
+    def _router_handle_restconf_post(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        input_config = _router_parse_write_body(ctx, respond)
+        # TODO: per RFC 8040 §4.4.1, set Location header pointing to the new
+        # resource (parent path + new child id, including any list keys).
         if input_config is not None:
-            session = cfs.newsession()
-            if ctx.request.headers.get("async") == "true":
-                http_log.info("Client requests async behavior")
-                session.edit_config(input_config, _router_make_config_done(respond))
-            else:
-                session.edit_config(input_config, None, _router_make_config_done(respond))
+            _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 201))
+
+    def _router_handle_restconf_put(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        input_config = _router_parse_write_body(ctx, respond)
+        # TODO: per RFC 8040 §4.5, distinguish create (201 + Location) from
+        # replace (204) — currently always returns 204.
+        if input_config is not None:
+            _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 204))
 
     def _router_handle_yang_library_version(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         yl_meta = yl.SRC_DNODE.module_metadata["urn:ietf:params:xml:ns:yang:ietf-yang-library"]
@@ -369,8 +382,8 @@ actor RestconfServer(
 
     def _router_build_restconf_routes(g: http_router.RouteGroup):
         g.get("/*rest_path", _router_handle_restconf_get)
-        g.post("/*rest_path", _router_handle_restconf_write)
-        g.put("/*rest_path", _router_handle_restconf_write)
+        g.post("/*rest_path", _router_handle_restconf_post)
+        g.put("/*rest_path", _router_handle_restconf_put)
         g.delete("/*rest_path", _router_handle_restconf_delete)
 
     root.get("/.well-known/host-meta", _router_handle_host_meta)
