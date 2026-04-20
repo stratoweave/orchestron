@@ -6,6 +6,7 @@ import net
 import xml
 
 import stratoweave.device as swdev
+import stratoweave.ietf_restconf_monitoring as rcmon
 import stratoweave.tmf_api
 import stratoweave.ttt as ttt
 import yang
@@ -39,6 +40,28 @@ def _split_restconf_path(text: str) -> list[str]:
         elif part != '':
             result.append(part)
     return result
+
+
+# Workaround for Acton compiled issues with named tuples as dict values in the
+# module-to-view dispatch map.
+class _RestconfView(value):
+    def __init__(self, schema: yang.schema.DRoot, data: proc() -> yang.gdata.Node):
+        self.schema = schema
+        self.data = data
+
+
+def _build_restconf_view_by_module(views: list[_RestconfView],
+) -> dict[str, _RestconfView]:
+    res = {}
+    for view in views:
+        top_level_modules = set()
+        for child in view.schema.children:
+            top_level_modules.add(child.module)
+        for module in top_level_modules:
+            if module in res:
+                raise ValueError("RESTCONF top-level module {module} is served by multiple views")
+            res[module] = view
+    return res
 
 
 def _path_elements_to_fnode(path_elements: list[yang.data.PathElement]) -> yang.gdata.FNode:
@@ -90,6 +113,71 @@ def _node_with_ns(node: yang.gdata.Node, snode: yang.schema.DNode) -> yang.gdata
     raise ValueError("Unexpected node type for RESTCONF GET serialization: {type(node)}")
 
 
+def _build_restconf_monitoring_gdata(top_schema: yang.schema.DRoot) -> yang.gdata.Node:
+    """Build an ietf-restconf-monitoring datastore view (as gdata).
+    """
+    capabilities = ["urn:ietf:params:restconf:capability:defaults:1.0?basic-mode=explicit"]
+
+    for ns in sorted(top_schema.module_metadata.keys()):
+        meta = top_schema.module_metadata[ns]
+        uri = "{ns}?module={meta.module}"
+        if meta.revision is not None:
+            uri += "&revision={meta.revision}"
+        capabilities.append(uri)
+
+    root = rcmon.root(
+        restconf_state=rcmon.ietf_restconf_monitoring__restconf_state(
+            capabilities=rcmon.ietf_restconf_monitoring__restconf_state__capabilities(
+                capability=capabilities,
+            ),
+        ),
+    )
+    return root.to_gdata()
+
+
+def _respond_restconf_subtree(path_elements: list[yang.data.PathElement], data: yang.gdata.Node, accept: ?str, respond: proc(int, dict[str, str], str) -> None,
+) -> None:
+    if len(path_elements) <= 1:
+        if accept == "application/yang-data+xml":
+            respond(200, {"Content-Type": "application/yang-data+xml"}, data.to_xmlstr())
+        else:
+            respond(200, {"Content-Type": "application/yang-data+json"}, data.to_yang_jsonstr())
+        return
+
+    fnode = _path_elements_to_fnode(path_elements)
+    node = yang.gdata.filter(data, fnode)
+    if node is not None:
+        # Walk down the filtered tree to the target node because we only return the subtree
+        for i in range(1, len(path_elements)):
+            elem = path_elements[i]
+            maybe_list = node  # avoids widening a narrowed loop var (node)
+            if isinstance(maybe_list, yang.gdata.List):
+                # We already filtered the list to the matching entry;
+                # descend into that entry before looking for the next child.
+                if len(maybe_list.elements) == 0:
+                    respond(404, {}, "No data at path")
+                    return
+                node = maybe_list.elements[0]
+            child_id = yang.gdata.Id(elem.node.namespace, elem.node.name)
+            child = node.children.get(child_id)
+            if child is not None:
+                node = child
+            else:
+                respond(404, {}, "No data at path")
+                return
+
+        # Ensure top-level node gdata node in the filtered subtree always has namespace qualifiers
+        target_snode = path_elements[-1].node
+        target_id = yang.gdata.Id(target_snode.namespace, target_snode.name)
+        result = yang.gdata.Container({target_id: _node_with_ns(node, target_snode)})
+        if accept == "application/yang-data+xml":
+            respond(200, {"Content-Type": "application/yang-data+xml"}, result.to_xmlstr())
+        else:
+            respond(200, {"Content-Type": "application/yang-data+json"}, result.to_yang_jsonstr())
+    else:
+        respond(404, {}, "No data at path")
+
+
 class _DeviceMgrWrapper(object):
     # Temporary workaround: actor refs stored through Context.set/get come back
     # as `value`, and Acton does not let us narrow them with isinstance(..., ActorType).
@@ -112,6 +200,16 @@ actor HttpServer(
 ):
     _ROUTER_CTX_DEVICE_KEY = "dev"
     http_log = logging.Logger(log_handler)
+
+    def _top_data():
+        session = cfs.newsession()
+        return session.get()
+
+    _restconf_views: list[(schema: yang.schema.DRoot, data: proc() -> yang.gdata.Node)] = [
+        (schema=rcmon.SRC_DNODE, data=lambda: _build_restconf_monitoring_gdata(top_schema)),
+        (schema=top_schema, data=_top_data),
+    ]
+    _restconf_view_by_module = _build_restconf_view_by_module(_restconf_views)
 
     def _router_make_config_done(respond):
         def config_done(result):
@@ -462,56 +560,28 @@ actor HttpServer(
             return
 
         path_segments = _split_restconf_path(ctx.param("rest_path"))
+        # No query path filter, merge all RESTCONF views.
+        if len(path_segments) == 0:
+            merged = yang.gdata.Container()
+            for i, view in enumerate(_restconf_views):
+                merged = yang.gdata.merge(merged, view.data())
+            _respond_restconf_subtree([], merged, accept, respond)
+            return
 
         try:
-            path_elements = yang.json.resolve_json_path(top_schema, path_segments)
+            top_level = path_segments[0]
+            if ':' not in top_level:
+                raise ValueError("RESTCONF path must start with a module-qualified top-level name")
+            top_level_module = top_level.split(':', 1)[0]
+            if top_level_module not in _restconf_view_by_module:
+                raise ValueError("No RESTCONF view for top-level module {top_level_module}")
+            view = _restconf_view_by_module[top_level_module]
+            path_elements = yang.json.resolve_json_path(view.schema, path_segments)
         except ValueError as e:
             respond(404, {}, str(e))
             return
         else:
-            session = cfs.newsession()
-            cfs_config = session.get()
-
-            if len(path_elements) <= 1:
-                if accept == "application/yang-data+xml":
-                    respond(200, {"Content-Type": "application/yang-data+xml"}, cfs_config.to_xmlstr())
-                else:
-                    respond(200, {"Content-Type": "application/yang-data+json"}, cfs_config.to_yang_jsonstr())
-                return
-
-            # Build FNode filter from resolved path and apply it
-            fnode = _path_elements_to_fnode(path_elements)
-            node = yang.gdata.filter(cfs_config, fnode)
-            if node is not None:
-                # Walk down the filtered tree to the target node because we only return the subtree
-                for i in range(1, len(path_elements)):
-                    elem = path_elements[i]
-                    maybe_list = node  # avoids widening a narrowed loop var (node)
-                    if isinstance(maybe_list, yang.gdata.List):
-                        # We already filtered the list to the matching entry;
-                        # descend into that entry before looking for the next child.
-                        if len(maybe_list.elements) == 0:
-                            respond(404, {}, "No data at path")
-                            return
-                        node = maybe_list.elements[0]
-                    child_id = yang.gdata.Id(elem.node.namespace, elem.node.name)
-                    child = node.children.get(child_id)
-                    if child is not None:
-                        node = child
-                    else:
-                        respond(404, {}, "No data at path")
-                        return
-
-                # Ensure top-level node gdata node in the filtered subtree always has namespace qualifiers
-                target_snode = path_elements[-1].node
-                target_id = yang.gdata.Id(target_snode.namespace, target_snode.name)
-                result = yang.gdata.Container({target_id: _node_with_ns(node, target_snode)})
-                if accept == "application/yang-data+xml":
-                    respond(200, {"Content-Type": "application/yang-data+xml"}, result.to_xmlstr())
-                else:
-                    respond(200, {"Content-Type": "application/yang-data+json"}, result.to_yang_jsonstr())
-            else:
-                respond(404, {}, "No data at path")
+            _respond_restconf_subtree(path_elements, view.data(), accept, respond)
 
     def _router_handle_restconf_delete(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         input_config = yang.json.from_json_path(top_schema, {}, _split_restconf_path(ctx.param("rest_path")), "remove", loose=True)
