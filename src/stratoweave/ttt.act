@@ -1128,7 +1128,7 @@ class _TransformTransactionBase(_Transaction):
     subscribers: list[TaggedPath]                               # Active linked data subscribers (with tag)
     candidate_subscribers: dict[str, list[TaggedPath]]          # As above, per ongoing transaction
     @property
-    build_links: ?(gdata.Node) -> list[TaggedPath]
+    build_links: ?proc(gdata.Node) -> list[TaggedPath]
     fpath: gdata.FNode
 
     me: str
@@ -1378,9 +1378,9 @@ class TransformActorParams:
         self.dev = dev
 
 
-def Transform(function, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(?Path, ?Layer)->Node:
+def Transform(function, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, build_links: ?proc(gdata.Node) -> list[TaggedPath]=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(?Path, ?Layer)->Node:
     proc def _create_transform_node(path, lower):
-        transform = _Transform(path, function, None, lower, log_handler)
+        transform = _Transform(path, function, build_links, lower, log_handler)
         node = Node(transform)
         if act is not None:
             transform.init_dynstate(node, act)
