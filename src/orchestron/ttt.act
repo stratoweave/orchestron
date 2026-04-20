@@ -91,15 +91,53 @@ def merge(cfg_per_src: dict[str,gdata.Node]):
     else:
         raise ValueError("Nothing to merge")
 
+def prune(data: gdata.Node, filt: gdata.FNode):
+    return expect(gdata.prune(data, filt), "ttt.prune")
+
+class TaggedPath():
+    def __init__(self, tag: str, path: gdata.FNode):
+        self.tag = tag
+        self.path = path
+
+extension TaggedPath(Eq):
+    def __eq__(a, b):
+        return a.tag == b.tag and a.path == b.path
+
+class LinkRequest():
+    def __init__(self, tag: str, publisher: gdata.FNode, subscriber: gdata.FNode, status: bool):
+        self.tag = tag
+        self.publisher = publisher
+        self.subscriber = subscriber
+        self.status = status
+    def tail(self):
+        return LinkRequest(self.tag, self.publisher.children[0], self.subscriber, self.status)
+    def vequal(self, s):
+        v = self.publisher.value_match
+        return v == s if isinstance(v, str) else False
+
+class LinkUpdate():
+    def __init__(self, tag: str, publisher: gdata.FNode, subscriber: gdata.FNode, config: gdata.Node):
+        self.tag = tag
+        self.publisher = publisher
+        self.subscriber = subscriber
+        self.config = config
+    def tail(self):
+        return LinkUpdate(self.tag, self.publisher, self.subscriber.children[0], self.config)
+    def vequal(self, s):
+        v = self.subscriber.value_match
+        return v == s if isinstance(v, str) else False
+
 class CfgResult():
     pass
 
 class CfgOk(CfgResult):
     empty: bool
-    linkdiff: list[(str, gdata.FNode, Node, bool)]
-    def __init__(self, empty=False, linkdiff=[]):
+    requests: list[LinkRequest]
+    updates: list[LinkUpdate]
+    def __init__(self, empty=False, requests=[], updates=[]):
         self.empty = empty
-        self.linkdiff = linkdiff
+        self.requests = requests
+        self.updates = updates
     def __str__(self):
         return 'CfgOk(empty=True)' if self.empty else 'CfgOk()'
 
@@ -111,7 +149,7 @@ class CfgError(CfgResult):
 
 
 class Path():
-    def __init__(self, name: str, ns="", parent:?Path=None):
+    def __init__(self, name: str):
         self.name = name
         self.ns = ""
         self.parent = None
@@ -137,11 +175,29 @@ def _format_path(path: ?Path):
     if path is not None:
         par = path.parent
         r1 = _format_path(par)
-        r2 = "{path.name}#{path.ns}" if path.ns and par is not None and path.ns != par.ns else path.name
-        r = r1 + [r2]
-        return r
+        r2 = ["{path.name}#{path.ns}" if path.ns and par is not None and path.ns != par.ns else path.name]
+        return r1 + r2
     else:
         return []
+
+# Reverse the given Path and construct a linear FNode with value-matching key leaves
+def fnode(p: ?Path) -> gdata.FNode:
+    pp, name, children = None, None, []
+    if isinstance(p, PathKey):
+        pp = p.parent
+        children = [ gdata.FNode(k, value_match=v.val) for k,v in p.keyvals.items() if isinstance(v, gdata.Leaf) ]
+    if pp is not None:
+        name = gdata.Id(pp.ns,pp.name)
+        children.append(fnode(pp.parent))
+    return gdata.FNode(name, None, children)
+
+def make_rooted(p: ?Path, tree: gdata.Node):
+    if isinstance(p, PathKey):
+        return make_rooted(p.parent, gdata.List(list(p.keyvals.keys()), [tree]))
+    elif isinstance(p, PathElem):
+        return make_rooted(p.parent, gdata.Container({gdata.Id(p.ns,p.name): tree}))
+    else:
+        return tree
 
 def _db_path(path: ?Path) -> list[value]:
     if path is None:
@@ -218,11 +274,8 @@ actor Transaction(impl: _Transaction):
     def configure(tid, diff, out, force=False, dbuf: ?swdb.Buffer=None):
         return impl.configure(tid, diff, out, force, dbuf)
 
-    def linked_cfg(tid, tag, cfg, out):
-        return impl.linked_cfg(tid, tag, cfg, out)
-
-    def linkage(tid, linkdiff, out):
-        return impl.linkage(tid, linkdiff, out)
+    def linkage(tid, requests, updates, out, dbuf: ?swdb.Buffer=None):
+        return impl.linkage(tid, requests, updates, out, dbuf)
 
     # yield action
     def lock(tid, out, done, dbuf: ?swdb.Buffer=None):
@@ -261,8 +314,7 @@ actor Transaction(impl: _Transaction):
 class _Transaction(object):
     path: ?Path
     configure:  proc(tid: str, diff: dict[str,gdata.Node], out: ?Session, force: ?bool, dbuf: ?swdb.Buffer) -> CfgResult
-    linked_cfg: proc(tid: str, tag: str, cfg: gdata.Node, out: ?Session) -> CfgResult
-    linkage: proc(tid: str, linkdiff: list[(str,gdata.FNode,Node,bool)], out: ?Session) -> CfgResult
+    linkage: proc(tid: str, requests: list[LinkRequest], updates: list[LinkUpdate], out: ?Session, dbuf: ?swdb.Buffer) -> CfgResult
     # yield action
     lock : proc(actself: Transaction, tid: str, out: ?Session, done: action(CfgResult) -> None, dbuf: ?swdb.Buffer) -> None
     lock_cont : proc(actself: Transaction, res: CfgResult) -> None
@@ -270,12 +322,6 @@ class _Transaction(object):
     wait_complete: proc(actself: Transaction, tid: str, done: action(value) -> None) -> None
     wait_complete_cont: proc(actself: Transaction, res: value) -> None
     get: proc() -> gdata.Node
-
-    proc def linked_cfg(self, tid, tag, cfg, out):
-        return CfgOk()
-
-    proc def linkage(self, tid, linkdiff, out):
-        return CfgOk()
 
     def bind_db(self, db: ?lmdb.Db) -> None:
         pass
@@ -419,6 +465,10 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         configure(tid, {'_': diff})
         res = apply(tid, force)
         #print('   #', tid, '(Layer)', name, 'EDIT_CONFIG', 'PREP RESULT', res, err=True)
+        requests, updates = (res.requests, res.updates) if isinstance(res, CfgOk) else ([], [])
+        while requests or updates:
+            res = root.linkage(tid, requests, updates, lower, dbuf)
+            requests, updates = (res.requests, res.updates) if isinstance(res, CfgOk) else ([], [])
         if isinstance(res, CfgOk):
             done_cont = done
             comp_cont = complete
@@ -642,15 +692,28 @@ class _ContainerTransaction(_Transaction):
     def _analyze(self, results):
         self.accum.update(results.items())
         empty = True
+        requests = []
+        updates = []
         for r in results.values():
             if isinstance(r, CfgError):
                 #print('   # ...... (Container)', _format_path(self.path), 'ANALYZE ERROR:', r, err=True)
                 return r
             if isinstance(r, CfgOk):
                 empty = empty and r.empty
-        r = CfgOk(empty)
+                requests += r.requests
+                updates += r.updates
+        r = CfgOk(empty, requests, updates)
         #print('   # ...... (Container)', _format_path(self.path), 'ANALYZE RESULT:', r, err=True)
         return r
+
+    def linkage(self, tid, requests, updates, out, dbuf):
+        results = {}
+        for child,elem in self.elems.items():
+            reqs = [ r.tail() for r in requests if r.publisher.name == child ]
+            upds = [ u.tail() for u in updates if u.subscriber.name == child ]
+            if reqs or upds:
+                results[child] = elem.linkage(tid, reqs, upds, out, dbuf)
+        return self._analyze(results)
 
     # yield action
     def lock(self, actself, tid, out: ?Session, done, dbuf: ?swdb.Buffer=None):
@@ -814,7 +877,7 @@ actor ListState(path, template: proc(?Path, ?Layer) -> Node, ns: ?str, module: ?
 
         return {k: elems[k] for k in keys1}
 
-    def release(tid: str, ok: bool, deletes: set[str]) -> None:
+    def release(tid: str, ok: bool, deletes: set[str]):
         #print('====', tid, path, 'release', ok, 'deletes:', deletes, 'provisional:', provisional, err=True)
         if ok:
             provisional -= active[tid]
@@ -926,14 +989,27 @@ class _ListTransaction(_Transaction):
     def _analyze(self, results: dict[str,CfgResult]):
         self.accum.update(results.items())
         empty = True
+        requests = []
+        updates = []
         for r in results.values():
             if isinstance(r, CfgError):
                 #print('   # ...... (List)', _format_path(self.path), 'ANALYZE ERROR:', r, err=True)
                 return r
             if isinstance(r, CfgOk):
                 empty = empty and r.empty
+                requests += r.requests
+                updates += r.updates
         #print('   # ...... (List)', _format_path(self.path), 'ANALYZE RESULT:', res, err=True)
-        return CfgOk(empty)
+        return CfgOk(empty, requests, updates)
+
+    def linkage(self, tid, requests, updates, out, dbuf):
+        results = {}
+        for key,elem in self.elems.items():
+            reqs = [ r.tail() for r in requests if r.vequal(key) ]
+            upds = [ u.tail() for u in updates if u.vequal(key) ]
+            if reqs or upds:
+                results[key] = elem.linkage(tid, reqs, upds, out, dbuf)
+        return self._analyze(results)
 
     # yield action
     def lock(self, actself, tid, out: ?Session, done, dbuf: ?swdb.Buffer=None):
@@ -1061,20 +1137,24 @@ class _TransformTransactionBase(_Transaction):
     locker: ?str
     pending: list[(Transaction, str, ?Session, action(CfgResult)->None, ?swdb.Buffer)]
 
-    linked: dict[str, gdata.Node]                               # Active linked cfg tree per link tag
-    candidate_linked: dict[str, dict[str, gdata.Node]]          # As above, per ongoing transaction
-    subscriptions: dict[str, gdata.FNode]                       # Active linked data source per link tag
-    candidate_subscriptions: dict[str, dict[str, gdata.FNode]]  # As above, per ongoing transaction
-    subscribers: dict[str, Node]                                # Active linked data receiver per link tag
-    candidate_subscribers: dict[str, dict[str, Node]]           # As above, per ongoing transaction
+    linked: gdata.Node                                          # Active linked cfg tree per link tag
+    candidate_linked: dict[str, gdata.Node]                     # As above, per ongoing transaction
+    subscriptions: list[TaggedPath]                             # Active linked data publishers (with tag)
+    candidate_subscriptions: dict[str, list[TaggedPath]]        # As above, per ongoing transaction
+    subscribers: list[TaggedPath]                               # Active linked data subscribers (with tag)
+    candidate_subscribers: dict[str, list[TaggedPath]]          # As above, per ongoing transaction
+    @property
+    build_links: ?(gdata.Node) -> list[TaggedPath]
+    fpath: gdata.FNode
+
     me: str
     db: ?lmdb.Db
 
-    compute : proc(tid: str, merged: gdata.Node, out: ?Session) -> (?(gdata.Node, ?gdata.Node), ?Exception)
+    compute : proc(tid: str, merged: gdata.Node, out: ?Session) -> (gdata.Node, ?gdata.Node)
     clear : proc(tid: str, out: ?Session) -> None
     finalize : proc(tid: str) -> None
 
-    def __init__(self, path):
+    def __init__(self, path, build_links):
         self.diffs = {}
         self.candidates = {}
         self.essays = {}
@@ -1083,12 +1163,15 @@ class _TransformTransactionBase(_Transaction):
         self.output = None
         self.locker = None
         self.pending = []
-        self.linked = {}
+        self.linked = gdata.Container()
         self.candidate_linked = {}
-        self.subscriptions = {}
+        self.subscriptions = []
         self.candidate_subscriptions = {}
-        self.subscribers = {}
+        self.subscribers = []
         self.candidate_subscribers = {}
+        self.build_links = build_links
+        self.fpath = fnode(path)
+
         self.db = None
         self.me = ''  # Initialize first before any self reference
         self.me = '(src_' + str(self)[-10:-1] + ')'  # Now safe to use str(self)
@@ -1113,34 +1196,84 @@ class _TransformTransactionBase(_Transaction):
             #print('   #', tid, '(Transform)', _format_path(self.path), 'EMPTY CONFIG', err=True)
             self.clear(tid, out)
             self.stage_db_state(tid, dbuf)
-            return CfgOk(empty=True)
+            req = [ LinkRequest(s.tag,s.path,self.fpath,False) for s in self.subscriptions ]
+            return CfgOk(empty=True, requests=req)
         else:
             try:
                 merged = assert_complete(merge(newconf))
                 #print('   #', tid, '(Transform)', _format_path(self.path), 'MERGED\n       ', merged.prsrc(indent=4), err=True)
 #                assert self.validate(merged)
+                req = self.link_requests(tid, merged)
+                upd = self.link_updates(tid, merged)
+                if not req:
+                    linked = self.candidate_linked[tid]
+                    outmem = self.compute(tid, merged, out)                         # TODO: Insert linked as third argument
+                    self.essays[tid] = outmem
+                    newout = outmem.0
+                    #print('   #', tid, '(Transform)', _format_path(self.path), 'OUTPUT\n       ', newout.prsrc(indent=4), err=True)
             except Exception as e:
                 #print('   #', tid, '(Transform)', _format_path(self.path), 'FAILURE', e, err=True)
                 self.stage_db_state(tid, dbuf, clear=True)
                 return CfgError(e)
             else:
-                linked = self.candidate_linked.get_def(tid, self.linked)
-                outmem_opt, err = self.compute(tid, merged, out)    # Insert linked as third argument
-                if err is not None:
-                    return CfgError(err)
-                outmem = expect(outmem_opt, "_TransformTransactionBase.configure: missing compute result")
-                newout, newmem = outmem
-                self.essays[tid] = (newout, newmem)
-                #print('   #', tid, '(Transform)', _format_path(self.path), 'OUTPUT\n       ', newout.prsrc(indent=4), err=True)
                 self.stage_db_state(tid, dbuf)
-                return CfgOk()
+                return CfgOk(requests=req, updates=upd)
         return CfgOk()
 
-    def linked_cfg(self, tid, tag, cfg, out):
+    def link_requests(self, tid, merged):
         if tid not in self.candidate_linked:
-            self.candidate_linked[tid] = {}
-        self.candidate_linked[tid][tag] = cfg
-        return self.configure(tid, {}, out)
+            self.candidate_linked[tid] = self.linked
+        if tid not in self.candidate_subscriptions:
+            self.candidate_subscriptions[tid] = self.subscriptions
+        req = []
+        build_links = self.build_links
+        if build_links is not None:
+            subscriptions = build_links(merged)
+            linked = self.linked
+            for s in subscriptions:
+                if s not in self.subscriptions:
+                    req.append(LinkRequest(s.tag, s.path, self.fpath, True))
+            for s in self.subscriptions:
+                if s not in subscriptions:
+                    req.append(LinkRequest(s.tag, s.path, self.fpath, False))
+                    linked = prune(linked, s.path)
+            self.candidate_subscriptions[tid] = subscriptions
+            self.candidate_linked[tid] = linked
+        return req
+
+    def link_updates(self, tid, merged):
+        if tid not in self.candidate_subscribers:
+            self.candidate_subscribers[tid] = self.subscribers
+        upd: list[LinkUpdate] = []
+        rooted = make_rooted(self.path, merged)
+        for u in self.candidate_subscribers[tid]:
+            upd.append(LinkUpdate(u.tag, self.fpath, u.path, rooted))
+        return upd
+
+    def linkage(self, tid, requests, updates, out, dbuf):
+        if requests:
+            if tid not in self.candidate_subscribers:
+                self.candidate_subscribers[tid] = self.subscribers
+            subscribers = self.candidate_subscribers[tid]
+            for r in requests:
+                if r.status:
+                    subscribers.append(TaggedPath(r.tag, r.subscriber))
+                else:
+                    subscribers = list(filter(lambda s: s.path != r.publisher, subscribers))
+            self.candidate_subscribers[tid] = subscribers
+        ###
+        if updates:
+            if tid not in self.candidate_linked:
+                self.candidate_linked[tid] = self.linked
+            if tid not in self.candidate_subscriptions:
+                self.candidate_subscriptions[tid] = self.subscriptions
+            linked = self.candidate_linked[tid]
+            subscriptions = self.candidate_subscriptions[tid]
+            for u in updates:
+                if TaggedPath(u.tag, u.publisher) in subscriptions:
+                    linked = gdata.merge(linked, u.config)
+            self.candidate_linked[tid] = linked
+        return self.configure(tid, {}, out, True, dbuf)
 
     # yield action
     def lock(self, actself, tid, out: ?Session, done, dbuf: ?swdb.Buffer=None):          # yield await
@@ -1263,7 +1396,7 @@ class TransformActorParams:
 
 def Transform(function, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(?Path, ?Layer)->Node:
     proc def _create_transform_node(path, lower):
-        transform = _Transform(path, function, lower, log_handler)
+        transform = _Transform(path, function, None, lower, log_handler)
         node = Node(transform)
         if act is not None:
             transform.init_dynstate(node, act)
@@ -1271,15 +1404,15 @@ def Transform(function, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?
     return _create_transform_node
 
 class _Transform(_TransformBase):
-    def __init__(self, path, function, lower, log_handler):
+    def __init__(self, path, function, build_links, lower, log_handler):
         self.path = path
-        self.transaction = TransformTransaction(path, function, lower, log_handler)
+        self.transaction = TransformTransaction(path, function, build_links, lower, log_handler)
 
     proc def init_dynstate(self, node, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None):
         self.transaction.init_dynstate(node, act)
 
-def TransformTransaction(path, function, lower, log_handler):
-    return Transaction(_TransformTransaction(path, function, lower, log_handler))
+def TransformTransaction(path, function, build_links, lower, log_handler):
+    return Transaction(_TransformTransaction(path, function, build_links, lower, log_handler))
 
 class _TransformTransaction(_TransformTransactionBase):
     function: TransformFunction
@@ -1288,25 +1421,21 @@ class _TransformTransaction(_TransformTransactionBase):
     node: ?Node
     lower: ?Layer
 
-    def __init__(self, path, function: proc(?logging.Handler) -> TransformFunction, lower: ?Layer, log_handler):
+    def __init__(self, path, function: proc(?logging.Handler) -> TransformFunction, build_links, lower: ?Layer, log_handler):
         self.memory = None
         self.dynstate = None
         self.node = None
-        _TransformTransactionBase.__init__(self, path)
+        _TransformTransactionBase.__init__(self, path, build_links)
         self.function = function(log_handler)
         self.lower = lower
 
     def compute(self, tid, merged, out):
-        try:
-            newoutmem = self.function.transform_wrapper(merged, self.memory, self.dynstate)
-        except Exception as e:
-            return None, e
-        else:
-            newout = newoutmem.0
-            res = difference(self.output, newout)
-            if out is not None and res is not None:
-                out.configure(tid, {self.me: res})
-            return newoutmem, None
+        newoutmem = self.function.transform_wrapper(merged, self.memory, self.dynstate)
+        newout = newoutmem.0
+        res = difference(self.output, newout)
+        if out is not None and res is not None:
+            out.configure(tid, {self.me: res})
+        return newoutmem
 
     def clear(self, tid, out):
         output = self.output
@@ -1425,7 +1554,7 @@ class _RFSTransaction(_TransformTransactionBase):
         self.dynstate = None
         self.node = None
         self.devname = devname_from_rfs_path(path)
-        _TransformTransactionBase.__init__(self, path)
+        _TransformTransactionBase.__init__(self, path, None)
         self.function = function(log_handler)
         self.dev = dev_registry.get(self.devname)
         self.lower = lower
@@ -1441,24 +1570,19 @@ class _RFSTransaction(_TransformTransactionBase):
         newoutmem = (gdata.Container({}), None)
         if len(modset) > 0:
             #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', self.devname, err=True)
-            try:
-                newoutmem = self.function.transform_wrapper(merged, DeviceInfo(self.devname, modset), self.memory, self.dynstate)
-            except Exception as e:
-                #print('####', tid, '(RFSTransform)', _format_path(self.path), 'exception', self.devname, e, err=True)
-                return None, e
-            else:
-                newout = newoutmem.0
-                res = difference(self.output, newout)
-                if isinstance(res, gdata.Container):
-                    dev_content[gdata.Id(NS_stratoweave_device, "config")] = res
+            newoutmem = self.function.transform_wrapper(merged, DeviceInfo(self.devname, modset), self.memory, self.dynstate)
+            newout = newoutmem.0
+            res = difference(self.output, newout)
+            if isinstance(res, gdata.Container):
+                dev_content[gdata.Id(NS_stratoweave_device, "config")] = res
         else:
             #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', ": No device capabilities, skipping RFS transform for", self.devname, err=True)
-            newoutmem = (gdata.Container({}), None)
+            newoutmem = gdata.Container({}), None
 
         if out is not None:
             embedded_res = self.embed(dev_content)
             out.configure(tid, {self.me: embedded_res})
-        return newoutmem, None # TODO: dynstate for RFS?
+        return newoutmem    # TODO: dynstate for RFS?
 
     def clear(self, tid, out):
         output = self.output
@@ -1577,12 +1701,12 @@ class _DeviceTransaction(_TransformTransactionBase):
     logger: logging.Logger
 
     def __init__(self, path, dev_registry: odev.DeviceRegistry, log_handler):
-        _TransformTransactionBase.__init__(self, path)
+        _TransformTransactionBase.__init__(self, path, None)
         self.dev = dev_registry.get(devname_from_device_path(path))
         self.logger = logging.Logger(log_handler)
 
     def compute(self, tid, merged, out):
-        return (merged, None), None
+        return merged, None
 
     def clear(self, tid, out):
         pass
@@ -1624,7 +1748,7 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
         self.cont = None
 
     def compute(self, tid, merged, out):
-        return (merged, None), None
+        return merged, None
 
     def clear(self, tid, out):
         pass
