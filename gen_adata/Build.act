@@ -1,5 +1,5 @@
-name = "stratoweave_gen_dmc"
-fingerprint = 0xdd63efc048f113d3
+name = "stratoweave_gen_adata"
+fingerprint = 0x7d1c1e932a731ef0
 dependencies = {
     "yang": (
         repo_url="https://github.com/stratoweave/acton-yang.git",

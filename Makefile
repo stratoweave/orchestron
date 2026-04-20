@@ -1,25 +1,30 @@
+GENERATED_ACT := src/stratoweave/device_meta_config.act src/stratoweave/ietf_restconf_monitoring.act
+
 .PHONY: build
-build: src/stratoweave/device_meta_config.act
+build: $(GENERATED_ACT)
 	acton build $(DEP_OVERRIDES)
 
 .PHONY: build-ldep
-build-ldep: src/stratoweave/device_meta_config.act
+build-ldep: $(GENERATED_ACT)
 	$(MAKE) build DEP_OVERRIDES="--dep yang=../acton-yang --dep netconf=../netconf --dep http_router=../http-router --dep actmf=../actmf"
 
 .PHONY: gen
-gen: src/stratoweave/device_meta_config.act
+gen: $(GENERATED_ACT)
 
 .PHONY: gen-ldep
 gen-ldep: DEP_OVERRIDES=--dep yang=../acton-yang
-gen-ldep: src/stratoweave/device_meta_config.act
+gen-ldep: $(GENERATED_ACT)
 	$(MAKE) --always-make gen DEP_OVERRIDES="--dep yang=../acton-yang"
 
-src/stratoweave/device_meta_config.act: gen_dmc/out/bin/gen_dmc src/stratoweave/yang.act
-	gen_dmc/out/bin/gen_dmc
+.NOTPARALLEL: $(GENERATED_ACT)
+$(GENERATED_ACT): gen_adata/out/bin/gen_adata src/stratoweave/yang.act
+	@if [ ! -f "$@" ] || [ "$@" -ot gen_adata/out/bin/gen_adata ] || [ "$@" -ot src/stratoweave/yang.act ]; then \
+		gen_adata/out/bin/gen_adata; \
+	fi
 
-gen_dmc/out/bin/gen_dmc: gen_dmc/src/gen_dmc.act src/stratoweave/yang.act
-	cp -a src/stratoweave/yang.act gen_dmc/src/swyang.act
-	cd gen_dmc && acton build $(subst ../,../../,$(DEP_OVERRIDES))
+gen_adata/out/bin/gen_adata: gen_adata/src/gen_adata.act src/stratoweave/yang.act
+	cp -a src/stratoweave/yang.act gen_adata/src/swyang.act
+	cd gen_adata && acton build $(subst ../,../../,$(DEP_OVERRIDES))
 
 .PHONY: test
 test:
@@ -32,7 +37,7 @@ test-ldep:
 .PHONY: pkg-upgrade
 pkg-upgrade:
 	acton pkg upgrade
-	cd gen_dmc && acton pkg upgrade
+	cd gen_adata && acton pkg upgrade
 	cd minisys && acton pkg upgrade
 	cd minisys/gen && acton pkg upgrade
 

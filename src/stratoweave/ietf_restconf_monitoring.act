@@ -1,0 +1,1697 @@
+import base64
+import json
+import xml
+import yang
+import yang.adata
+import yang.gdata
+import yang.xml
+import yang.xpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0 = DContainer(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='restconf-state', config=False, description='Contains RESTCONF protocol monitoring information.', presence=False, children=[
+    DContainer(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='capabilities', config=False, description='Contains a list of protocol capability URIs.', presence=False, children=[
+        DLeafList(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='capability', config=False, description='A RESTCONF protocol capability URI.', min_elements=0, ordered_by='system', type_=DTypeString(name='inet:uri', description="The uri type represents a Uniform Resource Identifier\n(URI) as defined by STD 66.\n\nObjects using the uri type MUST be in US-ASCII encoding,\nand MUST be normalized as described by RFC 3986 Sections\n6.2.1, 6.2.2.1, and 6.2.2.2.  All unnecessary\npercent-encoding is removed, and all case-insensitive\ncharacters are set to lowercase except for hexadecimal\ndigits, which are normalized to uppercase as described in\nSection 6.2.2.1.\n\nThe purpose of this normalization is to help provide\nunique URIs.  Note that this normalization is not\nsufficient to provide uniqueness.  Two URIs that are\ntextually distinct after this normalization may still be\nequivalent.\n\nObjects using the uri type may restrict the schemes that\nthey permit.  For example, 'data:' and 'urn:' schemes\nmight not be appropriate.\n\nA zero-length URI is not a valid URI.  This can be used to\nexpress 'URI absent' where required.\n\nIn the value set and its semantics, this type is equivalent\nto the Uri SMIv2 textual convention defined in RFC 5017.", reference='RFC 3986: Uniform Resource Identifier (URI): Generic Syntax\nRFC 3305: Report from the Joint W3C/IETF URI Planning Interest\n          Group: Uniform Resource Identifiers (URIs), URLs,\n          and Uniform Resource Names (URNs): Clarifications\n          and Recommendations\nRFC 5017: MIB Textual Conventions for Uniform Resource\n          Identifiers (URIs)', exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DContainer(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='streams', config=False, description='Container representing the notification event streams\nsupported by the server.', presence=False, reference='RFC 5277, Section 3.4, <streams> element.', children=[
+        DList(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='stream', key=['name'], config=False, description='Each entry describes an event stream supported by\nthe server.', min_elements=0, ordered_by='system', children=[
+            DLeaf(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='name', config=False, description='The stream name.', mandatory=False, reference='RFC 5277, Section 3.4, <name> element.', type_=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='description', config=False, description='Description of stream content.', mandatory=False, reference='RFC 5277, Section 3.4, <description> element.', type_=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='replay-support', config=False, description="Indicates if replay buffer is supported for this stream.\nIf 'true', then the server MUST support the 'start-time'\nand 'stop-time' query parameters for this stream.", default='false', mandatory=False, reference='RFC 5277, Section 3.4, <replaySupport> element.', type_=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+            DLeaf(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='replay-log-creation-time', config=False, description='Indicates the time the replay log for this stream\nwas created.', mandatory=False, reference='RFC 5277, Section 3.4, <replayLogCreationTime>\nelement.', type_=DTypeString(name='yang:date-and-time', description="The date-and-time type is a profile of the ISO 8601\nstandard for representation of dates and times using the\nGregorian calendar.  The profile is defined by the\ndate-time production in Section 5.6 of RFC 3339 and the\nupdate defined in Section 2 of RFC 9557.  The value of\n60 for seconds is allowed only in the case of leap seconds.\n\nThe date-and-time type is compatible with the dateTime XML\nschema dateTime type with the following notable exceptions:\n\n(a) The date-and-time type does not allow negative years.\n\n(b) The time-offset Z indicates that the date-and-time\n    value is reported in UTC and that the local time zone\n    reference point is unknown.  The time-offset +00:00\n    indicates that the date-and-time value is reported in\n    UTC and that the local time zone reference point is UTC\n    (see Section 2 of RFC 9557).\n\nThis type is not equivalent to the DateAndTime textual\nconvention of the SMIv2 since RFC 3339 uses a different\nseparator between full-date and full-time and provides\nhigher resolution of time-secfrac.\n\nThe canonical format for date-and-time values with a known\ntime zone uses a numeric time zone offset that is calculated\nusing the device's configured known offset to UTC time.  A\nchange of the device's offset to UTC time will cause\ndate-and-time values to change accordingly.  Such changes\nmight happen periodically if a server automatically follows\ndaylight saving time (DST) time zone offset changes.  The\ncanonical format for date-and-time values reported in UTC\nwith an unknown local time zone offset SHOULD use the\ntime-offset Z and MAY use -00:00 for backwards\ncompatibility.", reference='ISO 8601: Data elements and interchange formats -- Information\n          interchange -- Representation of dates and times\nRFC 3339: Date and Time on the Internet: Timestamps\nRFC 9557: Date and Time on the Internet: Timestamps\n          with Additional Information\nRFC 2579: Textual Conventions for SMIv2\nXSD-TYPES: XML Schema Definition Language (XSD) 1.1\n           Part 2: Datatypes', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='[0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?', pcre='^([0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?)$', invert=False)]), when='../replay-support'),
+            DList(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='access', key=['encoding'], config=False, description="The server will create an entry in this list for each\nencoding format that is supported for this stream.\nThe media type 'text/event-stream' is expected\nfor all event streams.  This list identifies the\nsubtypes supported for this stream.", min_elements=1, ordered_by='system', children=[
+                DLeaf(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='encoding', config=False, description="This is the secondary encoding format within the\n'text/event-stream' encoding used by all streams.\nThe type 'xml' is supported for XML encoding.\nThe type 'json' is supported for JSON encoding.", mandatory=False, type_=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+                DLeaf(module='ietf-restconf-monitoring', namespace='urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring', prefix='rcmon', name='location', config=False, description='Contains a URL that represents the entry point\nfor establishing notification delivery via\nserver-sent events.', mandatory=True, type_=DTypeString(name='inet:uri', description="The uri type represents a Uniform Resource Identifier\n(URI) as defined by STD 66.\n\nObjects using the uri type MUST be in US-ASCII encoding,\nand MUST be normalized as described by RFC 3986 Sections\n6.2.1, 6.2.2.1, and 6.2.2.2.  All unnecessary\npercent-encoding is removed, and all case-insensitive\ncharacters are set to lowercase except for hexadecimal\ndigits, which are normalized to uppercase as described in\nSection 6.2.2.1.\n\nThe purpose of this normalization is to help provide\nunique URIs.  Note that this normalization is not\nsufficient to provide uniqueness.  Two URIs that are\ntextually distinct after this normalization may still be\nequivalent.\n\nObjects using the uri type may restrict the schemes that\nthey permit.  For example, 'data:' and 'urn:' schemes\nmight not be appropriate.\n\nA zero-length URI is not a valid URI.  This can be used to\nexpress 'URI absent' where required.\n\nIn the value set and its semantics, this type is equivalent\nto the Uri SMIv2 textual convention defined in RFC 5017.", reference='RFC 3986: Uniform Resource Identifier (URI): Generic Syntax\nRFC 3305: Report from the Joint W3C/IETF URI Planning Interest\n          Group: Uniform Resource Identifiers (URIs), URLs,\n          and Uniform Resource Names (URNs): Clarifications\n          and Recommendations\nRFC 5017: MIB Textual Conventions for Uniform Resource\n          Identifiers (URIs)', exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+            ])
+        ])
+    ])
+])
+
+SRC_DNODE = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[],
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring':('ietf-restconf-monitoring', '2017-01-26')},
+)
+
+def src_yang():
+    res = []
+    res.append(r"""module ietf-restconf-monitoring {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring";
+  prefix "rcmon";
+
+  import ietf-yang-types { prefix yang; }
+  import ietf-inet-types { prefix inet; }
+
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netconf/>
+     WG List:  <mailto:netconf@ietf.org>
+
+     Author:   Andy Bierman
+               <mailto:andy@yumaworks.com>
+
+     Author:   Martin Bjorklund
+               <mailto:mbj@tail-f.com>
+
+     Author:   Kent Watsen
+               <mailto:kwatsen@juniper.net>";
+
+  description
+    "This module contains monitoring information for the
+     RESTCONF protocol.
+
+     Copyright (c) 2017 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Simplified BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (http://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 8040; see
+     the RFC itself for full legal notices.";
+
+  revision 2017-01-26 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 8040: RESTCONF Protocol.";
+  }
+
+  container restconf-state {
+    config false;
+    description
+      "Contains RESTCONF protocol monitoring information.";
+
+    container capabilities {
+      description
+        "Contains a list of protocol capability URIs.";
+
+      leaf-list capability {
+        type inet:uri;
+        description
+          "A RESTCONF protocol capability URI.";
+      }
+    }
+
+    container streams {
+      description
+        "Container representing the notification event streams
+         supported by the server.";
+       reference
+         "RFC 5277, Section 3.4, <streams> element.";
+
+      list stream {
+        key name;
+        description
+          "Each entry describes an event stream supported by
+           the server.";
+
+        leaf name {
+          type string;
+          description
+            "The stream name.";
+          reference
+            "RFC 5277, Section 3.4, <name> element.";
+        }
+
+        leaf description {
+          type string;
+          description
+            "Description of stream content.";
+          reference
+            "RFC 5277, Section 3.4, <description> element.";
+        }
+
+        leaf replay-support {
+          type boolean;
+          default false;
+          description
+            "Indicates if replay buffer is supported for this stream.
+             If 'true', then the server MUST support the 'start-time'
+             and 'stop-time' query parameters for this stream.";
+          reference
+            "RFC 5277, Section 3.4, <replaySupport> element.";
+        }
+
+        leaf replay-log-creation-time {
+          when "../replay-support" {
+            description
+              "Only present if notification replay is supported.";
+          }
+          type yang:date-and-time;
+          description
+            "Indicates the time the replay log for this stream
+             was created.";
+          reference
+            "RFC 5277, Section 3.4, <replayLogCreationTime>
+             element.";
+        }
+
+        list access {
+          key encoding;
+          min-elements 1;
+          description
+            "The server will create an entry in this list for each
+             encoding format that is supported for this stream.
+             The media type 'text/event-stream' is expected
+             for all event streams.  This list identifies the
+             subtypes supported for this stream.";
+
+          leaf encoding {
+            type string;
+            description
+              "This is the secondary encoding format within the
+               'text/event-stream' encoding used by all streams.
+               The type 'xml' is supported for XML encoding.
+               The type 'json' is supported for JSON encoding.";
+          }
+
+          leaf location {
+            type inet:uri;
+            mandatory true;
+            description
+              "Contains a URL that represents the entry point
+               for establishing notification delivery via
+               server-sent events.";
+          }
+        }
+      }
+    }
+  }
+
+}
+""")
+    res.append(r"""module ietf-yang-types {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-yang-types";
+  prefix yang;
+
+  organization
+    "IETF Network Modeling (NETMOD) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Editor:   JÃ¼rgen SchÃ¶nwÃ¤lder
+               <mailto:jschoenwaelder@constructor.university>";
+  description
+    "This module contains a collection of generally useful derived
+     YANG data types.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9911;
+     see the RFC itself for full legal notices.";
+
+  revision 2025-12-22 {
+    description
+      "This revision adds the following new data types:
+       - yang:date
+       - yang:date-no-zone
+       - yang:time
+       - yang:time-no-zone
+       - yang:hours32
+       - yang:minutes32
+       - yang:seconds32
+       - yang:centiseconds32
+       - yang:milliseconds32
+       - yang:microseconds32
+       - yang:microseconds64
+       - yang:nanoseconds32
+       - yang:nanoseconds64
+       - yang:language-tag
+       The yang-identifier definition has been aligned with YANG
+       1.1, and types representing time support the representation
+       of leap seconds.  The representation of time zone offsets
+       has been aligned with RFC 9557.  Several description and
+       pattern statements have been improved.";
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  revision 2013-07-15 {
+    description
+      "This revision adds the following new data types:
+       - yang:yang-identifier
+       - yang:hex-string
+       - yang:uuid
+       - yang:dotted-quad";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  revision 2010-09-24 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of counter and gauge types ***/
+
+  typedef counter32 {
+    type uint32;
+    description
+      "The counter32 type represents a non-negative integer
+       that monotonically increases until it reaches a
+       maximum value of 2^32-1 (4294967295 decimal), when it
+       wraps around and starts increasing again from zero.
+
+       Counters have no defined 'initial' value, and thus, a
+       single value of a counter has (in general) no information
+       content.  Discontinuities in the monotonically increasing
+       value normally occur at re-initialization of the
+       management system and at other times as specified in the
+       description of a schema node using this type.  If
+       discontinuities occur at times other than re-initialization
+       (for example, at the instantiation of a schema node of type
+       counter32), then a corresponding schema node should be
+       defined, with an appropriate type, to indicate the last
+       discontinuity.
+
+       The counter32 type should not be used for configuration
+       schema nodes.  A default statement SHOULD NOT be used in
+       combination with the type counter32.
+
+       In the value set and its semantics, this type is equivalent
+       to the Counter32 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef zero-based-counter32 {
+    type counter32;
+    default "0";
+    description
+      "The zero-based-counter32 type represents a counter32
+       that has the defined 'initial' value zero.
+
+       A data tree node using this type will be set to zero (0)
+       on creation and will thereafter increase monotonically until
+       it reaches a maximum value of 2^32-1 (4294967295 decimal),
+       when it wraps around and starts increasing again from zero.
+
+       Provided that an application discovers a new data tree node
+       using this type within the minimum time to wrap, it can use
+       the 'initial' value as a delta.  It is important for a
+       management station to be aware of this minimum time and the
+       actual time between polls, and to discard data if the actual
+       time is too long or there is no defined minimum time.
+
+       In the value set and its semantics, this type is equivalent
+       to the ZeroBasedCounter32 textual convention of the SMIv2.";
+    reference
+      "RFC 4502: Remote Network Monitoring Management Information
+                 Base Version 2";
+  }
+
+  typedef counter64 {
+    type uint64;
+    description
+      "The counter64 type represents a non-negative integer
+       that monotonically increases until it reaches a
+       maximum value of 2^64-1 (18446744073709551615 decimal),
+       when it wraps around and starts increasing again from zero.
+
+       Counters have no defined 'initial' value, and thus, a
+       single value of a counter has (in general) no information
+       content.  Discontinuities in the monotonically increasing
+       value normally occur at re-initialization of the
+       management system and at other times as specified in the
+       description of a schema node using this type.  If
+       discontinuities occur at times other than re-initialization
+       (for example, at the instantiation of a schema node of type
+       counter64), then a corresponding schema node should be
+       defined, with an appropriate type, to indicate the last
+       discontinuity.
+
+       The counter64 type should not be used for configuration
+       schema nodes.  A default statement SHOULD NOT be used in
+       combination with the type counter64.
+
+       In the value set and its semantics, this type is equivalent
+       to the Counter64 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef zero-based-counter64 {
+    type counter64;
+    default "0";
+    description
+      "The zero-based-counter64 type represents a counter64 that
+       has the defined 'initial' value zero.
+
+       A data tree node using this type will be set to zero (0)
+       on creation and will thereafter increase monotonically until
+       it reaches a maximum value of 2^64-1 (18446744073709551615
+       decimal), when it wraps around and starts increasing again
+       from zero.
+
+       Provided that an application discovers a new data tree node
+       using this type within the minimum time to wrap, it can use
+       the 'initial' value as a delta.  It is important for a
+       management station to be aware of this minimum time and the
+       actual time between polls, and to discard data if the actual
+       time is too long or there is no defined minimum time.
+
+       In the value set and its semantics, this type is equivalent
+       to the ZeroBasedCounter64 textual convention of the SMIv2.";
+    reference
+      "RFC 2856: Textual Conventions for Additional High Capacity
+                 Data Types";
+  }
+
+  typedef gauge32 {
+    type uint32;
+    description
+      "The gauge32 type represents a non-negative integer, which
+       may increase or decrease, but shall never exceed a maximum
+       value, nor fall below a minimum value.  The maximum value
+       cannot be greater than 2^32-1 (4294967295 decimal), and
+       the minimum value cannot be smaller than 0.  The value of
+       a gauge32 has its maximum value whenever the information
+       being modeled is greater than or equal to its maximum
+       value, and has its minimum value whenever the information
+       being modeled is smaller than or equal to its minimum value.
+       If the information being modeled subsequently decreases below
+       the maximum value, the gauge32 also decreases; likewise, if
+       the information increases above the minimum value, the
+       gauge32 also increases.
+
+       In the value set and its semantics, this type is equivalent
+       to the Gauge32 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef gauge64 {
+    type uint64;
+    description
+      "The gauge64 type represents a non-negative integer, which
+       may increase or decrease, but shall never exceed a maximum
+       value, nor fall below a minimum value.  The maximum value
+       cannot be greater than 2^64-1 (18446744073709551615), and
+       the minimum value cannot be smaller than 0.  The value of
+       a gauge64 has its maximum value whenever the information
+       being modeled is greater than or equal to its maximum
+       value, and has its minimum value whenever the information
+       being modeled is smaller than or equal to its minimum value.
+       If the information being modeled subsequently decreases
+       below (increases above) the maximum (minimum) value, the
+       gauge64 also decreases (increases).
+
+       In the value set and its semantics, this type is equivalent
+       to the CounterBasedGauge64 SMIv2 textual convention defined
+       in RFC 2856";
+    reference
+      "RFC 2856: Textual Conventions for Additional High Capacity
+                 Data Types";
+  }
+
+  /*** collection of identifier-related types ***/
+
+  typedef object-identifier {
+    type string {
+      pattern '(([0-1](\.[1-3]?[0-9]))|(2\.(0|([1-9][0-9]*))))'
+            + '(\.(0|([1-9][0-9]*)))*';
+    }
+    description
+      "The object-identifier type represents administratively
+       assigned names in a registration-hierarchical-name tree.
+
+       Values of this type are denoted as a sequence of numerical
+       non-negative sub-identifier values.  Each sub-identifier
+       value MUST NOT exceed 2^32-1 (4294967295).  Sub-identifiers
+       are separated by single dots and without any intermediate
+       whitespace.
+
+       The ASN.1 standard restricts the value space of the first
+       sub-identifier to 0, 1, or 2.  Furthermore, the value space
+       of the second sub-identifier is restricted to the range
+       0 to 39 if the first sub-identifier is 0 or 1.  Finally,
+       the ASN.1 standard requires that an object identifier
+       has always at least two sub-identifiers.  The pattern
+       captures these restrictions.
+
+       Although the number of sub-identifiers is not limited,
+       module designers should realize that there may be
+       implementations that stick with the SMIv2 limit of 128
+       sub-identifiers.
+
+       This type is a superset of the SMIv2 OBJECT IDENTIFIER type
+       since it is not restricted to 128 sub-identifiers.  Hence,
+       this type SHOULD NOT be used to represent the SMIv2 OBJECT
+       IDENTIFIER type; the object-identifier-128 type SHOULD be
+       used instead.";
+    reference
+      "ISO 9834-1: Information technology -- Procedures for the
+       operation of object identifier registration authorities --
+       Part 1: General procedures and top arcs of the international
+       object identifier tree";
+  }
+
+  typedef object-identifier-128 {
+    type object-identifier {
+      pattern '[0-9]*(\.[0-9]*){1,127}';
+    }
+    description
+      "This type represents object-identifiers restricted to 128
+       sub-identifiers.
+
+       In the value set and its semantics, this type is equivalent
+       to the OBJECT IDENTIFIER type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  /*** collection of types related to date and time ***/
+
+  typedef date-and-time {
+    type string {
+      pattern
+        '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])'
+      + 'T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?'
+      + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The date-and-time type is a profile of the ISO 8601
+       standard for representation of dates and times using the
+       Gregorian calendar.  The profile is defined by the
+       date-time production in Section 5.6 of RFC 3339 and the
+       update defined in Section 2 of RFC 9557.  The value of
+       60 for seconds is allowed only in the case of leap seconds.
+
+       The date-and-time type is compatible with the dateTime XML
+       schema dateTime type with the following notable exceptions:
+
+       (a) The date-and-time type does not allow negative years.
+
+       (b) The time-offset Z indicates that the date-and-time
+           value is reported in UTC and that the local time zone
+           reference point is unknown.  The time-offset +00:00
+           indicates that the date-and-time value is reported in
+           UTC and that the local time zone reference point is UTC
+           (see Section 2 of RFC 9557).
+
+       This type is not equivalent to the DateAndTime textual
+       convention of the SMIv2 since RFC 3339 uses a different
+       separator between full-date and full-time and provides
+       higher resolution of time-secfrac.
+
+       The canonical format for date-and-time values with a known
+       time zone uses a numeric time zone offset that is calculated
+       using the device's configured known offset to UTC time.  A
+       change of the device's offset to UTC time will cause
+       date-and-time values to change accordingly.  Such changes
+       might happen periodically if a server automatically follows
+       daylight saving time (DST) time zone offset changes.  The
+       canonical format for date-and-time values reported in UTC
+       with an unknown local time zone offset SHOULD use the
+       time-offset Z and MAY use -00:00 for backwards
+       compatibility.";
+    reference
+      "ISO 8601: Data elements and interchange formats -- Information
+                 interchange -- Representation of dates and times
+       RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       RFC 2579: Textual Conventions for SMIv2
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef date {
+    type string {
+      pattern '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])'
+            + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The date type represents a time-interval of the length
+       of a day, i.e., 24 hours.  It includes an optional time
+       zone offset.
+
+       The date type is compatible with the XML schema date
+       type with the following notable exceptions:
+
+       (a) The date type does not allow negative years.
+
+       (b) The time-offset Z indicates that the date value is
+           reported in UTC and that the local time zone reference
+           point is unknown.  The time-offset +00:00 indicates that
+           the date value is reported in UTC and that the local
+           time zone reference point is UTC (see Section 2 of
+           RFC 9557).
+
+       The canonical format for date values with a known time
+       zone uses a numeric time zone offset that is calculated using
+       the device's configured known offset to UTC time.  A change of
+       the device's offset to UTC time will cause date values
+       to change accordingly.  Such changes might happen periodically
+       if a server automatically follows daylight saving time
+       (DST) time zone offset changes.  The canonical format for
+       date values reported in UTC with an unknown local time zone
+       offset uses the time-offset Z.";
+    reference
+      "RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef date-no-zone {
+    type date {
+      pattern '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])';
+    }
+    description
+      "The date-no-zone type represents a date without the optional
+       time zone offset information.";
+  }
+
+  typedef time {
+    type string {
+      pattern
+        '(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?'
+      + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The time type represents an instance of time of zero duration
+       that recurs every day.  It includes an optional time zone
+       offset.  The value of 60 for seconds is allowed only in the
+       case of leap seconds.
+
+       The time type is compatible with the XML schema time
+       type with the following notable exception:
+
+       (a) The time-offset Z indicates that the time value is
+           reported in UTC and that the local time zone reference
+           point is unknown.  The time-offset +00:00 indicates that
+           the time value is reported in UTC and that the local
+           time zone reference point is UTC (see Section 2 of
+           RFC 9557).
+
+       The canonical format for time values with a known time
+       zone uses a numeric time zone offset that is calculated using
+       the device's configured known offset to UTC time.  A change of
+       the device's offset to UTC time will cause time values
+       to change accordingly.  Such changes might happen periodically
+       if a server automatically follows daylight saving time
+       (DST) time zone offset changes.  The canonical format for
+       time values reported in UTC with an unknown local time zone
+       offset uses the time-offset Z.";
+    reference
+      "RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef time-no-zone {
+    type time {
+      pattern
+        '(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?';
+    }
+    description
+      "The time-no-zone type represents a time without the optional
+       time zone offset information.";
+  }
+
+  typedef hours32 {
+    type int32;
+    units "hours";
+    description
+      "A period of time measured in units of hours.
+
+       The maximum time period that can be expressed is in the
+       range [-89478485 days 08:00:00 to 89478485 days 07:00:00].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef minutes32 {
+    type int32;
+    units "minutes";
+    description
+      "A period of time measured in units of minutes.
+
+       The maximum time period that can be expressed is in the
+       range [-1491308 days 2:08:00 to 1491308 days 2:07:00].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef seconds32 {
+    type int32;
+    units "seconds";
+    description
+      "A period of time measured in units of seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-24855 days 03:14:08 to 24855 days 03:14:07].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef centiseconds32 {
+    type int32;
+    units "centiseconds";
+    description
+      "A period of time measured in units of 10^-2 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-248 days 13:13:56 to 248 days 13:13:56].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef milliseconds32 {
+    type int32;
+    units "milliseconds";
+    description
+      "A period of time measured in units of 10^-3 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-24 days 20:31:23 to 24 days 20:31:23].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef microseconds32 {
+    type int32;
+    units "microseconds";
+    description
+      "A period of time measured in units of 10^-6 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-00:35:47 to 00:35:47].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef microseconds64 {
+    type int64;
+    units "microseconds";
+    description
+      "A period of time measured in units of 10^-6 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-106751991 days 04:00:54 to 106751991 days 04:00:54].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef nanoseconds32 {
+    type int32;
+    units "nanoseconds";
+    description
+      "A period of time measured in units of 10^-9 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-00:00:02 to 00:00:02].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef nanoseconds64 {
+    type int64;
+    units "nanoseconds";
+    description
+      "A period of time measured in units of 10^-9 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-106753 days 23:12:44 to 106752 days 0:47:16].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef timeticks {
+    type uint32;
+    description
+      "The timeticks type represents a non-negative integer that
+       represents the time, modulo 2^32 (4294967296 decimal), in
+       hundredths of a second between two epochs.  When a schema
+       node is defined that uses this type, the description of
+       the schema node identifies both of the reference epochs.
+
+       In the value set and its semantics, this type is equivalent
+       to the TimeTicks type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef timestamp {
+    type timeticks;
+    description
+      "The timestamp type represents the value of an associated
+       timeticks schema node instance at which a specific occurrence
+       happened.  The specific occurrence must be defined in the
+       description of any schema node defined using this type.  When
+       the specific occurrence occurred prior to the last time the
+       associated timeticks schema node instance was zero, then the
+       timestamp value is zero.
+
+       Note that this requires all timestamp values to be reset to
+       zero when the value of the associated timeticks schema node
+       instance reaches 497+ days and wraps around to zero.
+
+       The associated timeticks schema node must be specified
+       in the description of any schema node using this type.
+
+       In the value set and its semantics, this type is equivalent
+       to the TimeStamp textual convention of the SMIv2.";
+    reference
+      "RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  /*** collection of generic address types ***/
+
+  typedef phys-address {
+    type string {
+      pattern '([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?';
+    }
+    description
+      "Represents media- or physical-level addresses represented
+       as a sequence of octets, each octet represented by two
+       hexadecimal numbers.  Octets are separated by colons.  The
+       canonical representation uses lowercase characters.
+
+       In the value set and its semantics, this type is equivalent
+       to the PhysAddress textual convention of the SMIv2.";
+    reference
+      "RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  typedef mac-address {
+    type string {
+      pattern '[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}';
+    }
+    description
+      "The mac-address type represents a 48-bit IEEE 802 Media
+       Access Control (MAC) address.  The canonical representation
+       uses lowercase characters.  Note that there are IEEE 802 MAC
+       addresses with a different length that this type cannot
+       represent.  The phys-address type may be used to represent
+       physical addresses of varying length.
+
+       In the value set and its semantics, this type is equivalent
+       to the MacAddress textual convention of the SMIv2.";
+    reference
+      "IEEE 802: IEEE Standard for Local and Metropolitan Area
+                 Networks: Overview and Architecture
+       RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  /*** collection of XML-specific types ***/
+
+  typedef xpath1.0 {
+    type string;
+    description
+      "This type represents an XPATH 1.0 expression.
+
+       When a schema node is defined that uses this type, the
+       description of the schema node MUST specify the XPath
+       context in which the XPath expression is evaluated.";
+    reference
+      "XPATH: XML Path Language (XPath) Version 1.0";
+  }
+
+  /*** collection of string types ***/
+
+  typedef hex-string {
+    type string {
+      pattern '([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?';
+    }
+    description
+      "A hexadecimal string with octets represented as hex digits
+       separated by colons.  The canonical representation uses
+       lowercase characters.";
+  }
+
+  typedef uuid {
+    type string {
+      pattern '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+            + '[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+    }
+    description
+      "A Universally Unique IDentifier in the string representation
+       defined in RFC 9562.  The canonical representation uses
+       lowercase characters.
+
+       The following is an example of a UUID in string
+       representation:
+       f81d4fae-7dec-11d0-a765-00a0c91e6bf6.
+      ";
+    reference
+      "RFC 9562: Universally Unique IDentifiers (UUIDs)";
+  }
+
+  typedef dotted-quad {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      + '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])';
+    }
+    description
+      "An unsigned 32-bit number expressed in the dotted-quad
+       notation, i.e., four octets written as decimal numbers
+       and separated with the '.' (full stop) character.";
+  }
+
+  typedef language-tag {
+    type string;
+    description
+      "A language tag according to RFC 5646 (BCP 47).  The
+       canonical representation uses lowercase characters.
+
+       Values of this type must be well-formed language tags,
+       in conformance with the definition of well-formed tags
+       in BCP 47.  Implementations MAY further limit the values
+       they accept to those permitted by a 'validating'
+       processor, as defined in BCP 47.
+
+       The canonical representation of values of this type is
+       aligned with the SMIv2 LangTag textual convention for
+       language tags fitting the length constraints imposed
+       by the LangTag textual convention.";
+    reference
+      "RFC 5646: Tags for Identifying Languages
+       RFC 5131: A MIB Textual Convention for Language Tags";
+  }
+
+  /*** collection of YANG-specific types ***/
+
+  typedef yang-identifier {
+    type string {
+      length "1..max";
+      pattern '[a-zA-Z_][a-zA-Z0-9\-_.]*';
+    }
+    description
+      "A YANG identifier string as defined by the 'identifier'
+       rule in Section 14 of RFC 7950.  An identifier must
+       start with an alphabetic character or an underscore
+       followed by an arbitrary sequence of alphabetic or
+       numeric characters, underscores, hyphens, or dots.
+
+       This definition conforms to YANG 1.1 defined in RFC
+       7950.  In RFC 6991, this definition excluded
+       all identifiers starting with any possible combination
+       of the lowercase or uppercase character sequence 'xml',
+       as required by YANG 1 defined in RFC 6020.  If this type
+       is used in a YANG 1 context, then this restriction still
+       applies.";
+    reference
+      "RFC 7950: The YANG 1.1 Data Modeling Language
+       RFC 6991: Common YANG Data Types
+       RFC 6020: YANG - A Data Modeling Language for the
+                 Network Configuration Protocol (NETCONF)";
+  }
+}
+""")
+    res.append(r"""module ietf-inet-types {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
+  prefix "inet";
+
+  organization
+   "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netmod/>
+    WG List:  <mailto:netmod@ietf.org>
+
+    WG Chair: David Kessens
+              <mailto:david.kessens@nsn.com>
+
+    WG Chair: Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>
+
+    Editor:   Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>";
+
+  description
+   "This module contains a collection of generally useful derived
+    YANG data types for Internet addresses and related things.
+
+    Copyright (c) 2013 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC 6991; see
+    the RFC itself for full legal notices.";
+
+  revision 2013-07-15 {
+    description
+     "This revision adds the following new data types:
+      - ip-address-no-zone
+      - ipv4-address-no-zone
+      - ipv6-address-no-zone";
+    reference
+     "RFC 6991: Common YANG Data Types";
+  }
+
+  revision 2010-09-24 {
+    description
+     "Initial revision.";
+    reference
+     "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of types related to protocol fields ***/
+
+  typedef ip-version {
+    type enumeration {
+      enum unknown {
+        value "0";
+        description
+         "An unknown or unspecified version of the Internet
+          protocol.";
+      }
+      enum ipv4 {
+        value "1";
+        description
+         "The IPv4 protocol as defined in RFC 791.";
+      }
+      enum ipv6 {
+        value "2";
+        description
+         "The IPv6 protocol as defined in RFC 2460.";
+      }
+    }
+    description
+     "This value represents the version of the IP protocol.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetVersion textual convention of the SMIv2.";
+    reference
+     "RFC  791: Internet Protocol
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  typedef dscp {
+    type uint8 {
+      range "0..63";
+    }
+    description
+     "The dscp type represents a Differentiated Services Code Point
+      that may be used for marking packets in a traffic stream.
+      In the value set and its semantics, this type is equivalent
+      to the Dscp textual convention of the SMIv2.";
+    reference
+     "RFC 3289: Management Information Base for the Differentiated
+                Services Architecture
+      RFC 2474: Definition of the Differentiated Services Field
+                (DS Field) in the IPv4 and IPv6 Headers
+      RFC 2780: IANA Allocation Guidelines For Values In
+                the Internet Protocol and Related Headers";
+  }
+
+  typedef ipv6-flow-label {
+    type uint32 {
+      range "0..1048575";
+    }
+    description
+     "The ipv6-flow-label type represents the flow identifier or Flow
+      Label in an IPv6 packet header that may be used to
+      discriminate traffic flows.
+
+      In the value set and its semantics, this type is equivalent
+      to the IPv6FlowLabel textual convention of the SMIv2.";
+    reference
+     "RFC 3595: Textual Conventions for IPv6 Flow Label
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification";
+  }
+
+  typedef port-number {
+    type uint16 {
+      range "0..65535";
+    }
+    description
+     "The port-number type represents a 16-bit port number of an
+      Internet transport-layer protocol such as UDP, TCP, DCCP, or
+      SCTP.  Port numbers are assigned by IANA.  A current list of
+      all assignments is available from <http://www.iana.org/>.
+
+      Note that the port number value zero is reserved by IANA.  In
+      situations where the value zero does not make sense, it can
+      be excluded by subtyping the port-number type.
+      In the value set and its semantics, this type is equivalent
+      to the InetPortNumber textual convention of the SMIv2.";
+    reference
+     "RFC  768: User Datagram Protocol
+      RFC  793: Transmission Control Protocol
+      RFC 4960: Stream Control Transmission Protocol
+      RFC 4340: Datagram Congestion Control Protocol (DCCP)
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  /*** collection of types related to autonomous systems ***/
+
+  typedef as-number {
+    type uint32;
+    description
+     "The as-number type represents autonomous system numbers
+      which identify an Autonomous System (AS).  An AS is a set
+      of routers under a single technical administration, using
+      an interior gateway protocol and common metrics to route
+      packets within the AS, and using an exterior gateway
+      protocol to route packets to other ASes.  IANA maintains
+      the AS number space and has delegated large parts to the
+      regional registries.
+
+      Autonomous system numbers were originally limited to 16
+      bits.  BGP extensions have enlarged the autonomous system
+      number space to 32 bits.  This type therefore uses an uint32
+      base type without a range restriction in order to support
+      a larger autonomous system number space.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetAutonomousSystemNumber textual convention of
+      the SMIv2.";
+    reference
+     "RFC 1930: Guidelines for creation, selection, and registration
+                of an Autonomous System (AS)
+      RFC 4271: A Border Gateway Protocol 4 (BGP-4)
+      RFC 4001: Textual Conventions for Internet Network Addresses
+      RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+                Number Space";
+  }
+
+  /*** collection of types related to IP addresses and hostnames ***/
+
+  typedef ip-address {
+    type union {
+      type inet:ipv4-address;
+      type inet:ipv6-address;
+    }
+    description
+     "The ip-address type represents an IP address and is IP
+      version neutral.  The format of the textual representation
+      implies the IP version.  This type supports scoped addresses
+      by allowing zone identifiers in the address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+      + '(%[\p{N}\p{L}]+)?';
+    }
+    description
+      "The ipv4-address type represents an IPv4 address in
+       dotted-quad notation.  The IPv4 address may include a zone
+       index, separated by a % sign.
+
+       The zone index is used to disambiguate identical address
+       values.  For link-local addresses, the zone index will
+       typically be the interface index number or the name of an
+       interface.  If the zone index is not present, the default
+       zone of the device will be used.
+
+       The canonical format for the zone index is the numerical
+       format";
+  }
+
+  typedef ipv6-address {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(%[\p{N}\p{L}]+)?';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(%.+)?';
+    }
+    description
+     "The ipv6-address type represents an IPv6 address in full,
+      mixed, shortened, and shortened-mixed notation.  The IPv6
+      address may include a zone index, separated by a % sign.
+
+      The zone index is used to disambiguate identical address
+      values.  For link-local addresses, the zone index will
+      typically be the interface index number or the name of an
+      interface.  If the zone index is not present, the default
+      zone of the device will be used.
+
+      The canonical format of IPv6 addresses uses the textual
+      representation defined in Section 4 of RFC 5952.  The
+      canonical format for the zone index is the numerical
+      format as described in Section 11.2 of RFC 4007.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-address-no-zone {
+    type union {
+      type inet:ipv4-address-no-zone;
+      type inet:ipv6-address-no-zone;
+    }
+    description
+     "The ip-address-no-zone type represents an IP address and is
+      IP version neutral.  The format of the textual representation
+      implies the IP version.  This type does not support scoped
+      addresses since it does not allow zone identifiers in the
+      address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address-no-zone {
+    type inet:ipv4-address {
+      pattern '[0-9\.]*';
+    }
+    description
+      "An IPv4 address without a zone index.  This type, derived from
+       ipv4-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+  }
+
+  typedef ipv6-address-no-zone {
+    type inet:ipv6-address {
+      pattern '[0-9a-fA-F:\.]*';
+    }
+    description
+      "An IPv6 address without a zone index.  This type, derived from
+       ipv6-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-prefix {
+    type union {
+      type inet:ipv4-prefix;
+      type inet:ipv6-prefix;
+    }
+    description
+     "The ip-prefix type represents an IP prefix and is IP
+      version neutral.  The format of the textual representations
+      implies the IP version.";
+  }
+
+  typedef ipv4-prefix {
+    type string {
+      pattern
+         '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+       +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+       + '/(([0-9])|([1-2][0-9])|(3[0-2]))';
+    }
+    description
+     "The ipv4-prefix type represents an IPv4 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 32.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The canonical format of an IPv4 prefix has all bits of
+      the IPv4 address set to zero that are not part of the
+      IPv4 prefix.";
+  }
+
+  typedef ipv6-prefix {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(/.+)';
+    }
+
+    description
+     "The ipv6-prefix type represents an IPv6 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 128.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The IPv6 address should have all bits that do not belong
+      to the prefix set to zero.
+
+      The canonical format of an IPv6 prefix has all bits of
+      the IPv6 address set to zero that are not part of the
+      IPv6 prefix.  Furthermore, the IPv6 address is represented
+      as defined in Section 4 of RFC 5952.";
+    reference
+     "RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  /*** collection of domain name and URI types ***/
+
+  typedef domain-name {
+    type string {
+      pattern
+        '((([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.)*'
+      + '([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.?)'
+      + '|\.';
+      length "1..253";
+    }
+    description
+     "The domain-name type represents a DNS domain name.  The
+      name SHOULD be fully qualified whenever possible.
+
+      Internet domain names are only loosely specified.  Section
+      3.5 of RFC 1034 recommends a syntax (modified in Section
+      2.1 of RFC 1123).  The pattern above is intended to allow
+      for current practice in domain name use, and some possible
+      future expansion.  It is designed to hold various types of
+      domain names, including names used for A or AAAA records
+      (host names) and other records, such as SRV records.  Note
+      that Internet host names have a stricter syntax (described
+      in RFC 952) than the DNS recommendations in RFCs 1034 and
+      1123, and that systems that want to store host names in
+      schema nodes using the domain-name type are recommended to
+      adhere to this stricter standard to ensure interoperability.
+
+      The encoding of DNS names in the DNS protocol is limited
+      to 255 characters.  Since the encoding consists of labels
+      prefixed by a length bytes and there is a trailing NULL
+      byte, only 253 characters can appear in the textual dotted
+      notation.
+
+      The description clause of schema nodes using the domain-name
+      type MUST describe when and how these names are resolved to
+      IP addresses.  Note that the resolution of a domain-name value
+      may require to query multiple DNS records (e.g., A for IPv4
+      and AAAA for IPv6).  The order of the resolution process and
+      which DNS record takes precedence can either be defined
+      explicitly or may depend on the configuration of the
+      resolver.
+
+      Domain-name values use the US-ASCII encoding.  Their canonical
+      format uses lowercase US-ASCII characters.  Internationalized
+      domain names MUST be A-labels as per RFC 5890.";
+    reference
+     "RFC  952: DoD Internet Host Table Specification
+      RFC 1034: Domain Names - Concepts and Facilities
+      RFC 1123: Requirements for Internet Hosts -- Application
+                and Support
+      RFC 2782: A DNS RR for specifying the location of services
+                (DNS SRV)
+      RFC 5890: Internationalized Domain Names in Applications
+                (IDNA): Definitions and Document Framework";
+  }
+
+  typedef host {
+    type union {
+      type inet:ip-address;
+      type inet:domain-name;
+    }
+    description
+     "The host type represents either an IP address or a DNS
+      domain name.";
+  }
+
+  typedef uri {
+    type string;
+    description
+     "The uri type represents a Uniform Resource Identifier
+      (URI) as defined by STD 66.
+
+      Objects using the uri type MUST be in US-ASCII encoding,
+      and MUST be normalized as described by RFC 3986 Sections
+      6.2.1, 6.2.2.1, and 6.2.2.2.  All unnecessary
+      percent-encoding is removed, and all case-insensitive
+      characters are set to lowercase except for hexadecimal
+      digits, which are normalized to uppercase as described in
+      Section 6.2.2.1.
+
+      The purpose of this normalization is to help provide
+      unique URIs.  Note that this normalization is not
+      sufficient to provide uniqueness.  Two URIs that are
+      textually distinct after this normalization may still be
+      equivalent.
+
+      Objects using the uri type may restrict the schemes that
+      they permit.  For example, 'data:' and 'urn:' schemes
+      might not be appropriate.
+
+      A zero-length URI is not a valid URI.  This can be used to
+      express 'URI absent' where required.
+
+      In the value set and its semantics, this type is equivalent
+      to the Uri SMIv2 textual convention defined in RFC 5017.";
+    reference
+     "RFC 3986: Uniform Resource Identifier (URI): Generic Syntax
+      RFC 3305: Report from the Joint W3C/IETF URI Planning Interest
+                Group: Uniform Resource Identifiers (URIs), URLs,
+                and Uniform Resource Names (URNs): Clarifications
+                and Recommendations
+      RFC 5017: MIB Textual Conventions for Uniform Resource
+                Identifiers (URIs)";
+  }
+
+}
+""")
+    return res
+
+
+NS_ietf_inet_types = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+NS_ietf_restconf_monitoring = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+NS_ietf_yang_types = 'urn:ietf:params:xml:ns:yang:ietf-yang-types'
+
+
+_breaker1 = None
+class ietf_restconf_monitoring__restconf_state__capabilities(yang.adata.MNode):
+    capability: list[str]
+
+    mut def __init__(self, capability: ?list[str]=None):
+        self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+        self.capability = capability if capability is not None else []
+
+    def _get_attr(self, name: str) -> ?value:
+        if name == 'capability':
+            return self.capability
+
+    mut def to_gdata(self) -> yang.gdata.Node:
+        return yang.adata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'capabilities'])
+
+    @staticmethod
+    mut def from_gdata(n: ?yang.gdata.Node) -> ietf_restconf_monitoring__restconf_state__capabilities:
+        if n is not None:
+            return ietf_restconf_monitoring__restconf_state__capabilities(capability=n.get_opt_strs(yang.gdata.Id(NS_ietf_restconf_monitoring, 'capability')))
+        return ietf_restconf_monitoring__restconf_state__capabilities()
+
+    def copy(self):
+        """Create a deep copy of this adata object"""
+        return ietf_restconf_monitoring__restconf_state__capabilities.from_gdata(self.to_gdata())
+
+
+_breaker2 = None
+class ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(yang.adata.MNode):
+    encoding: str
+    location: str
+
+    mut def __init__(self, encoding: str, location: str):
+        self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+        self.encoding = encoding
+        self.location = location
+
+    def _get_attr(self, name: str) -> ?value:
+        if name == 'encoding':
+            return self.encoding
+        if name == 'location':
+            return self.location
+
+    mut def to_gdata(self) -> yang.gdata.Node:
+        return yang.adata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'streams', 'stream', 'access'])
+
+    @staticmethod
+    mut def from_gdata(n: yang.gdata.Node) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
+        return ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(encoding=n.get_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'encoding')), location=n.get_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'location')))
+
+    def copy(self):
+        """Create a deep copy of this adata object"""
+        return ietf_restconf_monitoring__restconf_state__streams__stream__access_entry.from_gdata(self.to_gdata())
+
+_breaker3 = None
+class ietf_restconf_monitoring__restconf_state__streams__stream__access(yang.adata.MNode):
+    elements: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]
+    mut def __init__(self, elements=[]):
+        self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+        self._name = 'access'
+        self.elements = elements
+
+    mut def create(self, encoding, location):
+        for e in self:
+            match = True
+            if e.encoding != encoding:
+                match = False
+                continue
+            if match:
+                e.location = location
+                return e
+
+        res = ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(encoding=encoding, location=location)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?yang.gdata.List) -> list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]:
+        if n is not None:
+            return [ietf_restconf_monitoring__restconf_state__streams__stream__access_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    def copy(self):
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return ietf_restconf_monitoring__restconf_state__streams__stream__access(elements=copied_elements)
+
+extension ietf_restconf_monitoring__restconf_state__streams__stream__access(Iterable[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
+    def __iter__(self) -> Iterator[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]:
+        return self.elements.__iter__()
+
+_breaker4 = None
+class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yang.adata.MNode):
+    name: str
+    description: ?str
+    replay_support: bool
+    replay_log_creation_time: ?str
+    access: ietf_restconf_monitoring__restconf_state__streams__stream__access
+
+    mut def __init__(self, name: str, description: ?str, replay_support: ?bool=None, replay_log_creation_time: ?str, access: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]=[]):
+        self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+        self.name = name
+        self.description = description
+        self.replay_support = replay_support if replay_support is not None else False
+        self.replay_log_creation_time = replay_log_creation_time
+        self.access = ietf_restconf_monitoring__restconf_state__streams__stream__access(elements=access)
+
+    def _get_attr(self, name: str) -> ?value:
+        if name == 'name':
+            return self.name
+        if name == 'description':
+            return self.description
+        if name == 'replay_support':
+            return self.replay_support
+        if name == 'replay_log_creation_time':
+            return self.replay_log_creation_time
+        if name == 'access':
+            return iter(self.access)
+
+    mut def to_gdata(self) -> yang.gdata.Node:
+        return yang.adata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'streams', 'stream'])
+
+    @staticmethod
+    mut def from_gdata(n: yang.gdata.Node) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
+        return ietf_restconf_monitoring__restconf_state__streams__stream_entry(name=n.get_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'name')), description=n.get_opt_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'description')), replay_support=n.get_opt_bool(yang.gdata.Id(NS_ietf_restconf_monitoring, 'replay-support')), replay_log_creation_time=n.get_opt_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'replay-log-creation-time')), access=ietf_restconf_monitoring__restconf_state__streams__stream__access.from_gdata(n.get_list(yang.gdata.Id(NS_ietf_restconf_monitoring, 'access'))))
+
+    def copy(self):
+        """Create a deep copy of this adata object"""
+        return ietf_restconf_monitoring__restconf_state__streams__stream_entry.from_gdata(self.to_gdata())
+
+_breaker5 = None
+class ietf_restconf_monitoring__restconf_state__streams__stream(yang.adata.MNode):
+    elements: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]
+    mut def __init__(self, elements=[]):
+        self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+        self._name = 'stream'
+        self.elements = elements
+
+    mut def create(self, name, description=None, replay_support=None, replay_log_creation_time=None):
+        for e in self:
+            match = True
+            if e.name != name:
+                match = False
+                continue
+            if match:
+                if description is not None:
+                    e.description = description
+                if replay_support is not None:
+                    e.replay_support = replay_support
+                if replay_log_creation_time is not None:
+                    e.replay_log_creation_time = replay_log_creation_time
+                return e
+
+        res = ietf_restconf_monitoring__restconf_state__streams__stream_entry(name=name, description=description, replay_support=replay_support, replay_log_creation_time=replay_log_creation_time)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?yang.gdata.List) -> list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]:
+        if n is not None:
+            return [ietf_restconf_monitoring__restconf_state__streams__stream_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    def copy(self):
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return ietf_restconf_monitoring__restconf_state__streams__stream(elements=copied_elements)
+
+extension ietf_restconf_monitoring__restconf_state__streams__stream(Iterable[ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
+    def __iter__(self) -> Iterator[ietf_restconf_monitoring__restconf_state__streams__stream_entry]:
+        return self.elements.__iter__()
+
+_breaker6 = None
+class ietf_restconf_monitoring__restconf_state__streams(yang.adata.MNode):
+    stream: ietf_restconf_monitoring__restconf_state__streams__stream
+
+    mut def __init__(self, stream: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]):
+        self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+        self.stream = ietf_restconf_monitoring__restconf_state__streams__stream(elements=stream)
+
+    def _get_attr(self, name: str) -> ?value:
+        if name == 'stream':
+            return iter(self.stream)
+
+    mut def to_gdata(self) -> yang.gdata.Node:
+        return yang.adata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'streams'])
+
+    @staticmethod
+    mut def from_gdata(n: ?yang.gdata.Node) -> ietf_restconf_monitoring__restconf_state__streams:
+        if n is not None:
+            return ietf_restconf_monitoring__restconf_state__streams(stream=ietf_restconf_monitoring__restconf_state__streams__stream.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_restconf_monitoring, 'stream'))))
+        return ietf_restconf_monitoring__restconf_state__streams()
+
+    def copy(self):
+        """Create a deep copy of this adata object"""
+        return ietf_restconf_monitoring__restconf_state__streams.from_gdata(self.to_gdata())
+
+
+_breaker7 = None
+class ietf_restconf_monitoring__restconf_state(yang.adata.MNode):
+    capabilities: ietf_restconf_monitoring__restconf_state__capabilities
+    streams: ietf_restconf_monitoring__restconf_state__streams
+
+    mut def __init__(self, capabilities: ?ietf_restconf_monitoring__restconf_state__capabilities=None, streams: ?ietf_restconf_monitoring__restconf_state__streams=None):
+        self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
+        self.capabilities = capabilities if capabilities is not None else ietf_restconf_monitoring__restconf_state__capabilities()
+        self.streams = streams if streams is not None else ietf_restconf_monitoring__restconf_state__streams()
+
+    def _get_attr(self, name: str) -> ?value:
+        if name == 'capabilities':
+            return self.capabilities
+        if name == 'streams':
+            return self.streams
+
+    mut def to_gdata(self) -> yang.gdata.Node:
+        return yang.adata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state'])
+
+    @staticmethod
+    mut def from_gdata(n: ?yang.gdata.Node) -> ietf_restconf_monitoring__restconf_state:
+        if n is not None:
+            return ietf_restconf_monitoring__restconf_state(capabilities=ietf_restconf_monitoring__restconf_state__capabilities.from_gdata(n.get_opt_cnt(yang.gdata.Id(NS_ietf_restconf_monitoring, 'capabilities'))), streams=ietf_restconf_monitoring__restconf_state__streams.from_gdata(n.get_opt_cnt(yang.gdata.Id(NS_ietf_restconf_monitoring, 'streams'))))
+        return ietf_restconf_monitoring__restconf_state()
+
+    def copy(self):
+        """Create a deep copy of this adata object"""
+        return ietf_restconf_monitoring__restconf_state.from_gdata(self.to_gdata())
+
+
+_breaker8 = None
+class root(yang.adata.MNode):
+    restconf_state: ietf_restconf_monitoring__restconf_state
+
+    mut def __init__(self, restconf_state: ?ietf_restconf_monitoring__restconf_state=None):
+        self._ns = ''
+        self.restconf_state = restconf_state if restconf_state is not None else ietf_restconf_monitoring__restconf_state()
+
+    def _get_attr(self, name: str) -> ?value:
+        if name == 'restconf_state':
+            return self.restconf_state
+
+    mut def to_gdata(self) -> yang.gdata.Node:
+        return yang.adata.from_adata(SRC_DNODE, self, loose=False)
+
+    @staticmethod
+    mut def from_gdata(n: ?yang.gdata.Node) -> root:
+        if n is not None:
+            return root(restconf_state=ietf_restconf_monitoring__restconf_state.from_gdata(n.get_opt_cnt(yang.gdata.Id(NS_ietf_restconf_monitoring, 'restconf-state'))))
+        return root()
+
+    def copy(self):
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: yang.gdata.TreeProvider):
+    pass
+

@@ -13,4 +13,13 @@ actor main(env):
     wf = file.WriteFile(wfc, "src/stratoweave/device_meta_config.act")
     await async wf.write(src)
     await async wf.close()
+
+    rcmon_schema = [swyang.ietf_restconf_monitoring, swyang.ietf_yang_types, swyang.ietf_inet_types]
+    yr = yang.compile(rcmon_schema)
+    rcmon_src = yr.prdaclass(schema_yang=rcmon_schema, include_state=True).encode()
+
+    wfr = file.WriteFile(wfc, "src/stratoweave/ietf_restconf_monitoring.act")
+    await async wfr.write(rcmon_src)
+    await async wfr.close()
+
     env.exit(0)

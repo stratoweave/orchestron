@@ -8,7 +8,7 @@ path = [
     "*.mk",
     "**/Build.act",
     "src/**",
-    "gen_dmc/**",
+    "gen_adata/**",
     "test/**",
     "minisys/**",
     "scripts/**",
