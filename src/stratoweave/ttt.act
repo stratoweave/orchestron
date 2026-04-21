@@ -1134,7 +1134,7 @@ class _TransformTransactionBase(_Transaction):
     me: str
     db: ?lmdb.Db
 
-    compute : proc(tid: str, merged: gdata.Node, out: ?Session) -> (gdata.Node, ?gdata.Node)
+    compute : proc(tid: str, merged: gdata.Node, linked: gdata.Node, out: ?Session) -> (gdata.Node, ?gdata.Node)
     clear : proc(tid: str, out: ?Session) -> None
     finalize : proc(tid: str) -> None
 
@@ -1191,7 +1191,7 @@ class _TransformTransactionBase(_Transaction):
                 upd = self.link_updates(tid, merged)
                 if not req:
                     linked = self.candidate_linked[tid]
-                    outmem = self.compute(tid, merged, out)                         # TODO: Insert linked as third argument
+                    outmem = self.compute(tid, merged, linked, out)
                     self.essays[tid] = outmem
                     newout = outmem.0
                     #print('   #', tid, '(Transform)', _format_path(self.path), 'OUTPUT\n       ', newout.prsrc(indent=4), err=True)
@@ -1413,8 +1413,8 @@ class _TransformTransaction(_TransformTransactionBase):
         self.function = function(log_handler)
         self.lower = lower
 
-    def compute(self, tid, merged, out):
-        newoutmem = self.function.transform_wrapper(merged, self.memory, self.dynstate)
+    def compute(self, tid, merged, linked, out):
+        newoutmem = self.function.transform_wrapper(merged, linked, self.memory, self.dynstate)
         newout = newoutmem.0
         res = difference(self.output, newout)
         if out is not None and res is not None:
@@ -1467,8 +1467,8 @@ class _TransformTransaction(_TransformTransactionBase):
             self.function.on_conf(self.get(), self.memory)
 
 class TransformFunction(object):
-    transform_wrapper: mut(gdata.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
-    transform_xml: mut(xml.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
+    transform_wrapper: mut(gdata.Node, gdata.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
+    transform_xml: mut(xml.Node, gdata.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
     _on_conf: ?proc(gdata.Node, ?gdata.Node) -> None
     logger: logging.Logger
 
@@ -1476,10 +1476,10 @@ class TransformFunction(object):
         self._on_conf = None
         self.logger = logging.Logger(log_handler)
 
-    def transform_wrapper(self, cfg, memory, dynstate):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
         return (gdata.Container(), None)
 
-    def transform_xml(self, cfg, memory, dynstate):
+    def transform_xml(self, cfg, linked, memory, dynstate):
         return gdata.Container(), None
 
     proc def init_dynstate(self, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None, update_dynstate: proc(?gdata.Node)->None, path: Path):
@@ -1543,7 +1543,7 @@ class _RFSTransaction(_TransformTransactionBase):
         self.dev = dev_registry.get(self.devname)
         self.lower = lower
 
-    def compute(self, tid, merged, out):
+    def compute(self, tid, merged, linked, out):
         #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', actorid(), err=True)
         dev_content = {
             gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname),
@@ -1689,7 +1689,7 @@ class _DeviceTransaction(_TransformTransactionBase):
         self.dev = dev_registry.get(devname_from_device_path(path))
         self.logger = logging.Logger(log_handler)
 
-    def compute(self, tid, merged, out):
+    def compute(self, tid, merged, linked, out):
         return merged, None
 
     def clear(self, tid, out):
@@ -1731,7 +1731,7 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
         self.logger = logging.Logger(log_handler)
         self.cont = None
 
-    def compute(self, tid, merged, out):
+    def compute(self, tid, merged, linked, out):
         return merged, None
 
     def clear(self, tid, out):
@@ -1765,7 +1765,7 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
 ################# Trivials #####################
 
 class PassThrough(TransformFunction):
-    def transform_wrapper(self, cfg, memory, dynstate):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
         return (cfg, memory)
 
 def Sink():

@@ -278,7 +278,7 @@ removed_live_root = ttt.Container({
 
 
 class PersistMemoryTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         if memory is not None and memory == gdata.Leaf(42):
             return (cfg, memory)
         if cfg == gdata.Leaf(42):
@@ -287,7 +287,7 @@ class PersistMemoryTransform(ttt.TransformFunction):
 
 
 class PersistDynstateTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         if dynstate is not None and dynstate == gdata.Leaf(41):
             if memory is not None and memory == gdata.Leaf(40):
                 return (cfg, gdata.Leaf(42))

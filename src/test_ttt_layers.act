@@ -71,7 +71,7 @@ out1_2 = gdata.Container({
 })
 
 class TransF(ttt.TransformFunction):
-    def transform_wrapper(self, cfg, memory, dynstate):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
         """Simple transform that copies inputs to ouputs (sans keys)
 
         The input list layer is keyed on "name", the output on "id". This
@@ -174,7 +174,7 @@ out3 = gdata.Container({
 })
 
 class WriteDev(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory, dynstate):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory, dynstate):
         i = cfg.get_int(q("a"))
         return gdata.Container({
             q('devices'): gdata.List([q("id")], [
@@ -210,7 +210,7 @@ cfg4 = gdata.Container({
 })
 
 class ServiceMap(ttt.TransformFunction):
-    def transform_wrapper(self, cfg, memory, dynstate):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
         ll = cfg.get_int(q("ll"))
         rr = cfg.get_int(q("rr"))
         return gdata.Container({
@@ -259,7 +259,7 @@ out5 = gdata.Container({
 
 
 class WriteDevs(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory, dynstate):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory, dynstate):
         return out5, None
 
 actor _test_redundant_config(t: testing.AsyncT):

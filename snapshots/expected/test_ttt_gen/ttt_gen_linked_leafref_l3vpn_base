@@ -27,7 +27,7 @@ class GlobalSettings(ttt.TransformFunction):
         """Return the modeled input type for this transform"""
         return ietf_l3vpn_svc__global_settings
 
-    mut def transform_wrapper(self, i: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_wrapper(self, i: yang.gdata.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from gdata to
         modeled input and back to gdata
         """
@@ -35,7 +35,7 @@ class GlobalSettings(ttt.TransformFunction):
 
         return self.transform(modeled_input).to_gdata(), None
 
-    mut def transform_xml(self, i: xml.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_xml(self, i: xml.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from XML to
         modeled input and return gdata
         """
@@ -52,7 +52,7 @@ class L3VpnVpnService(ttt.TransformFunction):
         """Return the modeled input type for this transform"""
         return ietf_l3vpn_svc__l3vpn_svc__vpn_services__vpn_service_entry
 
-    mut def transform_wrapper(self, i: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_wrapper(self, i: yang.gdata.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from gdata to
         modeled input and back to gdata
         """
@@ -60,7 +60,7 @@ class L3VpnVpnService(ttt.TransformFunction):
 
         return self.transform(modeled_input).to_gdata(), None
 
-    mut def transform_xml(self, i: xml.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_xml(self, i: xml.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from XML to
         modeled input and return gdata
         """
@@ -70,26 +70,26 @@ class L3VpnVpnService(ttt.TransformFunction):
         return self.transform(modeled_input).to_gdata(), None
 
 class L3VpnSite(ttt.TransformFunction):
-    transform: mut(ietf_l3vpn_svc__l3vpn_svc__sites__site_entry) -> yang.adata.MNode
+    transform: mut(ietf_l3vpn_svc__l3vpn_svc__sites__site_entry, linked: yang.gdata.Node) -> yang.adata.MNode
 
     @staticmethod
     def input_type():
         """Return the modeled input type for this transform"""
         return ietf_l3vpn_svc__l3vpn_svc__sites__site_entry
 
-    mut def transform_wrapper(self, i: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_wrapper(self, i: yang.gdata.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from gdata to
         modeled input and back to gdata
         """
         modeled_input = ietf_l3vpn_svc__l3vpn_svc__sites__site_entry.from_gdata(i)
 
-        return self.transform(modeled_input).to_gdata(), None
+        return self.transform(modeled_input, linked).to_gdata(), None
 
-    mut def transform_xml(self, i: xml.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_xml(self, i: xml.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from XML to
         modeled input and return gdata
         """
         gdata_input = yang.xml.from_xml(SRC_DNODE, i, loose=False, root_path=['ietf-l3vpn-svc:l3vpn-svc', 'sites', 'site'])
         modeled_input = ietf_l3vpn_svc__l3vpn_svc__sites__site_entry.from_gdata(gdata_input)
 
-        return self.transform(modeled_input).to_gdata(), None
+        return self.transform(modeled_input, linked).to_gdata(), None

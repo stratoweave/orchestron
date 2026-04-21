@@ -589,7 +589,7 @@ actor spurious_config(t: testing.AsyncT):
 ########################
 
 class MemoryTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         if memory is not None and isinstance(memory, gdata.Leaf):
             _memory: gdata.Leaf = memory
             val = _memory.val
@@ -622,7 +622,7 @@ actor transform_memory(t: testing.AsyncT):
 ########################
 
 class FailingTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         raise AssertionError("Test transform error")
 
 actor transform_exception(t: testing.AsyncT):
@@ -658,7 +658,7 @@ actor DynstateActor(path: ttt.Path, update_dynstate: proc(?adata.MNode)->None, t
                 t.success()
 
 class DynstateTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         if dynstate is not None and dynstate == gdata.Leaf(41):
             return (cfg, gdata.Leaf(42))
         elif cfg is not None and cfg == gdata.Leaf(39):

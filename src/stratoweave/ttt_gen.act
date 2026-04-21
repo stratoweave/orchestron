@@ -108,9 +108,16 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
                             state_classes.append(_dynstate_class)
                             input_classes.append(_dynstate_class)
                             dynstate_class = _dynstate_class
+        linked_fields = ttt_links.extract_links(sn, root)
+        if ext.name == "rfs-transform" and len(linked_fields) > 0:
+            raise ValueError("sw:link is not supported on rfs-transform at {schema.get_path(spath)}")
+
         wrapper_extra_params = ", device_info" if ext.name == "rfs-transform" else ""
         wrapper_extra_models = "\n"
         transform_extra_typed_params = ""
+        if len(linked_fields) > 0:
+            wrapper_extra_params += ", linked"
+            transform_extra_typed_params += ", linked: yang.gdata.Node"
         if memory_class is not None:
             wrapper_extra_params += ", modeled_memory"
             wrapper_extra_models += "        modeled_memory = {memory_class}.from_gdata(memory) if memory is not None else None\n"
@@ -156,7 +163,6 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
         deserializer = root_path[:-1]
 
         if ext.name == "transform":
-            linked_fields = ttt_links.extract_links(sn, root)
             if len(linked_fields) > 0:
                 build_links_fn = "_build_target_links_{input_class}"
                 defs.append("\n".join(ttt_links.gen_build_target_links(build_links_fn, linked_fields)))
@@ -166,14 +172,14 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
             base_defs.append("""class {transform.name}(ttt.TransformFunction):
     transform: mut({input_class}{transform_extra_typed_params}) -> {transform_output}
 {type_helpers}
-    mut def transform_wrapper(self, i: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_wrapper(self, i: yang.gdata.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         \"\"\"Wrap the user provided transform method to convert from gdata to
         modeled input and back to gdata
         \"\"\"
         modeled_input = {input_class}.from_gdata(i){wrapper_extra_models}
         {wrapper_return}
 
-    mut def transform_xml(self, i: xml.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_xml(self, i: xml.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         \"\"\"Wrap the user provided transform method to convert from XML to
         modeled input and return gdata
         \"\"\"
@@ -188,10 +194,6 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
             return TTTSrc(src=src, input_classes=input_classes, state_classes=state_classes, imports=imports, defs=defs, base_defs=base_defs, act_defs=act_defs)
 
         elif ext.name == "rfs-transform":
-            linked_fields = ttt_links.extract_links(sn, root)
-            if len(linked_fields) > 0:
-                raise ValueError("sw:link is not supported on rfs-transform at {schema.get_path(spath)}")
-
             base_defs.append("""class {transform.name}(ttt.RFSFunction):
     transform: mut({input_class}, ttt.DeviceInfo{transform_extra_typed_params}) -> {transform_output}
 {type_helpers}

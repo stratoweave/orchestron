@@ -1,6 +1,7 @@
 import logging
 
 import yang.adata
+import yang.gdata # required for linked input parameter to transform function
 import stratoweave.ttt
 
 import mini.layers.base_0 as base
@@ -14,7 +15,7 @@ class GlobalSettings(base.GlobalSettings):
         return o
 
 class Router(base.Router):
-    def transform(self, i):
+    def transform(self, i, linked):
         o = base.o_root()
         print("CFS router transform running", i.name)
         dev = o.device.create(i.name)
@@ -35,7 +36,7 @@ class Router(base.Router):
 
 
 class L3vpn(base.L3vpn):
-    def transform(self, i):
+    def transform(self, i, linked):
         o = base.o_root()
         print("CFS l3vpn transform running", i.name)
         rd = "65000:{i.vpn_id}"
