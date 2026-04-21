@@ -387,7 +387,7 @@ actor BusyWriterWaitFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: lmdb.Db
         await async held_txn.abort()
 
     def after_commit(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful completion after waiting for busy DB writer, got {r}")
         testing.assertEqual(released, True)
         testing.assertEqual(layer.get(), persist_cfg)
@@ -435,10 +435,10 @@ actor dbuffer_refreshes_on_lock_reconfigure(t: testing.EnvT):
     t1buf: swdb.Buffer = swdb.Buffer()
     t2buf: swdb.Buffer = swdb.Buffer()
 
-    def is_cfg_ok(r: value) -> bool:
-        return not isinstance(r, Exception)
+    def is_cfg_ok(r: ttt.CfgResult) -> bool:
+        return not r.errors
 
-    def after_t1_lock(r: value) -> None:
+    def after_t1_lock(r: ttt.CfgResult) -> None:
         if not is_cfg_ok(r):
             raise AssertionError("Expected successful t1 lock after reconfigure, got {r}")
         write_txn = db.begin_write()
@@ -460,13 +460,13 @@ actor dbuffer_refreshes_on_lock_reconfigure(t: testing.EnvT):
         await async fs.rmdir(db_path)
         t.success()
 
-    def after_t2_lock(r: value) -> None:
+    def after_t2_lock(r: ttt.CfgResult) -> None:
         if not is_cfg_ok(r):
             raise AssertionError("Expected successful t2 lock, got {r}")
         tr.commit("2", True)
         tr.lock("1", None, after_t1_lock, t1buf)
 
-    def after_seed_lock(r: value) -> None:
+    def after_seed_lock(r: ttt.CfgResult) -> None:
         if not is_cfg_ok(r):
             raise AssertionError("Expected successful seed lock, got {r}")
         tr.commit("0", True)
@@ -525,7 +525,7 @@ actor persist_transform_state_snapshot(t: testing.EnvT):
         flow.after_settled()
 
     def after_initial_commit(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful initial stateful completion, got {r}")
         root1 = expect(root, "Missing captured stateful transform root")
         root1.newtrans().restore(swdb.ATTR_DYNSTATE, None, gdata.Leaf(41).to_json_str(pretty=False).encode())
@@ -609,7 +609,7 @@ actor reject_db_persist_failure_without_committing_memory(t: testing.EnvT):
     var layer = ttt.Layer("struct", struct_root, None, db)
 
     def after_recovery(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful recovery completion after DB persist failure, got {r}")
         testing.assertEqual(layer.get(), struct_tree)
         read_txn = db.begin_read()
@@ -643,7 +643,7 @@ actor restore_transform_memory_round_trip(t: testing.EnvT):
     var restored = ttt.Layer("memory", ttt.Transform(PersistMemoryTransform), None, db)
 
     def after_recommit(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful recommit completion after restore, got {r}")
         testing.assertEqual(restored.get(), memory_cfg_updated)
         await async db.close()
@@ -678,7 +678,7 @@ actor restore_transform_dynstate_round_trip(t: testing.EnvT):
         return expect(root, "Missing captured stateful transform root")
 
     def after_recommit(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful dynstate recommit completion after restore, got {r}")
         testing.assertEqual(restored.get(), stateful_cfg_updated)
         await async db.close()
@@ -697,7 +697,7 @@ actor restore_transform_dynstate_round_trip(t: testing.EnvT):
         restored.edit_config(stateful_cfg_updated, None, after_recommit)
 
     def after_initial_commit(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful initial dynstate completion, got {r}")
         root1 = expect(root, "Missing captured stateful transform root")
         root1.newtrans().restore(swdb.ATTR_DYNSTATE, None, gdata.Leaf(41).to_json_str(pretty=False).encode())
@@ -842,7 +842,7 @@ actor restore_exact_layer_name_prefix_round_trip(t: testing.EnvT):
         t.success()
 
     def after_foobar_commit(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful foobar completion, got {r}")
         await async db.close()
         db = lmdb.Db(cap, db_path)
@@ -855,7 +855,7 @@ actor restore_exact_layer_name_prefix_round_trip(t: testing.EnvT):
         cleanup_success()
 
     def after_foo_commit(r: value) -> None:
-        if isinstance(r, Exception):
+        if not isinstance(r, str):
             raise AssertionError("Expected successful foo completion, got {r}")
         foobar_layer.edit_config(foobar_cfg, None, after_foobar_commit)
 

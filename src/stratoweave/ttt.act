@@ -289,7 +289,7 @@ actor Transaction(impl: _Transaction):
     def commit(tid, ok):
         impl.commit(tid, ok)
 
-    def wait_complete(tid, done):
+    def wait_complete(tid, done:action(value)->None):
         impl.wait_complete(self, tid, done)
 
     def wait_complete_cont(res):
@@ -422,7 +422,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
                     after swdb.WRITE_RETRY_DELAY: _flush_dbuffer_then_commit()
                     return None
                 commit(tid, False)
-                edit_config_finish(e, False)
+                edit_config_finish(e)
                 return None
 
         proc def _flush_write_txn(tid: str, dbuf: swdb.Buffer, dbtr: swdb.WriteTransaction):
@@ -436,24 +436,18 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
                 except Exception:
                     pass
                 commit(tid, False)
-                edit_config_finish(e, False)
+                edit_config_finish(e)
                 return
 
         if tid_state is not None:
-            tid = tid_state
-        else:
-            return
-        if db is not None:
-            if dbuf is not None:
-                dbtr = _begin_write(tid, db)
+            if db is not None and dbuf is not None:
+                dbtr = _begin_write(tid_state, db)
                 if dbtr is not None:
-                    _flush_write_txn(tid, dbuf, dbtr)
+                    _flush_write_txn(tid_state, dbuf, dbtr)
                 else:
                     return
-            else:
-                raise ValueError("Missing DB buffer for staged DB flush")
-        commit(tid, True)
-        edit_config_finish("Ok", True)
+            commit(tid_state, True)
+            edit_config_finish("Ok")
 
     # yield action
     def edit_config(diff, done: ?action(value)->None=None, complete: ?action(value)->None=None, force=False):
@@ -481,17 +475,17 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
                 _flush_dbuffer_then_commit()
             else:
                 commit(tid_state, False)
-                edit_config_finish(res.errors[0], False)
+                edit_config_finish(res.errors[0])
 
-    def edit_config_finish(result: value, ok: bool):
+    def edit_config_finish(result: value):
         if tid_state is not None:
             if done_cont is not None:
                 done_cont(result)
             if comp_cont is not None:
-                if ok:
-                    wait_complete(comp_cont)
-                else:
+                if isinstance(result, Exception):
                     comp_cont(result)
+                else:
+                    wait_complete(comp_cont)
         done_cont = None
         comp_cont = None
         tid_state = None
@@ -547,14 +541,14 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         if lower is not None:
             lower.commit(tid, ok)
 
-    def wait_complete(done:action(CfgResult)->None):
+    def wait_complete(done:action(value)->None):
         #print('####', tid_state, '(Layer)', name, 'wait_complete', err=True)
         if tid_state is not None:
             if lower is not None:
                 lower.wait_complete(done)
             else:
-                root.wait_complete(tid_state, lambda r: done(CfgError(r) if isinstance(r, Exception) else CfgOk()))
-
+                root.wait_complete(tid_state, lambda res: done((res.errors[0] if res.errors else "Ok") if isinstance(res, CfgResult) else res))
+    
     def recompute(done: ?action(value)->None=None, complete: ?action(value)->None=None, force=False):
         tid = 'tr' + actorid()
         #print('####', tid, '(Layer)', name, 'recompute', actorid(), err=True)
