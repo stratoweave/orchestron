@@ -118,8 +118,7 @@ actor all_delete(t: testing.AsyncT):
         t1.configure("1", {"srcA": gdata.Absent()})
 
         def cont2(r):
-            if isinstance(r, ttt.CfgOk):
-                testing.assertEqual(r.empty, True)
+            testing.assertEqual(r.empty, True)
             t1.commit("1", True)
             out2 = t1.get()
             exp2 = gdata.Container({
@@ -170,8 +169,7 @@ actor nested_delete(t: testing.AsyncT):
         t1.configure("1", {"srcA": gdata.Absent()})
 
         def cont2(r):
-            if isinstance(r, ttt.CfgOk):
-                testing.assertEqual(r.empty, True)
+            testing.assertEqual(r.empty, True)
             t1.commit("1", True)
             out2 = t1.get()
             exp2 = gdata.Container({
@@ -373,11 +371,11 @@ actor config_failure(t: testing.AsyncT):
     await async t1.configure("1", {'srcA': a0}, None)
     await async t2.configure("2", {'srcB': a1}, None)
 
-    def cont1(_r: value):
+    def cont1(_r: ttt.CfgResult):
         t1.commit("1", True)
 
-        def cont2(_r: value):
-            if isinstance(_r, ttt.CfgError):
+        def cont2(_r: ttt.CfgResult):
+            if _r.errors:
                 t2.configure("2", {'srcB': b1}, None)
             t2.commit("2", True)
             r = t2.get()
