@@ -3,20 +3,14 @@ import http_router
 import json
 import logging
 import net
-import hash.wyhash as wyhash
-import xml
 
 import stratoweave.device as swdev
-import stratoweave.ietf_restconf_monitoring as rcmon
-import stratoweave.ietf_yang_library as yl
+import stratoweave.restconf
 import stratoweave.tmf_api
 import stratoweave.ttt as ttt
-import yang
 import yang.data
 import yang.gdata
-import yang.json
 import yang.schema
-import yang.xml
 
 
 def _parse_bool(value: str, default: bool) -> bool:
@@ -28,243 +22,6 @@ def _parse_bool(value: str, default: bool) -> bool:
     if v in {"0", "false", "no", "off"}:
         return False
     return default
-
-
-def _split_restconf_path(text: str) -> list[str]:
-    # First split by slash
-    parts = text.split('/')
-    # Create a new list to store all elements
-    result = []
-    # For each part, split by equals if it exists
-    for part in parts:
-        if '=' in part:
-            result.extend(part.split('=', 1))
-        elif part != '':
-            result.append(part)
-    return result
-
-
-# Workaround for Acton compiled issues with named tuples as dict values in the
-# module-to-view dispatch map.
-class _RestconfView(value):
-    def __init__(self, schema: yang.schema.DRoot, data: proc() -> yang.gdata.Node):
-        self.schema = schema
-        self.data = data
-
-
-def _build_restconf_view_by_module(views: list[_RestconfView],
-) -> dict[str, _RestconfView]:
-    res = {}
-    for view in views:
-        top_level_modules = set()
-        for child in view.schema.children:
-            top_level_modules.add(child.module)
-        for module in top_level_modules:
-            if module in res:
-                raise ValueError("RESTCONF top-level module {module} is served by multiple views")
-            res[module] = view
-    return res
-
-
-def _path_elements_to_fnode(path_elements: list[yang.data.PathElement]) -> yang.gdata.FNode:
-    """Convert resolved path elements to an FNode filter tree.
-
-    Builds inside-out: starts from the deepest path element and wraps outward.
-    For list nodes with keys, adds FNode children with value_match to select
-    the matching entry.
-    """
-    inner: ?yang.gdata.FNode = None
-    for i in range(len(path_elements) - 1, -1, -1):
-        elem = path_elements[i]
-        node = elem.node
-        if isinstance(node, yang.schema.DRoot):
-            node_id = None
-        else:
-            node_id = yang.gdata.Id(node.namespace, node.name)
-
-        if isinstance(node, yang.schema.DList):
-            children = []
-            keys = elem.keys
-            if keys is not None:
-                for key_name, key_val in keys.items():
-                    children.append(yang.gdata.FNode(yang.gdata.Id(node.namespace, key_name), value_match=key_val))
-            if inner is not None:
-                children.append(inner)
-            inner = yang.gdata.FNode(node_id, children=children)
-        else:
-            if inner is not None:
-                inner = yang.gdata.FNode(node_id, children=[inner])
-            else:
-                inner = yang.gdata.FNode(node_id)
-
-    return inner if inner is not None else yang.gdata.FNode()
-
-
-def _node_with_ns(node: yang.gdata.Node, snode: yang.schema.DNode) -> yang.gdata.Node:
-    # `gdata.Node` is a `value`, so we cannot mutate fields in place.
-    # Rebuild the node with namespace and module from the schema node so that
-    # ns qualifiers are always presnet and included when serializing
-    if isinstance(node, yang.gdata.Container):
-        return yang.gdata.Container(node.children, presence=node.presence, ns=snode.namespace, module=snode.module, txid=node.txid)
-    if isinstance(node, yang.gdata.List):
-        return yang.gdata.List(node.keys, node.elements, user_order=node.user_order, ns=snode.namespace, module=snode.module, txid=node.txid)
-    if isinstance(node, yang.gdata.Leaf):
-        return yang.gdata.Leaf(node.val, ns=snode.namespace, module=snode.module, txid=node.txid)
-    if isinstance(node, yang.gdata.LeafList):
-        return yang.gdata.LeafList(node.entries, user_order=node.user_order, ns=snode.namespace, module=snode.module, txid=node.txid)
-    raise ValueError("Unexpected node type for RESTCONF GET serialization: {type(node)}")
-
-
-def _build_restconf_monitoring_gdata(schemas: list[yang.schema.DRoot]) -> yang.gdata.Node:
-    """Build an ietf-restconf-monitoring datastore view (as gdata).
-
-    The `capabilities` leaf-list advertises RESTCONF protocol capabilities and
-    one module capability URI per module in the merged `module_metadata` of
-    every provided schema, so it reflects the same namespace set that
-    ietf-yang-library advertises.
-    """
-    capabilities = ["urn:ietf:params:restconf:capability:defaults:1.0?basic-mode=explicit"]
-
-    merged_meta = {}
-    for schema in schemas:
-        for ns, meta in schema.module_metadata.items():
-            merged_meta[ns] = meta
-
-    for ns in sorted(merged_meta.keys()):
-        meta = merged_meta[ns]
-        uri = "{ns}?module={meta.module}"
-        if meta.revision is not None:
-            uri += "&revision={meta.revision}"
-        capabilities.append(uri)
-
-    root = rcmon.root(
-        restconf_state=rcmon.ietf_restconf_monitoring__restconf_state(
-            capabilities=rcmon.ietf_restconf_monitoring__restconf_state__capabilities(
-                capability=capabilities,
-            ),
-        ),
-    )
-    return root.to_gdata()
-
-
-def _build_yang_library_gdata(schemas: list[yang.schema.DRoot]) -> yang.gdata.Node:
-    """Build an ietf-yang-library datastore view (as gdata).
-
-    Walks every provided schema to construct a unified library view so that the
-    advertised set reflects every top-level subtree this server actually serves
-    (CFS + each operational view), not just a single schema.
-
-    A module is classified as `implement` iff any schema has a top-level node
-    (data node, RPC, or notification) in that namespace; everything else goes
-    under `import-only-module`. This keeps purely imported modules
-    (ietf-inet-types, ietf-yang-types, ietf-datastores, ...) from being
-    misadvertised as implemented.
-
-    `content-id` is a deterministic hash of the assembled `yang-library`
-    subtree using a fixed placeholder content-id, so it changes whenever any
-    served YANG library content changes.
-    """
-    merged_meta = {}
-    implemented_ns = set()
-    for schema in schemas:
-        for ns, meta in schema.module_metadata.items():
-            merged_meta[ns] = meta
-        for child in schema.children:
-            implemented_ns.add(child.namespace)
-        for rpc in schema.rpcs:
-            implemented_ns.add(rpc.namespace)
-        # TODO: notifications?
-
-    modules = []
-    import_only_modules = []
-    for ns in sorted(merged_meta.keys()):
-        meta = merged_meta[ns]
-        rev_opt = meta.revision
-        if ns in implemented_ns:
-            modules.append(yl.ietf_yang_library__yang_library__module_set__module_entry(
-                name=meta.module,
-                namespace=ns,
-                revision=rev_opt,
-            ))
-        else:
-            import_only_modules.append(yl.ietf_yang_library__yang_library__module_set__import_only_module_entry(
-                name=meta.module,
-                revision=rev_opt if rev_opt is not None else "",
-                namespace=ns,
-            ))
-
-    module_set = [
-        yl.ietf_yang_library__yang_library__module_set_entry(
-            name="default",
-            module=modules,
-            import_only_module=import_only_modules,
-        ),
-    ]
-    schema = [
-        yl.ietf_yang_library__yang_library__schema_entry(
-            name="default",
-            module_set=["default"],
-        ),
-    ]
-    datastore = [
-        yl.ietf_yang_library__yang_library__datastore_entry(
-            name=yl.ietf_datastores_running,
-            schema="default",
-        ),
-    ]
-    yang_library = yl.ietf_yang_library__yang_library(
-        content_id="__content_id_placeholder__",
-        module_set=module_set,
-        schema=schema,
-        datastore=datastore,
-    )
-    root = yl.root(yang_library=yang_library)
-    content_id = wyhash.hash(0, root.to_gdata().prsrc(deterministic=True).encode())
-    yang_library.content_id = str(content_id)
-    return root.to_gdata()
-
-
-def _respond_restconf_subtree(path_elements: list[yang.data.PathElement], data: yang.gdata.Node, accept: ?str, respond: proc(int, dict[str, str], str) -> None,
-) -> None:
-    if len(path_elements) <= 1:
-        if accept == "application/yang-data+xml":
-            respond(200, {"Content-Type": "application/yang-data+xml"}, data.to_xmlstr())
-        else:
-            respond(200, {"Content-Type": "application/yang-data+json"}, data.to_yang_jsonstr())
-        return
-
-    fnode = _path_elements_to_fnode(path_elements)
-    node = yang.gdata.filter(data, fnode)
-    if node is not None:
-        # Walk down the filtered tree to the target node because we only return the subtree
-        for i in range(1, len(path_elements)):
-            elem = path_elements[i]
-            maybe_list = node  # avoids widening a narrowed loop var (node)
-            if isinstance(maybe_list, yang.gdata.List):
-                # We already filtered the list to the matching entry;
-                # descend into that entry before looking for the next child.
-                if len(maybe_list.elements) == 0:
-                    respond(404, {}, "No data at path")
-                    return
-                node = maybe_list.elements[0]
-            child_id = yang.gdata.Id(elem.node.namespace, elem.node.name)
-            child = node.children.get(child_id)
-            if child is not None:
-                node = child
-            else:
-                respond(404, {}, "No data at path")
-                return
-
-        # Ensure top-level node gdata node in the filtered subtree always has namespace qualifiers
-        target_snode = path_elements[-1].node
-        target_id = yang.gdata.Id(target_snode.namespace, target_snode.name)
-        result = yang.gdata.Container({target_id: _node_with_ns(node, target_snode)})
-        if accept == "application/yang-data+xml":
-            respond(200, {"Content-Type": "application/yang-data+xml"}, result.to_xmlstr())
-        else:
-            respond(200, {"Content-Type": "application/yang-data+json"}, result.to_yang_jsonstr())
-    else:
-        respond(404, {}, "No data at path")
 
 
 class _DeviceMgrWrapper(object):
@@ -289,27 +46,6 @@ actor HttpServer(
 ):
     _ROUTER_CTX_DEVICE_KEY = "dev"
     http_log = logging.Logger(log_handler)
-
-    # Use an actor method because a lambda whose body is an actor action call
-    # `lambda: cfs.newsession().get()` gets the action effect and yields a
-    # Msg[gdata.Node] at runtime, which must be awaited on
-    def _top_data():
-        return cfs.newsession().get()
-
-    _restconf_views = [
-        _RestconfView(rcmon.SRC_DNODE, lambda: _build_restconf_monitoring_gdata([top_schema, rcmon.SRC_DNODE, yl.SRC_DNODE])),
-        _RestconfView(yl.SRC_DNODE, lambda: _build_yang_library_gdata([top_schema, rcmon.SRC_DNODE, yl.SRC_DNODE])),
-        _RestconfView(top_schema, _top_data)
-    ]
-    _restconf_view_by_module = _build_restconf_view_by_module(_restconf_views)
-
-    def _router_make_config_done(respond):
-        def config_done(result):
-            if isinstance(result, Exception):
-                respond(400, {}, json.encode({"status": "error", "message": str(result)}))
-                return
-            respond(200, {}, json.encode({"status": "ok"}))
-        return config_done
 
     def _router_device_schema(dev):
         dmc = dev.get_dmc()
@@ -645,71 +381,6 @@ actor HttpServer(
             content = yang.data.pradata(src_dnode, layer_config, loose=loose)
         respond(200, {}, content)
 
-    def _router_handle_restconf_get(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
-        accept = ctx.request.headers.get("accept")
-        if accept is not None and accept not in {"application/yang-data+json", "application/yang-data+xml"}:
-            respond(406, {}, "Not Acceptable")
-            return
-
-        path_segments = _split_restconf_path(ctx.param("rest_path"))
-        # No query path filter, merge all RESTCONF views.
-        if len(path_segments) == 0:
-            merged = yang.gdata.Container()
-            for i, view in enumerate(_restconf_views):
-                merged = yang.gdata.merge(merged, view.data())
-            _respond_restconf_subtree([], merged, accept, respond)
-            return
-
-        try:
-            top_level = path_segments[0]
-            if ':' not in top_level:
-                raise ValueError("RESTCONF path must start with a module-qualified top-level name")
-            top_level_module = top_level.split(':', 1)[0]
-            if top_level_module not in _restconf_view_by_module:
-                raise ValueError("No RESTCONF view for top-level module {top_level_module}")
-            view = _restconf_view_by_module[top_level_module]
-            path_elements = yang.json.resolve_json_path(view.schema, path_segments)
-        except ValueError as e:
-            respond(404, {}, str(e))
-            return
-        else:
-            _respond_restconf_subtree(path_elements, view.data(), accept, respond)
-
-    def _router_handle_restconf_delete(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
-        input_config = yang.json.from_json_path(top_schema, {}, _split_restconf_path(ctx.param("rest_path")), "remove", loose=True)
-        session = cfs.newsession()
-        session.edit_config(input_config, _router_make_config_done(respond))
-
-    def _router_handle_restconf_write(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
-        input_config = None
-        content_type = ctx.request.headers.get("content-type")
-
-        if content_type == "application/yang-data+json":
-            try:
-                json_in = json.decode(ctx.request.body.decode())
-                input_config = yang.json.from_json_path(top_schema, json_in, _split_restconf_path(ctx.param("rest_path")), loose=True)
-            except Exception as e:
-                respond(400, {}, "Error parsing JSON: {e}")
-                return
-        elif content_type == "application/yang-data+xml":
-            try:
-                xml_in = xml.decode(ctx.request.body.decode())
-                input_config = yang.xml.from_xml(top_schema, xml_in, loose=True)
-            except Exception as e:
-                respond(400, {}, "Error parsing XML: {e}")
-                return
-        else:
-            respond(415, {}, "Unsupported media type")
-            return
-
-        if input_config is not None:
-            session = cfs.newsession()
-            if ctx.request.headers.get("async") == "true":
-                http_log.info("Client requests async behavior")
-                session.edit_config(input_config, _router_make_config_done(respond))
-            else:
-                session.edit_config(input_config, None, _router_make_config_done(respond))
-
     def _router_build_device_routes(g: http_router.RouteGroup):
         g.use(_router_device_context_middleware)
         g.get("/capabilities", _router_handle_device_capabilities)
@@ -724,48 +395,19 @@ actor HttpServer(
         g.get("/q/{{id}}", _router_handle_device_queue_get)
         g.post("/q/{{id}}/set_approval", _router_handle_device_queue_set_approval)
 
-    def _router_handle_host_meta(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
-        # RESTCONF root resource discovery
-        respond(200, {"Content-Type": "application/xrd+xml"}, '<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">\n  <Link rel="restconf" href="{restconf_root}"/>\n</XRD>')
-
-    def _router_handle_yang_library_version(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
-        yl_meta = yl.SRC_DNODE.module_metadata["urn:ietf:params:xml:ns:yang:ietf-yang-library"]
-        rev_opt = yl_meta.revision
-        if rev_opt is not None:
-            accept = ctx.request.headers.get("accept")
-            if accept is not None and accept not in {"application/yang-data+json", "application/yang-data+xml"}:
-                respond(406, {}, "Not Acceptable")
-                return
-            if accept == "application/yang-data+xml":
-                respond(200, {"Content-Type": "application/yang-data+xml"},
-                    '<yang-library-version xmlns="urn:ietf:params:xml:ns:yang:ietf-restconf">{rev_opt}</yang-library-version>')
-            else:
-                respond(200, {"Content-Type": "application/yang-data+json"},
-                    json.encode({"ietf-restconf:yang-library-version": rev_opt}))
-            return
-        respond(500, {}, "Missing ietf-yang-library revision")
-
-    def _router_build_restconf_routes(g: http_router.RouteGroup):
-        g.get("/*rest_path", _router_handle_restconf_get)
-        g.post("/*rest_path", _router_handle_restconf_write)
-        g.put("/*rest_path", _router_handle_restconf_write)
-        g.delete("/*rest_path", _router_handle_restconf_delete)
-
     http_router_root = http_router.Router()
     http_router_root.use(http_router.access_log_middleware(http_log))
     http_router_root.use(http_router.recoverer_middleware(http_log))
 
-    http_router_root.get("/.well-known/host-meta", _router_handle_host_meta)
     http_router_root.get("/config-queue", _router_handle_config_queue)
     http_router_root.get("/device", _router_handle_device_list)
     http_router_root.route("/device/{{name}}", _router_build_device_routes)
-    http_router_root.get("{restconf_root}/yang-library-version", _router_handle_yang_library_version)
-    http_router_root.route("{restconf_root}/data", _router_build_restconf_routes)
     http_router_root.get("/layer/{{idx}}", _router_handle_layer_get)
 
-    var tmf_http = None
+    tmf_http = None
     if enable_tmf_api:
         tmf_http = stratoweave.tmf_api.TmfHttp(http_router_root, top_schema, cfs)
+    restconf = stratoweave.restconf.RestconfServer(http_router_root, http_log, top_schema, cfs, restconf_root)
 
     extra_routes = install_extra_routes
     if extra_routes is not None:
