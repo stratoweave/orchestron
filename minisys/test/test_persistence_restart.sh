@@ -9,7 +9,7 @@ PORT="${PORT:-$((18080 + RANDOM % 1000))}"
 DB_PATH="$ROOT_DIR/minisys/test/persistence-restart.db"
 BIN_FILE="$ROOT_DIR/minisys/out/bin/mini"
 PID=""
-CONFIG_JSON='{"netinfra:netinfra":{"router":[{"name":"rtr1","id":1,"type":"ietf","mock":true}]}}'
+CONFIG_JSON='{"netinfra:netinfra":{"global-settings":{"asn":123},"router":[{"name":"rtr1","id":1,"type":"ietf","mock":true}]}}'
 
 cleanup() {
     if [[ -n "${PID:-}" ]] && kill -0 "$PID" 2>/dev/null; then
