@@ -480,6 +480,8 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         #print('   #', tid, '(Layer)', name, 'EDIT_CONFIG', 'PREP RESULT', res, err=True)
         while res.requests or res.updates:
             #print('----', tid, '(Layer)', name, 'LINKAGE', len(res.requests), len(res.updates), err=True)
+            #for r in res.requests: print('    ', r, err=True)
+            #for u in res.updates: print('    ', u, err=True)
             res = root.linkage(tid, res.requests, res.updates, lower, dbuf)
         if not res.errors:
             done_cont = done
@@ -501,6 +503,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
                 edit_config_finish(res.errors[0])
 
     def edit_config_finish(result: value):
+        #print('####', tid_state, '(Layer)', name, 'edit_config_finish', err=True)
         if tid_state is not None:
             if done_cont is not None:
                 done_cont(result)
