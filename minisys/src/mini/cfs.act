@@ -21,7 +21,6 @@ class Router(base.Router):
     def transform(self, i, linked):
         #print("###### linked:", linked.prsrc(), err=True)
         asn = linked.get_cnt(q("netinfra")).get_cnt(q("global-settings")).get_leaf(q("asn")).val
-        #print("###### asn:", asn, err=True)
 
         o = base.o_root()
         print("CFS router transform running", i.name)
@@ -31,7 +30,7 @@ class Router(base.Router):
         oob_addr = dev.address.create("oob")
         oob_addr.address = i.name
         dev.credentials.username = "admin"
-        dev.credentials.password = "admin{asn}"
+        dev.credentials.password = "admin"
         dev.mock.enabled = i.mock
 
         rfs = o.rfs.create(i.name)
@@ -46,7 +45,6 @@ class L3vpn(base.L3vpn):
     def transform(self, i, linked):
         #print("###### linked:", linked.prsrc(), err=True)
         asn = linked.get_cnt(q("netinfra")).get_cnt(q("global-settings")).get_leaf(q("asn")).val
-        #print("###### asn:", asn, err=True)
 
         o = base.o_root()
         print("CFS l3vpn transform running", i.name, "asn:", asn)
