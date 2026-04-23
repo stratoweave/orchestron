@@ -114,12 +114,12 @@ class LinkRequest():
     def vequal(self, s):
         v = self.publisher.value_match
         return v == s if isinstance(v, str) else False
-#    def __str__(self):
-#        return "LinkRequest(" + \
-#               "\n    tag=" + str(self.tag) + \
-#               "\n    publisher=" + self.publisher.prsrc() + \
-#               "\n    subscriber=" + self.subscriber.prsrc() + \
-#               "\n    status=" + str(self.status) + ")"
+    def __str__(self):
+        return "LinkRequest(" + \
+               "\n            tag=" + str(self.tag) + \
+               "\n            publisher=" + self.publisher.prsrc() + \
+               "\n            subscriber=" + self.subscriber.prsrc() + \
+               "\n            status=" + str(self.status) + ")"
 
 class LinkUpdate():
     def __init__(self, tag: str, publisher: gdata.FNode, subscriber: gdata.FNode, config: gdata.Node):
@@ -128,10 +128,16 @@ class LinkUpdate():
         self.subscriber = subscriber
         self.config = config
     def tail(self):
-        return LinkUpdate(self.tag, self.publisher, self.subscriber.children[0], self.config)
+        return LinkUpdate(self.tag, self.publisher, self.subscriber.children[0] if self.subscriber.children else gdata.FNode(), self.config)
     def vequal(self, s):
         v = self.subscriber.value_match
         return v == s if isinstance(v, str) else False
+    def __str__(self):
+        return "LinkUpdate(" + \
+               "\n            tag=" + str(self.tag) + \
+               "\n            publisher=" + self.publisher.prsrc() + \
+               "\n            subscriber=" + self.subscriber.prsrc() + \
+               "\n            config=" + self.config.prsrc() + ")"
 
 class CfgResult():
     empty: bool
@@ -196,29 +202,18 @@ def _format_path(p: Path):
         return [p.name]
 
 # Reverse the given Path and construct a linear FNode with value-matching key leaves
-def fnode(p: Path, tail: ?gdata.FNode=None) -> gdata.FNode:
+def fnode(p: Path, tails: list[gdata.FNode]=[]) -> gdata.FNode:
     name = gdata.Id("",p.name)
-    child = [tail] if tail is not None else []
     if isinstance(p, PathElem):
         name = gdata.Id(p.ns, p.name)
-        return fnode(p.parent, gdata.FNode(name, children=child))
+        return fnode(p.parent, [gdata.FNode(name, children=tails)])
     elif isinstance(p, PathKey):
         keys = [ gdata.FNode(k, value_match=v.val) for k,v in p.keyvals.items() if isinstance(v, gdata.Leaf) ]
-        return fnode(p.parent, gdata.FNode(name, child+keys))
+        return fnode(p.parent, tails+keys)
+    elif tails:
+        return tails[0]
     else:
-        return gdata.FNode(name, children=child)
-
-#def fnode(p: ?Path) -> gdata.FNode:
-#    pp, name, children = None, None, []
-#    if isinstance(p, PathKey):
-#        pp = p.parent
-#        children = [ gdata.FNode(k, value_match=v.val) for k,v in p.keyvals.items() if isinstance(v, gdata.Leaf) ]
-#    elif isinstance(p, PathElem):
-#        pp = p.parent
-#    if pp is not None:
-#        name = gdata.Id(pp.ns,pp.name)
-#        children.append(fnode(pp.parent))
-#    return gdata.FNode(name, None, children)
+        return gdata.FNode(name)
 
 def make_rooted(p: Path, tree: gdata.Node):
     if isinstance(p, PathKey):
@@ -484,7 +479,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         res = apply(tid, force)
         #print('   #', tid, '(Layer)', name, 'EDIT_CONFIG', 'PREP RESULT', res, err=True)
         while res.requests or res.updates:
-            #print('####', tid, '(Layer)', name, 'LINKAGE', len(res.requests), len(res.updates), err=True)
+            #print('----', tid, '(Layer)', name, 'LINKAGE', len(res.requests), len(res.updates), err=True)
             res = root.linkage(tid, res.requests, res.updates, lower, dbuf)
         if not res.errors:
             done_cont = done
@@ -1216,7 +1211,8 @@ class _TransformTransactionBase(_Transaction):
             self.clear(tid, out)
             self.stage_db_state(tid, dbuf)
             req = [ LinkRequest(s.tag,s.path,self.fpath,False) for s in self.subscriptions ]
-            return CfgOk(empty=True, requests=req)
+            upd = self.link_updates(tid, gdata.Container())
+            return CfgOk(empty=True, requests=req, updates=upd)
         else:
             try:
                 merged = assert_complete(merge(newconf))
@@ -1225,7 +1221,7 @@ class _TransformTransactionBase(_Transaction):
                 req = self.link_requests(tid, merged)
                 upd = self.link_updates(tid, merged)
                 if not req:
-                    linked = self.candidate_linked[tid]
+                    linked = self.candidate_linked.get_def(tid, self.linked)
                     outmem = self.compute(tid, merged, linked, out)
                     self.essays[tid] = outmem
                     newout = outmem.0
@@ -1237,47 +1233,40 @@ class _TransformTransactionBase(_Transaction):
             else:
                 self.stage_db_state(tid, dbuf)
                 return CfgOk(requests=req, updates=upd)
-        return CfgOk()
 
     def link_requests(self, tid, merged):
-        if tid not in self.candidate_linked:
-            self.candidate_linked[tid] = self.linked
-        if tid not in self.candidate_subscriptions:
-            self.candidate_subscriptions[tid] = self.subscriptions
         req = []
         build_links = self.build_links
         if build_links is not None:
-            subscriptions = build_links(merged)
+            cand_linked = self.candidate_linked.get_def(tid, self.linked)
+            cand_subs = self.candidate_subscriptions.get_def(tid, self.subscriptions)
+            latest_subs = build_links(merged)
             linked = self.linked
-            for s in subscriptions:
-                if s not in self.subscriptions:
+            for s in latest_subs:
+                if s not in cand_subs:
                     req.append(LinkRequest(s.tag, s.path, self.fpath, True))
-            for s in self.subscriptions:
-                if s not in subscriptions:
+            for s in cand_subs:
+                if s not in latest_subs:
                     req.append(LinkRequest(s.tag, s.path, self.fpath, False))
-                    linked = prune(linked, s.path)
-            self.candidate_subscriptions[tid] = subscriptions
-            self.candidate_linked[tid] = linked
-        #print('####', tid, '(Transform)', _format_path(self.path), 'link_requests:', err=True)
-        #for r in req:
-        #    print('    ', tid, '(Transform)', _format_path(self.path), 'req:', r, err=True)
+                    cand_linked = prune(linked, s.path)
+            self.candidate_subscriptions[tid] = latest_subs
+            self.candidate_linked[tid] = cand_linked
+        #print('####', tid, '(Transform)', _format_path(self.path), 'link_requests:', len(req), err=True)
         return req
 
     def link_updates(self, tid, merged):
-        if tid not in self.candidate_subscribers:
-            self.candidate_subscribers[tid] = self.subscribers
-        upd: list[LinkUpdate] = []
+        cand_subscribers = self.candidate_subscribers.get_def(tid, self.subscribers)
         rooted = make_rooted(self.path, merged)
-        for u in self.candidate_subscribers[tid]:
+        upd = []
+        for u in cand_subscribers:
             upd.append(LinkUpdate(u.tag, self.fpath, u.path, rooted))
+        #print('####', tid, '(Transform)', _format_path(self.path), 'link_updates:', len(upd), err=True)
         return upd
 
     def linkage(self, tid, requests, updates, out, dbuf):
         #print('####', tid, '(Transform)', _format_path(self.path), 'linkage:', len(requests), len(updates), err=True)
         if requests:
-            if tid not in self.candidate_subscribers:
-                self.candidate_subscribers[tid] = self.subscribers
-            subscribers = self.candidate_subscribers[tid]
+            subscribers = self.candidate_subscribers.get_def(tid, self.subscribers)
             for r in requests:
                 if r.status:
                     subscribers.append(TaggedPath(r.tag, r.subscriber))
@@ -1286,12 +1275,8 @@ class _TransformTransactionBase(_Transaction):
             self.candidate_subscribers[tid] = subscribers
         ###
         if updates:
-            if tid not in self.candidate_linked:
-                self.candidate_linked[tid] = self.linked
-            if tid not in self.candidate_subscriptions:
-                self.candidate_subscriptions[tid] = self.subscriptions
-            linked = self.candidate_linked[tid]
-            subscriptions = self.candidate_subscriptions[tid]
+            linked = self.candidate_linked.get_def(tid, self.linked)
+            subscriptions = self.candidate_subscriptions.get_def(tid, self.subscriptions)
             for u in updates:
                 if TaggedPath(u.tag, u.publisher) in subscriptions:
                     linked = gdata.merge(linked, u.config)
@@ -1353,11 +1338,17 @@ class _TransformTransactionBase(_Transaction):
         self.diffs.pop(tid)
         candidate = self.candidates.pop_def(tid, {})
         essay = self.essays.pop(tid)
+        linked = self.candidate_linked.pop_def(tid, self.linked)
+        subscriptions = self.candidate_subscriptions.pop_def(tid, self.subscriptions)
+        subscribers = self.candidate_subscribers.pop_def(tid, self.subscribers)
         if tid == self.locker:
             if ok:
                 self.running = candidate
                 self.output = essay.0 if essay is not None else None
                 self.update_memory(essay.1 if essay is not None else None)
+                self.linked = linked
+                self.subscriptions = subscriptions
+                self.subscribers = subscribers
                 #print('   #', tid, '(Transform)', _format_path(self.path), 'COMMITTING\n' + per_src(candidate), err=True)
                 if self.candidates:
                     #print('   #', tid, '(Transform)', _format_path(self.path), 'INVALIDATING', set(self.candidates.keys()), err=True)

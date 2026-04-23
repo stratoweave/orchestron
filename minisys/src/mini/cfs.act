@@ -14,8 +14,15 @@ class GlobalSettings(base.GlobalSettings):
         o = base.o_root()
         return o
 
+def q(n):
+    return yang.gdata.Id("http://example.com/netinfra", n)
+
 class Router(base.Router):
     def transform(self, i, linked):
+        #print("###### linked:", linked.prsrc(), err=True)
+        asn = linked.get_cnt(q("netinfra")).get_cnt(q("global-settings")).get_leaf(q("asn")).val
+        #print("###### asn:", asn, err=True)
+
         o = base.o_root()
         print("CFS router transform running", i.name)
         dev = o.device.create(i.name)
@@ -24,7 +31,7 @@ class Router(base.Router):
         oob_addr = dev.address.create("oob")
         oob_addr.address = i.name
         dev.credentials.username = "admin"
-        dev.credentials.password = "admin"
+        dev.credentials.password = "admin{asn}"
         dev.mock.enabled = i.mock
 
         rfs = o.rfs.create(i.name)

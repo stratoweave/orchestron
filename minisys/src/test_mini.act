@@ -8,6 +8,7 @@ import stratoweave
 actor _test_netinfra1(t: testing.AsyncT):
     # Test input config
     root = cfs_layer.root()
+    root.netinfra.global_settings.asn = 123
     router = root.netinfra.router.create("rtr1", 1, "ietf")
     router.mock = True
 
