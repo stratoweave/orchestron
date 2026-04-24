@@ -55,6 +55,6 @@ get-config0 get-config1 get-config2:
 get-config-adata0 get-config-adata1 get-config-adata2:
 	@curl -H "Accept: application/yang-data+acton-adata" http://localhost:$(shell docker inspect -f '{{(index (index .NetworkSettings.Ports "80/tcp") 0).HostPort}}' $(TESTENV)-sweave)/layer/$(subst get-config-adata,,$@)
 
-.PHONY: delete-foo2
-delete-foo2:
-	curl -X DELETE http://localhost:$(shell docker inspect -f '{{(index (index .NetworkSettings.Ports "80/tcp") 0).HostPort}}' $(TESTENV)-sweave)/restconf/data/netinfra:netinfra/foo=rtr1,4.5.6.7
+.PHONY: delete-rtr1
+delete-rtr1:
+	curl -X DELETE http://localhost:$(shell docker inspect -f '{{(index (index .NetworkSettings.Ports "80/tcp") 0).HostPort}}' $(TESTENV)-sweave)/restconf/data/netinfra:netinfra/router=rtr1
