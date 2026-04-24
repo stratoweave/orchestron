@@ -78,7 +78,7 @@ actor basic_commit(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    })(None, None)
+    })(ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
 
     t1.configure("1", {'srcA': tree1}, None)
@@ -107,7 +107,7 @@ actor all_delete(t: testing.AsyncT):
     tcont = ttt.Container({
                 q("left"): ttt.Transform(ttt.PassThrough),
                 q("right"): ttt.Transform(ttt.PassThrough)
-            }) (None, None)
+            }) (ttt.PathRoot("0:"), None)
     t1 = tcont.newtrans()
     t1.configure("1", {"srcA": in1})
 
@@ -158,7 +158,7 @@ actor nested_delete(t: testing.AsyncT):
     tcont = ttt.Container({
                 q("left"): ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]),
                 q("right"): ttt.List(ttt.Transform(ttt.PassThrough), [q("name")])
-            }) (None, None)
+            }) (ttt.PathRoot("0:"), None)
     t1 = tcont.newtrans()
     t1.configure("1", {"srcA": in1})
 
@@ -190,7 +190,7 @@ actor overlapping_commit(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -220,7 +220,7 @@ actor overlapping_commit2(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -250,7 +250,7 @@ actor modified_commit(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
 
     t1.configure("1", {'srcA': tree1}, None)
@@ -271,7 +271,7 @@ actor modified_commit2(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
 
     t1.configure("1", {'srcA': tree1}, None)
@@ -306,7 +306,7 @@ actor modified_overlapping_commit(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -364,7 +364,7 @@ actor config_failure(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -394,7 +394,7 @@ actor config_abort(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -420,7 +420,7 @@ actor multi_lock(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
 
     t1.configure("1", {'srcA': tree1}, None)
@@ -454,7 +454,7 @@ actor empty_lock(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -480,7 +480,7 @@ actor empty_lock2(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -508,7 +508,7 @@ actor no_lock(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -532,7 +532,7 @@ actor spurious_commit(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 
@@ -555,7 +555,7 @@ actor spurious_config(t: testing.AsyncT):
     container = ttt.Container({
         q('left'): ttt.Transform(ttt.PassThrough),
         q('right'): ttt.Transform(ttt.PassThrough)
-    }) (None, None)
+    }) (ttt.PathRoot("0:"), None)
     t1 = container.newtrans()
     t2 = container.newtrans()
 

@@ -13,10 +13,19 @@ module netinfra {
 
   container netinfra {
     description "Network infrastructure";
+    container global-settings {
+      sw:transform mini.cfs.GlobalSettings;
+      leaf asn {
+        type uint32;
+      }
+    }
     list router {
       key name;
 
       sw:transform mini.cfs.Router;
+      sw:link global {
+        sw:path /netinfra/global-settings;
+      }
 
       leaf name {
         type string;

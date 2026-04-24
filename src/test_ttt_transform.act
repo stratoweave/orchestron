@@ -219,7 +219,7 @@ def _test_patch():
 ########################
 
 actor basic_commit(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
     t3 = router.newtrans()
@@ -276,7 +276,7 @@ actor basic_commit(t: testing.AsyncT):
 ########################
 
 actor overlapping_commit(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -302,7 +302,7 @@ actor overlapping_commit(t: testing.AsyncT):
 ########################
 
 actor modified_commit(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
 
     t1.configure("1", {'srcA': y1}, None)
@@ -319,7 +319,7 @@ actor modified_commit(t: testing.AsyncT):
 ########################
 
 actor modified_commit2(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
 
     t1.configure("1", {'srcA': y1}, None)
@@ -347,7 +347,7 @@ y0 = gdata.Container({
 })
 
 actor modified_overlapping_commit(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -375,7 +375,7 @@ y3 = gdata.Container({
 })
 
 actor modified_overlapping_commit2(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -415,7 +415,7 @@ a0b1 = gdata.Container({
 })
 
 actor config_failure(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -440,7 +440,7 @@ actor config_failure(t: testing.AsyncT):
 ########################
 
 actor config_abort(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -462,7 +462,7 @@ actor config_abort(t: testing.AsyncT):
 ########################
 
 actor multi_lock(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
 
     t1.configure("1", {'srcA': y1}, None)
@@ -483,7 +483,7 @@ actor multi_lock(t: testing.AsyncT):
 ########################
 
 actor empty_lock(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -505,7 +505,7 @@ actor empty_lock(t: testing.AsyncT):
 ########################
 
 actor empty_lock2(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -529,7 +529,7 @@ actor empty_lock2(t: testing.AsyncT):
 ########################
 
 actor no_lock(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -549,7 +549,7 @@ actor no_lock(t: testing.AsyncT):
 ########################
 
 actor spurious_commit(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -568,7 +568,7 @@ actor spurious_commit(t: testing.AsyncT):
 ########################
 
 actor spurious_config(t: testing.AsyncT):
-    router = ttt.Transform(ttt.PassThrough) (None, None)
+    router = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("0:"), None)
     t1 = router.newtrans()
     t2 = router.newtrans()
 
@@ -589,7 +589,7 @@ actor spurious_config(t: testing.AsyncT):
 ########################
 
 class MemoryTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         if memory is not None and isinstance(memory, gdata.Leaf):
             _memory: gdata.Leaf = memory
             val = _memory.val
@@ -606,7 +606,7 @@ class MemoryTransform(ttt.TransformFunction):
         raise AssertionError("Test error")
 
 actor transform_memory(t: testing.AsyncT):
-    router = ttt.Transform(MemoryTransform) (None, None)
+    router = ttt.Transform(MemoryTransform) (ttt.PathRoot("0:"), None)
 
     s1 = ttt.Session("s1", router, None)
 
@@ -622,11 +622,11 @@ actor transform_memory(t: testing.AsyncT):
 ########################
 
 class FailingTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         raise AssertionError("Test transform error")
 
 actor transform_exception(t: testing.AsyncT):
-    router = ttt.Transform(FailingTransform) (None, None)
+    router = ttt.Transform(FailingTransform) (ttt.PathRoot("0:"), None)
     sess = ttt.Session("s1", router, None)
 
     def cont(res):
@@ -658,7 +658,7 @@ actor DynstateActor(path: ttt.Path, update_dynstate: proc(?adata.MNode)->None, t
                 t.success()
 
 class DynstateTransform(ttt.TransformFunction):
-    def transform_wrapper(self, cfg: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
         if dynstate is not None and dynstate == gdata.Leaf(41):
             return (cfg, gdata.Leaf(42))
         elif cfg is not None and cfg == gdata.Leaf(39):
@@ -672,7 +672,7 @@ actor transform_dynstate(t: testing.AsyncT):
         act = DynstateActor(params.path, update_dynstate_wrapper, t)
         return act.on_conf
 
-    router = ttt.Layer("top", ttt.Container({q("leaf"): ttt.Transform(DynstateTransform, DynstateActorCtor)}), None)
+    router = ttt.Layer("top:", ttt.Container({q("leaf"): ttt.Transform(DynstateTransform, DynstateActorCtor)}), None)
     s1 = router.newsession()
     s1.edit_config(gdata.Container({q("leaf"): gdata.Leaf(39)}))
 

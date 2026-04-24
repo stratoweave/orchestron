@@ -11,6 +11,6 @@ import yang.gdata
 
 
 
-def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?ttt.Path,?ttt.Layer)->ttt.Node:
+def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(ttt.Path,?ttt.Layer)->ttt.Node:
     r = ttt.Container({yang.gdata.Id("http://stratoweave.org/yang/stratoweave-device.yang", "devices"): ttt.Container({yang.gdata.Id("http://stratoweave.org/yang/stratoweave-device.yang", "device"): ttt.List(ttt.DeviceConfig(dev_registry, log_handler), [yang.gdata.Id("http://stratoweave.org/yang/stratoweave-device.yang", "name")])}, ns='http://stratoweave.org/yang/stratoweave-device.yang', module='stratoweave-device')})
     return r

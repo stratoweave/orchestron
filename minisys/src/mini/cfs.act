@@ -1,6 +1,7 @@
 import logging
 
 import yang.adata
+import yang.gdata # required for linked input parameter to transform function
 import stratoweave.ttt
 
 import mini.layers.base_0 as base
@@ -8,8 +9,19 @@ import mini.layers.base_0 as base
 # https://github.com/actonlang/acton/issues/2390
 import yang.identityref, mini.layers.y_0
 
-class Router(base.Router):
+class GlobalSettings(base.GlobalSettings):
     def transform(self, i):
+        o = base.o_root()
+        return o
+
+def q(n):
+    return yang.gdata.Id("http://example.com/netinfra", n)
+
+class Router(base.Router):
+    def transform(self, i, linked):
+        #print("###### linked:", linked.prsrc(), err=True)
+        asn = linked.get_cnt(q("netinfra")).get_cnt(q("global-settings")).get_leaf(q("asn")).val
+
         o = base.o_root()
         print("CFS router transform running", i.name)
         dev = o.device.create(i.name)
@@ -30,9 +42,12 @@ class Router(base.Router):
 
 
 class L3vpn(base.L3vpn):
-    def transform(self, i):
+    def transform(self, i, linked):
+        #print("###### linked:", linked.prsrc(), err=True)
+        asn = linked.get_cnt(q("netinfra")).get_cnt(q("global-settings")).get_leaf(q("asn")).val
+
         o = base.o_root()
-        print("CFS l3vpn transform running", i.name)
+        print("CFS l3vpn transform running", i.name, "asn:", asn)
         rd = "65000:{i.vpn_id}"
         rt = "target:65000:{i.vpn_id}"
 

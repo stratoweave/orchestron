@@ -110,10 +110,16 @@ class LinkRequest():
         self.subscriber = subscriber
         self.status = status
     def tail(self):
-        return LinkRequest(self.tag, self.publisher.children[0], self.subscriber, self.status)
+        return LinkRequest(self.tag, self.publisher.children[0] if self.publisher.children else gdata.FNode(), self.subscriber, self.status)
     def vequal(self, s):
         v = self.publisher.value_match
         return v == s if isinstance(v, str) else False
+    def __str__(self):
+        return "LinkRequest(" + \
+               "\n            tag=" + str(self.tag) + \
+               "\n            publisher=" + self.publisher.prsrc() + \
+               "\n            subscriber=" + self.subscriber.prsrc() + \
+               "\n            status=" + str(self.status) + ")"
 
 class LinkUpdate():
     def __init__(self, tag: str, publisher: gdata.FNode, subscriber: gdata.FNode, config: gdata.Node):
@@ -122,10 +128,16 @@ class LinkUpdate():
         self.subscriber = subscriber
         self.config = config
     def tail(self):
-        return LinkUpdate(self.tag, self.publisher, self.subscriber.children[0], self.config)
+        return LinkUpdate(self.tag, self.publisher, self.subscriber.children[0] if self.subscriber.children else gdata.FNode(), self.config)
     def vequal(self, s):
         v = self.subscriber.value_match
         return v == s if isinstance(v, str) else False
+    def __str__(self):
+        return "LinkUpdate(" + \
+               "\n            tag=" + str(self.tag) + \
+               "\n            publisher=" + self.publisher.prsrc() + \
+               "\n            subscriber=" + self.subscriber.prsrc() + \
+               "\n            config=" + self.config.prsrc() + ")"
 
 class CfgResult():
     empty: bool
@@ -151,49 +163,59 @@ def CfgError(exception: Exception):
 
 
 class Path():
-    def __init__(self, name: str):
-        self.name = name
-        self.ns = ""
-        self.parent = None
+    name: str
+    namespace: () -> str
 
     def __str__(self):
         parts = _format_path(self)
         return "/" + "/".join(parts) if parts else "/"
 
+class PathRoot(Path):
+    def __init__(self, name: str):
+        self.name = name
+    def namespace(self):
+        return ""
+
 class PathElem(Path):
-    def __init__(self, i: gdata.Id, parent: ?Path):
+    def __init__(self, i: gdata.Id, parent: Path):
         self.name = i.name
         self.ns = i.q
         self.parent = parent
+    def namespace(self):
+        return self.ns
 
 class PathKey(Path):
-    def __init__(self, keystr: str, parent: ?Path, keyvals: dict[gdata.Id, gdata.Node], ):
+    def __init__(self, keystr: str, parent: Path, keyvals: dict[gdata.Id, gdata.Node], ):
         self.name = keystr
-        self.ns = parent.ns if parent is not None else ""
         self.parent = parent
         self.keyvals = keyvals
+    def namespace(self):
+        return self.parent.namespace()
 
-def _format_path(path: ?Path):
-    if path is not None:
-        par = path.parent
-        r1 = _format_path(par)
-        r2 = ["{path.name}#{path.ns}" if path.ns and par is not None and path.ns != par.ns else path.name]
-        return r1 + r2
+def _format_path(p: Path):
+    if isinstance(p, PathElem):
+        name = "{p.name}#{p.ns}" if p.ns and p.ns != p.parent.namespace() else p.name
+        return _format_path(p.parent) + [name]
+    elif isinstance(p, PathKey):
+        return _format_path(p.parent) + [p.name]
     else:
-        return []
+        return [p.name]
 
 # Reverse the given Path and construct a linear FNode with value-matching key leaves
-def fnode(p: ?Path) -> gdata.FNode:
-    pp, name, children = None, None, []
-    if isinstance(p, PathKey):
-        pp = p.parent
-        children = [ gdata.FNode(k, value_match=v.val) for k,v in p.keyvals.items() if isinstance(v, gdata.Leaf) ]
-    if pp is not None:
-        name = gdata.Id(pp.ns,pp.name)
-        children.append(fnode(pp.parent))
-    return gdata.FNode(name, None, children)
+def fnode(p: Path, tails: list[gdata.FNode]=[]) -> gdata.FNode:
+    name = gdata.Id("",p.name)
+    if isinstance(p, PathElem):
+        name = gdata.Id(p.ns, p.name)
+        return fnode(p.parent, [gdata.FNode(name, children=tails)])
+    elif isinstance(p, PathKey):
+        keys = [ gdata.FNode(k, value_match=v.val) for k,v in p.keyvals.items() if isinstance(v, gdata.Leaf) ]
+        return fnode(p.parent, tails+keys)
+    elif tails:
+        return tails[0]
+    else:
+        return gdata.FNode(name)
 
-def make_rooted(p: ?Path, tree: gdata.Node):
+def make_rooted(p: Path, tree: gdata.Node):
     if isinstance(p, PathKey):
         return make_rooted(p.parent, gdata.List(list(p.keyvals.keys()), [tree]))
     elif isinstance(p, PathElem):
@@ -201,17 +223,17 @@ def make_rooted(p: ?Path, tree: gdata.Node):
     else:
         return tree
 
-def _db_path(path: ?Path) -> list[value]:
-    if path is None:
-        return []
-    path1 = expect(path, "Missing expected path in _db_path")
-    par = _db_path(path1.parent)
-    if isinstance(path1, PathElem):
-        par.append(gdata.Id(path1.ns, path1.name))
-    elif path1.parent is None and path1.name.endswith(":"):
-        par.append(path1.name[:-1])
+def _db_path(path: Path) -> list[value]:
+    if isinstance(path, PathElem):
+        par = _db_path(path.parent)
+        par.append(gdata.Id(path.ns, path.name))
+    elif isinstance(path, PathKey):
+        par = _db_path(path.parent)
+        par.append(path.name)
+    elif path.name.endswith(":"):
+        par = [path.name[:-1]]
     else:
-        par.append(path1.name)
+        par = [path.name]
     return par
 
 class YieldState[T(Hashable)](object):
@@ -262,7 +284,7 @@ actor Node(impl: _Node):
         return impl.is_empty()
 
 class _Node(object):
-    path: ?Path
+    path: Path
     newtrans: proc() -> Transaction
     get: proc() -> gdata.Node
     def bind_db(self, db: ?lmdb.Db) -> None:
@@ -314,7 +336,7 @@ actor Transaction(impl: _Transaction):
         impl.update_dynstate(dynstate)
 
 class _Transaction(object):
-    path: ?Path
+    path: Path
     configure:  proc(tid: str, diff: dict[str,gdata.Node], out: ?Session, force: ?bool, dbuf: ?swdb.Buffer) -> CfgResult
     linkage: proc(tid: str, requests: list[LinkRequest], updates: list[LinkUpdate], out: ?Session, dbuf: ?swdb.Buffer) -> CfgResult
     # yield action
@@ -342,8 +364,8 @@ class _Transaction(object):
 
 ####################### Layer ########################
 
-actor Layer(name: str, rootgen: proc(?Path, ?Layer)->Node, lower: ?Layer, db_arg: ?lmdb.Db=None):
-    root = rootgen(Path(name+":"), lower)
+actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg: ?lmdb.Db=None):
+    root = rootgen(PathRoot(name), lower)
     root.bind_db(db_arg)
 
     def load_from_db(top_only=False):
@@ -457,6 +479,9 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         res = apply(tid, force)
         #print('   #', tid, '(Layer)', name, 'EDIT_CONFIG', 'PREP RESULT', res, err=True)
         while res.requests or res.updates:
+            #print('----', tid, '(Layer)', name, 'LINKAGE', len(res.requests), len(res.updates), err=True)
+            #for r in res.requests: print('    ', r, err=True)
+            #for u in res.updates: print('    ', u, err=True)
             res = root.linkage(tid, res.requests, res.updates, lower, dbuf)
         if not res.errors:
             done_cont = done
@@ -478,6 +503,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
                 edit_config_finish(res.errors[0])
 
     def edit_config_finish(result: value):
+        #print('####', tid_state, '(Layer)', name, 'edit_config_finish', err=True)
         if tid_state is not None:
             if done_cont is not None:
                 done_cont(result)
@@ -500,9 +526,11 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         buf = {}
         #print('   #', tid, '(Layer)', name, 'APPLY\n' + per_src(diff), err=True)
         res = root.configure(tid, diff, lower, force, dbuf)
-        if not res.errors and lower is not None:
-            res = lower.apply(tid, force=False)
         #print('   #', tid, '(Layer)', name, 'APPLY RESULT', res, err=True)
+        if not res.errors and lower is not None:
+            lowres = lower.apply(tid, force=False)
+            if lowres.errors:
+                res = CfgResult(res.empty, res.requests, res.updates, res.errors+lowres.errors)
         return res
 
     # yield action
@@ -522,7 +550,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
     def lock_cont1(res):
         #print('####', tid_state, '(Layer)', name, 'lock_cont1', err=True)
         if tid_state is not None:
-            if not isinstance(res, Exception) and lower is not None:
+            if not res.errors and lower is not None:
                 #print('   #', tid_state, '(Layer)', name, 'LOCK LOWER', err=True)
                 lower.lock(tid_state, lock_cont2)                           # yield await
             else:
@@ -576,7 +604,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
 
 ############## Containers ##################
 
-def Container(template={}, ns:?str=None, module:?str=None) -> proc(?Path, ?Layer)->Node:
+def Container(template={}, ns:?str=None, module:?str=None) -> proc(Path, ?Layer)->Node:
     return lambda path, lower: Node(_Container(path, template, ns, module, lower))
 
 class _Container(_Node):
@@ -584,7 +612,7 @@ class _Container(_Node):
     ns: ?str
     module: ?str
 
-    def __init__(self, path, template: dict[gdata.Id, proc(?Path, ?Layer)->Node], ns, module, lower: ?Layer):
+    def __init__(self, path, template: dict[gdata.Id, proc(Path, ?Layer)->Node], ns, module, lower: ?Layer):
         self.path = path
         self.elems = {key: templ(PathElem(key,path), lower) for key, templ in template.items()}
         self.ns = ns
@@ -689,14 +717,16 @@ class _ContainerTransaction(_Transaction):
             updates += r.updates
             errors += r.errors
         r = CfgResult(empty, requests, updates, errors)
-        #print('   # ...... (Container)', _format_path(self.path), 'ANALYZE RESULT:', r, err=True)
+        #print('   # ...... (Container)', _format_path(self.path), 'ANALYZE RESULT:', r, len(requests), len(updates), len(errors), err=True)
         return r
 
     def linkage(self, tid, requests, updates, out, dbuf):
+        #print('####', tid, '(Container)', _format_path(self.path), 'linkage', len(requests), len(updates), err=True)
         results = {}
         for child,elem in self.elems.items():
             reqs = [ r.tail() for r in requests if r.publisher.name == child ]
             upds = [ u.tail() for u in updates if u.subscriber.name == child ]
+            #print('   #', tid, '(Container)', _format_path(self.path), 'LINKAGE CHILD', child, len(reqs), len(upds), err=True)
             if reqs or upds:
                 results[child] = elem.linkage(tid, reqs, upds, out, dbuf)
         return self._analyze(results)
@@ -786,7 +816,7 @@ class _ContainerTransaction(_Transaction):
 
 ################# Lists ####################
 
-def List(template, key_names: list[gdata.Id], ns:?str=None, module:?str=None) -> proc(?Path, ?Layer)->Node:
+def List(template, key_names: list[gdata.Id], ns:?str=None, module:?str=None) -> proc(Path, ?Layer)->Node:
     return lambda path, lower: Node(_List(path, template, key_names, ns, module, lower))
 
 class _List(_Node):
@@ -835,7 +865,7 @@ class _List(_Node):
         return self.liststate.is_empty()
 
 
-actor ListState(path, template: proc(?Path, ?Layer) -> Node, ns: ?str, module: ?str, lower: ?Layer):
+actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?str, lower: ?Layer):
     var elems = {}
     var active = {}
     var provisional = set()
@@ -983,14 +1013,17 @@ class _ListTransaction(_Transaction):
             requests += r.requests
             updates += r.updates
             errors += r.errors
-        #print('   # ...... (List)', _format_path(self.path), 'ANALYZE RESULT:', res, err=True)
-        return CfgResult(empty, requests, updates, errors)
+        res = CfgResult(empty, requests, updates, errors)
+        #print('   # ...... (List)', _format_path(self.path), 'ANALYZE RESULT:', res, len(requests), len(updates), len(errors), err=True)
+        return res
 
     def linkage(self, tid, requests, updates, out, dbuf):
+        #print('####', tid, '(List)', _format_path(self.path), 'linkage', len(requests), len(updates), err=True)
         results = {}
         for key,elem in self.elems.items():
             reqs = [ r.tail() for r in requests if r.vequal(key) ]
             upds = [ u.tail() for u in updates if u.vequal(key) ]
+            #print('   #', tid, '(List)', _format_path(self.path), 'LINKAGE ELEMENT', key, len(reqs), len(upds), err=True)
             if reqs or upds:
                 results[key] = elem.linkage(tid, reqs, upds, out, dbuf)
         return self._analyze(results)
@@ -1128,13 +1161,13 @@ class _TransformTransactionBase(_Transaction):
     subscribers: list[TaggedPath]                               # Active linked data subscribers (with tag)
     candidate_subscribers: dict[str, list[TaggedPath]]          # As above, per ongoing transaction
     @property
-    build_links: ?(gdata.Node) -> list[TaggedPath]
+    build_links: ?proc(gdata.Node) -> list[TaggedPath]
     fpath: gdata.FNode
 
     me: str
     db: ?lmdb.Db
 
-    compute : proc(tid: str, merged: gdata.Node, out: ?Session) -> (gdata.Node, ?gdata.Node)
+    compute : proc(tid: str, merged: gdata.Node, linked: gdata.Node, out: ?Session) -> (gdata.Node, ?gdata.Node)
     clear : proc(tid: str, out: ?Session) -> None
     finalize : proc(tid: str) -> None
 
@@ -1181,7 +1214,8 @@ class _TransformTransactionBase(_Transaction):
             self.clear(tid, out)
             self.stage_db_state(tid, dbuf)
             req = [ LinkRequest(s.tag,s.path,self.fpath,False) for s in self.subscriptions ]
-            return CfgOk(empty=True, requests=req)
+            upd = self.link_updates(tid, gdata.Container())
+            return CfgOk(empty=True, requests=req, updates=upd)
         else:
             try:
                 merged = assert_complete(merge(newconf))
@@ -1190,8 +1224,8 @@ class _TransformTransactionBase(_Transaction):
                 req = self.link_requests(tid, merged)
                 upd = self.link_updates(tid, merged)
                 if not req:
-                    linked = self.candidate_linked[tid]
-                    outmem = self.compute(tid, merged, out)                         # TODO: Insert linked as third argument
+                    linked = self.candidate_linked.get_def(tid, self.linked)
+                    outmem = self.compute(tid, merged, linked, out)
                     self.essays[tid] = outmem
                     newout = outmem.0
                     #print('   #', tid, '(Transform)', _format_path(self.path), 'OUTPUT\n       ', newout.prsrc(indent=4), err=True)
@@ -1202,57 +1236,50 @@ class _TransformTransactionBase(_Transaction):
             else:
                 self.stage_db_state(tid, dbuf)
                 return CfgOk(requests=req, updates=upd)
-        return CfgOk()
 
     def link_requests(self, tid, merged):
-        if tid not in self.candidate_linked:
-            self.candidate_linked[tid] = self.linked
-        if tid not in self.candidate_subscriptions:
-            self.candidate_subscriptions[tid] = self.subscriptions
         req = []
         build_links = self.build_links
         if build_links is not None:
-            subscriptions = build_links(merged)
+            cand_linked = self.candidate_linked.get_def(tid, self.linked)
+            cand_subs = self.candidate_subscriptions.get_def(tid, self.subscriptions)
+            latest_subs = build_links(merged)
             linked = self.linked
-            for s in subscriptions:
-                if s not in self.subscriptions:
+            for s in latest_subs:
+                if s not in cand_subs:
                     req.append(LinkRequest(s.tag, s.path, self.fpath, True))
-            for s in self.subscriptions:
-                if s not in subscriptions:
+            for s in cand_subs:
+                if s not in latest_subs:
                     req.append(LinkRequest(s.tag, s.path, self.fpath, False))
-                    linked = prune(linked, s.path)
-            self.candidate_subscriptions[tid] = subscriptions
-            self.candidate_linked[tid] = linked
+                    cand_linked = prune(linked, s.path)
+            self.candidate_subscriptions[tid] = latest_subs
+            self.candidate_linked[tid] = cand_linked
+        #print('####', tid, '(Transform)', _format_path(self.path), 'link_requests:', len(req), err=True)
         return req
 
     def link_updates(self, tid, merged):
-        if tid not in self.candidate_subscribers:
-            self.candidate_subscribers[tid] = self.subscribers
-        upd: list[LinkUpdate] = []
+        cand_subscribers = self.candidate_subscribers.get_def(tid, self.subscribers)
         rooted = make_rooted(self.path, merged)
-        for u in self.candidate_subscribers[tid]:
+        upd = []
+        for u in cand_subscribers:
             upd.append(LinkUpdate(u.tag, self.fpath, u.path, rooted))
+        #print('####', tid, '(Transform)', _format_path(self.path), 'link_updates:', len(upd), err=True)
         return upd
 
     def linkage(self, tid, requests, updates, out, dbuf):
+        #print('####', tid, '(Transform)', _format_path(self.path), 'linkage:', len(requests), len(updates), err=True)
         if requests:
-            if tid not in self.candidate_subscribers:
-                self.candidate_subscribers[tid] = self.subscribers
-            subscribers = self.candidate_subscribers[tid]
+            subscribers = self.candidate_subscribers.get_def(tid, self.subscribers)
             for r in requests:
                 if r.status:
                     subscribers.append(TaggedPath(r.tag, r.subscriber))
                 else:
-                    subscribers = list(filter(lambda s: s.path != r.publisher, subscribers))
+                    subscribers = list(filter(lambda s: s.path != r.subscriber, subscribers))
             self.candidate_subscribers[tid] = subscribers
         ###
         if updates:
-            if tid not in self.candidate_linked:
-                self.candidate_linked[tid] = self.linked
-            if tid not in self.candidate_subscriptions:
-                self.candidate_subscriptions[tid] = self.subscriptions
-            linked = self.candidate_linked[tid]
-            subscriptions = self.candidate_subscriptions[tid]
+            linked = self.candidate_linked.get_def(tid, self.linked)
+            subscriptions = self.candidate_subscriptions.get_def(tid, self.subscriptions)
             for u in updates:
                 if TaggedPath(u.tag, u.publisher) in subscriptions:
                     linked = gdata.merge(linked, u.config)
@@ -1314,11 +1341,17 @@ class _TransformTransactionBase(_Transaction):
         self.diffs.pop(tid)
         candidate = self.candidates.pop_def(tid, {})
         essay = self.essays.pop(tid)
+        linked = self.candidate_linked.pop_def(tid, self.linked)
+        subscriptions = self.candidate_subscriptions.pop_def(tid, self.subscriptions)
+        subscribers = self.candidate_subscribers.pop_def(tid, self.subscribers)
         if tid == self.locker:
             if ok:
                 self.running = candidate
                 self.output = essay.0 if essay is not None else None
                 self.update_memory(essay.1 if essay is not None else None)
+                self.linked = linked
+                self.subscriptions = subscriptions
+                self.subscribers = subscribers
                 #print('   #', tid, '(Transform)', _format_path(self.path), 'COMMITTING\n' + per_src(candidate), err=True)
                 if self.candidates:
                     #print('   #', tid, '(Transform)', _format_path(self.path), 'INVALIDATING', set(self.candidates.keys()), err=True)
@@ -1378,9 +1411,9 @@ class TransformActorParams:
         self.dev = dev
 
 
-def Transform(function, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(?Path, ?Layer)->Node:
+def Transform(function, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, build_links: ?proc(gdata.Node) -> list[TaggedPath]=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(Path, ?Layer)->Node:
     proc def _create_transform_node(path, lower):
-        transform = _Transform(path, function, None, lower, log_handler)
+        transform = _Transform(path, function, build_links, lower, log_handler)
         node = Node(transform)
         if act is not None:
             transform.init_dynstate(node, act)
@@ -1413,8 +1446,8 @@ class _TransformTransaction(_TransformTransactionBase):
         self.function = function(log_handler)
         self.lower = lower
 
-    def compute(self, tid, merged, out):
-        newoutmem = self.function.transform_wrapper(merged, self.memory, self.dynstate)
+    def compute(self, tid, merged, linked, out):
+        newoutmem = self.function.transform_wrapper(merged, linked, self.memory, self.dynstate)
         newout = newoutmem.0
         res = difference(self.output, newout)
         if out is not None and res is not None:
@@ -1467,8 +1500,8 @@ class _TransformTransaction(_TransformTransactionBase):
             self.function.on_conf(self.get(), self.memory)
 
 class TransformFunction(object):
-    transform_wrapper: mut(gdata.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
-    transform_xml: mut(xml.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
+    transform_wrapper: mut(gdata.Node, gdata.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
+    transform_xml: mut(xml.Node, gdata.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
     _on_conf: ?proc(gdata.Node, ?gdata.Node) -> None
     logger: logging.Logger
 
@@ -1476,10 +1509,10 @@ class TransformFunction(object):
         self._on_conf = None
         self.logger = logging.Logger(log_handler)
 
-    def transform_wrapper(self, cfg, memory, dynstate):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
         return (gdata.Container(), None)
 
-    def transform_xml(self, cfg, memory, dynstate):
+    def transform_xml(self, cfg, linked, memory, dynstate):
         return gdata.Container(), None
 
     proc def init_dynstate(self, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None, update_dynstate: proc(?gdata.Node)->None, path: Path):
@@ -1492,7 +1525,7 @@ class TransformFunction(object):
 
 ################# RFSTransform ###################
 
-def RFSTransform(function, dev_registry: swdev.DeviceRegistry, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(?Path, ?Layer)->Node:
+def RFSTransform(function, dev_registry: swdev.DeviceRegistry, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(Path, ?Layer)->Node:
     proc def _create_rfs_transform_node(path, lower):
         rfs_transform = _RFSTransform(path, function, dev_registry, lower, log_handler)
         node = Node(rfs_transform)
@@ -1513,15 +1546,17 @@ class _RFSTransform(_TransformBase):
 def RFSTransaction(path, function, dev_registry, lower, log_handler):
     return Transaction(_RFSTransaction(path, function, dev_registry, lower, log_handler))
 
-def devname_from_rfs_path(path: ?Path):
+def devname_from_rfs_path(path: Path):
     def loop(p):
-        if p is not None:
+        if isinstance(p, PathKey):
             par = p.parent
-            if isinstance(p, PathKey) and isinstance(par, PathElem) and par.name == "rfs":
+            if isinstance(par, PathElem) and par.name == "rfs":
                 return p.name
-            return loop(par)
+        elif isinstance(p, PathElem):
+            par = p.parent
         else:
             raise ValueError("_RFSTransaction: unable to determine device name from path: {path}")
+        return loop(par)
     return loop(path)
 
 class _RFSTransaction(_TransformTransactionBase):
@@ -1543,7 +1578,7 @@ class _RFSTransaction(_TransformTransactionBase):
         self.dev = dev_registry.get(self.devname)
         self.lower = lower
 
-    def compute(self, tid, merged, out):
+    def compute(self, tid, merged, linked, out):
         #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', actorid(), err=True)
         dev_content = {
             gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname),
@@ -1664,7 +1699,7 @@ class RFSFunction(object):
 
 ################# Device #####################
 
-def Device(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?Path, ?Layer)->Node:
+def Device(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(Path, ?Layer)->Node:
     return lambda path, _lower: Node(_Device(path, dev_registry, log_handler))
 
 class _Device(_TransformBase):
@@ -1675,7 +1710,7 @@ class _Device(_TransformBase):
 def DeviceTransaction(path, dev_registry, log_handler):
     return Transaction(_DeviceTransaction(path, dev_registry, log_handler))
 
-def devname_from_device_path(path: ?Path):
+def devname_from_device_path(path: Path):
     if isinstance(path, PathKey):
         return path.name
     raise ValueError("DeviceTransaction: path component is not a key: {path} ({type(path)})")
@@ -1689,7 +1724,7 @@ class _DeviceTransaction(_TransformTransactionBase):
         self.dev = dev_registry.get(devname_from_device_path(path))
         self.logger = logging.Logger(log_handler)
 
-    def compute(self, tid, merged, out):
+    def compute(self, tid, merged, linked, out):
         return merged, None
 
     def clear(self, tid, out):
@@ -1705,7 +1740,7 @@ class _DeviceTransaction(_TransformTransactionBase):
 
 ################# DeviceConfig #####################
 
-def DeviceConfig(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?Path, ?Layer)->Node:
+def DeviceConfig(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(Path, ?Layer)->Node:
     return lambda path, _lower: Node(_DeviceConfig(path, dev_registry, log_handler))
 
 class _DeviceConfig(_TransformBase):
@@ -1716,7 +1751,7 @@ class _DeviceConfig(_TransformBase):
 def DeviceConfigTransaction(path, dev_registry, log_handler):
     return Transaction(_DeviceConfigTransaction(path, dev_registry, log_handler))
 
-def devname_from_deviceconfig_path(path: ?Path):
+def devname_from_deviceconfig_path(path: Path):
     if isinstance(path, PathKey):
         return path.name
     raise ValueError("DeviceConfigTransaction: path component is not a key: {path} ({type(path)})")
@@ -1731,7 +1766,7 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
         self.logger = logging.Logger(log_handler)
         self.cont = None
 
-    def compute(self, tid, merged, out):
+    def compute(self, tid, merged, linked, out):
         return merged, None
 
     def clear(self, tid, out):
@@ -1765,7 +1800,7 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
 ################# Trivials #####################
 
 class PassThrough(TransformFunction):
-    def transform_wrapper(self, cfg, memory, dynstate):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
         return (cfg, memory)
 
 def Sink():

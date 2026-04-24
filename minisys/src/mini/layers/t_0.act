@@ -11,6 +11,25 @@ import yang.gdata
 import mini.cfs
 
 
-def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?ttt.Path,?ttt.Layer)->ttt.Node:
-    r = ttt.Container({yang.gdata.Id("http://example.com/netinfra", "netinfra"): ttt.Container({yang.gdata.Id("http://example.com/netinfra", "router"): ttt.List(ttt.Transform(mini.cfs.Router, None, lower, log_handler), [yang.gdata.Id("http://example.com/netinfra", "name")])}, ns='http://example.com/netinfra', module='netinfra'), yang.gdata.Id("http://example.com/l3vpn", "l3vpn"): ttt.List(ttt.Transform(mini.cfs.L3vpn, None, lower, log_handler), [yang.gdata.Id("http://example.com/l3vpn", "name")], ns='http://example.com/l3vpn', module='l3vpn')})
+def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(ttt.Path,?ttt.Layer)->ttt.Node:
+    r = ttt.Container({yang.gdata.Id("http://example.com/netinfra", "netinfra"): ttt.Container({yang.gdata.Id("http://example.com/netinfra", "global-settings"): ttt.Transform(mini.cfs.GlobalSettings, None, None, lower, log_handler), yang.gdata.Id("http://example.com/netinfra", "router"): ttt.List(ttt.Transform(mini.cfs.Router, None, _build_target_links_netinfra__netinfra__router_entry, lower, log_handler), [yang.gdata.Id("http://example.com/netinfra", "name")])}, ns='http://example.com/netinfra', module='netinfra'), yang.gdata.Id("http://example.com/l3vpn", "l3vpn"): ttt.List(ttt.Transform(mini.cfs.L3vpn, None, _build_target_links_l3vpn__l3vpn_entry, lower, log_handler), [yang.gdata.Id("http://example.com/l3vpn", "name")], ns='http://example.com/l3vpn', module='l3vpn')})
     return r
+
+def _build_target_links_netinfra__netinfra__router_entry(conf: yang.gdata.Node) -> list[ttt.TaggedPath]:
+    res = []
+    # static link: global
+    res.append(ttt.TaggedPath('global', yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "netinfra"), children=[yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "global-settings"))])))
+    return res
+
+def _build_target_links_l3vpn__l3vpn_entry(conf: yang.gdata.Node) -> list[ttt.TaggedPath]:
+    res = []
+    # static link: global
+    res.append(ttt.TaggedPath('global', yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "netinfra"), children=[yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "global-settings"))])))
+    # leafref link: router
+    _l0 = conf.get_opt_list(yang.gdata.Id("http://example.com/l3vpn", "endpoint"))
+    if _l0 is not None:
+        for _e0 in _l0.elements:
+            _v1 = _e0.get_opt_value(yang.gdata.Id("http://example.com/l3vpn", "device"))
+            if _v1 is not None:
+                res.append(ttt.TaggedPath('router', yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "netinfra"), children=[yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "router"), children=[yang.gdata.FNode(yang.gdata.Id("http://example.com/netinfra", "name"), value_match=_v1)])])))
+    return res

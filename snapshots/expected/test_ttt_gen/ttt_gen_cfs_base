@@ -25,7 +25,7 @@ class Foobar(ttt.TransformFunction):
         """Return the modeled input type for this transform"""
         return foo__c1__foo__bar_entry
 
-    mut def transform_wrapper(self, i: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_wrapper(self, i: yang.gdata.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from gdata to
         modeled input and back to gdata
         """
@@ -33,7 +33,7 @@ class Foobar(ttt.TransformFunction):
 
         return self.transform(modeled_input).to_gdata(), None
 
-    mut def transform_xml(self, i: xml.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
+    mut def transform_xml(self, i: xml.Node, linked: yang.gdata.Node, memory: ?yang.gdata.Node, dynstate: ?yang.gdata.Node) -> (yang.gdata.Node, ?yang.gdata.Node):
         """Wrap the user provided transform method to convert from XML to
         modeled input and return gdata
         """

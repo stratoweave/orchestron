@@ -14,7 +14,7 @@ from respnet.layers.y_1 import stratoweave_rfs__rfs__backbone_interface_entry
 from respnet.layers.y_1 import stratoweave_rfs__rfs__backbone_interface__dynstate
 from respnet.layers.y_1 import stratoweave_rfs__rfs__backbone_interface__memory
 
-def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(?ttt.Path,?ttt.Layer)->ttt.Node:
+def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(ttt.Path,?ttt.Layer)->ttt.Node:
     r = ttt.Container({yang.gdata.Id("http://stratoweave.org/yang/stratoweave-rfs.yang", "device"): ttt.List(ttt.Device(dev_registry, log_handler), [yang.gdata.Id("http://stratoweave.org/yang/stratoweave-rfs.yang", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs.yang', module='stratoweave-rfs'), yang.gdata.Id("http://stratoweave.org/yang/stratoweave-rfs.yang", "rfs"): ttt.List(ttt.Container({yang.gdata.Id("http://example.com/foo", "backbone-interface"): ttt.List(ttt.RFSTransform(respnet.rfs.BBInterface, dev_registry, BBInterfaceTransformCtor, lower, log_handler), [yang.gdata.Id("http://example.com/foo", "name")], ns='http://example.com/foo', module='foo')}), [yang.gdata.Id("http://stratoweave.org/yang/stratoweave-rfs.yang", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs.yang', module='stratoweave-rfs')})
     return r
 
