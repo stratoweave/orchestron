@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data>
     <netinfra xmlns="http://example.com/netinfra">
+        <global-settings>
+            <asn>123</asn>
+        </global-settings>
         <router>
             <name>rtr1</name>
             <id>1</id>
