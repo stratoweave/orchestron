@@ -162,6 +162,13 @@ def src_yang():
                     type string;
                 }
             }
+
+            container state {
+                config false;
+                leaf current-datetime {
+                    type string;
+                }
+            }
         }
 
         list l3vpn-endpoint {
