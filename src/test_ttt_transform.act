@@ -165,6 +165,195 @@ def _test_transpose_absent():
     }
     testing.assertEqual(out1, exp1)
 
+def _test_filter_transpose_none():
+    testing.assertEqual(ttt.filter_transpose(None) is None, True)
+    testing.assertEqual(ttt.filter_transpose(gdata.FNode()) is None, True)
+    testing.assertEqual(ttt.filter_transpose(gdata.FNode(q("router"))) is None, True)
+
+def _test_filter_transpose_named_filter():
+    res = ttt.filter_transpose(gdata.FNode(q("router"), children=[
+        gdata.FNode(q("name"), value_match="ce1"),
+        gdata.FNode(q("state")),
+    ]))
+    if res is not None:
+        testing.assertEqual(len(res), 2)
+        testing.assertEqual(res[q("name")].prsrc(deterministic=True), gdata.FNode(q("name"), value_match="ce1").prsrc(deterministic=True))
+        testing.assertEqual(res[q("state")].prsrc(deterministic=True), gdata.FNode(q("state")).prsrc(deterministic=True))
+    else:
+        testing.assertEqual("dict", "None")
+
+def _test_filter_transpose_buckets_child_branches():
+    res = ttt.filter_transpose(gdata.FNode(children=[
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+        ]),
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state"), children=[
+                gdata.FNode(q("current-datetime")),
+            ]),
+        ]),
+        gdata.FNode(q("switch")),
+    ]))
+    if res is not None:
+        testing.assertEqual(len(res), 2)
+        testing.assertEqual(res[q("router")].prsrc(deterministic=True), gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+        ]).prsrc(deterministic=True))
+        testing.assertEqual(res[q("switch")].prsrc(deterministic=True), gdata.FNode(q("switch")).prsrc(deterministic=True))
+    else:
+        testing.assertEqual("dict", "None")
+
+def _test_filter_transpose_preserves_distinct_predicates():
+    res = ttt.filter_transpose(gdata.FNode(children=[
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+        ]),
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce2"),
+            gdata.FNode(q("state")),
+        ]),
+    ]))
+    if res is not None:
+        testing.assertEqual(len(res), 1)
+        testing.assertEqual(res[q("router")].prsrc(deterministic=True), gdata.FNode(children=[
+            gdata.FNode(q("router"), children=[
+                gdata.FNode(q("name"), value_match="ce1"),
+                gdata.FNode(q("state")),
+            ]),
+            gdata.FNode(q("router"), children=[
+                gdata.FNode(q("name"), value_match="ce2"),
+                gdata.FNode(q("state")),
+            ]),
+        ]).prsrc(deterministic=True))
+    else:
+        testing.assertEqual("dict", "None")
+
+def _test_list_filters_extracts_repeated_predicates():
+    filters = ttt.list_filters(gdata.FNode(children=[
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+        ]),
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce2"),
+            gdata.FNode(q("state")),
+        ]),
+    ]))
+    testing.assertEqual(len(filters), 2)
+    testing.assertEqual(filters[0].prsrc(deterministic=True), gdata.FNode(q("router"), children=[
+        gdata.FNode(q("name"), value_match="ce1"),
+        gdata.FNode(q("state")),
+    ]).prsrc(deterministic=True))
+    testing.assertEqual(filters[1].prsrc(deterministic=True), gdata.FNode(q("router"), children=[
+        gdata.FNode(q("name"), value_match="ce2"),
+        gdata.FNode(q("state")),
+    ]).prsrc(deterministic=True))
+
+def _test_exact_list_filter_branches_extracts_plain_keys():
+    branches = ttt.exact_list_filter_branches([
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+        ]),
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce2"),
+            gdata.FNode(q("state")),
+        ]),
+    ], [q("name")])
+    if branches is not None:
+        testing.assertEqual(len(branches), 2)
+        testing.assertEqual(branches["ce1"][0].prsrc(deterministic=True), gdata.FNode(children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+        ]).prsrc(deterministic=True))
+        testing.assertEqual(branches["ce2"][0].prsrc(deterministic=True), gdata.FNode(children=[
+            gdata.FNode(q("name"), value_match="ce2"),
+            gdata.FNode(q("state")),
+        ]).prsrc(deterministic=True))
+    else:
+        testing.assertEqual("branches", "None")
+
+def _test_exact_list_filter_branches_merges_same_key():
+    branches = ttt.exact_list_filter_branches([
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+        ]),
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("metrics")),
+        ]),
+    ], [q("name")])
+    if branches is not None:
+        testing.assertEqual(len(branches), 1)
+        testing.assertEqual(len(branches["ce1"]), 1)
+        testing.assertEqual(branches["ce1"][0].prsrc(deterministic=True), gdata.FNode(children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("state")),
+            gdata.FNode(q("metrics")),
+        ]).prsrc(deterministic=True))
+    else:
+        testing.assertEqual("branches", "None")
+
+def _test_exact_list_filter_branches_rejects_wildcards():
+    branches = ttt.exact_list_filter_branches([
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match=gdata.VWildcard("ce*")),
+            gdata.FNode(q("state")),
+        ]),
+    ], [q("name")])
+    testing.assertEqual(branches is None, True)
+
+def _test_exact_list_filter_branches_keeps_element_predicates():
+    branches = ttt.exact_list_filter_branches([
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("status"), value_match="up"),
+            gdata.FNode(q("metrics")),
+        ]),
+    ], [q("name")])
+    if branches is not None:
+        testing.assertEqual(branches["ce1"][0].prsrc(deterministic=True), gdata.FNode(children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("status"), value_match="up"),
+            gdata.FNode(q("metrics")),
+        ]).prsrc(deterministic=True))
+    else:
+        testing.assertEqual("branches", "None")
+
+def _test_exact_list_filter_branches_keeps_unmerged_element_predicates():
+    branches = ttt.exact_list_filter_branches([
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("status"), value_match="up"),
+            gdata.FNode(q("metrics")),
+        ]),
+        gdata.FNode(q("router"), children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("status"), value_match="down"),
+            gdata.FNode(q("metrics")),
+        ]),
+    ], [q("name")])
+    if branches is not None:
+        testing.assertEqual(len(branches), 1)
+        testing.assertEqual(len(branches["ce1"]), 2)
+        testing.assertEqual(branches["ce1"][0].prsrc(deterministic=True), gdata.FNode(children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("status"), value_match="up"),
+            gdata.FNode(q("metrics")),
+        ]).prsrc(deterministic=True))
+        testing.assertEqual(branches["ce1"][1].prsrc(deterministic=True), gdata.FNode(children=[
+            gdata.FNode(q("name"), value_match="ce1"),
+            gdata.FNode(q("status"), value_match="down"),
+            gdata.FNode(q("metrics")),
+        ]).prsrc(deterministic=True))
+    else:
+        testing.assertEqual("branches", "None")
+
 ########################
 
 def _test_multi_merge():

@@ -235,14 +235,152 @@ def path_key_data(p: Path) -> gdata.Node:
         return gdata.Container(dict(p.keyvals.items()))
     return gdata.Container()
 
-def _filter_data(data: ?gdata.Node, filt: ?gdata.FNode) -> ?gdata.Node:
-    if data is None:
-        return None
+def root_filter(filt: ?gdata.FNode) -> ?gdata.FNode:
+    """Adapt an external root filter to the implicit TTT root container.
+
+    A named RESTCONF filter describes a top-level data node. The TTT root is
+    the parent of those nodes, so the named filter must become a child filter
+    before container traversal starts.
+    """
+    if filt is not None and filt.name is not None:
+        return gdata.FNode(children=[filt])
+    return filt
+
+def filter_transpose(filt: ?gdata.FNode) -> ?dict[gdata.Id, gdata.FNode]:
+    """Transpose a container filter into filter branches per child node.
+
+    For a container filter like:
+
+        FNode(children=[
+            FNode(router, children=[
+                FNode(name, value_match="ce1"),
+                FNode(state, children=[
+                    FNode(current-datetime),
+                ]),
+            ]),
+            FNode(switch, children=[
+                FNode(name, value_match="sw1"),
+            ]),
+        ])
+
+    this returns:
+
+        router -> FNode(router, children=[
+            FNode(name, value_match="ce1"),
+            FNode(state, children=[
+                FNode(current-datetime),
+            ]),
+        ])
+        switch -> FNode(switch, children=[
+            FNode(name, value_match="sw1"),
+        ])
+
+    Repeated child filters are merged when they describe the same predicate
+    context. Repeated child filters with different predicates stay wrapped
+    in a single anonymous FNode under the same child key, for example:
+
+        router -> FNode(children=[
+            FNode(router, children=[
+                FNode(name, value_match="ce1"),
+                FNode(state),
+            ]),
+            FNode(router, children=[
+                FNode(name, value_match="ce2"),
+                FNode(state),
+            ]),
+        ])
+
+    A bare named filter with no children means "read this whole subtree" once
+    the parent has already selected this node.
+    """
     if filt is not None:
-        if filt.name is not None:
-            return gdata.filter(data, gdata.FNode(children=[filt]))
-        return gdata.filter(data, filt)
-    return data
+        if filt.value_match is not None:
+            raise ValueError("Container filter cannot have value match")
+        if len(filt.children) == 0:
+            return None
+        children = gdata.filter_merge_list(filt.children)
+        branches: dict[gdata.Id, gdata.FNode] = {}
+        for child in children:
+            tag = child.name
+            if tag is not None:
+                if tag in branches:
+                    prev = branches[tag]
+                    siblings = prev.children if prev.name is None else [prev]
+                    merged = gdata.filter_merge_list(siblings + [child])
+                    branches[tag] = merged[0] if len(merged) == 1 else gdata.FNode(children=merged)
+                else:
+                    branches[tag] = child
+            else:
+                raise ValueError("Container filter child must have name")
+        return branches
+    return None
+
+def list_filters(filt: ?gdata.FNode) -> list[gdata.FNode]:
+    """Normalize the filter received by a TTT list node.
+
+    Parent containers send a single named filter for one list predicate, or
+    an anonymous wrapper when the same list is selected by multiple distinct
+    predicates. Returning a list of named filters gives list reads one common
+    shape for exact-key routing and final gdata filtering.
+    """
+    if filt is not None:
+        if filt.name is None:
+            return filt.children
+        return [filt]
+    return []
+
+def filter_exact_list_key(filt: gdata.FNode, key_names: list[gdata.Id]) -> ?str:
+    """Return the exact list key selected by a filter, if it is routable.
+
+    Only plain key value matches are safe to route directly to one TTT list
+    element. Wildcards, missing key predicates, and key filters with children
+    fall back to scanning the list and applying the normal gdata filter.
+    """
+    leaves: dict[gdata.Id, gdata.Leaf] = {}
+    for key_name in key_names:
+        found = False
+        for child in filt.children:
+            vm = child.value_match
+            if child.name == key_name and vm is not None and len(child.children) == 0:
+                if isinstance(vm, gdata.ValueMatch):
+                    return None
+                leaves[key_name] = gdata.Leaf(vm)
+                found = True
+                break
+        if not found:
+            return None
+    return gdata.Container(leaves).key_str(key_names)
+
+def list_element_filters(filters: list[gdata.FNode]) -> list[gdata.FNode]:
+    """Return element-local filters for routed or scanned list reads.
+
+    TTT list nodes route to list elements, so the list node itself has
+    already been consumed. The child filter sent to an element is therefore
+    anonymous and contains the list predicate's children.
+    """
+    return gdata.filter_merge_list([gdata.FNode(children=f.children) for f in filters])
+
+def exact_list_filter_branches(filters: list[gdata.FNode], key_names: list[gdata.Id]) -> ?dict[str, list[gdata.FNode]]:
+    """Return per-key element filters when every branch has an exact key.
+
+    The result maps each selected TTT list key to the filter that should be
+    passed to that list element. None means at least one branch either cannot
+    be mapped to a concrete key.
+    """
+    if len(filters) == 0:
+        return None
+    branches: dict[str, list[gdata.FNode]] = {}
+    for filt in filters:
+        key = filter_exact_list_key(filt, key_names)
+        if key is not None:
+            elem_filter = gdata.FNode(children=filt.children)
+            if key in branches:
+                branches[key] = gdata.filter_merge_list(branches[key] + [elem_filter])
+            else:
+                branches[key] = [elem_filter]
+        else:
+            return None
+    return branches
 
 def _db_path(path: Path) -> list[value]:
     if isinstance(path, PathElem):
@@ -289,8 +427,8 @@ actor Node(impl: _Node):
     def get():
         return impl.get()
 
-    def get_data():
-        return impl.get_data()
+    def get_data(filt: ?gdata.FNode=None):
+        return impl.get_data(filt)
 
     def bind_db(db: ?lmdb.Db):
         """Attach DB handle to this node (and its children)
@@ -311,8 +449,8 @@ class _Node(object):
     path: Path
     newtrans: proc() -> Transaction
     get: proc() -> gdata.Node
-    def get_data(self) -> gdata.Node:
-        return self.get()
+    def get_data(self, filt: ?gdata.FNode=None) -> ?gdata.Node:
+        return gdata.filter(self.get(), filt)
     def bind_db(self, db: ?lmdb.Db) -> None:
         pass
     restore: proc(list[str], str, ?str, bytes) -> None
@@ -346,8 +484,8 @@ actor Transaction(impl: _Transaction):
     def get():
         return impl.get()
 
-    def get_data():
-        return impl.get_data()
+    def get_data(filt: ?gdata.FNode=None):
+        return impl.get_data(filt)
 
     def bind_db(db: ?lmdb.Db):
         impl.bind_db(db)
@@ -378,8 +516,8 @@ class _Transaction(object):
     wait_complete: proc(actself: Transaction, tid: str, done: action(value) -> None) -> None
     wait_complete_cont: proc(actself: Transaction, res: value) -> None
     get: proc() -> gdata.Node
-    def get_data(self) -> gdata.Node:
-        return self.get()
+    def get_data(self, filt: ?gdata.FNode=None) -> ?gdata.Node:
+        return gdata.filter(self.get(), filt)
 
     def bind_db(self, db: ?lmdb.Db) -> None:
         pass
@@ -453,7 +591,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         return root.get()
 
     def get_data(filt: ?gdata.FNode=None) -> ?gdata.Node:
-        return _filter_data(root.get_data(), filt)
+        return root.get_data(root_filter(filt))
 
 
 actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_arg: ?swdb.Buffer=None):
@@ -639,7 +777,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         return root.get()
 
     def get_data(filt: ?gdata.FNode=None) -> ?gdata.Node:
-        return _filter_data(root.get_data(), filt)
+        return root.get_data(root_filter(filt))
 
     def below():
         return lower if lower is not None else self
@@ -672,11 +810,22 @@ class _Container(_Node):
             res.update(path.keyvals.items())
         return gdata.Container(res, ns=self.ns, module=self.module)
 
-    def get_data(self):
-        res = {tag: node.get_data() for tag, node in self.elems.items()}
+    def get_data(self, filt: ?gdata.FNode=None):
+        branches = filter_transpose(filt)
+        if branches is not None:
+            res = {}
+            for tag, child_filter in branches.items():
+                if tag in self.elems:
+                    data = self.elems[tag].get_data(child_filter)
+                    if data is not None:
+                        res[tag] = data
+        else:
+            res = {tag: expect(node.get_data(), "container child data") for tag, node in self.elems.items()}
         path = self.path
         if isinstance(path, PathKey):
             res.update(path.keyvals.items())
+        elif branches is not None and len(res) == 0:
+            return None
         return gdata.Container(res, ns=self.ns, module=self.module)
 
     def bind_db(self, db: ?lmdb.Db) -> None:
@@ -863,11 +1012,22 @@ class _ContainerTransaction(_Transaction):
             res.update(path.keyvals.items())
         return gdata.Container(res, ns=self.ns, module=self.module)
 
-    def get_data(self):
-        res = {tag: elem.get_data() for tag, elem in self.elems.items()}
+    def get_data(self, filt: ?gdata.FNode=None):
+        branches = filter_transpose(filt)
+        if branches is not None:
+            res = {}
+            for tag, child_filter in branches.items():
+                if tag in self.elems:
+                    data = self.elems[tag].get_data(child_filter)
+                    if data is not None:
+                        res[tag] = data
+        else:
+            res = {tag: expect(elem.get_data(), "container child data") for tag, elem in self.elems.items()}
         path = self.path
         if isinstance(path, PathKey):
             res.update(path.keyvals.items())
+        elif branches is not None and len(res) == 0:
+            return None
         return gdata.Container(res, ns=self.ns, module=self.module)
 
 
@@ -899,10 +1059,31 @@ class _List(_Node):
             res.append(r)
         return gdata.List(self.key_names, res, ns=self.ns, module=self.module)
 
-    def get_data(self):
+    def get_data(self, filt: ?gdata.FNode=None):
+        filters = list_filters(filt)
+        filter_branches = exact_list_filter_branches(filters, self.key_names)
+        scan_filters = list_element_filters(filters)
         res = []
+        # TODO: when filter_branches is not None, fetch only those exact keys
+        # from ListState instead of enumerating all committed entries.
         for key, node in self.liststate.all().items():
-            res.append(node.get_data())
+            element_filters = scan_filters
+            if filter_branches is not None:
+                if key not in filter_branches:
+                    continue
+                element_filters = filter_branches[key]
+            if len(element_filters) == 0:
+                elem = node.get_data()
+                if elem is not None:
+                    res.append(elem)
+            else:
+                for element_filter in element_filters:
+                    elem = node.get_data(element_filter)
+                    if elem is not None:
+                        res.append(elem)
+                        break
+        if len(filters) > 0 and len(res) == 0:
+            return None
         return gdata.List(self.key_names, res, ns=self.ns, module=self.module)
 
     def bind_db(self, db: ?lmdb.Db) -> None:
@@ -1181,14 +1362,37 @@ class _ListTransaction(_Transaction):
             res.append(r)
         return gdata.List(self.key_names, res, ns=self.ns, module=self.module)
 
-    def get_data(self):
+    def get_data(self, filt: ?gdata.FNode=None):
+        filters = list_filters(filt)
+        filter_branches = exact_list_filter_branches(filters, self.key_names)
+        scan_filters = list_element_filters(filters)
         res = []
+        # TODO: when filter_branches is not None, fetch only those exact keys
+        # from ListState instead of enumerating all committed entries.
         for key, node in self.liststate.all().items():
-            if key in self.elems:
-                r = self.elems[key].get_data()
+            element_filters = scan_filters
+            if filter_branches is not None:
+                if key not in filter_branches:
+                    continue
+                element_filters = filter_branches[key]
+            if len(element_filters) == 0:
+                if key in self.elems:
+                    r = self.elems[key].get_data()
+                else:
+                    r = node.get_data()
+                if r is not None:
+                    res.append(r)
             else:
-                r = node.get_data()
-            res.append(r)
+                for element_filter in element_filters:
+                    if key in self.elems:
+                        r = self.elems[key].get_data(element_filter)
+                    else:
+                        r = node.get_data(element_filter)
+                    if r is not None:
+                        res.append(r)
+                        break
+        if len(filters) > 0 and len(res) == 0:
+            return None
         return gdata.List(self.key_names, res, ns=self.ns, module=self.module)
 
 def ListTransaction(path, liststate: ListState, key_names, ns, module):
@@ -1206,8 +1410,8 @@ class _TransformBase(_Node):
     def get(self):
         return self.transaction.get()
 
-    def get_data(self):
-        return self.transaction.get_data()
+    def get_data(self, filt: ?gdata.FNode=None):
+        return self.transaction.get_data(filt)
 
     def bind_db(self, db: ?lmdb.Db) -> None:
         self.transaction.bind_db(db)
@@ -1484,12 +1688,15 @@ class _TransformTransactionBase(_Transaction):
         else:
             return gdata.Container()
 
-    def get_data(self):
+    def get_data(self, filt: ?gdata.FNode=None):
         data = self.get()
         oper = self.oper
         if oper is not None:
             data = gdata.merge(data, _with_path_keys(self.path, oper))
-        return _with_path_keys(self.path, data)
+        filtered = gdata.filter(_with_path_keys(self.path, data), filt)
+        if filtered is not None:
+            return _with_path_keys(self.path, filtered)
+        return None
 
     proc def update_oper(self, oper):
         self.oper = oper

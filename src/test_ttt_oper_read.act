@@ -110,6 +110,149 @@ actor get_data_filters_list_entries(t: testing.AsyncT):
     layer.edit_config(_service_cfg(), cont)
 
 
+actor get_data_merges_repeated_filter_branches(t: testing.AsyncT):
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(OperTransform, OperPublisherCtor), [q("name")]),
+    }), None)
+    var attempts = 0
+
+    def cont(_r: value):
+        after 0: check()
+
+    def check():
+        attempts += 1
+        filt = gdata.FNode(children=[
+            gdata.FNode(q("service"), children=[
+                gdata.FNode(q("name"), value_match="svc-a"),
+                gdata.FNode(q("status")),
+            ]),
+            gdata.FNode(q("service"), children=[
+                gdata.FNode(q("name"), value_match="svc-b"),
+                gdata.FNode(q("metrics"), children=[gdata.FNode(q("rx"))]),
+            ]),
+        ])
+        expected = gdata.Container({
+            q("service"): gdata.List([q("name")], [
+                gdata.Container({
+                    q("name"): gdata.Leaf("svc-a"),
+                    q("status"): gdata.Leaf("up-svc-a"),
+                }),
+                gdata.Container({
+                    q("name"): gdata.Leaf("svc-b"),
+                    q("metrics"): gdata.Container({
+                        q("rx"): gdata.Leaf(u64(5)),
+                    }),
+                }),
+            ]),
+        })
+        filtered = layer.newsession().get_data(filt)
+        if filtered is None:
+            if attempts > 20:
+                t.failure(ValueError("Timed out waiting for repeated filter data, got None"))
+                return
+            after 0.01: check()
+            return
+        if filtered != expected:
+            if attempts > 20:
+                t.failure(ValueError("Timed out waiting for repeated filter data, got " + filtered!.prsrc(deterministic=True)))
+                return
+            after 0.01: check()
+            return
+        testing.assertEqual(filtered!.prsrc(deterministic=True), expected.prsrc(deterministic=True))
+        t.success()
+
+    layer.edit_config(_service_cfg(), cont)
+
+
+actor get_data_routes_exact_key_with_element_predicate(t: testing.AsyncT):
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(OperTransform, OperPublisherCtor), [q("name")]),
+    }), None)
+    var attempts = 0
+
+    def cont(_r: value):
+        after 0: check()
+
+    def check():
+        attempts += 1
+        filt = gdata.FNode(q("service"), children=[
+            gdata.FNode(q("name"), value_match="svc-b"),
+            gdata.FNode(q("status"), value_match="up-svc-b"),
+            gdata.FNode(q("metrics"), children=[gdata.FNode(q("rx"))]),
+        ])
+        expected = gdata.Container({
+            q("service"): gdata.List([q("name")], [
+                gdata.Container({
+                    q("name"): gdata.Leaf("svc-b"),
+                    q("metrics"): gdata.Container({
+                        q("rx"): gdata.Leaf(u64(5)),
+                    }),
+                }),
+            ]),
+        })
+        filtered = layer.newsession().get_data(filt)
+        if filtered is None:
+            if attempts > 20:
+                t.failure(ValueError("Timed out waiting for predicate routed data, got None"))
+                return
+            after 0.01: check()
+            return
+        if filtered != expected:
+            if attempts > 20:
+                t.failure(ValueError("Timed out waiting for predicate routed data, got " + filtered!.prsrc(deterministic=True)))
+                return
+            after 0.01: check()
+            return
+        testing.assertEqual(filtered!.prsrc(deterministic=True), expected.prsrc(deterministic=True))
+        t.success()
+
+    layer.edit_config(_service_cfg(), cont)
+
+
+actor get_data_scans_with_element_predicate(t: testing.AsyncT):
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(OperTransform, OperPublisherCtor), [q("name")]),
+    }), None)
+    var attempts = 0
+
+    def cont(_r: value):
+        after 0: check()
+
+    def check():
+        attempts += 1
+        filt = gdata.FNode(q("service"), children=[
+            gdata.FNode(q("status"), value_match="up-svc-b"),
+            gdata.FNode(q("metrics"), children=[gdata.FNode(q("rx"))]),
+        ])
+        expected = gdata.Container({
+            q("service"): gdata.List([q("name")], [
+                gdata.Container({
+                    q("name"): gdata.Leaf("svc-b"),
+                    q("metrics"): gdata.Container({
+                        q("rx"): gdata.Leaf(u64(5)),
+                    }),
+                }),
+            ]),
+        })
+        filtered = layer.newsession().get_data(filt)
+        if filtered is None:
+            if attempts > 20:
+                t.failure(ValueError("Timed out waiting for scanned predicate data, got None"))
+                return
+            after 0.01: check()
+            return
+        if filtered != expected:
+            if attempts > 20:
+                t.failure(ValueError("Timed out waiting for scanned predicate data, got " + filtered!.prsrc(deterministic=True)))
+                return
+            after 0.01: check()
+            return
+        testing.assertEqual(filtered!.prsrc(deterministic=True), expected.prsrc(deterministic=True))
+        t.success()
+
+    layer.edit_config(_service_cfg(), cont)
+
+
 actor read_data_merges_config_and_oper(t: testing.AsyncT):
     layer = ttt.Layer("top", ttt.Container({
         q("service"): ttt.List(ttt.Transform(OperTransform, OperPublisherCtor), [q("name")]),
