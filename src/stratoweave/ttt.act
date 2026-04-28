@@ -593,6 +593,15 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     def get_data(filt: ?gdata.FNode=None) -> ?gdata.Node:
         return root.get_data(root_filter(filt))
 
+    def tree_provider() -> gdata.TreeProvider:
+        return LayerTreeProvider(self)
+
+    def declare_subscriptions(owner_id: str, cb: action(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec]):
+        cb(None, ValueError("TTT layer TreeProvider does not support subscriptions"))
+
+    def remove_subscriptions(owner_id: str):
+        pass
+
 
 actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_arg: ?swdb.Buffer=None):
     dbuf: ?swdb.Buffer = dbuf_arg if dbuf_arg is not None else swdb.Buffer() if db is not None else None
@@ -781,6 +790,24 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
 
     def below():
         return lower if lower is not None else self
+
+class LayerTreeProvider(gdata.TreeProvider):
+    layer: Layer
+
+    def __init__(self, layer: Layer):
+        self.layer = layer
+
+    proc def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node):
+        cb(None, ValueError("TTT layer TreeProvider does not support XML RPC"))
+
+    proc def rpc(self, cb: action(?gdata.Node, ?Exception) -> None, rpc_input: gdata.Node):
+        cb(None, ValueError("TTT layer TreeProvider does not support RPC"))
+
+    proc def declare_subscriptions(self, owner_id: str, cb: action(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec]):
+        self.layer.declare_subscriptions(owner_id, cb, want)
+
+    proc def remove_subscriptions(self, owner_id: str):
+        self.layer.remove_subscriptions(owner_id)
 
 
 ############## Containers ##################
@@ -1702,11 +1729,13 @@ class _TransformTransactionBase(_Transaction):
         self.oper = oper
 
 class TransformActorParams:
-    def __init__(self, path: Path, update_dynstate: proc(?gdata.Node) -> None, update_oper: proc(?gdata.Node) -> None, dev: ?swdev.DeviceMgr):
+    def __init__(self, path: Path, update_dynstate: proc(?gdata.Node) -> None, update_oper: proc(?gdata.Node) -> None, dev: ?swdev.DeviceMgr, lower: ?Layer=None):
         self.path = path
         self.update_dynstate = update_dynstate
         self.update_oper = update_oper
         self.dev = dev
+        self.lower = lower
+        self.lower_tree_provider = LayerTreeProvider(lower) if lower is not None else None
 
 
 def Transform(function, act: ?(proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None)=None, build_links: ?proc(gdata.Node) -> list[TaggedPath]=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(Path, ?Layer)->Node:
@@ -1781,7 +1810,7 @@ class _TransformTransaction(_TransformTransactionBase):
 
     proc def init_dynstate(self, node, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None, update_dynstate, update_oper):
         self.node = node
-        self.function.init_dynstate(act, update_dynstate, update_oper, unwrap(self.path))
+        self.function.init_dynstate(act, update_dynstate, update_oper, unwrap(self.path), self.lower)
 
     proc def update_dynstate(self, dynstate):
         if self.dynstate == dynstate:
@@ -1813,8 +1842,8 @@ class TransformFunction(object):
     def transform_xml(self, cfg, linked, memory, dynstate):
         return gdata.Container(), None
 
-    proc def init_dynstate(self, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None, update_dynstate: proc(?gdata.Node)->None, update_oper: proc(?gdata.Node)->None, path: Path):
-        self._on_conf = act(TransformActorParams(path, update_dynstate, update_oper, None))
+    proc def init_dynstate(self, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None, update_dynstate: proc(?gdata.Node)->None, update_oper: proc(?gdata.Node)->None, path: Path, lower: ?Layer=None):
+        self._on_conf = act(TransformActorParams(path, update_dynstate, update_oper, None, lower))
 
     proc def on_conf(self, conf: gdata.Node, memory: ?gdata.Node):
         _on_conf = self._on_conf

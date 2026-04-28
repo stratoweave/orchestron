@@ -155,7 +155,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
 """
             transform_actor_fq = transform.fqname + "Transform"
             transform_actor_ctor = transform.name + "TransformCtor"
-            transform_actor_extra_params = ", ttt.expect(params.dev, \"Missing expected DeviceMgr param to {transform_actor_fq}.\")" if ext.name == "rfs-transform" else ""
+            transform_actor_extra_params = ", ttt.expect(params.dev, \"Missing expected DeviceMgr param to {transform_actor_fq}.\")" if ext.name == "rfs-transform" else ", params.lower_tree_provider"
             memory_conv = ", {memory_class}.from_gdata(m) if m is not None else None" if memory_class is not None else ""
             oper_update_wrapper = ""
             oper_update_arg = "params.update_oper"

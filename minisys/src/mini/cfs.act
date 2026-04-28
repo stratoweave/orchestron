@@ -19,7 +19,7 @@ class GlobalSettings(base.GlobalSettings):
 def q(n):
     return yang.gdata.Id("http://example.com/netinfra", n)
 
-actor RouterTransform(path: stratoweave.ttt.Path, update_dynstate: proc(?mini.layers.y_0.netinfra__netinfra__router__dynstate)->None, update_oper: proc(?y0_oper.netinfra__netinfra__router_entry)->None):
+actor RouterTransform(path: stratoweave.ttt.Path, update_dynstate: proc(?mini.layers.y_0.netinfra__netinfra__router__dynstate)->None, update_oper: proc(?y0_oper.netinfra__netinfra__router_entry)->None, lower_tree_provider: ?yang.gdata.TreeProvider):
     oper = base.Router.new_state(path)
 
     def publish():
