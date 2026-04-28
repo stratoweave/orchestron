@@ -2258,20 +2258,12 @@ actor NetconfDriver(dev: DeviceMgr, bundled_schema: DeviceSchema, init_dmc: Devi
                         merged = yang.gdata.patch(base, sub.latest)
             return merged
 
-        def _snapshot_subscription_tree(tree: ?yang.gdata.Node) -> ?yang.gdata.Node:
-            # TODO: Remove this snapshot once gdata.Node is truly immutable. Today
-            # patch/merge can reuse mutable internals, so retaining last_merged by
-            # reference is not a safe previous-state cache.
-            if tree is not None:
-                return yang.gdata.Node.from_json(tree.to_json())
-            return None
-
         if owner_id not in sub_owners:
             return
         owner = sub_owners[owner_id]
         merged = _merge_subscription_tree(owner.want, subs)
         if err is not None or merged != owner.last_merged:
-            owner.last_merged = _snapshot_subscription_tree(merged)
+            owner.last_merged = merged
             sub_owners[owner_id] = owner
             owner.cb(merged, err)
 
