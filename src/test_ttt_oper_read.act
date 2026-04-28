@@ -67,6 +67,55 @@ def _service_oper_all() -> gdata.Node:
         ]),
     })
 
+actor tree_provider_subscribes_filtered_oper(t: testing.AsyncT):
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(OperTransform, OperPublisherCtor), [q("name")]),
+    }), None)
+    var done = False
+
+    filt = gdata.FNode(q("service"), children=[
+        gdata.FNode(q("name"), value_match="svc-b"),
+        gdata.FNode(q("status")),
+    ])
+    expected = gdata.Container({
+        q("service"): gdata.List([q("name")], [
+            gdata.Container({
+                q("name"): gdata.Leaf("svc-b"),
+                q("status"): gdata.Leaf("up-svc-b"),
+            }),
+        ]),
+    })
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            done = True
+            t.failure(err)
+            return
+        if data == expected:
+            done = True
+            t.success()
+            return
+        if data is not None:
+            done = True
+            t.failure(ValueError("Unexpected subscription data: " + data.prsrc(deterministic=True)))
+
+    def fail():
+        if not done:
+            done = True
+            t.failure(ValueError("Timed out waiting for TTT subscription data"))
+
+    def cont(_r: value):
+        subs = gdata.SubscriptionManager(layer.tree_provider(), "oper-read-test")
+        dst = gdata.Dst(on_update)
+        want: set[gdata.Delivery] = set()
+        want.add(dst.deliver({gdata.SubscriptionSpec(filt, period=0.1)}))
+        subs.declare(want)
+        after 2: fail()
+
+    layer.edit_config(_service_cfg(), cont)
+
 
 actor get_data_filters_list_entries(t: testing.AsyncT):
     layer = ttt.Layer("top", ttt.Container({

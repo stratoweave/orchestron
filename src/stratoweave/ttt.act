@@ -246,6 +246,19 @@ def root_filter(filt: ?gdata.FNode) -> ?gdata.FNode:
         return gdata.FNode(children=[filt])
     return filt
 
+def routed_filter(filt: ?gdata.FNode) -> ?gdata.FNode:
+    """Adapt a routed child filter to the node that already matched it.
+
+    Container and list traversal routes a named child filter to the matching
+    TTT node. Once the target node receives that filter, the node name has
+    already been consumed and only the child selection should be applied.
+    """
+    if filt is not None and filt.name is not None:
+        if filt.value_match is not None:
+            raise ValueError("Routed node filter cannot have value match")
+        return gdata.FNode(children=filt.children)
+    return filt
+
 def filter_transpose(filt: ?gdata.FNode) -> ?dict[gdata.Id, gdata.FNode]:
     """Transpose a container filter into filter branches per child node.
 
@@ -381,6 +394,57 @@ def exact_list_filter_branches(filters: list[gdata.FNode], key_names: list[gdata
         else:
             return None
     return branches
+
+class LayerSharedSubscription(object):
+    """Runtime state for one periodic layer subscription spec.
+
+    The same SubscriptionSpec can be declared by multiple owners. The layer
+    reads it once per period, stores the latest filtered tree here, and lets
+    each owner merge that result with any other specs it declared.
+    """
+    spec: gdata.SubscriptionSpec
+    latest: ?gdata.Node
+    owners: set[str]
+    active: bool
+
+    def __init__(self, spec: gdata.SubscriptionSpec):
+        """Copy the public spec into provider-owned mutable state."""
+        self.spec = gdata.SubscriptionSpec(spec.filt, period=spec.period)
+        self.latest = None
+        self.owners = set()
+        self.active = True
+
+
+class LayerSubscriptionOwner(object):
+    """One logical subscriber and its merged delivery state."""
+    @property
+    cb: action(?gdata.Node, ?Exception) -> None
+    want: set[gdata.SubscriptionSpec]
+    last_merged: ?gdata.Node
+
+    def __init__(self, cb: action(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec], last_merged: ?gdata.Node=None):
+        """Track the callback, desired specs, and last delivered tree."""
+        self.cb = cb
+        self.want = set(want)
+        self.last_merged = last_merged
+
+def layer_subscription_delay(spec: gdata.SubscriptionSpec) -> float:
+    """Return the actor delay, in seconds, for a normalized spec period."""
+    pn = spec.period
+    if pn is not None:
+        return float(pn) / 1000000000.0
+    return float(1)
+
+def merge_subscription_tree(want: set[gdata.SubscriptionSpec], subs: dict[gdata.SubscriptionSpec, LayerSharedSubscription]) -> ?gdata.Node:
+    """Merge latest samples for all specs owned by one subscriber."""
+    merged = None
+    for spec in gdata.hack_sorted(iter(want)):
+        if spec in subs:
+            sub = subs[spec]
+            if sub.latest is not None:
+                base = merged if merged is not None else gdata.Container({})
+                merged = gdata.patch(base, sub.latest)
+    return merged
 
 def _db_path(path: Path) -> list[value]:
     if isinstance(path, PathElem):
@@ -542,6 +606,8 @@ class _Transaction(object):
 actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg: ?lmdb.Db=None):
     root = rootgen(PathRoot(name), lower)
     root.bind_db(db_arg)
+    var subs: dict[gdata.SubscriptionSpec, LayerSharedSubscription] = {}
+    var sub_owners: dict[str, LayerSubscriptionOwner] = {}
 
     def load_from_db(top_only=False):
         db = expect(db_arg, "Missing db for TTT persistence restore in layer {name}")
@@ -596,11 +662,113 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     def tree_provider() -> gdata.TreeProvider:
         return LayerTreeProvider(self)
 
+    def _owner_publish(owner_id: str, err: ?Exception=None):
+        """Deliver an owner's merged tree when it changed or an error occurred."""
+        if owner_id not in sub_owners:
+            return
+        owner = sub_owners[owner_id]
+        merged = merge_subscription_tree(owner.want, subs)
+        if err is not None or merged != owner.last_merged:
+            owner.last_merged = merged
+            sub_owners[owner_id] = owner
+            owner.cb(merged, err)
+
+    def _sub_cancel(spec: gdata.SubscriptionSpec):
+        """Stop tracking a shared spec and invalidate already scheduled ticks."""
+        if spec in subs:
+            subs[spec].active = False
+            del subs[spec]
+
+    def _sub_schedule_next(spec: gdata.SubscriptionSpec):
+        """Schedule the next sample for an active shared subscription."""
+        if spec not in subs:
+            return
+        st = subs[spec]
+        if not st.active:
+            return
+        after layer_subscription_delay(st.spec): _sub_tick(spec)
+
+    def _sub_tick(spec: gdata.SubscriptionSpec):
+        """Sample one shared spec and publish the result to interested owners."""
+        if spec not in subs:
+            return
+        st = subs[spec]
+        if not st.active:
+            return
+        if st.spec.period is None:
+            err = ValueError("TTT layer TreeProvider only supports periodic subscriptions")
+            for owner_id in st.owners:
+                _owner_publish(owner_id, err)
+            _sub_cancel(spec)
+            return
+
+        try:
+            st.latest = get_data(st.spec.filt)
+            subs[spec] = st
+            for owner_id in st.owners:
+                _owner_publish(owner_id)
+        except Exception as e:
+            for owner_id in st.owners:
+                _owner_publish(owner_id, e)
+        _sub_schedule_next(spec)
+
+    def _add_owner_spec(owner_id: str, spec: gdata.SubscriptionSpec):
+        """Attach an owner to a shared spec, creating and starting it if needed."""
+        if spec in subs:
+            st = subs[spec]
+        else:
+            st = LayerSharedSubscription(spec)
+        st.owners.add(owner_id)
+        subs[spec] = st
+        if st.latest is None and len(st.owners) == 1:
+            _sub_tick(spec)
+
+    def _remove_owner_spec(owner_id: str, spec: gdata.SubscriptionSpec):
+        """Detach an owner from a shared spec and cancel unused sampling."""
+        if spec not in subs:
+            return
+        st = subs[spec]
+        st.owners.discard(owner_id)
+        if len(st.owners) == 0:
+            _sub_cancel(spec)
+        else:
+            subs[spec] = st
+
     def declare_subscriptions(owner_id: str, cb: action(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec]):
-        cb(None, ValueError("TTT layer TreeProvider does not support subscriptions"))
+        """Replace one owner's desired subscription set.
+
+        SubscriptionManager declarations are full-state declarations, not
+        incremental updates. Specs removed from the desired set release this
+        owner from the shared sampler; new specs attach the owner and start
+        sampling as needed.
+        """
+        old_want = set()
+        last_merged = None
+        if owner_id in sub_owners:
+            owner = sub_owners[owner_id]
+            old_want = owner.want
+            last_merged = owner.last_merged
+
+        for spec in old_want:
+            if spec not in want:
+                _remove_owner_spec(owner_id, spec)
+
+        sub_owners[owner_id] = LayerSubscriptionOwner(cb, want, last_merged)
+
+        for spec in want:
+            if spec not in old_want:
+                _add_owner_spec(owner_id, spec)
+
+        _owner_publish(owner_id)
 
     def remove_subscriptions(owner_id: str):
-        pass
+        """Remove an owner and release every shared spec it referenced."""
+        if owner_id not in sub_owners:
+            return
+        old_want = sub_owners[owner_id].want
+        del sub_owners[owner_id]
+        for spec in old_want:
+            _remove_owner_spec(owner_id, spec)
 
 
 actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_arg: ?swdb.Buffer=None):
@@ -1720,7 +1888,7 @@ class _TransformTransactionBase(_Transaction):
         oper = self.oper
         if oper is not None:
             data = gdata.merge(data, _with_path_keys(self.path, oper))
-        filtered = gdata.filter(_with_path_keys(self.path, data), filt)
+        filtered = gdata.filter(_with_path_keys(self.path, data), routed_filter(filt))
         if filtered is not None:
             return _with_path_keys(self.path, filtered)
         return None
