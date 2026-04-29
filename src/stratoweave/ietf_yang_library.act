@@ -2043,7 +2043,7 @@ class ietf_yang_library__yang_library__module_set__module__submodule_entry(yang.
     revision: ?str
     location: list[str]
 
-    mut def __init__(self, name: str, revision: ?str, location: ?list[str]=None):
+    mut def __init__(self, name: str, revision: ?str, location: ?list[str]=None) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.name = name
         self.revision = revision
@@ -2064,19 +2064,19 @@ class ietf_yang_library__yang_library__module_set__module__submodule_entry(yang.
     mut def from_gdata(n: yang.gdata.Node) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
         return ietf_yang_library__yang_library__module_set__module__submodule_entry(name=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'name')), revision=n.get_opt_str(yang.gdata.Id(NS_ietf_yang_library, 'revision')), location=n.get_opt_strs(yang.gdata.Id(NS_ietf_yang_library, 'location')))
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library__module_set__module__submodule_entry.from_gdata(self.to_gdata())
 
 _breaker2 = None
 class ietf_yang_library__yang_library__module_set__module__submodule(yang.adata.MNode):
     elements: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self._name = 'submodule'
         self.elements = elements
 
-    mut def create(self, name, revision=None):
+    mut def create(self, name: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -2097,7 +2097,7 @@ class ietf_yang_library__yang_library__module_set__module__submodule(yang.adata.
             return [ietf_yang_library__yang_library__module_set__module__submodule_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__module__submodule:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -2121,7 +2121,7 @@ class ietf_yang_library__yang_library__module_set__module_entry(yang.adata.MNode
     feature: list[str]
     deviation: list[str]
 
-    mut def __init__(self, name: str, namespace: str, revision: ?str, location: ?list[str]=None, submodule: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]=[], feature: ?list[str]=None, deviation: ?list[str]=None):
+    mut def __init__(self, name: str, namespace: str, revision: ?str, location: ?list[str]=None, submodule: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]=[], feature: ?list[str]=None, deviation: ?list[str]=None) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.name = name
         self.revision = revision
@@ -2154,19 +2154,19 @@ class ietf_yang_library__yang_library__module_set__module_entry(yang.adata.MNode
     mut def from_gdata(n: yang.gdata.Node) -> ietf_yang_library__yang_library__module_set__module_entry:
         return ietf_yang_library__yang_library__module_set__module_entry(name=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'name')), revision=n.get_opt_str(yang.gdata.Id(NS_ietf_yang_library, 'revision')), namespace=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'namespace')), location=n.get_opt_strs(yang.gdata.Id(NS_ietf_yang_library, 'location')), submodule=ietf_yang_library__yang_library__module_set__module__submodule.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_yang_library, 'submodule'))), feature=n.get_opt_strs(yang.gdata.Id(NS_ietf_yang_library, 'feature')), deviation=n.get_opt_strs(yang.gdata.Id(NS_ietf_yang_library, 'deviation')))
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__module_entry:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library__module_set__module_entry.from_gdata(self.to_gdata())
 
 _breaker4 = None
 class ietf_yang_library__yang_library__module_set__module(yang.adata.MNode):
     elements: list[ietf_yang_library__yang_library__module_set__module_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self._name = 'module'
         self.elements = elements
 
-    mut def create(self, name, namespace, revision=None):
+    mut def create(self, name: str, namespace: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -2188,7 +2188,7 @@ class ietf_yang_library__yang_library__module_set__module(yang.adata.MNode):
             return [ietf_yang_library__yang_library__module_set__module_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__module:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -2208,7 +2208,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
     revision: ?str
     location: list[str]
 
-    mut def __init__(self, name: str, revision: ?str, location: ?list[str]=None):
+    mut def __init__(self, name: str, revision: ?str, location: ?list[str]=None) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.name = name
         self.revision = revision
@@ -2229,19 +2229,19 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
     mut def from_gdata(n: yang.gdata.Node) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
         return ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry(name=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'name')), revision=n.get_opt_str(yang.gdata.Id(NS_ietf_yang_library, 'revision')), location=n.get_opt_strs(yang.gdata.Id(NS_ietf_yang_library, 'location')))
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry.from_gdata(self.to_gdata())
 
 _breaker6 = None
 class ietf_yang_library__yang_library__module_set__import_only_module__submodule(yang.adata.MNode):
     elements: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self._name = 'submodule'
         self.elements = elements
 
-    mut def create(self, name, revision=None):
+    mut def create(self, name: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -2262,7 +2262,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
             return [ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -2284,7 +2284,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module_entry(yang
     location: list[str]
     submodule: ietf_yang_library__yang_library__module_set__import_only_module__submodule
 
-    mut def __init__(self, name: str, revision: str, namespace: str, location: ?list[str]=None, submodule: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]=[]):
+    mut def __init__(self, name: str, revision: str, namespace: str, location: ?list[str]=None, submodule: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.name = name
         self.revision = revision
@@ -2311,19 +2311,19 @@ class ietf_yang_library__yang_library__module_set__import_only_module_entry(yang
     mut def from_gdata(n: yang.gdata.Node) -> ietf_yang_library__yang_library__module_set__import_only_module_entry:
         return ietf_yang_library__yang_library__module_set__import_only_module_entry(name=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'name')), revision=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'revision')), namespace=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'namespace')), location=n.get_opt_strs(yang.gdata.Id(NS_ietf_yang_library, 'location')), submodule=ietf_yang_library__yang_library__module_set__import_only_module__submodule.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_yang_library, 'submodule'))))
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__import_only_module_entry:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library__module_set__import_only_module_entry.from_gdata(self.to_gdata())
 
 _breaker8 = None
 class ietf_yang_library__yang_library__module_set__import_only_module(yang.adata.MNode):
     elements: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self._name = 'import-only-module'
         self.elements = elements
 
-    mut def create(self, name, revision, namespace):
+    mut def create(self, name: str, revision: str, namespace: str) -> ietf_yang_library__yang_library__module_set__import_only_module_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -2348,7 +2348,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module(yang.adata
             return [ietf_yang_library__yang_library__module_set__import_only_module_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set__import_only_module:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -2368,7 +2368,7 @@ class ietf_yang_library__yang_library__module_set_entry(yang.adata.MNode):
     module: ietf_yang_library__yang_library__module_set__module
     import_only_module: ietf_yang_library__yang_library__module_set__import_only_module
 
-    mut def __init__(self, name: str, module: list[ietf_yang_library__yang_library__module_set__module_entry]=[], import_only_module: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]=[]):
+    mut def __init__(self, name: str, module: list[ietf_yang_library__yang_library__module_set__module_entry]=[], import_only_module: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.name = name
         self.module = ietf_yang_library__yang_library__module_set__module(elements=module)
@@ -2389,19 +2389,19 @@ class ietf_yang_library__yang_library__module_set_entry(yang.adata.MNode):
     mut def from_gdata(n: yang.gdata.Node) -> ietf_yang_library__yang_library__module_set_entry:
         return ietf_yang_library__yang_library__module_set_entry(name=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'name')), module=ietf_yang_library__yang_library__module_set__module.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_yang_library, 'module'))), import_only_module=ietf_yang_library__yang_library__module_set__import_only_module.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_yang_library, 'import-only-module'))))
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set_entry:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library__module_set_entry.from_gdata(self.to_gdata())
 
 _breaker10 = None
 class ietf_yang_library__yang_library__module_set(yang.adata.MNode):
     elements: list[ietf_yang_library__yang_library__module_set_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self._name = 'module-set'
         self.elements = elements
 
-    mut def create(self, name):
+    mut def create(self, name: str) -> ietf_yang_library__yang_library__module_set_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -2420,7 +2420,7 @@ class ietf_yang_library__yang_library__module_set(yang.adata.MNode):
             return [ietf_yang_library__yang_library__module_set_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__module_set:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -2439,7 +2439,7 @@ class ietf_yang_library__yang_library__schema_entry(yang.adata.MNode):
     name: str
     module_set: list[str]
 
-    mut def __init__(self, name: str, module_set: ?list[str]=None):
+    mut def __init__(self, name: str, module_set: ?list[str]=None) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.name = name
         self.module_set = module_set if module_set is not None else []
@@ -2457,19 +2457,19 @@ class ietf_yang_library__yang_library__schema_entry(yang.adata.MNode):
     mut def from_gdata(n: yang.gdata.Node) -> ietf_yang_library__yang_library__schema_entry:
         return ietf_yang_library__yang_library__schema_entry(name=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'name')), module_set=n.get_opt_strs(yang.gdata.Id(NS_ietf_yang_library, 'module-set')))
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__schema_entry:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library__schema_entry.from_gdata(self.to_gdata())
 
 _breaker12 = None
 class ietf_yang_library__yang_library__schema(yang.adata.MNode):
     elements: list[ietf_yang_library__yang_library__schema_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_yang_library__yang_library__schema_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self._name = 'schema'
         self.elements = elements
 
-    mut def create(self, name):
+    mut def create(self, name: str) -> ietf_yang_library__yang_library__schema_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -2488,7 +2488,7 @@ class ietf_yang_library__yang_library__schema(yang.adata.MNode):
             return [ietf_yang_library__yang_library__schema_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__schema:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -2507,7 +2507,7 @@ class ietf_yang_library__yang_library__datastore_entry(yang.adata.MNode):
     name: Identityref
     schema: str
 
-    mut def __init__(self, name: Identityref, schema: str):
+    mut def __init__(self, name: Identityref, schema: str) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.name = name
         self.schema = schema
@@ -2525,19 +2525,19 @@ class ietf_yang_library__yang_library__datastore_entry(yang.adata.MNode):
     mut def from_gdata(n: yang.gdata.Node) -> ietf_yang_library__yang_library__datastore_entry:
         return ietf_yang_library__yang_library__datastore_entry(name=n.get_Identityref(yang.gdata.Id(NS_ietf_yang_library, 'name')), schema=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'schema')))
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__datastore_entry:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library__datastore_entry.from_gdata(self.to_gdata())
 
 _breaker14 = None
 class ietf_yang_library__yang_library__datastore(yang.adata.MNode):
     elements: list[ietf_yang_library__yang_library__datastore_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_yang_library__yang_library__datastore_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self._name = 'datastore'
         self.elements = elements
 
-    mut def create(self, name, schema):
+    mut def create(self, name: Identityref, schema: str) -> ietf_yang_library__yang_library__datastore_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -2557,7 +2557,7 @@ class ietf_yang_library__yang_library__datastore(yang.adata.MNode):
             return [ietf_yang_library__yang_library__datastore_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library__datastore:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -2578,7 +2578,7 @@ class ietf_yang_library__yang_library(yang.adata.MNode):
     datastore: ietf_yang_library__yang_library__datastore
     content_id: str
 
-    mut def __init__(self, content_id: str, module_set: list[ietf_yang_library__yang_library__module_set_entry]=[], schema: list[ietf_yang_library__yang_library__schema_entry]=[], datastore: list[ietf_yang_library__yang_library__datastore_entry]=[]):
+    mut def __init__(self, content_id: str, module_set: list[ietf_yang_library__yang_library__module_set_entry]=[], schema: list[ietf_yang_library__yang_library__schema_entry]=[], datastore: list[ietf_yang_library__yang_library__datastore_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-yang-library'
         self.module_set = ietf_yang_library__yang_library__module_set(elements=module_set)
         self.schema = ietf_yang_library__yang_library__schema(elements=schema)
@@ -2604,7 +2604,7 @@ class ietf_yang_library__yang_library(yang.adata.MNode):
             return ietf_yang_library__yang_library(module_set=ietf_yang_library__yang_library__module_set.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_yang_library, 'module-set'))), schema=ietf_yang_library__yang_library__schema.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_yang_library, 'schema'))), datastore=ietf_yang_library__yang_library__datastore.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_yang_library, 'datastore'))), content_id=n.get_str(yang.gdata.Id(NS_ietf_yang_library, 'content-id')))
         raise ValueError('Missing required subtree ietf_yang_library__yang_library')
 
-    def copy(self):
+    def copy(self) -> ietf_yang_library__yang_library:
         """Create a deep copy of this adata object"""
         return ietf_yang_library__yang_library.from_gdata(self.to_gdata())
 
@@ -2613,7 +2613,7 @@ _breaker16 = None
 class root(yang.adata.MNode):
     yang_library: ietf_yang_library__yang_library
 
-    mut def __init__(self, yang_library: ietf_yang_library__yang_library):
+    mut def __init__(self, yang_library: ietf_yang_library__yang_library) -> None:
         self._ns = ''
         self.yang_library = yang_library
 
@@ -2630,7 +2630,7 @@ class root(yang.adata.MNode):
             return root(yang_library=ietf_yang_library__yang_library.from_gdata(n.get_cnt(yang.gdata.Id(NS_ietf_yang_library, 'yang-library'))))
         raise ValueError('Missing required subtree root')
 
-    def copy(self):
+    def copy(self) -> root:
         """Create a deep copy of this adata object"""
         return root.from_gdata(self.to_gdata())
 

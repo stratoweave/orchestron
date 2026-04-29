@@ -1433,7 +1433,7 @@ _breaker1 = None
 class ietf_restconf_monitoring__restconf_state__capabilities(yang.adata.MNode):
     capability: list[str]
 
-    mut def __init__(self, capability: ?list[str]=None):
+    mut def __init__(self, capability: ?list[str]=None) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
         self.capability = capability if capability is not None else []
 
@@ -1450,7 +1450,7 @@ class ietf_restconf_monitoring__restconf_state__capabilities(yang.adata.MNode):
             return ietf_restconf_monitoring__restconf_state__capabilities(capability=n.get_opt_strs(yang.gdata.Id(NS_ietf_restconf_monitoring, 'capability')))
         return ietf_restconf_monitoring__restconf_state__capabilities()
 
-    def copy(self):
+    def copy(self) -> ietf_restconf_monitoring__restconf_state__capabilities:
         """Create a deep copy of this adata object"""
         return ietf_restconf_monitoring__restconf_state__capabilities.from_gdata(self.to_gdata())
 
@@ -1460,7 +1460,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(ya
     encoding: str
     location: str
 
-    mut def __init__(self, encoding: str, location: str):
+    mut def __init__(self, encoding: str, location: str) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
         self.encoding = encoding
         self.location = location
@@ -1478,19 +1478,19 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(ya
     mut def from_gdata(n: yang.gdata.Node) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
         return ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(encoding=n.get_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'encoding')), location=n.get_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'location')))
 
-    def copy(self):
+    def copy(self) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
         """Create a deep copy of this adata object"""
         return ietf_restconf_monitoring__restconf_state__streams__stream__access_entry.from_gdata(self.to_gdata())
 
 _breaker3 = None
 class ietf_restconf_monitoring__restconf_state__streams__stream__access(yang.adata.MNode):
     elements: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
         self._name = 'access'
         self.elements = elements
 
-    mut def create(self, encoding, location):
+    mut def create(self, encoding: str, location: str) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
         for e in self:
             match = True
             if e.encoding != encoding:
@@ -1510,7 +1510,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access(yang.ada
             return [ietf_restconf_monitoring__restconf_state__streams__stream__access_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_restconf_monitoring__restconf_state__streams__stream__access:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -1532,7 +1532,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yang.adata
     replay_log_creation_time: ?str
     access: ietf_restconf_monitoring__restconf_state__streams__stream__access
 
-    mut def __init__(self, name: str, description: ?str, replay_support: ?bool=None, replay_log_creation_time: ?str, access: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]=[]):
+    mut def __init__(self, name: str, description: ?str, replay_support: ?bool=None, replay_log_creation_time: ?str, access: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
         self.name = name
         self.description = description
@@ -1559,19 +1559,19 @@ class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yang.adata
     mut def from_gdata(n: yang.gdata.Node) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
         return ietf_restconf_monitoring__restconf_state__streams__stream_entry(name=n.get_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'name')), description=n.get_opt_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'description')), replay_support=n.get_opt_bool(yang.gdata.Id(NS_ietf_restconf_monitoring, 'replay-support')), replay_log_creation_time=n.get_opt_str(yang.gdata.Id(NS_ietf_restconf_monitoring, 'replay-log-creation-time')), access=ietf_restconf_monitoring__restconf_state__streams__stream__access.from_gdata(n.get_list(yang.gdata.Id(NS_ietf_restconf_monitoring, 'access'))))
 
-    def copy(self):
+    def copy(self) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
         """Create a deep copy of this adata object"""
         return ietf_restconf_monitoring__restconf_state__streams__stream_entry.from_gdata(self.to_gdata())
 
 _breaker5 = None
 class ietf_restconf_monitoring__restconf_state__streams__stream(yang.adata.MNode):
     elements: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]
-    mut def __init__(self, elements=[]):
+    mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
         self._name = 'stream'
         self.elements = elements
 
-    mut def create(self, name, description=None, replay_support=None, replay_log_creation_time=None):
+    mut def create(self, name: str, description: ?str=None, replay_support: ?bool=None, replay_log_creation_time: ?str=None) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
         for e in self:
             match = True
             if e.name != name:
@@ -1596,7 +1596,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream(yang.adata.MNode
             return [ietf_restconf_monitoring__restconf_state__streams__stream_entry.from_gdata(e) for e in n.elements]
         return []
 
-    def copy(self):
+    def copy(self) -> ietf_restconf_monitoring__restconf_state__streams__stream:
         """Create a deep copy of this list object"""
         # Copy each element in the list
         copied_elements = []
@@ -1614,7 +1614,7 @@ _breaker6 = None
 class ietf_restconf_monitoring__restconf_state__streams(yang.adata.MNode):
     stream: ietf_restconf_monitoring__restconf_state__streams__stream
 
-    mut def __init__(self, stream: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]):
+    mut def __init__(self, stream: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
         self.stream = ietf_restconf_monitoring__restconf_state__streams__stream(elements=stream)
 
@@ -1631,7 +1631,7 @@ class ietf_restconf_monitoring__restconf_state__streams(yang.adata.MNode):
             return ietf_restconf_monitoring__restconf_state__streams(stream=ietf_restconf_monitoring__restconf_state__streams__stream.from_gdata(n.get_opt_list(yang.gdata.Id(NS_ietf_restconf_monitoring, 'stream'))))
         return ietf_restconf_monitoring__restconf_state__streams()
 
-    def copy(self):
+    def copy(self) -> ietf_restconf_monitoring__restconf_state__streams:
         """Create a deep copy of this adata object"""
         return ietf_restconf_monitoring__restconf_state__streams.from_gdata(self.to_gdata())
 
@@ -1641,7 +1641,7 @@ class ietf_restconf_monitoring__restconf_state(yang.adata.MNode):
     capabilities: ietf_restconf_monitoring__restconf_state__capabilities
     streams: ietf_restconf_monitoring__restconf_state__streams
 
-    mut def __init__(self, capabilities: ?ietf_restconf_monitoring__restconf_state__capabilities=None, streams: ?ietf_restconf_monitoring__restconf_state__streams=None):
+    mut def __init__(self, capabilities: ?ietf_restconf_monitoring__restconf_state__capabilities=None, streams: ?ietf_restconf_monitoring__restconf_state__streams=None) -> None:
         self._ns = 'urn:ietf:params:xml:ns:yang:ietf-restconf-monitoring'
         self.capabilities = capabilities if capabilities is not None else ietf_restconf_monitoring__restconf_state__capabilities()
         self.streams = streams if streams is not None else ietf_restconf_monitoring__restconf_state__streams()
@@ -1661,7 +1661,7 @@ class ietf_restconf_monitoring__restconf_state(yang.adata.MNode):
             return ietf_restconf_monitoring__restconf_state(capabilities=ietf_restconf_monitoring__restconf_state__capabilities.from_gdata(n.get_opt_cnt(yang.gdata.Id(NS_ietf_restconf_monitoring, 'capabilities'))), streams=ietf_restconf_monitoring__restconf_state__streams.from_gdata(n.get_opt_cnt(yang.gdata.Id(NS_ietf_restconf_monitoring, 'streams'))))
         return ietf_restconf_monitoring__restconf_state()
 
-    def copy(self):
+    def copy(self) -> ietf_restconf_monitoring__restconf_state:
         """Create a deep copy of this adata object"""
         return ietf_restconf_monitoring__restconf_state.from_gdata(self.to_gdata())
 
@@ -1670,7 +1670,7 @@ _breaker8 = None
 class root(yang.adata.MNode):
     restconf_state: ietf_restconf_monitoring__restconf_state
 
-    mut def __init__(self, restconf_state: ?ietf_restconf_monitoring__restconf_state=None):
+    mut def __init__(self, restconf_state: ?ietf_restconf_monitoring__restconf_state=None) -> None:
         self._ns = ''
         self.restconf_state = restconf_state if restconf_state is not None else ietf_restconf_monitoring__restconf_state()
 
@@ -1687,7 +1687,7 @@ class root(yang.adata.MNode):
             return root(restconf_state=ietf_restconf_monitoring__restconf_state.from_gdata(n.get_opt_cnt(yang.gdata.Id(NS_ietf_restconf_monitoring, 'restconf-state'))))
         return root()
 
-    def copy(self):
+    def copy(self) -> root:
         """Create a deep copy of this adata object"""
         return root.from_gdata(self.to_gdata())
 
