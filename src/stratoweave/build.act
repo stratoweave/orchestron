@@ -96,7 +96,7 @@ class CompiledSysSpec(object):
             oper_modname = "{self.name}.layers.y_{lname}_oper"
 
             oper_name = "{output_dir}/{self.name}/layers/y_{lname}_oper.act"
-            if _maybe_write_file(fc, oper_name, layer.print(loose=True, gen_json=False, include_state=True, exclude_ext=_SW_EXCLUDE_EXT)):
+            if _maybe_write_file(fc, oper_name, layer.print(loose=True, gen_json=False, include_state=True, exclude_ext=_SW_EXCLUDE_EXT, include_subs=True)):
                 print("+ Layer {idx} oper adata changed")
             else:
                 print("+ Layer {idx} oper adata unchanged")

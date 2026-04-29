@@ -1,4 +1,5 @@
 import logging
+import random
 import yang.adata
 import yang.gdata as gdata
 import stratoweave.device as swdev
@@ -37,6 +38,14 @@ class BaseConfig(base.BaseConfig):
 actor BaseConfigTransform(path, update_dynstate: proc(?BaseConfigDynstate)->None, update_oper: proc(?y1_oper.stratoweave_rfs__rfs__base_config)->None, dev: swdev.DeviceMgr):
     _subs = gdata.SubscriptionManager(dev.tree_provider(), str(path))
     _dynstate = base.BaseConfig.dynstate_type()()
+    _oper = base.BaseConfig.new_state(path)
+
+    def publish():
+        _oper.state.current_datetime = "rfs-{random.randint(0, 999999)}"
+        update_oper(_oper)
+        after 1: publish()
+
+    after 0: publish()
 
     def on_state(root: ?ietf_oper_root, err: ?Exception):
         if err is not None:

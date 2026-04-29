@@ -2,10 +2,13 @@ import testing
 import yang.gdata as gdata
 
 import mini.devices.ietf_oper as ietf_oper
+import mini.layers.y_1_oper as y1_oper
 
 NS_IETF_SYSTEM = "urn:ietf:params:xml:ns:yang:ietf-system"
 NS_IETF_INTERFACES = "urn:ietf:params:xml:ns:yang:ietf-interfaces"
 NS_IETF_IP = "urn:ietf:params:xml:ns:yang:ietf-ip"
+NS_STRATOWEAVE_RFS = "http://stratoweave.org/yang/stratoweave-rfs.yang"
+NS_MINI_RFS = "http://example.com/mini-rfs"
 
 
 def q_sys(n: str) -> gdata.Id:
@@ -18,6 +21,14 @@ def q_if(n: str) -> gdata.Id:
 
 def q_ip(n: str) -> gdata.Id:
     return gdata.Id(NS_IETF_IP, n)
+
+
+def q_orfs(n: str) -> gdata.Id:
+    return gdata.Id(NS_STRATOWEAVE_RFS, n)
+
+
+def q_mrfs(n: str) -> gdata.Id:
+    return gdata.Id(NS_MINI_RFS, n)
 
 
 def fail(t: testing.EnvT, msg: str):
@@ -138,5 +149,25 @@ actor _test_oper_paths(t: testing.EnvT):
         fail(t, "Unexpected direct child filter for interface list: {got_list}")
     elif got_clock_on_change != expect_clock_on_change:
         fail(t, "Unexpected on-change filter for system-state clock: {got_clock_on_change}")
+    else:
+        t.success()
+
+
+actor _test_layer_oper_paths(t: testing.EnvT):
+    rfs = y1_oper.subs.rfs.entry("rtr1")
+    expect_current_datetime = gdata.SubscriptionSpec(
+        gdata.FNode(q_orfs("rfs"), children=[
+            gdata.FNode(q_orfs("name"), value_match="rtr1"),
+            gdata.FNode(q_mrfs("base-config"), children=[
+                gdata.FNode(q_mrfs("state"), children=[
+                    gdata.FNode(q_mrfs("current-datetime")),
+                ]),
+            ]),
+        ]),
+        period=1.0,
+    )
+    got_current_datetime = rfs.base_config.state.current_datetime.subscribe(period=1.0)
+    if got_current_datetime != expect_current_datetime:
+        fail(t, "Unexpected RFS current-datetime filter: {got_current_datetime}")
     else:
         t.success()

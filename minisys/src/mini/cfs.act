@@ -1,5 +1,4 @@
 import logging
-import random
 
 import yang.adata
 import yang.gdata # required for linked input parameter to transform function
@@ -10,6 +9,7 @@ import mini.layers.base_0 as base
 # https://github.com/actonlang/acton/issues/2390
 import yang.identityref, mini.layers.y_0
 import mini.layers.y_0_oper as y0_oper
+import mini.layers.y_1_oper as y1_oper
 
 class GlobalSettings(base.GlobalSettings):
     def transform(self, i):
@@ -19,18 +19,31 @@ class GlobalSettings(base.GlobalSettings):
 def q(n):
     return yang.gdata.Id("http://example.com/netinfra", n)
 
-actor RouterTransform(path: stratoweave.ttt.Path, update_dynstate: proc(?mini.layers.y_0.netinfra__netinfra__router__dynstate)->None, update_oper: proc(?y0_oper.netinfra__netinfra__router_entry)->None):
+actor RouterTransform(path: stratoweave.ttt.Path, update_dynstate: proc(?mini.layers.y_0.netinfra__netinfra__router__dynstate)->None, update_oper: proc(?y0_oper.netinfra__netinfra__router_entry)->None, lower_tree_provider: ?yang.gdata.TreeProvider):
     oper = base.Router.new_state(path)
+    _subs = yang.gdata.SubscriptionManager(stratoweave.ttt.expect(lower_tree_provider, "Missing lower tree provider for CFS router telemetry"), str(path))
 
-    def publish():
-        oper.state.current_datetime = "{random.randint(0, 999999)}"
+    def on_rfs_state(root: ?y1_oper.root, err: ?Exception, router_name: str):
+        if err is not None:
+            print("RouterTransform RFS subscription error: {err}", err=True)
+            return
+
+        for r in root!.rfs:
+            if r.name == router_name:
+                oper.state.current_datetime = r.base_config.state.current_datetime
         update_oper(oper)
-        after 1: publish()
 
-    after 0: publish()
+    def subscribe(router_name: str):
+        want: set[yang.gdata.Delivery] = set()
+        dst = y1_oper.dst(lambda r, e: on_rfs_state(r, e, router_name))
+        rfs = y1_oper.subs.rfs.entry(router_name)
+        want.add(dst.deliver({
+            rfs.base_config.state.current_datetime.subscribe(period=1.0)
+        }))
+        _subs.declare(want)
 
     def on_conf(conf: mini.layers.y_0.netinfra__netinfra__router_entry):
-        pass
+        subscribe(conf.name)
 
 class Router(base.Router):
     def transform(self, i, linked, dynstate):

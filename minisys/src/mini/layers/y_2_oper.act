@@ -10,6 +10,7 @@ from yang.identityref import Identityref, PartialIdentityref
 from yang.pattern import YangPattern
 from yang.schema import *
 from yang.type import Decimal, Ranges
+from yang.sdata import SubscriptionPath, SubscriptionNode
 
 # == This file is generated ==
 
@@ -262,3 +263,74 @@ class root(yang.adata.MNode):
 actor rpc_root(tp: yang.gdata.TreeProvider):
     pass
 
+
+
+class stratoweave_device__devices__device_subs(SubscriptionNode):
+    name: SubscriptionNode
+    modset_id: SubscriptionNode
+    def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(yang.gdata.Id(NS_stratoweave_device, 'name'), parent=path))
+        self.modset_id = SubscriptionNode(SubscriptionPath(yang.gdata.Id(NS_stratoweave_device, 'modset_id'), parent=path))
+
+    def entry(self, name: str) -> stratoweave_device__devices__device_entry_subs:
+        predicates = [
+            yang.gdata.FNode(yang.gdata.Id(NS_stratoweave_device, 'name'), value_match=name),
+        ]
+        base_path = self._path!.parent
+        return stratoweave_device__devices__device_entry_subs(SubscriptionPath(yang.gdata.Id(NS_stratoweave_device, 'device'), predicates=predicates, parent=base_path))
+
+    def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.modset_id]
+        return direct
+
+class stratoweave_device__devices__device_entry_subs(SubscriptionNode):
+    name: SubscriptionNode
+    modset_id: SubscriptionNode
+
+    def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(yang.gdata.Id(NS_stratoweave_device, 'name'), parent=path))
+        self.modset_id = SubscriptionNode(SubscriptionPath(yang.gdata.Id(NS_stratoweave_device, 'modset_id'), parent=path))
+
+    def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.modset_id]
+        return direct
+
+class stratoweave_device__devices_subs(SubscriptionNode):
+    device: stratoweave_device__devices__device_subs
+
+    def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device = stratoweave_device__devices__device_subs(SubscriptionPath(yang.gdata.Id(NS_stratoweave_device, 'device'), parent=path))
+
+    def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device]
+        return direct
+
+class root_subs(SubscriptionNode):
+    devices: stratoweave_device__devices_subs
+
+    def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.devices = stratoweave_device__devices_subs(SubscriptionPath(yang.gdata.Id(NS_stratoweave_device, 'devices'), parent=path))
+
+    def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.devices]
+        return direct
+
+subs = root_subs()
+
+actor DstAdapter(cb: action(?root, ?Exception) -> None):
+    def on_update(n: ?yang.gdata.Node, err: ?Exception):
+        if err is not None:
+            cb(None, err)
+            return
+        if n is not None:
+            cb(root.from_gdata(n), None)
+            return
+        cb(None, None)
+
+def dst(cb: action(?root, ?Exception) -> None) -> yang.gdata.Dst:
+    adapter = DstAdapter(cb)
+    return yang.gdata.Dst(adapter.on_update)

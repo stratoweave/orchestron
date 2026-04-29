@@ -41,5 +41,5 @@ def RouterTransformCtor(params: ttt.TransformActorParams) -> ?proc(yang.gdata.No
         params.update_dynstate(dynstate.to_gdata() if dynstate is not None else None)
     def update_oper_type_wrapper(oper: ?mini.layers.y_0_oper.netinfra__netinfra__router_entry):
         params.update_oper(oper.to_gdata() if oper is not None else None)
-    act = mini.cfs.RouterTransform(params.path, update_dynstate_type_wrapper, update_oper_type_wrapper)
+    act = mini.cfs.RouterTransform(params.path, update_dynstate_type_wrapper, update_oper_type_wrapper, params.lower_tree_provider)
     return proc lambda c, m: act.on_conf(netinfra__netinfra__router_entry.from_gdata(c))

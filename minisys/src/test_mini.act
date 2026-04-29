@@ -69,7 +69,7 @@ actor _test_netinfra_router_oper(t: testing.AsyncT):
     def poll():
         attempts += 1
         current_datetime = _router_current_datetime(tr.cfs.newsession().get_data(), "rtr1")
-        if current_datetime is not None:
+        if current_datetime is not None and current_datetime.startswith("rfs-"):
             t.success()
             return
         if attempts >= 20:
