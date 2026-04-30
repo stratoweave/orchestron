@@ -377,11 +377,15 @@ actor config_failure(t: testing.AsyncT):
         def cont2(_r: ttt.CfgResult):
             if _r.errors:
                 t2.configure("2", {'srcB': b1}, None)
-            t2.commit("2", True)
-            r = t2.get()
-            if r != a0b1:
-                testing.assertEqual(r.prsrc(deterministic=True), a0b1.prsrc(deterministic=True))
-            t.success()
+            await async t2.commit("2", True)
+
+            def cont3(_r: value):
+                r = t2.get()
+                if r != a0b1:
+                    testing.assertEqual(r.prsrc(deterministic=True), a0b1.prsrc(deterministic=True))
+                t.success()
+
+            t1.wait_complete("1", cont3)
 
         t2.lock("2", None, cont2)
 
