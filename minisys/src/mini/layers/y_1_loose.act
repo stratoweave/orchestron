@@ -75,7 +75,8 @@ SRC_DNODE_CHILD_9: DContainer = DContainer(module='stratoweave-rfs', namespace='
 ])
 
 SRC_DNODE_CHILD_10: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='feature-flags', config=True, presence=False, children=[
-    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='runtime-schema-fetch', config=True, default='false', mandatory=False, type_=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='runtime-schema-fetch', config=True, default='false', mandatory=False, type_=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='preserve-unmanaged-config', config=True, description='When true, configuration removals are scoped to what stratoweave\npreviously applied to the device (the last applied target config).\nConfiguration present on the device but never produced by the\ntransforms (mgmt interface, physical interfaces, default policies,\naaa, ...) is left untouched instead of being deleted. When false\n(default), the transform output is treated as the complete intended\ndevice state and anything else is removed.', default='false', mandatory=False, type_=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
 ])
 
 SRC_DNODE_CHILD_0: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
@@ -431,6 +432,18 @@ SRC_YANG_2: str = r"""module stratoweave-rfs {
 
     container feature-flags {
       leaf runtime-schema-fetch {
+        type boolean;
+        default false;
+      }
+      leaf preserve-unmanaged-config {
+        description
+          "When true, configuration removals are scoped to what stratoweave
+           previously applied to the device (the last applied target config).
+           Configuration present on the device but never produced by the
+           transforms (mgmt interface, physical interfaces, default policies,
+           aaa, ...) is left untouched instead of being deleted. When false
+           (default), the transform output is treated as the complete intended
+           device state and anything else is removed.";
         type boolean;
         default false;
       }
@@ -1374,9 +1387,11 @@ class stratoweave_rfs__device__debug(yadata.MNode):
 _breaker14: None = None
 class stratoweave_rfs__device__feature_flags(yadata.MNode):
     runtime_schema_fetch: ?bool
+    preserve_unmanaged_config: ?bool
 
-    mut def __init__(self, runtime_schema_fetch: ?bool) -> None:
+    mut def __init__(self, runtime_schema_fetch: ?bool, preserve_unmanaged_config: ?bool) -> None:
         self.runtime_schema_fetch = runtime_schema_fetch
+        self.preserve_unmanaged_config = preserve_unmanaged_config
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'feature-flags'])
@@ -1384,7 +1399,7 @@ class stratoweave_rfs__device__feature_flags(yadata.MNode):
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__feature_flags:
         if n is not None:
-            return stratoweave_rfs__device__feature_flags(runtime_schema_fetch=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'runtime-schema-fetch')))
+            return stratoweave_rfs__device__feature_flags(runtime_schema_fetch=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'runtime-schema-fetch')), preserve_unmanaged_config=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'preserve-unmanaged-config')))
         return stratoweave_rfs__device__feature_flags()
 
     mut def copy(self) -> stratoweave_rfs__device__feature_flags:

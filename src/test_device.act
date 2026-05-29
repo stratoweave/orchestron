@@ -703,3 +703,92 @@ actor _test_netconf_adapter_resync(t: testing.EnvT):
 #    log.info("NetconfAdapter created, waiting for connection...")
 #
 #
+
+
+_FNS = "test:footprint"
+
+
+def _fid(name: str) -> ygdata.Id:
+    return ygdata.Id(_FNS, name)
+
+
+def _fp_interface(name: str, mtu: int) -> ygdata.Node:
+    return ygdata.Container({
+        _fid("name"): ygdata.Leaf(name, ns=_FNS),
+        _fid("mtu"): ygdata.Leaf(mtu, ns=_FNS),
+    }, ns=_FNS)
+
+
+def _fp_running() -> ygdata.Node:
+    """Running config on the device: managed (GE0, GE1, hostname) plus
+    device-owned config the transforms never produce (Mgmt0 interface, aaa)."""
+    return ygdata.Container({
+        _fid("hostname"): ygdata.Leaf("router1", ns=_FNS),
+        _fid("interfaces"): ygdata.Container({
+            _fid("interface"): ygdata.List([_fid("name")], elements=[
+                _fp_interface("GE0", 1500),
+                _fp_interface("GE1", 1500),
+                _fp_interface("Mgmt0", 1000),
+            ]),
+        }, ns=_FNS),
+        _fid("aaa"): ygdata.Container({
+            _fid("auth"): ygdata.Leaf("local", ns=_FNS),
+        }, ns=_FNS),
+    }, ns=_FNS)
+
+
+def _fp_footprint() -> ygdata.Node:
+    """What stratoweave last applied (target_conf): only the config it manages."""
+    return ygdata.Container({
+        _fid("hostname"): ygdata.Leaf("router1", ns=_FNS),
+        _fid("interfaces"): ygdata.Container({
+            _fid("interface"): ygdata.List([_fid("name")], elements=[
+                _fp_interface("GE0", 1500),
+                _fp_interface("GE1", 1500),
+            ]),
+        }, ns=_FNS),
+    }, ns=_FNS)
+
+
+def _test_restrict_to_footprint() -> str:
+    """restrict_to_footprint keeps only the config stratoweave manages
+    (footprint), so a subsequent diff never removes device-owned config.
+
+    The snapshot should keep GE0/GE1 and hostname but drop the device-owned
+    Mgmt0 interface and aaa. With an empty footprint (first transaction) nothing
+    is owned yet, so the result is None."""
+    running = _fp_running()
+    footprint = _fp_footprint()
+    empty = swdev.restrict_to_footprint(running, None)
+    return "\n".join([
+        "# running restricted to the managed footprint:",
+        swdev.restrict_to_footprint(running, footprint)!.prsrc(deterministic=True),
+        "",
+        "# running restricted to an empty footprint (first transaction):",
+        empty.prsrc(deterministic=True) if empty is not None else "None",
+    ])
+
+
+def _test_footprint_diff_preserves_unmanaged() -> str:
+    """Diffing the footprint-restricted running against a transform output that
+    drops a managed interface must delete only the managed interface (GE0),
+    never the device-owned mgmt interface (Mgmt0) or aaa config.
+
+    The snapshot should show the hostname change, an Absent GE0 element, and
+    neither Mgmt0 nor aaa anywhere."""
+    running = _fp_running()
+    footprint = _fp_footprint()
+
+    # New transform output: hostname changed, GE0 no longer managed, GE1 kept.
+    send_conf = ygdata.Container({
+        _fid("hostname"): ygdata.Leaf("router2", ns=_FNS),
+        _fid("interfaces"): ygdata.Container({
+            _fid("interface"): ygdata.List([_fid("name")], elements=[
+                _fp_interface("GE1", 1500),
+            ]),
+        }, ns=_FNS),
+    }, ns=_FNS)
+
+    managed_running = swdev.restrict_to_footprint(running, footprint)
+    return ygdata.diff(managed_running, send_conf)!.prsrc(deterministic=True)
+

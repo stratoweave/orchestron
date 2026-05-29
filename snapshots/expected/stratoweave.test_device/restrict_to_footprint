@@ -1,0 +1,19 @@
+# running restricted to the managed footprint:
+Container({
+  Id('test:footprint', 'hostname'): Leaf('router1', ns='test:footprint'),
+  Id('test:footprint', 'interfaces'): Container({
+    Id('test:footprint', 'interface'): List([Id('test:footprint', 'name')], elements=[
+      Container({
+        Id('test:footprint', 'mtu'): Leaf(1500, ns='test:footprint'),
+        Id('test:footprint', 'name'): Leaf('GE0', ns='test:footprint')
+      }, ns='test:footprint'),
+      Container({
+        Id('test:footprint', 'mtu'): Leaf(1500, ns='test:footprint'),
+        Id('test:footprint', 'name'): Leaf('GE1', ns='test:footprint')
+      }, ns='test:footprint')
+    ])
+  }, ns='test:footprint')
+}, ns='test:footprint')
+
+# running restricted to an empty footprint (first transaction):
+None

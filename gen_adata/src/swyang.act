@@ -193,6 +193,18 @@ rfs = r"""module stratoweave-rfs {
         type boolean;
         default false;
       }
+      leaf preserve-unmanaged-config {
+        description
+          "When true, configuration removals are scoped to what stratoweave
+           previously applied to the device (the last applied target config).
+           Configuration present on the device but never produced by the
+           transforms (mgmt interface, physical interfaces, default policies,
+           aaa, ...) is left untouched instead of being deleted. When false
+           (default), the transform output is treated as the complete intended
+           device state and anything else is removed.";
+        type boolean;
+        default false;
+      }
     }
 
     container state {

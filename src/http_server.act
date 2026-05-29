@@ -127,7 +127,14 @@ actor HttpServer(
         target_conf = dev.get_target_conf()
 
         if running_conf is not None and target_conf is not None:
-            config_diff = ygdata.diff(running_conf, target_conf)
+            if dev.get_dmc().feature_flags.preserve_unmanaged_config:
+                # Mirror the device send path: scope removals to the config we
+                # previously applied (target_conf) so device-owned config the
+                # transforms don't reproduce isn't shown as a removal.
+                managed_running = swdev.restrict_to_footprint(running_conf, target_conf)
+                config_diff = ygdata.diff(managed_running, target_conf)
+            else:
+                config_diff = ygdata.diff(running_conf, target_conf)
             if config_diff is not None:
                 if format_type == "json":
                     diff_str = config_diff.to_yang_jsonstr()

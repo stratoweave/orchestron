@@ -1,0 +1,10 @@
+Container({
+  Id('test:footprint', 'hostname'): Leaf('router2', ns='test:footprint'),
+  Id('test:footprint', 'interfaces'): Container({
+    Id('test:footprint', 'interface'): List([Id('test:footprint', 'name')], elements=[
+      Absent({
+        Id('test:footprint', 'name'): Leaf('GE0', ns='test:footprint')
+      })
+    ])
+  }, ns='test:footprint')
+}, ns='test:footprint')

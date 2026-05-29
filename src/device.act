@@ -180,6 +180,70 @@ def config_fixer(old: ?ygdata.Node, new: ygdata.Node):
     return new
 
 
+def restrict_to_footprint(tree: ?ygdata.Node, footprint: ?ygdata.Node) -> ?ygdata.Node:
+    """Return the subtree of `tree` limited to paths also present in `footprint`.
+
+    The transform output is not a complete picture of the device's running
+    configuration - it only contains the config that stratoweave manages. A
+    plain diff(running, intended) therefore wants to remove everything the
+    transforms don't reproduce (mgmt interface, physical interfaces, default
+    policies, aaa, ...). By first restricting the running config to `footprint`
+    - the configuration stratoweave last applied to the device - and diffing
+    *that* against the intended config, removals are naturally scoped to config
+    we ourselves previously pushed: device-owned config is not part of the
+    comparison and is left untouched. On the first transaction the footprint is
+    empty (None), diff(None, intended) yields pure additions, and nothing is
+    removed.
+
+    Values are taken from `tree`; `footprint` only selects which paths survive.
+    """
+    if tree is None or footprint is None:
+        return None
+
+    if isinstance(tree, ygdata.Container) and isinstance(footprint, ygdata.Container):
+        kept: dict[ygdata.Id, ygdata.Node] = {}
+        for k, child in tree.children.items():
+            fp = footprint.children.get(k)
+            if fp is not None:
+                r = restrict_to_footprint(child, fp)
+                if r is not None:
+                    kept[k] = r
+        if len(kept) == 0:
+            return None
+        return ygdata.Container(kept, presence=tree.presence, ns=tree.ns, module=tree.module)
+
+    if isinstance(tree, ygdata.List) and isinstance(footprint, ygdata.List):
+        fp_map: dict[str, ygdata.Node] = {}
+        for fe in footprint.elements:
+            fp_map[fe.key_str(footprint.keys)] = fe
+        kept_elems: list[ygdata.Node] = []
+        for elem in tree.elements:
+            fp = fp_map.get(elem.key_str(tree.keys))
+            if fp is not None:
+                r = restrict_to_footprint(elem, fp)
+                if r is not None:
+                    kept_elems.append(r)
+        if len(kept_elems) == 0:
+            return None
+        return ygdata.List(tree.keys, kept_elems, user_order=tree.user_order, ns=tree.ns, module=tree.module)
+
+    if isinstance(tree, ygdata.LeafList) and isinstance(footprint, ygdata.LeafList):
+        kept_entries: list[ygdata.LeafListEntry] = []
+        for e in tree.entries:
+            for fe in footprint.entries:
+                if ygdata.vals_equal(e.val, fe.val):
+                    kept_entries.append(e)
+                    break
+        if len(kept_entries) == 0:
+            return None
+        return ygdata.LeafList(kept_entries, user_order=tree.user_order, ns=tree.ns, module=tree.module)
+
+    # Leaf (or any matching scalar node): the path exists in the footprint, so
+    # keep tree's value. Type mismatches shouldn't occur for valid config; fall
+    # back to keeping tree's value.
+    return tree
+
+
 class ConfigItem(object):
     approved: ?bool
 
@@ -642,8 +706,16 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
 
         # Check if there is an actual diff right now
         if running_conf is not None and send_conf is not None:
-            send_conf2 = config_fixer(running_conf, send_conf)
-            send_diff = ygdata.diff(running_conf, send_conf2) if send_conf2 is not None else None
+            if dmc.feature_flags.preserve_unmanaged_config:
+                # Scope removals to the config we previously applied
+                # (target_conf) by diffing against the running config restricted
+                # to that footprint. Device-owned config the transforms don't
+                # reproduce is left untouched. config_fixer is subsumed by this.
+                managed_running = restrict_to_footprint(running_conf, target_conf)
+                send_diff = ygdata.diff(managed_running, send_conf)
+            else:
+                send_conf2 = config_fixer(running_conf, send_conf)
+                send_diff = ygdata.diff(running_conf, send_conf2) if send_conf2 is not None else None
             all_tids = set(pending_tids)
             all_tids.update(reconf_tids)
             if send_diff is not None:
