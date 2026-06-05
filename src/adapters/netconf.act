@@ -1108,7 +1108,11 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
         # Fetch full config for hashing
         if client is not None:
-            client.get_config(on_generic_txid_data, "running")
+            if is_cisco_iosxe():
+                filter = _build_subtree_filter(ygdata.FNode(ygdata.Id("http://cisco.com/ns/yang/Cisco-IOS-XE-native", "native")))
+            else:
+                filter = None
+            client.get_config(on_generic_txid_data, "running", filter)
         else:
             raise NotConnectedError()
 
@@ -1453,6 +1457,9 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
     def is_nokia_srl():
         return "srl_nokia-aaa" in modset
 
+    def is_cisco_iosxe():
+        return "Cisco-IOS-XE-native" in modset
+
     def fetch_config(done: action(?ygdata.Node, ?Exception) -> None) -> None:
         def on_get_config(c, r, error):
             if _is_stale(c):
@@ -1507,7 +1514,11 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
         _log.debug("Device._fetch_config")
         if client is not None:
-            client.get_config(on_get_config)
+            if is_cisco_iosxe():
+                filter = _build_subtree_filter(ygdata.FNode(ygdata.Id("http://cisco.com/ns/yang/Cisco-IOS-XE-native", "native")))
+            else:
+                filter = None
+            client.get_config(on_get_config, filter=filter)
 
     def get_config():
         return running_conf
