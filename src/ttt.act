@@ -1394,6 +1394,13 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
         for node in elems.values():
             node.bind_db(db1)
 
+    def _activate(tid: str, keys: set[str]) -> dict[str, Node]:
+        if tid in active:
+            active[tid] |= keys
+        else:
+            active[tid] = keys
+        return {k: elems[k] for k in keys}
+
     def acquire(tid: str, keys: ?dict[str, dict[gdata.Id, gdata.Leaf]]) -> dict[str, Node]:
         if keys is not None:
             keys1 = set(keys.keys())
@@ -1407,17 +1414,10 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
         else:
             keys1 = set(elems.keys())
             #print('====', tid, path, 'acquire all keys:', keys1, actorid(), err=True)
-        active[tid] = keys1
-
-        return {k: elems[k] for k in keys1}
+        return _activate(tid, keys1)
 
     def acquire_existing(tid: str, keys: set[str]) -> dict[str, Node]:
-        keys1 = {k for k in keys if k in elems}
-        if tid in active:
-            active[tid] |= keys1
-        else:
-            active[tid] = keys1
-        return {k: elems[k] for k in keys1}
+        return _activate(tid, {k for k in keys if k in elems})
 
     def release(tid: str, ok: bool, deletes: set[str]):
         #print('====', tid, path, 'release', ok, 'deletes:', deletes, 'provisional:', provisional, err=True)
@@ -1504,6 +1504,13 @@ class _ListTransaction(_Transaction):
         for key,subdiff in diff_by_key.items():
             #print('   #', tid, '(List)', _format_path(self.path), 'CONFIGURE ELEMENT', key, err=True)
             msgs[key] = async self.elems[key].configure(tid, subdiff, out, force, dbuf)
+        # Keys seen in an earlier pass but absent from this diff are re-rendered
+        # with an empty diff. A list configure is incremental: an omitted key
+        # means "unchanged", not "removed" (genuine removal arrives as an
+        # explicit gdata.Absent element, which empties the element and is
+        # collected via `deletes` in commit). The accumulating active[tid] (see
+        # ListState._activate) keeps such a key confirmed across passes, so it
+        # survives commit instead of being mistaken for an unconfirmed key.
         for key in self.accum.keys():
             if key not in diff_by_key:
                 msgs[key] = async self.elems[key].configure(tid, {}, out, force, dbuf)

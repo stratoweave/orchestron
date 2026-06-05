@@ -348,6 +348,18 @@ y2b = gdata.List([q("name")], [
     })
 ])
 
+# srcB re-states its list dropping key2. A list configure is incremental, so the
+# removal is an explicit Absent element -- omitting key2 would mean "unchanged".
+y2_del = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("key1"),
+        q("b"): gdata.Leaf(1)
+    }),
+    gdata.Absent({
+        q("name"): gdata.Leaf("key2")
+    })
+])
+
 actor aborted_create2(t: testing.AsyncT):
     tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
     t1 = tlist.newtrans()
@@ -358,7 +370,7 @@ actor aborted_create2(t: testing.AsyncT):
         t1.commit("1", False)
 
     def cont2(_r: value):
-        t2.configure("2", {'srcB': y2b}, None)
+        t2.configure("2", {'srcB': y2_del}, None)
         t2.commit("2", True)
         r = t2.get()
         if r != y2b:
@@ -367,6 +379,169 @@ actor aborted_create2(t: testing.AsyncT):
 
     t1.configure("1", {'srcA': y1}, None)
     t2.configure("2", {'srcB': y2}, None)
+    t1.lock("1", None, cont1)
+
+########################
+
+# A single transaction can configure the same list more than once before it
+# commits: an initial configure followed by a leafref-linkage re-apply from a
+# different source that re-states only some of the keys. A key touched in the
+# first pass but omitted from the second must still survive the commit -- it
+# must not be mistaken for a provisional key the transaction never confirmed.
+mp_pass1 = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("endpoint-a"),
+        q("port"): gdata.Leaf(1)
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("endpoint-b"),
+        q("port"): gdata.Leaf(2)
+    })
+])
+
+mp_pass2 = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("endpoint-a"),
+        q("link"): gdata.Leaf("switch-1")
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("switch-1"),
+        q("port"): gdata.Leaf(9)
+    })
+])
+
+mp_expected = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("endpoint-a"),
+        q("port"): gdata.Leaf(1),
+        q("link"): gdata.Leaf("switch-1")
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("endpoint-b"),
+        q("port"): gdata.Leaf(2)
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("switch-1"),
+        q("port"): gdata.Leaf(9)
+    })
+])
+
+actor multipass_keep(t: testing.AsyncT):
+    tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
+    t1 = tlist.newtrans()
+
+    # Pass 1: srcA states endpoint-a and endpoint-b.
+    t1.configure("1", {'srcA': mp_pass1}, None)
+    # Pass 2: a re-apply from a different source re-states endpoint-a and adds
+    # switch-1, but does not mention endpoint-b. endpoint-b must survive.
+    t1.configure("1", {'srcLink': mp_pass2}, None)
+
+    def cont1(_r: value):
+        t1.commit("1", True)
+        r = t1.get()
+        try:
+            testing.assertEqual(mp_expected, r)
+            t.success()
+        except Exception as e:
+            t.failure(Exception("Diff:\n{diff.diff(mp_expected.prsrc(), r.prsrc(), color=True)}"))
+
+    t1.lock("1", None, cont1)
+
+########################
+
+# A single source configuring the same list across two passes in one tid sends
+# INCREMENTAL diffs (gdata.diff omits unchanged elements). A key it changed in
+# pass 1 but left at its committed value in pass 2 is OMITTED from pass 2.
+# Omission means "unchanged", not "removed": the key must survive. (An earlier
+# fix marked omitted keys Absent and deleted them.) We assert presence, not the
+# value -- reverting the pass-1 change is a separate concern this guard ignores.
+ms_base = gdata.List([q("name")], [
+    gdata.Container({q("name"): gdata.Leaf("A"), q("port"): gdata.Leaf(1)}),
+    gdata.Container({q("name"): gdata.Leaf("B"), q("port"): gdata.Leaf(2)})
+])
+
+ms_p1_target = gdata.List([q("name")], [
+    gdata.Container({q("name"): gdata.Leaf("A"), q("port"): gdata.Leaf(9)}),
+    gdata.Container({q("name"): gdata.Leaf("B"), q("port"): gdata.Leaf(8)})
+])
+
+ms_p2_target = gdata.List([q("name")], [
+    gdata.Container({q("name"): gdata.Leaf("A"), q("port"): gdata.Leaf(9)}),
+    gdata.Container({q("name"): gdata.Leaf("B"), q("port"): gdata.Leaf(2)})
+])
+
+actor multipass_same_src_keep(t: testing.AsyncT):
+    tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
+    t1 = tlist.newtrans()
+
+    p1 = gdata.diff(ms_base, ms_p1_target)      # touches A and B
+    p2 = gdata.diff(ms_base, ms_p2_target)      # touches A only; B unchanged -> omitted
+
+    def cont2(_r: value):
+        t1.commit("2", True)
+        r = t1.get()
+        b_present = False
+        if isinstance(r, gdata.List):
+            for e in r.elements:
+                if isinstance(e, gdata.Container) and e.key_str([q("name")]) == "B":
+                    b_present = True
+        try:
+            testing.assertEqual(True, b_present)
+            t.success()
+        except Exception:
+            t.failure(Exception("B was wrongly deleted by an omitting same-source pass. Got:\n{r.prsrc()}"))
+
+    def cont1(_r: value):
+        t1.commit("1", True)
+        d1 = p1
+        d2 = p2
+        if d1 is not None and d2 is not None:
+            t1.configure("2", {'_': d1}, None)
+            t1.configure("2", {'_': d2}, None)
+            t1.lock("2", None, cont2)
+        else:
+            t.failure(Exception("gdata.diff unexpectedly produced no diff"))
+
+    t1.configure("1", {'_': ms_base}, None)
+    t1.lock("1", None, cont1)
+
+########################
+
+# Once configures are incremental, the only removal signal is an explicit Absent
+# element: a source re-states its list with Absent(key) to drop a key. The
+# element empties and the key is collected via List.commit's `deletes`.
+msd_base = gdata.List([q("name")], [
+    gdata.Container({q("name"): gdata.Leaf("A"), q("port"): gdata.Leaf(1)}),
+    gdata.Container({q("name"): gdata.Leaf("B"), q("port"): gdata.Leaf(2)})
+])
+
+msd_remove = gdata.List([q("name")], [
+    gdata.Absent({q("name"): gdata.Leaf("B")})
+])
+
+msd_expected = gdata.List([q("name")], [
+    gdata.Container({q("name"): gdata.Leaf("A"), q("port"): gdata.Leaf(1)})
+])
+
+actor multipass_same_src_delete(t: testing.AsyncT):
+    tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
+    t1 = tlist.newtrans()
+
+    def cont2(_r: value):
+        t1.commit("2", True)
+        r = t1.get()
+        try:
+            testing.assertEqual(msd_expected, r)
+            t.success()
+        except Exception:
+            t.failure(Exception("Diff:\n{diff.diff(msd_expected.prsrc(), r.prsrc(), color=True)}"))
+
+    def cont1(_r: value):
+        t1.commit("1", True)
+        t1.configure("2", {'_': msd_remove}, None)
+        t1.lock("2", None, cont2)
+
+    t1.configure("1", {'_': msd_base}, None)
     t1.lock("1", None, cont1)
 
 ########################
