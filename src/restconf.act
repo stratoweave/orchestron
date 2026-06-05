@@ -265,6 +265,7 @@ actor RestconfServer(
                 xml_in = xml.decode(ctx.request.body.decode())
                 return yang.restconf.from_xml_path(top_schema, xml_in, _split_restconf_path(ctx.param("rest_path")), op, loose=True)
             except Exception as e:
+                http_log.error(str(e))
                 respond(400, {}, "Error parsing XML: {e}")
                 return None
         respond(415, {}, "Unsupported media type")
