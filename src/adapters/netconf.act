@@ -748,8 +748,19 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
             schema_modset = _modset_from_schema_list(schema_list)
             if len(schema_modset) == 0:
-                _log.warning("Device._on_connect: schema discovery returned no YANG modules")
-                finish_connect(schema_modset)
+                # Discovery responded but listed no YANG modules - never report an
+                # empty modset (it would clobber a previously learned one and
+                # strand the device unmanageable). Fall back to the hello
+                # capabilities; if those are empty too, treat it like a discovery
+                # failure and retry rather than downgrading what we know.
+                cap_modset = _modset_from_capabilities(c.get_capabilities())
+                if len(cap_modset) > 0:
+                    _log.warning("Device._on_connect: schema discovery returned no YANG modules, falling back to capabilities")
+                    finish_connect(cap_modset)
+                else:
+                    _log.error("Device._on_connect: no YANG modules from discovery or capabilities, retrying")
+                    modset = {}
+                    after 1: c.restart()
                 return
 
             if not dmc.feature_flags.runtime_schema_fetch:
