@@ -10,9 +10,10 @@ import device as swdev
 import http_server as swhttp
 import netconf_server as swnetconf
 import test_rig as swts
+import ttt as ttt
 
 
-def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
+def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True, on_cfs: ?proc(ttt.Layer) -> None = None):
     """Start a production StratoWeave application.
 
     This entrypoint wires together the standard runtime components used by an
@@ -23,6 +24,10 @@ def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
         sysspec: Generated system specification for the application
         env: The main actor Env object, required to access capabilities
         http (bool): When `True`, start the built-in HTTP server
+        on_cfs: Optional hook invoked once with the live top-layer (CFS) handle
+            after startup config is applied. Lets an application start its own
+            app-level actors that read/write the datastore in-process (e.g. a
+            closed-loop controller), without forking this entrypoint.
 
     Startup behavior:
         Any config files provided on the command line are merged and applied to
@@ -83,6 +88,8 @@ def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
             swnetconf.NetconfServer(nc_listen_cap, log_handler=logh_netconf, top_schema=top_schema, cfs=cfs, port=args.netconf_port, username=args.netconf_user, password=args.netconf_password, host_key=netconf_host_key)
 
         swapp.StartupConfigApplier(args.config_files, args.exit_on_done, top_schema, cfs, env.exit, rfcap, logh)
+        if on_cfs is not None:
+            on_cfs(cfs)
         log.info("StratoWeave running..")
 
     swapp.StartupBootstrap(cfs, db is not None, args.netconf_host_key_path if netconf else None, rfcap, start_runtime, env.exit, logh)
