@@ -209,9 +209,13 @@ actor SztpServer(root: http_router.Router, registry: ZtpRegistry, log_handler: l
             day0 = day0_native_config(st)
             conveyed = build_conveyed_info_json(day0)
             cms_b64 = base64.encode(cms_wrap_unsigned_json(conveyed.encode())).decode()
+            # NOTE: reporting-level (ztp/sztp/reporting-level) is deliberately
+            # not included: per RFC 8572 it is only returned to devices that
+            # trust the server, and we are reached over an untrusted (DHCP
+            # -discovered) connection. Strict clients (OPI sztp-agent) reject
+            # unknown output fields.
             output = json.encode({
                 "ietf-sztp-bootstrap-server:output": {
-                    "reporting-level": st.conf.sztp.reporting_level,
                     "conveyed-information": cms_b64,
                 }
             })
