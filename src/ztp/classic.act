@@ -1,0 +1,87 @@
+import logging
+
+import http_router
+
+from ztp.registry import ZtpRegistry, ZtpDeviceState
+
+## Classic DHCP-option ZTP.
+##
+## Serves the per-device bootfile that a DHCP server points devices at via
+## option 67 (bootfile-name), e.g. for IOS-XR ZTP:
+##
+##   GET /ztp/v1/device/{name}/bootfile
+##
+## For platforms where the bootfile is a script (IOS-XR bash, IOS-XE
+## python) the rendered script reports progress and checks in with the
+## device's management address:
+##
+##   POST /ztp/v1/device/{name}/progress?type=<progress-type>&message=<msg>
+##   POST /ztp/v1/device/{name}/checkin?address=<mgmt-address>
+##
+## The check-in is how StratoWeave learns the device's address: the HTTP
+## stack does not expose the request's source address, and the device
+## knows best which of its addresses we should manage it on.
+
+actor ClassicZtpServer(root: http_router.Router, registry: ZtpRegistry, log_handler: logging.Handler):
+    """Classic ZTP bootfile endpoints"""
+    _log_handler = logging.Handler("ZTP-classic")
+    _log_handler.set_handler(log_handler)
+    _log = logging.Logger(_log_handler)
+
+    def _match_device(ctx: http_router.Context) -> ?ZtpDeviceState:
+        identity = ctx.param("name")
+        st = registry.match(identity)
+        if st is not None:
+            if not st.conf.classic.enabled:
+                return None
+        return st
+
+    def _server_base(ctx: http_router.Context) -> (base: str, host: str):
+        """Our own URL base as seen by the requesting device"""
+        host_hdr = ctx.request.headers.get("host")
+        host_port = host_hdr if host_hdr is not None else "localhost"
+        # NOTE: no IPv6 literal support here yet ("[::1]:80")
+        host = host_port.split(":", 1)[0] if ":" in host_port else host_port
+        return (base="http://" + host_port, host=host)
+
+    def handle_bootfile(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        st = _match_device(ctx)
+        if st is not None:
+            srv = _server_base(ctx)
+            try:
+                bootfile = registry.day0_bootfile_for(st.name, srv.base, srv.host)
+                registry.record_progress(st.name, "classic", "bootstrap-initiated", "bootfile fetched")
+                respond(200, {"Content-Type": "text/plain"}, bootfile)
+            except Exception as e:
+                _log.error("bootfile rendering failed", {"device": st.name, "error": str(e)})
+                respond(500, {}, "no day-0 configuration available\n")
+        else:
+            respond(404, {}, "no bootstrapping data available\n")
+
+    def handle_progress(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        st = _match_device(ctx)
+        if st is not None:
+            ptype = ctx.query_param("type", "informational")
+            message = ctx.query_param("message", "")
+            registry.record_progress(st.name, "classic", ptype, message)
+            respond(204, {}, "")
+        else:
+            respond(404, {}, "unknown device\n")
+
+    def handle_checkin(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        st = _match_device(ctx)
+        if st is not None:
+            address = ctx.query_param("address")
+            if address == "":
+                respond(400, {}, "address query parameter is mandatory\n")
+                return
+            registry.record_progress(st.name, "classic", "informational", "check-in from {address}")
+            registry.discovered(st.name, address)
+            respond(204, {}, "")
+        else:
+            respond(404, {}, "unknown device\n")
+
+    root.get("/ztp/v1/device/{{name}}/bootfile", handle_bootfile)
+    root.post("/ztp/v1/device/{{name}}/progress", handle_progress)
+    root.post("/ztp/v1/device/{{name}}/checkin", handle_checkin)
+    _log.info("Classic ZTP routes installed", {"bootfile": "/ztp/v1/device/{{name}}/bootfile"})

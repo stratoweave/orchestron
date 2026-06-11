@@ -1,0 +1,334 @@
+import logging
+import time
+
+from device_meta_config import \
+    stratoweave_rfs__device_entry as DeviceMetaConfig, \
+    stratoweave_rfs__device__ztp as ZtpConfig
+
+## Lifecycle phases for a ZTP device
+PHASE_WAITING       = "waiting"
+PHASE_BOOTSTRAPPING = "bootstrapping"
+PHASE_BOOTSTRAPPED  = "bootstrapped"
+PHASE_CONNECTED     = "connected"
+PHASE_FAILED        = "failed"
+
+
+class ProgressItem(object):
+    """A single ZTP progress event for a device
+
+    `source` identifies the reporting mechanism (e.g. "sztp", "classic",
+    "stratoweave"). `ptype` follows the RFC 8572 progress-type vocabulary
+    where applicable (e.g. "bootstrap-initiated", "config-complete").
+    """
+    def __init__(self, source: str, ptype: str, message: str):
+        self.ts = time.now()
+        self.source = source
+        self.ptype = ptype
+        self.message = message
+
+
+class SshHostKey(object):
+    def __init__(self, algorithm: str, key_data: str):
+        self.algorithm = algorithm
+        self.key_data = key_data
+
+
+class ZtpDeviceState(object):
+    """ZTP runtime state for one device known to the ZtpRegistry"""
+    name: str
+    conf: ZtpConfig
+    dev_type: ?str
+    username: ?str
+    password: ?str
+    phase: str
+    discovered_address: ?str
+    ssh_host_keys: list[SshHostKey]
+    progress: list[ProgressItem]
+
+    def __init__(self, name: str, conf: ZtpConfig, dev_type: ?str, username: ?str, password: ?str):
+        self.name = name
+        self.conf = conf
+        self.dev_type = dev_type
+        self.username = username
+        self.password = password
+        self.phase = PHASE_WAITING
+        self.discovered_address = None
+        self.ssh_host_keys = []
+        self.progress = []
+
+    def serial(self) -> str:
+        """The identity used to match incoming bootstrap requests"""
+        sn = self.conf.serial_number
+        return sn if sn is not None else self.name
+
+
+def day0_native_config(st: ZtpDeviceState) -> str:
+    """Render the day-0 configuration artifact for a device
+
+    This is the bare configuration as understood natively by the device,
+    e.g. the payload conveyed in SZTP onboarding-information or an IOS-XR
+    ZTP configuration file. If the user supplied a verbatim day0-config it
+    is used as-is, otherwise a minimal template is rendered whose only
+    job is to make the device manageable: credentials + NETCONF + DHCP
+    retained on the management interface.
+    """
+    user_day0 = st.conf.day0_config
+    if user_day0 is not None:
+        return user_day0
+    fmt = st.conf.classic.format
+    if fmt == "xr-config":
+        return "!! IOS XR\n" + _xr_config_body(st)
+    if fmt == "xe-python":
+        return "\n".join(_xe_cli_lines(st)) + "\n"
+    raise ValueError("No day0-config configured for device {st.name} (format=raw)")
+
+
+def day0_bootfile(st: ZtpDeviceState, server_base: str, server_host: str) -> str:
+    """Render the classic-ZTP bootfile (DHCP option 67 target) for a device
+
+    Unlike day0_native_config, the bootfile is a script wherever the
+    platform supports it: the script applies the day-0 configuration but
+    also reports progress back to StratoWeave and checks in with the
+    device's management address, which is how StratoWeave learns where to
+    reach the device.
+
+    `server_base` is our own URL base as seen by the device, e.g.
+    "http://192.0.2.1:80"; `server_host` is the bare host/IP part.
+    """
+    user_day0 = st.conf.day0_config
+    if user_day0 is not None:
+        return user_day0
+    fmt = st.conf.classic.format
+    if fmt == "xr-config":
+        return _xr_bash_script(st, server_base, server_host)
+    if fmt == "xe-python":
+        return _xe_python_script(st, server_base)
+    raise ValueError("No day0-config configured for device {st.name} (format=raw)")
+
+
+def _credentials(st: ZtpDeviceState) -> (username: str, password: str):
+    u = st.username
+    p = st.password
+    username = u if u is not None else "admin"
+    password = p if p is not None else "admin"
+    return (username=username, password=password)
+
+
+def _xr_config_body(st: ZtpDeviceState) -> str:
+    """IOS-XR day-0 config: credentials, SSH + NETCONF, DHCP on mgmt"""
+    creds = _credentials(st)
+    lines = [
+        "hostname {st.name}",
+        "username {creds.username}",
+        " group root-lr",
+        " group cisco-support",
+        " secret 0 {creds.password}",
+        "!",
+        "ssh server v2",
+        "ssh server netconf",
+        "netconf-yang agent",
+        " ssh",
+        "!",
+        "interface MgmtEth0/RP0/CPU0/0",
+        " ipv4 address dhcp",
+        " no shutdown",
+        "!",
+        "end",
+    ]
+    return "\n".join(lines) + "\n"
+
+def _xr_bash_script(st: ZtpDeviceState, server_base: str, server_host: str) -> str:
+    """IOS-XR ZTP bash bootfile: apply config, report progress, check in
+
+    The script runs in the XR bash environment (ZTP detects it by the
+    shebang) with the ztp_helper.sh functions available. It determines its
+    own management address from the route towards us and reports it via
+    the check-in endpoint, since the bootstrap exchange itself does not
+    reveal the device's address.
+    """
+    conf = _xr_config_body(st)
+    lines = [
+        "#!/bin/bash",
+        "# StratoWeave classic ZTP day-0 script (IOS-XR), device {st.name}",
+        "source /pkg/bin/ztp_helper.sh",
+        'SERVER="{server_base}"',
+        'SERVER_HOST="{server_host}"',
+        'DEV="{st.name}"',
+        r'report() {',
+        r'  curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/progress?type=$1&message=$2" -o /dev/null || true',
+        r'}',
+        "report bootstrap-initiated day0-script-started",
+        "report config-initiated applying-day0-config",
+        'xrapply_string "' + conf + '"',
+        "RES=$?",
+        "if [ $RES -ne 0 ]; then",
+        "  report config-error xrapply-failed-$RES",
+        "  exit 1",
+        "fi",
+        "report config-complete day0-config-applied",
+        r"ADDR=$(ip -4 route get $SERVER_HOST 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)",
+        'if [ -n "$ADDR" ]; then',
+        '  curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/checkin?address=$ADDR" -o /dev/null || true',
+        "fi",
+        "report bootstrap-complete day0-script-finished",
+        "exit 0",
+    ]
+    return "\n".join(lines) + "\n"
+
+def _xe_cli_lines(st: ZtpDeviceState) -> list[str]:
+    """IOS-XE day-0 config lines: credentials, NETCONF, DHCP on Gi1"""
+    creds = _credentials(st)
+    return [
+        "hostname {st.name}",
+        "username {creds.username} privilege 15 secret 0 {creds.password}",
+        "aaa new-model",
+        "aaa authentication login default local",
+        "aaa authorization exec default local",
+        "interface GigabitEthernet1",
+        " ip address dhcp",
+        " no shutdown",
+        "netconf-yang",
+        "line vty 0 4",
+        " login local",
+        " transport input all",
+    ]
+
+def _xe_python_script(st: ZtpDeviceState, server_base: str) -> str:
+    """IOS-XE ZTP python bootfile for the day-0 Guest Shell"""
+    conf_lines = _xe_cli_lines(st)
+    quoted = ", ".join(['"' + l.strip() + '"' for l in conf_lines])
+    lines = [
+        "#!/usr/bin/env python3",
+        "# StratoWeave classic ZTP day-0 script (IOS-XE), device {st.name}",
+        "import cli",
+        "import urllib.request",
+        "",
+        "def report(ptype, message):",
+        "    try:",
+        '        urllib.request.urlopen("{server_base}/ztp/v1/device/{st.name}/progress?type=" + ptype + "&message=" + message, timeout=5)',
+        "    except Exception:",
+        "        pass",
+        "",
+        'report("bootstrap-initiated", "day0-script-started")',
+        'report("config-initiated", "applying-day0-config")',
+        "cli.configurep([" + quoted + ', "end"])',
+        'report("config-complete", "day0-config-applied")',
+        'cli.execute("write memory")',
+        'report("bootstrap-complete", "day0-script-finished")',
+    ]
+    return "\n".join(lines) + "\n"
+
+
+actor ZtpRegistry(log_handler: logging.Handler):
+    """Tracks devices eligible for ZTP and their bootstrap lifecycle
+
+    The ZtpRegistry is the mechanism-agnostic core of ZTP support. ZTP
+    mechanisms (SZTP bootstrap server, classic DHCP-option ZTP, ...) are
+    thin protocol frontends that consult the registry for device identity
+    matching and day-0 artifacts, and feed progress events and discovered
+    addresses back into it.
+
+    Devices are registered from their device meta-configuration: DeviceMgr
+    calls register_device() on every meta-config update, so a device with
+    ztp/enabled=true in the sw-rfs:device list is automatically known
+    here. When a mechanism learns the device's management address, the
+    registry invokes the activation callback (wired up to the device
+    manager at system start), which makes the device's adapter connect.
+    """
+    _log_handler = logging.Handler("ZTP")
+    _log_handler.set_handler(log_handler)
+    _log = logging.Logger(_log_handler)
+
+    var devices: dict[str, ZtpDeviceState] = {}
+    var activate_cb: ?action(str, str) -> None = None
+
+    def on_activate(cb: action(str, str) -> None):
+        """Install the callback invoked with (device_name, address) on discovery"""
+        activate_cb = cb
+
+    def register_device(name: str, dmc: DeviceMetaConfig):
+        """Register / update a device from its meta-configuration"""
+        ztp_conf = dmc.ztp
+        if not ztp_conf.enabled:
+            if name in devices:
+                _log.debug("ZTP disabled for device, dropping state", {"device": name})
+                del devices[name]
+            return
+        username: ?str = dmc.credentials.username
+        password: ?str = dmc.credentials.password
+        st = devices.get(name)
+        if st is not None:
+            st.conf = ztp_conf
+            st.dev_type = dmc.type
+            st.username = username
+            st.password = password
+        else:
+            devices[name] = ZtpDeviceState(name, ztp_conf, dmc.type, username, password)
+            _log.info("ZTP enabled for device", {"device": name, "serial": devices[name].serial()})
+
+    def match(identity: str) -> ?ZtpDeviceState:
+        """Find a device by bootstrap identity: serial number or device name"""
+        for st in devices.values():
+            if st.serial() == identity:
+                return st
+        return devices.get(identity)
+
+    def get(name: str) -> ?ZtpDeviceState:
+        return devices.get(name)
+
+    def list_devices() -> dict[str, ZtpDeviceState]:
+        return devices
+
+    def record_progress(name: str, source: str, ptype: str, message: str):
+        """Record a progress event and advance the device's ZTP phase"""
+        st = devices.get(name)
+        if st is not None:
+            st.progress.append(ProgressItem(source, ptype, message))
+            for _ in range(max([0, len(st.progress) - 200])):
+                del st.progress[0]
+            if st.phase != PHASE_CONNECTED:
+                if ptype == "bootstrap-complete":
+                    st.phase = PHASE_BOOTSTRAPPED
+                elif ptype.endswith("-error"):
+                    st.phase = PHASE_FAILED
+                elif st.phase in {PHASE_WAITING, PHASE_FAILED}:
+                    st.phase = PHASE_BOOTSTRAPPING
+            _log.info("ZTP progress", {"device": name, "source": source, "type": ptype, "message": message})
+
+    def add_ssh_host_key(name: str, algorithm: str, key_data: str):
+        """Record an SSH host key reported by the device (bootstrap-complete)"""
+        st = devices.get(name)
+        if st is not None:
+            st.ssh_host_keys.append(SshHostKey(algorithm, key_data))
+
+    def discovered(name: str, address: str):
+        """A mechanism learned the device's management address"""
+        st = devices.get(name)
+        if st is not None:
+            st.discovered_address = address
+            _log.info("ZTP discovered device address", {"device": name, "address": address})
+            cb = activate_cb
+            if cb is not None:
+                cb(name, address)
+
+    def device_connected(name: str):
+        """Called by the device manager when the device connects southbound"""
+        st = devices.get(name)
+        if st is not None:
+            st.phase = PHASE_CONNECTED
+            st.progress.append(ProgressItem("stratoweave", "informational", "device connected"))
+            _log.info("ZTP device connected", {"device": name})
+
+    def day0_native_conf(name: str) -> str:
+        """Render the day-0 native configuration for a registered device"""
+        st = devices.get(name)
+        if st is not None:
+            return day0_native_config(st)
+        raise KeyError(name)
+
+    def day0_bootfile_for(name: str, server_base: str, server_host: str) -> str:
+        """Render the classic-ZTP bootfile for a registered device"""
+        st = devices.get(name)
+        if st is not None:
+            return day0_bootfile(st, server_base, server_host)
+        raise KeyError(name)

@@ -8,6 +8,9 @@ import device as swdev
 import restconf as swrestconf
 import tmf_api as swtmf_api
 import ttt as ttt
+import ztp.registry as swztp
+import ztp.sztp as swztp_sztp
+import ztp.classic as swztp_classic
 import yang.data as ydata
 import yang.gdata as ygdata
 import yang.schema as yschema
@@ -42,7 +45,8 @@ actor HttpServer(
     enable_tmf_api: bool = False,
     restconf_root: str = "/restconf",
     address: str = "::",
-    port: int = 80
+    port: int = 80,
+    ztp_registry: ?swztp.ZtpRegistry = None
 ):
     _ROUTER_CTX_DEVICE_KEY = "dev"
     http_log = logging.Logger(log_handler)
@@ -377,6 +381,53 @@ actor HttpServer(
             content = ydata.pradata(src_dnode, layer_config, loose=loose)
         respond(200, {}, content)
 
+    def _format_ztp_state(st: swztp.ZtpDeviceState) -> dict[str, ?value]:
+        progress = []
+        for p in st.progress:
+            progress.append({
+                "timestamp": str(p.ts),
+                "source": p.source,
+                "type": p.ptype,
+                "message": p.message,
+            })
+        host_keys = []
+        for k in st.ssh_host_keys:
+            host_keys.append({"algorithm": k.algorithm, "key-data": k.key_data})
+        return {
+            "device": st.name,
+            "serial-number": st.serial(),
+            "phase": st.phase,
+            "discovered-address": st.discovered_address,
+            "ssh-host-keys": host_keys,
+            "progress": progress,
+        }
+
+    def _router_handle_ztp_list(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        ztpr = ztp_registry
+        if ztpr is not None:
+            summary = []
+            for dev_name, st in ztpr.list_devices().items():
+                summary.append({
+                    "device": dev_name,
+                    "serial-number": st.serial(),
+                    "phase": st.phase,
+                    "discovered-address": st.discovered_address,
+                })
+            respond(200, {"Content-Type": "application/json"}, json.encode({"devices": summary}))
+        else:
+            respond(404, {}, "ZTP not enabled")
+
+    def _router_handle_device_ztp(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        ztpr = ztp_registry
+        if ztpr is not None:
+            st = ztpr.get(ctx.param("name"))
+            if st is not None:
+                respond(200, {"Content-Type": "application/json"}, json.encode(_format_ztp_state(st)))
+            else:
+                respond(404, {}, "Device not enabled for ZTP")
+        else:
+            respond(404, {}, "ZTP not enabled")
+
     def _router_build_device_routes(g: http_router.RouteGroup):
         g.use(_router_device_context_middleware)
         g.get("/capabilities", _router_handle_device_capabilities)
@@ -387,6 +438,7 @@ actor HttpServer(
         g.get("/resync", _router_handle_device_resync)
         g.get("/info", _router_handle_device_info)
         g.get("/log", _router_handle_device_log)
+        g.get("/ztp", _router_handle_device_ztp)
         g.get("/q", _router_handle_device_queue_list)
         g.get("/q/{{id}}", _router_handle_device_queue_get)
         g.post("/q/{{id}}/set_approval", _router_handle_device_queue_set_approval)
@@ -399,11 +451,17 @@ actor HttpServer(
     http_router_root.get("/device", _router_handle_device_list)
     http_router_root.route("/device/{{name}}", _router_build_device_routes)
     http_router_root.get("/layer/{{idx}}", _router_handle_layer_get)
+    http_router_root.get("/ztp", _router_handle_ztp_list)
 
     tmf_http = None
     if enable_tmf_api:
         tmf_http = swtmf_api.TmfHttp(http_router_root, top_schema, cfs)
     restconf = swrestconf.RestconfServer(http_router_root, http_log, top_schema, cfs, restconf_root)
+
+    _ztpr_routes = ztp_registry
+    if _ztpr_routes is not None:
+        sztp_server = swztp_sztp.SztpServer(http_router_root, _ztpr_routes, log_handler)
+        classic_ztp_server = swztp_classic.ClassicZtpServer(http_router_root, _ztpr_routes, log_handler)
 
     extra_routes = install_extra_routes
     if extra_routes is not None:

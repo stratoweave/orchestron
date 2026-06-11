@@ -1,0 +1,17 @@
+!! IOS XR
+hostname rtr1
+username admin
+ group root-lr
+ group cisco-support
+ secret 0 admin
+!
+ssh server v2
+ssh server netconf
+netconf-yang agent
+ ssh
+!
+interface MgmtEth0/RP0/CPU0/0
+ ipv4 address dhcp
+ no shutdown
+!
+end

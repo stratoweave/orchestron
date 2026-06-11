@@ -1,0 +1,40 @@
+#!/bin/bash
+# StratoWeave classic ZTP day-0 script (IOS-XR), device rtr1
+source /pkg/bin/ztp_helper.sh
+SERVER="http://192.0.2.1:80"
+SERVER_HOST="192.0.2.1"
+DEV="rtr1"
+report() {
+  curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/progress?type=$1&message=$2" -o /dev/null || true
+}
+report bootstrap-initiated day0-script-started
+report config-initiated applying-day0-config
+xrapply_string "hostname rtr1
+username admin
+ group root-lr
+ group cisco-support
+ secret 0 admin
+!
+ssh server v2
+ssh server netconf
+netconf-yang agent
+ ssh
+!
+interface MgmtEth0/RP0/CPU0/0
+ ipv4 address dhcp
+ no shutdown
+!
+end
+"
+RES=$?
+if [ $RES -ne 0 ]; then
+  report config-error xrapply-failed-$RES
+  exit 1
+fi
+report config-complete day0-config-applied
+ADDR=$(ip -4 route get $SERVER_HOST 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
+if [ -n "$ADDR" ]; then
+  curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/checkin?address=$ADDR" -o /dev/null || true
+fi
+report bootstrap-complete day0-script-finished
+exit 0

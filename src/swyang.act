@@ -195,6 +195,61 @@ rfs = r"""module stratoweave-rfs {
       }
     }
 
+    container ztp {
+      description
+        "Zero Touch Provisioning. When enabled, StratoWeave offers
+        bootstrapping data for this device through the enabled ZTP
+        mechanisms and learns the device's management address from the
+        bootstrap exchange.";
+      leaf enabled {
+        type boolean;
+        default "false";
+      }
+      leaf serial-number {
+        description
+          "Device identity used to match incoming bootstrap requests
+          (e.g. the SZTP serial number). Defaults to the device name.";
+        type string;
+      }
+      leaf day0-config {
+        description
+          "Verbatim day-0 bootstrap configuration / script. If unset, the
+          day-0 artifact is rendered from a template selected by the
+          bootstrap format.";
+        type string;
+      }
+      container sztp {
+        description "RFC 8572 Secure Zero Touch Provisioning";
+        leaf enabled {
+          type boolean;
+          default "true";
+        }
+        leaf reporting-level {
+          type enumeration {
+            enum minimal;
+            enum verbose;
+          }
+          default "verbose";
+        }
+      }
+      container classic {
+        description "Classic DHCP-option ZTP (e.g. IOS-XR option 67 bootfile)";
+        leaf enabled {
+          type boolean;
+          default "true";
+        }
+        leaf format {
+          description "Day-0 template format used when day0-config is unset";
+          type enumeration {
+            enum xr-config;
+            enum xe-python;
+            enum raw;
+          }
+          default "xr-config";
+        }
+      }
+    }
+
     container state {
       config false;
     }

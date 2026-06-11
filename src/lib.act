@@ -12,6 +12,7 @@ import device as swdev
 import http_server as swhttp
 import netconf_server as swnetconf
 import test_rig as swts
+import ztp.registry as swztp
 
 
 # Reserve a 1 TiB virtual map; LMDB grows physical storage with its data.
@@ -80,7 +81,11 @@ def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
         else:
             raise ValueError("Database backend is not available: {spec.backend}")
 
-    dev_registry = swdev.DeviceRegistry(sysspec.device_types, connect_cap, logh_dev)
+    logh_ztp = logging.Handler("ZTP")
+    logh_ztp.set_handler(logh)
+
+    ztp_registry = swztp.ZtpRegistry(logh_ztp)
+    dev_registry = swdev.DeviceRegistry(sysspec.device_types, connect_cap, logh_dev, ztp_registry)
     cfs = sysspec.get_layers(dev_registry, logh_ttt, db)
     swapp.RfsReconf(dev_registry, cfs)
 
@@ -88,7 +93,7 @@ def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
         if http:
             tcpl_cap = net.TCPListenCap(net.TCPCap(net.NetCap(env.cap)))
             enable_tmf = len(tmf.cfs.services_from_schema(top_schema)) > 0
-            swhttp.HttpServer(tcpl_cap, top_schema=top_schema, cfs=cfs, dev_registry=dev_registry, schema_for_layer=sysspec.schema_for_layer, enable_tmf_api=enable_tmf, log_handler=logh_http, port=args.http_port)
+            swhttp.HttpServer(tcpl_cap, top_schema=top_schema, cfs=cfs, dev_registry=dev_registry, schema_for_layer=sysspec.schema_for_layer, enable_tmf_api=enable_tmf, log_handler=logh_http, port=args.http_port, ztp_registry=ztp_registry)
 
         if netconf:
             nc_listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(env.cap)))

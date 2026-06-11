@@ -18,6 +18,8 @@ from device_meta_config import \
 
 from device_schema import DeviceSchema, SchemaTreeTransform
 
+import ztp.registry as swztp
+
 from adapters.adapter import \
     DeviceAdapter, NoAdapter, MockAdapter, MockRoot, \
     DeviceError, TransientError, PermanentError, NotConnectedError, \
@@ -43,7 +45,7 @@ class DeviceType(object):
         self.adapter_type = adapter_type
         self.bundled_schema = DeviceSchema(name, src_dnode, oper_src_dnode, schema_transforms)
 
-actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, log_handler: logging.Handler):
+actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, log_handler: logging.Handler, ztp_registry: ?swztp.ZtpRegistry=None):
     """Device Registry keeps track of all devices and hands out references to
     them based on name.
 
@@ -67,9 +69,17 @@ actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPC
 
     def get_or_create(name: str) -> DeviceMgr:
         if name not in devices:
-            devices[name] = DeviceMgr(dev_types, connect_cap, name, log_handler, reconf_cb, schema_registry, self)
+            devices[name] = DeviceMgr(dev_types, connect_cap, name, log_handler, reconf_cb, schema_registry, self, ztp_registry)
         dev = devices[name]
         return dev
+
+    def _ztp_activate(dev_name: str, address: str):
+        """ZTP learned a device's address, hand it to the device manager"""
+        get_or_create(dev_name).set_discovered_address(address)
+
+    _ztpr = ztp_registry
+    if _ztpr is not None:
+        _ztpr.on_activate(_ztp_activate)
 
     def list():
         return devices.keys()
@@ -215,7 +225,7 @@ class DeviceTreeProvider(ygdata.TreeProvider):
 
 
 
-actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, name: str, log_handler: logging.Handler, on_reconf: action(str) -> None, schema_registry: SchemaRegistry, device_registry: ?DeviceRegistry=None):
+actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, name: str, log_handler: logging.Handler, on_reconf: action(str) -> None, schema_registry: SchemaRegistry, device_registry: ?DeviceRegistry=None, ztp_registry: ?swztp.ZtpRegistry=None):
     """Device Manager manages a device and represents that device, as an
     abstract device, in the system. Platform specific handling is implemented in
     the DeviceAdapter, i.e.  in subclasses of DeviceAdapter, like NetconfAdapter
@@ -275,6 +285,10 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
 
     # The device's meta configuration, like address, credentials, etc.
     var dmc: DeviceMetaConfig = DeviceMetaConfig(name, Credentials("", None))
+
+    # Management address learned through ZTP. Used as a fallback when the
+    # meta configuration has no addresses; configured addresses always win.
+    var discovered_address: ?str = None
 
     # The bundled schema is compiled at build time and bundled with stratoweave
     var bundled_schema: DeviceSchema = DeviceSchema.mock()
@@ -402,6 +416,8 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
 
     def on_connect(new_modset: dict[str, ModCap], new_schema_hash: ?u64):
         _log.debug("Device connected", {"new_modset": new_modset, "new_schema_hash": new_schema_hash})
+        if ztp_registry is not None:
+            ztp_registry.device_connected(name)
         resync()
         if modset_eq(modset, new_modset):
             _log.debug("Supported modules unchanged")
@@ -412,6 +428,33 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             schema_hash = new_schema_hash
             on_reconf(name)
             return
+
+    def _effective_dmc(d: DeviceMetaConfig) -> DeviceMetaConfig:
+        """The meta config as handed to the adapter
+
+        When no address is configured but ZTP has discovered one, a copy
+        with the discovered address appended is used so the adapter can
+        connect.
+        """
+        disc = discovered_address
+        if disc is not None and len(d.address.elements) == 0:
+            eff = d.copy()
+            eff.address.create("ztp-discovered", disc)
+            return eff
+        return d
+
+    def set_discovered_address(address: str) -> None:
+        """Record a management address learned through ZTP"""
+        old = discovered_address
+        if old is not None and old == address:
+            return
+        _log.info("DeviceMgr.set_discovered_address: ZTP discovered address", {"address": address})
+        discovered_address = address
+        if len(dmc.address.elements) == 0:
+            adapter.set_dmc(_effective_dmc(dmc))
+
+    def get_discovered_address() -> ?str:
+        return discovered_address
 
     def set_dmc(new_dmc: DeviceMetaConfig) -> None:
         def is_mock_device(new_dmc: DeviceMetaConfig) -> bool:
@@ -471,7 +514,10 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         else:
             _log.debug("DeviceMgr.set_dmc: no device type configured, not changing adapter")
 
-        adapter.set_dmc(new_dmc)
+        adapter.set_dmc(_effective_dmc(new_dmc))
+
+        if ztp_registry is not None:
+            ztp_registry.register_device(name, new_dmc)
 
         if dmc is not None and new_dmc is not None:
             old_dmcg = dmc.to_gdata()

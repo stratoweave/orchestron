@@ -1,0 +1,159 @@
+import base64
+import logging
+import testing
+
+from device_meta_config import \
+    stratoweave_rfs__device_entry as DeviceMetaConfig, \
+    stratoweave_rfs__device__credentials as Credentials, \
+    stratoweave_rfs__device__ztp as ZtpConfig, \
+    stratoweave_rfs__device__ztp__classic as ZtpClassic
+
+import ztp.registry as ztpreg
+import ztp.sztp as ztpsztp
+
+
+def make_ztp_dmc(name: str, serial: ?str=None, ztp_enabled: bool=True) -> DeviceMetaConfig:
+    return DeviceMetaConfig(
+        name=name,
+        credentials=Credentials("admin", "admin"),
+        type="xr",
+        ztp=ZtpConfig(enabled=ztp_enabled, serial_number=serial, day0_config=None),
+    )
+
+def make_state(name: str, serial: ?str=None, fmt: str="xr-config", day0: ?str=None) -> ztpreg.ZtpDeviceState:
+    conf = ZtpConfig(enabled=True, serial_number=serial, day0_config=day0, classic=ZtpClassic(enabled=True, format=fmt))
+    return ztpreg.ZtpDeviceState(name, conf, "xr", "admin", "admin")
+
+
+#################################################################################
+## DER / CMS encoding
+#################################################################################
+
+def _test_der_len_short():
+    testing.assertEqual(ztpsztp.der_len_hex(0), "00")
+    testing.assertEqual(ztpsztp.der_len_hex(127), "7f")
+
+def _test_der_len_long():
+    testing.assertEqual(ztpsztp.der_len_hex(128), "8180")
+    testing.assertEqual(ztpsztp.der_len_hex(256), "820100")
+    testing.assertEqual(ztpsztp.der_len_hex(65536), "83010000")
+
+def _test_cms_wrap_unsigned_json() -> str:
+    """CMS ContentInfo wrapping a small JSON payload
+
+    Expected structure: SEQUENCE(OID id-ct-sztpConveyedInfoJSON,
+    [0] EXPLICIT OCTET STRING payload). Verified against:
+      python3 -c 'from asn1crypto import cms; ...'
+    """
+    payload = rb'{"hello":"world"}'
+    der = ztpsztp.cms_wrap_unsigned_json(payload)
+    return ztpsztp.bytes_hex(der)
+
+def _test_cms_wrap_structure():
+    payload = b'x'
+    der = ztpsztp.cms_wrap_unsigned_json(payload)
+    # SEQUENCE tag, total length, pre-encoded OID, [0] EXPLICIT, OCTET STRING, payload
+    testing.assertEqual(ztpsztp.bytes_hex(der), "3012" + "060b2a864886f70d010910012b" + "a003" + "0401" + "78")
+
+def _test_conveyed_info_roundtrip():
+    day0 = "!! IOS XR\nhostname test\n"
+    doc = ztpsztp.build_conveyed_info_json(day0)
+    testing.assertIn("ietf-sztp-conveyed-info:onboarding-information", doc)
+    testing.assertIn(base64.encode(day0.encode()).decode(), doc)
+
+
+#################################################################################
+## RPC input parsing
+#################################################################################
+
+def _test_parse_rpc_input_json():
+    body = r'{"ietf-sztp-bootstrap-server:input": {"hw-model": "model-x", "os-name": "vendor-os", "os-version": "17.3R2.1", "nonce": "BASE64=="}}'
+    res = ztpsztp.parse_rpc_input(body)
+    testing.assertEqual(res.get("hw-model"), "model-x")
+    testing.assertEqual(res.get("os-version"), "17.3R2.1")
+
+def _test_parse_rpc_input_json_signed_data_preferred():
+    body = r'{"ietf-sztp-bootstrap-server:input": {"signed-data-preferred": [null]}}'
+    res = ztpsztp.parse_rpc_input(body)
+    testing.assertNotNone(res.get("signed-data-preferred"))
+
+def _test_parse_rpc_input_xml():
+    body = '<input xmlns="urn:ietf:params:xml:ns:yang:ietf-sztp-bootstrap-server"><progress-type>bootstrap-initiated</progress-type><message>example message</message></input>'
+    res = ztpsztp.parse_rpc_input(body)
+    testing.assertEqual(res.get("progress-type"), "bootstrap-initiated")
+    testing.assertEqual(res.get("message"), "example message")
+
+def _test_parse_rpc_input_xml_ssh_host_keys():
+    body = '<input xmlns="urn:ietf:params:xml:ns:yang:ietf-sztp-bootstrap-server"><progress-type>bootstrap-complete</progress-type><ssh-host-keys><ssh-host-key><algorithm>ssh-rsa</algorithm><key-data>base64encodedvalue==</key-data></ssh-host-key></ssh-host-keys></input>'
+    res = ztpsztp.parse_rpc_input(body)
+    testing.assertEqual(res.get("progress-type"), "bootstrap-complete")
+    testing.assertEqual(len(res.ssh_host_keys), 1)
+    testing.assertEqual(res.ssh_host_keys[0].algorithm, "ssh-rsa")
+
+
+#################################################################################
+## Day-0 rendering
+#################################################################################
+
+def _test_day0_xr_config() -> str:
+    return ztpreg.day0_native_config(make_state("rtr1"))
+
+def _test_day0_xr_bootfile() -> str:
+    return ztpreg.day0_bootfile(make_state("rtr1"), "http://192.0.2.1:80", "192.0.2.1")
+
+def _test_day0_xe_python() -> str:
+    return ztpreg.day0_bootfile(make_state("rtr2", fmt="xe-python"), "http://192.0.2.1:80", "192.0.2.1")
+
+def _test_day0_override():
+    st = make_state("rtr1", day0="my config\n")
+    testing.assertEqual(ztpreg.day0_native_config(st), "my config\n")
+    testing.assertEqual(ztpreg.day0_bootfile(st, "http://h", "h"), "my config\n")
+
+
+#################################################################################
+## Registry lifecycle
+#################################################################################
+
+actor _test_registry_disabled(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+
+    def check():
+        if reg.get("rtr1") is not None:
+            t.failure(AssertionError("disabled device should not be registered"))
+            return
+        t.success()
+
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", ztp_enabled=False))
+    after 0.05: check()
+
+actor _test_registry_lifecycle(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+
+    var activated_name: ?str = None
+    var activated_address: ?str = None
+
+    def check():
+        st = reg.get("rtr1")
+        if st is not None:
+            testing.assertEqual(activated_name, "rtr1")
+            testing.assertEqual(activated_address, "192.0.2.55")
+            testing.assertEqual(st.phase, ztpreg.PHASE_BOOTSTRAPPED)
+            testing.assertNotNone(st.discovered_address)
+            # serial matching: by serial and by name
+            testing.assertNotNone(reg.match("SN1234"))
+            testing.assertNotNone(reg.match("rtr1"))
+            testing.assertNone(reg.match("nonexistent"))
+            t.success()
+        else:
+            t.failure(AssertionError("rtr1 not registered"))
+
+    def on_activate(name: str, address: str):
+        activated_name = name
+        activated_address = address
+        check()
+
+    reg.on_activate(on_activate)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", serial="SN1234"))
+    reg.record_progress("rtr1", "sztp", "bootstrap-initiated", "starting")
+    reg.record_progress("rtr1", "sztp", "bootstrap-complete", "done")
+    reg.discovered("rtr1", "192.0.2.55")

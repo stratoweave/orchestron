@@ -1,0 +1,255 @@
+import base64
+import json
+import logging
+import std.xml as xml
+
+import http_router
+
+from ztp.registry import ZtpRegistry, ZtpDeviceState, day0_native_config
+
+## RFC 8572 SZTP bootstrap server.
+##
+## A bootstrap server is a RESTCONF server with exactly two operations
+## (RFC 8572 section 4.4):
+##
+##   POST /restconf/operations/ietf-sztp-bootstrap-server:get-bootstrapping-data
+##   POST /restconf/operations/ietf-sztp-bootstrap-server:report-progress
+##
+## plus RESTCONF root discovery via /.well-known/host-meta (already served
+## by the RESTCONF northbound). The conveyed-information returned from
+## get-bootstrapping-data is a DER-encoded CMS structure (RFC 5652)
+## wrapping an ietf-sztp-conveyed-info document; we emit the unsigned
+## variant with the IANA-registered content type for JSON-encoded SZTP
+## conveyed information.
+
+SZTP_NS = "urn:ietf:params:xml:ns:yang:ietf-sztp-bootstrap-server"
+
+OP_GET_BOOTSTRAPPING_DATA = "/restconf/operations/ietf-sztp-bootstrap-server:get-bootstrapping-data"
+OP_REPORT_PROGRESS = "/restconf/operations/ietf-sztp-bootstrap-server:report-progress"
+
+## OID 1.2.840.113549.1.9.16.1.43 = id-ct-sztpConveyedInfoJSON, pre-encoded
+## as a DER OBJECT IDENTIFIER TLV
+OID_SZTP_CONVEYED_INFO_JSON_HEX = "060b2a864886f70d010910012b"
+
+HEX_DIGITS = "0123456789abcdef"
+
+def hex_byte(n: int) -> str:
+    return HEX_DIGITS[(n // 16) % 16] + HEX_DIGITS[n % 16]
+
+def der_len_hex(n: int) -> str:
+    """DER definite length encoding, as hex"""
+    if n < 128:
+        return hex_byte(n)
+    len_bytes: list[str] = []
+    m = n
+    while m > 0:
+        len_bytes.insert(0, hex_byte(m % 256))
+        m = m // 256
+    return hex_byte(128 + len(len_bytes)) + "".join(len_bytes)
+
+def der_tlv_hex(tag: int, payload_hex: str) -> str:
+    return hex_byte(tag) + der_len_hex(len(payload_hex) // 2) + payload_hex
+
+def bytes_hex(data: bytes) -> str:
+    return "".join([hex_byte(b) for b in data])
+
+def cms_wrap_unsigned_json(payload: bytes) -> bytes:
+    """Wrap a JSON document in an unsigned CMS ContentInfo (DER)
+
+    ContentInfo ::= SEQUENCE {
+        contentType id-ct-sztpConveyedInfoJSON,
+        content [0] EXPLICIT OCTET STRING }
+    """
+    octet_string = der_tlv_hex(0x04, bytes_hex(payload))
+    explicit0 = der_tlv_hex(0xa0, octet_string)
+    seq = der_tlv_hex(0x30, OID_SZTP_CONVEYED_INFO_JSON_HEX + explicit0)
+    return bytes.from_hex(seq)
+
+def build_conveyed_info_json(day0_config: str, configuration_handling: str="merge") -> str:
+    """Build the ietf-sztp-conveyed-info onboarding-information document"""
+    config_b64 = base64.encode(day0_config.encode()).decode()
+    return json.encode({
+        "ietf-sztp-conveyed-info:onboarding-information": {
+            "configuration-handling": configuration_handling,
+            "configuration": config_b64,
+        }
+    })
+
+def restconf_error_json(error_tag: str, error_message: str) -> str:
+    return json.encode({
+        "ietf-restconf:errors": {
+            "error": [{
+                "error-type": "application",
+                "error-tag": error_tag,
+                "error-message": error_message,
+            }]
+        }
+    })
+
+
+class SztpInput(object):
+    """Parsed get-bootstrapping-data / report-progress RPC input"""
+    fields: dict[str, str]
+    ssh_host_keys: list[(algorithm: str, key_data: str)]
+
+    def __init__(self):
+        self.fields = {}
+        self.ssh_host_keys = []
+
+    def get(self, key: str) -> ?str:
+        return self.fields.get(key)
+
+
+def parse_rpc_input(body: str) -> SztpInput:
+    """Parse an SZTP RPC input body, JSON or XML
+
+    Real devices send application/yang-data+xml (some with the legacy
+    dotted media type); the OPI sztp-agent and the RFC 9646 examples use
+    JSON. We sniff the body rather than trusting Content-Type.
+    """
+    res = SztpInput()
+    trimmed = body.strip()
+    if trimmed.startswith("{{"):
+        decoded = json.decode(trimmed)
+        for top_key, top_val in decoded.items():
+            if top_key.endswith(":input") and isinstance(top_val, dict):
+                for k, v in top_val.items():
+                    if isinstance(v, str):
+                        res.fields[k] = v
+                    elif k == "signed-data-preferred":
+                        res.fields[k] = "true"
+                    elif k == "ssh-host-keys" and isinstance(v, dict):
+                        keys = v.get("ssh-host-key")
+                        if isinstance(keys, list):
+                            for entry in keys:
+                                if isinstance(entry, dict):
+                                    alg = entry.get("algorithm")
+                                    kd = entry.get("key-data")
+                                    if isinstance(alg, str) and isinstance(kd, str):
+                                        res.ssh_host_keys.append((algorithm=alg, key_data=kd))
+    elif trimmed.startswith("<"):
+        root = xml.decode(trimmed)
+        for c in root.children:
+            ctext = c.text
+            if c.tag == "ssh-host-keys":
+                for hk in c.children:
+                    alg: ?str = None
+                    kd: ?str = None
+                    for hkc in hk.children:
+                        if hkc.tag == "algorithm":
+                            alg = hkc.text
+                        elif hkc.tag == "key-data":
+                            kd = hkc.text
+                    if alg is not None and kd is not None:
+                        res.ssh_host_keys.append((algorithm=alg, key_data=kd))
+            elif c.tag == "trust-anchor-certs":
+                pass
+            else:
+                res.fields[c.tag] = ctext if ctext is not None else "true"
+    return res
+
+
+actor SztpServer(root: http_router.Router, registry: ZtpRegistry, log_handler: logging.Handler):
+    """RFC 8572 SZTP bootstrap server endpoints
+
+    Installs the two SZTP operation routes on the given router. Device
+    identity is taken from HTTP basic auth (the RESTCONF username is the
+    device serial number per RFC 8572), with an X-SZTP-Serial header and
+    a ?serial= query parameter as lab-friendly fallbacks. TLS client
+    certificate identity is future work (requires fronting TLS).
+    """
+    _log_handler = logging.Handler("SZTP")
+    _log_handler.set_handler(log_handler)
+    _log = logging.Logger(_log_handler)
+
+    def _identity(ctx: http_router.Context) -> ?str:
+        auth = ctx.request.headers.get("authorization")
+        if auth is not None:
+            if auth.lower().startswith("basic "):
+                try:
+                    dec = base64.decode(auth[6:].strip().encode()).decode()
+                    user = dec.split(":", 1)[0]
+                    if len(user) > 0:
+                        return user
+                except Exception:
+                    pass
+        hdr = ctx.request.headers.get("x-sztp-serial")
+        if hdr is not None:
+            return hdr
+        qp = ctx.query_param("serial")
+        if qp != "":
+            return qp
+        return None
+
+    def _match_device(ctx: http_router.Context) -> ?ZtpDeviceState:
+        identity = _identity(ctx)
+        if identity is not None:
+            return registry.match(identity)
+        return None
+
+    def _serve_bootstrapping_data(st: ZtpDeviceState, ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        rpc_input = parse_rpc_input(ctx.request.body.decode())
+        details = []
+        for k in ["hw-model", "os-name", "os-version"]:
+            v = rpc_input.get(k)
+            if v is not None:
+                details.append("{k}={v}")
+        info = ", ".join(details) if len(details) > 0 else "no inventory parameters"
+        registry.record_progress(st.name, "sztp", "informational", "get-bootstrapping-data ({info})")
+
+        if rpc_input.get("signed-data-preferred") is not None:
+            # We cannot produce signed data (yet): per RFC 8572 we must
+            # not return unsigned onboarding information in this case.
+            _log.info("get-bootstrapping-data: signed data requested but unavailable", {"device": st.name})
+            respond(404, {"Content-Type": "application/yang-data+json"},
+                    restconf_error_json("operation-not-supported", "signed bootstrapping data not available"))
+            return
+
+        try:
+            day0 = day0_native_config(st)
+            conveyed = build_conveyed_info_json(day0)
+            cms_b64 = base64.encode(cms_wrap_unsigned_json(conveyed.encode())).decode()
+            output = json.encode({
+                "ietf-sztp-bootstrap-server:output": {
+                    "reporting-level": st.conf.sztp.reporting_level,
+                    "conveyed-information": cms_b64,
+                }
+            })
+            registry.record_progress(st.name, "sztp", "informational", "onboarding-information served")
+            respond(200, {"Content-Type": "application/yang-data+json"}, output)
+        except Exception as e:
+            _log.error("get-bootstrapping-data: day-0 rendering failed", {"device": st.name, "error": str(e)})
+            respond(500, {"Content-Type": "application/yang-data+json"},
+                    restconf_error_json("operation-failed", "no day-0 configuration available"))
+
+    def handle_get_bootstrapping_data(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        st = _match_device(ctx)
+        if st is not None:
+            _serve_bootstrapping_data(st, ctx, respond)
+        else:
+            _log.info("get-bootstrapping-data: no matching device", {"identity": str(_identity(ctx))})
+            respond(404, {"Content-Type": "application/yang-data+json"},
+                    restconf_error_json("invalid-value", "no bootstrapping data available"))
+
+    def handle_report_progress(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        st = _match_device(ctx)
+        if st is not None:
+            rpc_input = parse_rpc_input(ctx.request.body.decode())
+            ptype = rpc_input.get("progress-type")
+            if ptype is not None:
+                message = rpc_input.get("message")
+                registry.record_progress(st.name, "sztp", ptype, message if message is not None else "")
+                for hk in rpc_input.ssh_host_keys:
+                    registry.add_ssh_host_key(st.name, hk.algorithm, hk.key_data)
+                # RFC 8572: the device treats anything but 204 as an error
+                respond(204, {}, "")
+            else:
+                respond(400, {"Content-Type": "application/yang-data+json"},
+                        restconf_error_json("missing-element", "progress-type is mandatory"))
+        else:
+            respond(404, {"Content-Type": "application/yang-data+json"},
+                    restconf_error_json("invalid-value", "unknown device"))
+
+    root.post(OP_GET_BOOTSTRAPPING_DATA, handle_get_bootstrapping_data)
+    root.post(OP_REPORT_PROGRESS, handle_report_progress)
+    _log.info("SZTP bootstrap server routes installed", {"get": OP_GET_BOOTSTRAPPING_DATA, "report": OP_REPORT_PROGRESS})
