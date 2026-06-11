@@ -13,6 +13,7 @@ import mini.layers.y_1_oper as y1_oper
 
 import mini.devices.ietf as ietf_dev
 import mini.devices.ietf_oper as ietf_oper
+import mini.devices.xr as xr_dev
 from mini.devices.ietf_oper import root as ietf_oper_root
 
 
@@ -29,6 +30,11 @@ class BaseConfig(base.BaseConfig):
                     dev.system.contact = current_datetime
 
             return dev
+
+        if "Cisco-IOS-XR-um-hostname-cfg" in di.modules:
+            xdev = xr_dev.root()
+            xdev.hostname.system_network_name = i.name
+            return xdev
 
         raise UnsupportedDevice()
 

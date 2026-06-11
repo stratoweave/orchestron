@@ -1,0 +1,75 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+import mini.devices.xr_schema
+
+# == This file is generated ==
+
+
+
+
+SRC_DNODE: DRoot = mini.devices.xr_schema.SRC_DNODE
+
+pure def src_yang() -> list[str]:
+    return mini.devices.xr_schema.src_yang()
+
+
+NS_Cisco_IOS_XR_um_hostname_cfg: str = 'http://cisco.com/ns/yang/Cisco-IOS-XR-um-hostname-cfg'
+NS_cisco_semver: str = 'http://cisco.com/ns/yang/cisco-semver'
+NS_Cisco_IOS_XR_types: str = 'http://cisco.com/ns/yang/cisco-xr-types'
+NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+
+
+_breaker1: None = None
+class Cisco_IOS_XR_um_hostname_cfg__hostname(yadata.MNode):
+    system_network_name: ?str
+
+    mut def __init__(self, system_network_name: ?str) -> None:
+        self.system_network_name = system_network_name
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XR-um-hostname-cfg:hostname'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XR_um_hostname_cfg__hostname:
+        if n is not None:
+            return Cisco_IOS_XR_um_hostname_cfg__hostname(system_network_name=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XR_um_hostname_cfg, 'system-network-name')))
+        return Cisco_IOS_XR_um_hostname_cfg__hostname()
+
+    mut def copy(self) -> Cisco_IOS_XR_um_hostname_cfg__hostname:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XR_um_hostname_cfg__hostname.from_gdata(self.to_gdata())
+
+
+_breaker2: None = None
+class root(yadata.MNode):
+    hostname: Cisco_IOS_XR_um_hostname_cfg__hostname
+
+    mut def __init__(self, hostname: ?Cisco_IOS_XR_um_hostname_cfg__hostname=None) -> None:
+        self.hostname = hostname if hostname is not None else Cisco_IOS_XR_um_hostname_cfg__hostname()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(hostname=Cisco_IOS_XR_um_hostname_cfg__hostname.from_gdata(n.get_opt_cnt(ygdata.Id(NS_Cisco_IOS_XR_um_hostname_cfg, 'hostname'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+

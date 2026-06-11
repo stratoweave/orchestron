@@ -33,6 +33,8 @@ SRC_DNODE_CHILD_0: DContainer = DContainer(module='netinfra', namespace='http://
         DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='id', config=True, description='router id', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
         DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='type', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='mock', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp', config=True, description='Onboard this router with Zero Touch Provisioning: no\nmanagement address is configured; StratoWeave offers bootstrapping\ndata and learns the address from the bootstrap exchange.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-serial', config=True, description='Bootstrap identity (serial number) of the router,\ndefaults to the router name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='dynstate', config=True, presence=False, exts=[
                 DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='dynstate', arg=None, exts=[])
             ], children=[
@@ -235,6 +237,18 @@ SRC_YANG_1: str = r"""module netinfra {
       leaf mock {
         type boolean;
         default false;
+      }
+      leaf ztp {
+        description "Onboard this router with Zero Touch Provisioning: no
+          management address is configured; StratoWeave offers bootstrapping
+          data and learns the address from the bootstrap exchange.";
+        type boolean;
+        default false;
+      }
+      leaf ztp-serial {
+        description "Bootstrap identity (serial number) of the router,
+          defaults to the router name";
+        type string;
       }
       container dynstate {
         sw:dynstate;
@@ -866,13 +880,17 @@ class netinfra__netinfra__router_entry(yadata.MNode):
     id: ?u64
     type: ?str
     mock: ?bool
+    ztp: ?bool
+    ztp_serial: ?str
     state: netinfra__netinfra__router__state
 
-    mut def __init__(self, name: str, id: ?u64, type: ?str, mock: ?bool, state: ?netinfra__netinfra__router__state=None) -> None:
+    mut def __init__(self, name: str, id: ?u64, type: ?str, mock: ?bool, ztp: ?bool, ztp_serial: ?str, state: ?netinfra__netinfra__router__state=None) -> None:
         self.name = name
         self.id = id
         self.type = type
         self.mock = mock
+        self.ztp = ztp
+        self.ztp_serial = ztp_serial
         self.state = state if state is not None else netinfra__netinfra__router__state()
 
     mut def to_gdata(self) -> ygdata.Node:
@@ -880,7 +898,7 @@ class netinfra__netinfra__router_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> netinfra__netinfra__router_entry:
-        return netinfra__netinfra__router_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), id=n.get_opt_u64(ygdata.Id(NS_netinfra, 'id')), type=n.get_opt_str(ygdata.Id(NS_netinfra, 'type')), mock=n.get_opt_bool(ygdata.Id(NS_netinfra, 'mock')), state=netinfra__netinfra__router__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_netinfra, 'state'))))
+        return netinfra__netinfra__router_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), id=n.get_opt_u64(ygdata.Id(NS_netinfra, 'id')), type=n.get_opt_str(ygdata.Id(NS_netinfra, 'type')), mock=n.get_opt_bool(ygdata.Id(NS_netinfra, 'mock')), ztp=n.get_opt_bool(ygdata.Id(NS_netinfra, 'ztp')), ztp_serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'ztp-serial')), state=netinfra__netinfra__router__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_netinfra, 'state'))))
 
     mut def copy(self) -> netinfra__netinfra__router_entry:
         """Create a deep copy of this adata object"""
@@ -891,7 +909,7 @@ class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__rout
     mut def __init__(self, elements: list[netinfra__netinfra__router_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
-    mut def create(self, key: str, id: ?u64=None, type: ?str=None, mock: ?bool=None) -> netinfra__netinfra__router_entry:
+    mut def create(self, key: str, id: ?u64=None, type: ?str=None, mock: ?bool=None, ztp: ?bool=None, ztp_serial: ?str=None) -> netinfra__netinfra__router_entry:
         e = self.get(key)
         if e is not None:
             if id is not None:
@@ -900,9 +918,13 @@ class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__rout
                 e.type = type
             if mock is not None:
                 e.mock = mock
+            if ztp is not None:
+                e.ztp = ztp
+            if ztp_serial is not None:
+                e.ztp_serial = ztp_serial
             return e
         name = key
-        res = netinfra__netinfra__router_entry(name=name, id=id, type=type, mock=mock)
+        res = netinfra__netinfra__router_entry(name=name, id=id, type=type, mock=mock, ztp=ztp, ztp_serial=ztp_serial)
         self.elements.append(res)
         return res
 
@@ -1199,6 +1221,8 @@ class netinfra__netinfra__router_entry_subs(SubscriptionNode):
     id: SubscriptionNode
     type: SubscriptionNode
     mock: SubscriptionNode
+    ztp: SubscriptionNode
+    ztp_serial: SubscriptionNode
     dynstate: netinfra__netinfra__router__dynstate_subs
     state: netinfra__netinfra__router__state_subs
 
@@ -1208,11 +1232,13 @@ class netinfra__netinfra__router_entry_subs(SubscriptionNode):
         self.id = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'id'), parent=path))
         self.type = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'type'), parent=path))
         self.mock = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'mock'), parent=path))
+        self.ztp = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'ztp'), parent=path))
+        self.ztp_serial = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'ztp-serial'), parent=path))
         self.dynstate = netinfra__netinfra__router__dynstate_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'dynstate'), parent=path))
         self.state = netinfra__netinfra__router__state_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'state'), parent=path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.dynstate, self.state]
+        direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.ztp, self.ztp_serial, self.dynstate, self.state]
         return direct
 
 _breaker17: None = None
@@ -1221,6 +1247,8 @@ class netinfra__netinfra__router_subs(SubscriptionNode):
     id: SubscriptionNode
     type: SubscriptionNode
     mock: SubscriptionNode
+    ztp: SubscriptionNode
+    ztp_serial: SubscriptionNode
     dynstate: netinfra__netinfra__router__dynstate_subs
     state: netinfra__netinfra__router__state_subs
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
@@ -1229,6 +1257,8 @@ class netinfra__netinfra__router_subs(SubscriptionNode):
         self.id = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'id'), parent=path))
         self.type = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'type'), parent=path))
         self.mock = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'mock'), parent=path))
+        self.ztp = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'ztp'), parent=path))
+        self.ztp_serial = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'ztp-serial'), parent=path))
         self.dynstate = netinfra__netinfra__router__dynstate_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'dynstate'), parent=path))
         self.state = netinfra__netinfra__router__state_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'state'), parent=path))
 
@@ -1240,7 +1270,7 @@ class netinfra__netinfra__router_subs(SubscriptionNode):
         return netinfra__netinfra__router_entry_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'router'), predicates=predicates, parent=base_path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.dynstate, self.state]
+        direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.ztp, self.ztp_serial, self.dynstate, self.state]
         return direct
 
 _breaker18: None = None

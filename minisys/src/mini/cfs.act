@@ -59,8 +59,16 @@ class Router(base.Router):
         dev = o.device.create(i.name)
         dev.type = i.type
         dev.approval_required = False
-        oob_addr = dev.address.create("oob")
-        oob_addr.address = i.name
+        if i.ztp:
+            # No address is configured for ZTP routers: StratoWeave learns
+            # the management address from the bootstrap exchange
+            dev.ztp.enabled = True
+            ztp_serial = i.ztp_serial
+            if ztp_serial is not None:
+                dev.ztp.serial_number = ztp_serial
+        else:
+            oob_addr = dev.address.create("oob")
+            oob_addr.address = i.name
         dev.credentials.username = "admin"
         dev.credentials.password = "admin"
         dev.mock.enabled = i.mock

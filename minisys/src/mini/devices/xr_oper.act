@@ -1,0 +1,1555 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+from yang.sdata import SubscriptionPath, SubscriptionNode
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='Cisco-IOS-XR-um-hostname-cfg', namespace='http://cisco.com/ns/yang/Cisco-IOS-XR-um-hostname-cfg', prefix='um-hostname-cfg', name='hostname', config=True, description="Set system's network name", presence=False, children=[
+    DLeaf(module='Cisco-IOS-XR-um-hostname-cfg', namespace='http://cisco.com/ns/yang/Cisco-IOS-XR-um-hostname-cfg', prefix='um-hostname-cfg', name='system-network-name', config=True, description="Set system's network name", mandatory=False, type=DTypeString(name='xr:Cisco-ios-xr-string', description='Special characters are not allowed.', reference=None, exts=[], builtin_type='string', default=None, length=Ranges([(1, 253)]), patterns=[YangPattern(yang_regex='[\\w\\-\\.:,_@#%$\\+=\\| ;]+', pcre='^(([\\-\\.:,_@#%$\\+=\\| ;]|(?![\\p{{P}}\\p{{Z}}\\p{{C}}])[\\x{{0000}}-\\x{{10FFFF}}])+)$', invert=False), YangPattern(yang_regex='[a-zA-Z0-9_\\.-]+', pcre='^([a-zA-Z0-9_\\.-]+)$', invert=False)]))
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[],
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://cisco.com/ns/yang/cisco-semver':('cisco-semver', '2019-03-13'), 'http://cisco.com/ns/yang/cisco-xr-types':('Cisco-IOS-XR-types', '2022-03-09'), 'http://cisco.com/ns/yang/Cisco-IOS-XR-um-hostname-cfg':('Cisco-IOS-XR-um-hostname-cfg', '2021-04-21')},
+)
+
+SRC_YANG_0: str = r"""module Cisco-IOS-XR-types {
+  namespace "http://cisco.com/ns/yang/cisco-xr-types";
+  prefix xr;
+
+  import cisco-semver {
+    prefix semver;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization
+    "Cisco Systems, Inc.";
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+     
+     Postal: 170 W Tasman Drive
+     San Jose, CA 95134
+     
+     Tel: +1 1800 553-NETS
+     
+     E-mail: cs-yang@cisco.com";
+  description
+    "This module contains a collection of IOS-XR derived YANG data
+     types.
+     
+     Copyright (c) 2013-2021 by Cisco Systems, Inc.
+     All rights reserved.";
+
+  revision 2022-03-09 {
+    description
+      "Included space in Cisco-ios-xr-string pattern.
+       2021-10-19
+         Added a new type Hex-long-integer";
+    semver:module-version "2.2.0";
+  }
+  revision 2020-11-18 {
+    description
+      "Added a new type Hex-integer-8";
+    semver:module-version "2.1.0";
+  }
+  revision 2019-12-03 {
+    description
+      "Modified string match pattern of Interface-name";
+    semver:module-version "2.0.0";
+  }
+  revision 2019-04-05 {
+    description
+      "Establish semantic version baseline.";
+    semver:module-version "1.0.0";
+  }
+  revision 2019-01-18 {
+    description
+      "This revision adds the following new data types:
+       - Type10-password";
+  }
+  revision 2018-06-29 {
+    description
+      "Modified string match pattern of Interface-name";
+  }
+  revision 2017-12-01 {
+    description
+      "Modified string match pattern of Tty-escape-char-num";
+  }
+  revision 2017-03-07 {
+    description
+      "This revision adds the following new data types:
+       - Type8-password
+       - Type9-password";
+  }
+  revision 2015-06-29 {
+    description
+      "This revision adds the following new data types:
+       - Rpl-policy
+       - Rpl-set";
+  }
+  revision 2015-05-18 {
+    description
+      "Updated Node-id string pattern to match also shorter ncs4k
+         node names.";
+  }
+  revision 2015-01-19 {
+    description
+      "This revision adds the following new data types:
+       - Bgp-ipv4-flowspec-address
+       - Bgp-ipv6-flowspec-address";
+  }
+  revision 2013-07-22 {
+    description
+      "Initial revision.";
+  }
+
+  extension xr-cli-map {
+    argument cli-command;
+    description
+      "The xr-cli-map statement takes as an argument
+       relevant CLI configuration command.";
+  }
+
+  extension xr-xml-map {
+    argument xr-xml-node;
+    description
+      "The xr-xml-map statement takes as an argument
+       relevant Cisco XML Schema node name.";
+  }
+
+  extension cli-command {
+    argument command;
+    description
+      "Corresponding CLI command for this RPC node";
+  }
+
+  extension cli-name {
+    argument keyword;
+    description
+      "Corresponding CLI keyword for this node";
+  }
+
+  extension xr-task {
+    argument task;
+    description
+      "XR task-id required for operating the yang node";
+  }
+
+  extension event-telemetry {
+    argument description;
+    description
+      "Node eligible for telemetry event subscription";
+  }
+
+  typedef Route-dist {
+    type string {
+      pattern "[a-fA-F0-9]{16}";
+    }
+    description
+      "Route distinguisher in hexadecimal notation.";
+  }
+
+  typedef Bgp-l2vpn-evpn-addrs {
+    type string {
+      pattern "[a-fA-F0-9]{58}";
+    }
+    description
+      "L2VPN EVPN Address in hexadecimal notation.";
+  }
+
+  typedef Bgp-ls-addr {
+    type string {
+      pattern "[a-fA-F0-9]+";
+    }
+    description
+      "BGP link state unicast address in hexadecimal
+       notation.";
+  }
+
+  typedef Bgp-ipv6-mvpn-addr {
+    type string {
+      pattern "[a-fA-F0-9]{104}";
+    }
+    description
+      "An IPV6 MVPN address in hexadecimal notation.";
+  }
+
+  typedef Bgp-ipv4-mvpn-addr {
+    type string {
+      pattern "[a-fA-F0-9]{56}";
+    }
+    description
+      "An IPV4 MVPN address in hexadecimal notation.";
+  }
+
+  typedef Bgp-rt-constrt-addr {
+    type string {
+      pattern "[a-fA-F0-9]{24}";
+    }
+    description
+      "An IPV4 RTConstraint address in hexadecimal notation.";
+  }
+
+  typedef Bgp-ipv4-mdt-addr {
+    type string {
+      pattern "(([a-f0-9]{16}-)(([1-9]?[0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([1-9]?[0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))";
+    }
+    description
+      "An IPV4 MDT address in dotted decimal notation.
+       An IPv4 MDT address should be of the form
+       0000006400000065-129.29.83.45. This datatype
+       restricts the value of each field 16 digits in
+       hexadecimal for RD field and between 0 and 255
+       for IPv4 address field, i.e.
+       [0000000000000000-ffffffffffffffff]-
+       [0-255].[0-255].[0-255].[0-255].";
+  }
+
+  typedef Bgp-ipv4-tunnel-addr {
+    type string {
+      pattern "((0:|[1-9][0-9]{0,4}:)(([1-9]?[0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([1-9]?[0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))";
+    }
+    description
+      "An IPV4 tunnel address in dotted decimal notation.
+       An IPv4 tunnel address should be of the form
+       65535:129.29.83.45. This datatype restricts the
+       value of each field between 0 and 65535 for prefix
+       field and 0 and 255 for IPv4 address field, i.e.
+       [0-65535]:[0-255].[0-255].[0-255].[0-255]";
+  }
+
+  typedef Cisco-ios-xr-port-number {
+    type uint16 {
+      range "1..65535";
+    }
+    description
+      "Port number of range from 1 to 65535";
+  }
+
+  typedef Interface-name {
+    type string {
+      pattern "[a-zA-Z0-9.:_/-]+";
+    }
+    description
+      "An interface name specifying an interface type and
+       instance.
+       Interface represents a string defining an interface
+       type and instance, e.g. MgmtEth0/4/CPU1/0 or
+       TenGigE0/2/0/0.2 or Bundle-Ether9 or
+       Bundle-Ether9.98 or Serial0/0/0/0/3/1:1";
+  }
+
+  typedef Controller-name {
+    type string {
+      pattern "[a-zA-Z0-9.:_/-]+";
+    }
+    description
+      "A controller name specifying a controller type and
+       instance.
+       Controller represents a string defining a controller
+       type and instance, e.g. dwdm0/4/0/0 or
+       GigabitEthCtrlr0/2/0/0 or T10/0/0/0";
+  }
+
+  typedef Cisco-ios-xr-string {
+    type string {
+      pattern "[\\w\\-\\.:,_@#%$\\+=\\| ;]+";
+    }
+    description
+      "Special characters are not allowed.";
+  }
+
+  typedef Ipv4-prefix-length {
+    type uint8 {
+      range "0..32";
+    }
+    description
+      "An IPv4 address prefix length.
+       Must lie between 0 and 32 inclusive.";
+  }
+
+  typedef Ipv6-prefix-length {
+    type uint8 {
+      range "0..128";
+    }
+    description
+      "An IPv6 address prefix length.
+       Must lie between 0 and 32 inclusive.";
+  }
+
+  typedef Rack-id {
+    type string {
+      pattern "[a-zA-Z0-9_]*\\d+";
+    }
+    description
+      "Names the rack portion of a NodeID
+       Rack/Slot/Instance triple";
+  }
+
+  typedef Slot-id {
+    type string {
+      pattern "[a-zA-Z0-9_]*\\d+";
+    }
+    description
+      "Names the slot portion of a NodeID
+       Rack/Slot/Instance triple";
+  }
+
+  typedef Instance-id {
+    type string {
+      pattern "[a-zA-Z0-9_]*\\d+";
+    }
+    description
+      "Names the instance portion of a NodeID
+       Rack/Slot/Instance triple";
+  }
+
+  typedef Sub-instance-id {
+    type string {
+      pattern "[a-zA-Z0-9_]*\\d+";
+    }
+    description
+      "Names the sub-instance portion of an extended
+       NodeID Rack/Slot/Instance/SubInstance";
+  }
+
+  typedef Encryption-type {
+    type enumeration {
+      enum "none" {
+        value 0;
+        description
+          "The password string is clear text.";
+      }
+      enum "md5" {
+        value 1;
+        description
+          "The password is encrypted to an MD5 digest.";
+      }
+      enum "proprietary" {
+        value 2;
+        description
+          "The password is encrypted using Cisco type 7
+           password encryption.";
+      }
+      enum "type6" {
+        value 3;
+        description
+          "The password is encrypted using Cisco type 6
+           password encryption.";
+      }
+    }
+    description
+      "The type of encryption used on a password string.";
+  }
+
+  typedef Hex-long-integer {
+    type string {
+      pattern "[0-9a-fA-F]{1,16}";
+    }
+    description
+      "An unsigned 64-bit integer represented in
+       hexadecimal format.";
+  }
+
+  typedef Hex-integer {
+    type string {
+      pattern "[0-9a-fA-F]{1,8}";
+    }
+    description
+      "An unsigned 32-bit integer represented in
+       hexadecimal format.";
+  }
+
+  typedef Hex-integer-16 {
+    type string {
+      pattern "[0-9a-fA-F]{1,4}";
+    }
+    description
+      "An unsigned 16-bit integer represented in
+       hexadecimal format.";
+  }
+
+  typedef Hex-integer-8 {
+    type string {
+      pattern "[0-9a-fA-F]{1,2}";
+    }
+    description
+      "An unsigned 8-bit integer represented in
+       hexadecimal format.";
+  }
+
+  typedef Osi-system-id {
+    type string {
+      pattern "[a-fA-F0-9]{4}(\\.[a-fA-F0-9]{4}){2}";
+    }
+    description
+      "An OSI system ID should be of the form
+       0123.4567.89ab. This data type restricts each
+       character to a hex character.";
+  }
+
+  typedef Osi-area-address {
+    type string {
+      pattern "[a-fA-F0-9]{2}(\\.[a-fA-F0-9]{4}){0,6}";
+    }
+    description
+      "An OSI area address should consist of an odd number
+       of octets, and be of the form 01 or 01.2345 etc up
+       to 01.2345.6789.abcd.ef01.2345.6789. This data type
+       restricts each character to a hex character.";
+  }
+
+  typedef Isis-node-id {
+    type string {
+      pattern "[a-fA-F0-9]{4}(\\.[a-fA-F0-9]{4}){2}\\.[a-fA-F0-9]{2}";
+    }
+    description
+      "An ISIS node ID should be of the form
+       0123.4567.89ab.cd. This data type restricts each
+       character to a hex character.";
+  }
+
+  typedef Isis-snpa {
+    type string {
+      pattern "[a-fA-F0-9]{4}(\\.[a-fA-F0-9]{4}){2}";
+    }
+    description
+      "String representation of a SNPA, 802.2 MAC address
+       in canonical format, e.g. 0123.4567.89ab";
+  }
+
+  typedef Isis-lsp-id {
+    type string {
+      pattern "[a-fA-F0-9]{4}(\\.[a-fA-F0-9]{4}){2}\\.[a-fA-F0-9]{2}\\-[a-fA-F0-9]{2}";
+    }
+    description
+      "An ISIS LSP ID should be of the form
+       0123.4567.89ab.cd-ef. This data type restricts each
+       character to a hex character.";
+  }
+
+  typedef Osi-net {
+    type string {
+      pattern "[a-fA-F0-9]{2}(\\.[a-fA-F0-9]{4}){3,9}\\.[a-fA-F0-9]{2}";
+    }
+    description
+      "An OSI NET should consist of an even number of
+       octets, and be of the form 01.2345.6789.abcd.ef etc
+       up to
+       01.2345.6789.abcd.ef01.2345.6789.abcd.ef01.2345.67.
+       This data type restricts each character to a hex
+       character.";
+  }
+
+  typedef String-identifier {
+    type string {
+      pattern "[a-zA-Z0-9_\\-]+";
+    }
+    description
+      "A string for specifying identifier.";
+  }
+
+  typedef Char-num {
+    type union {
+      type string {
+        pattern "(0x[0-9A-Fa-f]{1,2}|\\p{IsBasicLatin}|\\p{IsLatin-1Supplement})";
+      }
+      type uint8;
+    }
+    description
+      "Takes a character or its ASCII decimal equivalent
+       (0-255).";
+  }
+
+  typedef Tty-escape-char-num {
+    type union {
+      type string {
+        pattern "(0x[0-9A-Fa-f]{1,2}|\\p{IsBasicLatin}|\\p{IsLatin-1Supplement}|DEFAULT|BREAK|NONE)";
+      }
+      type uint8;
+    }
+    description
+      "Escape character or its ASCII decimal equivalent
+       (0-255) or one of the three string DEFAULT, BREAK,
+       NONE.";
+  }
+
+  typedef Extended-node-id {
+    type string {
+      pattern "([a-zA-Z0-9_]*\\d+/){3}([a-zA-Z0-9_]*\\d+)";
+    }
+    description
+      "A location used as value information and specified
+       as a Rack/Slot/Instance/SubInstance, e.g.
+       0/1/CPU0/NPU0";
+  }
+
+  typedef Node-id {
+    type string {
+      pattern "([a-zA-Z0-9_]*\\d+/){1,2}([a-zA-Z0-9_]*\\d+)";
+    }
+    description
+      "A location used as value information and specified
+       as a Rack/Slot/Instance triple, e.g. F0/SC1/0.";
+  }
+
+  typedef Pq-node-id {
+    type string {
+      pattern "((([a-zA-Z0-9_]*\\d+)|(\\*))/){2}(([a-zA-Z0-9_]*\\d+)|(\\*))";
+    }
+    description
+      "Partially qualified location which is used for
+       wildcarding location specifications, e.g. 1/*/*";
+  }
+
+  typedef Md5-password {
+    type string {
+      pattern "(!.+)|([^!].+)";
+    }
+    description
+      "The Md5-password type is used to store password using the MD5
+       hash function.
+       When a clear text value is set to a leaf of this type, the
+       server calculates a password hash and stores the result
+       in the datastore. The password is never stored in clear text.
+       
+       When a leaf of this type is read, the stored password hash is
+       returned.
+       
+       A value of this type matches one of the forms:
+       
+         !<clear text password>
+         <password hash>
+       
+       The '!' prefix signals that the value is clear text. When
+       such a value is received by the server, a hash value is
+       calculated. This value is stored in the configuration data
+       store.
+       
+       If a value starting without '!' is received, the server knows
+       that the value already represents a hashed value, and stores
+       it as is in the data store.";
+  }
+
+  typedef Type8-password {
+    type string {
+      pattern "(!.+)|([^!].+)";
+    }
+    description
+      "The Type8-password type is used to store password using the
+       SHA-256 encryption.
+       When a clear text value is set to a leaf of this type, the
+       server calculates a password hash and stores the result
+       in the datastore. The password is never stored in clear text.
+       
+       When a leaf of this type is read, the stored password hash is
+       returned.
+       
+       A value of this type matches one of the forms:
+       
+         !<clear text password>
+         <password hash>
+       
+       The '!' prefix signals that the value is clear text. When
+       such a value is received by the server, a hash value is
+       calculated. This value is stored in the configuration data
+       store.
+       
+       If a value starting without '!' is received, the server knows
+       that the value already represents a hashed value, and stores
+       it as is in the data store.";
+  }
+
+  typedef Type9-password {
+    type string {
+      pattern "(!.+)|([^!].+)";
+    }
+    description
+      "The Type9-password type is used to store password using the
+       Script algorithmic encryption.
+       When a clear text value is set to a leaf of this type, the
+       server calculates a password hash and stores the result
+       in the datastore. The password is never stored in clear text.
+       
+       When a leaf of this type is read, the stored password hash is
+       returned.
+       
+       A value of this type matches one of the forms:
+       
+         !<clear text password>
+         <password hash>
+       
+       The '!' prefix signals that the value is clear text. When
+       such a value is received by the server, a hash value is
+       calculated. This value is stored in the configuration data
+       store.
+       
+       If a value starting without '!' is received, the server knows
+       that the value already represents a hashed value, and stores
+       it as is in the data store.";
+  }
+
+  typedef Type10-password {
+    type string {
+      pattern "(!.+)|([^!].+)";
+    }
+    description
+      "The Type10-password type is used to store password using the
+       Script algorithmic encryption.
+       When a clear text value is set to a leaf of this type, the
+       server calculates a password hash and stores the result
+       in the datastore. The password is never stored in clear text.
+       
+       When a leaf of this type is read, the stored password hash is
+       returned.
+       
+       A value of this type matches one of the forms:
+       
+         !<clear text password>
+         <password hash>
+       
+       The '!' prefix signals that the value is clear text. When
+       such a value is received by the server, a hash value is
+       calculated. This value is stored in the configuration data
+       store.
+       
+       If a value starting without '!' is received, the server knows
+       that the value already represents a hashed value, and stores
+       it as is in the data store.";
+  }
+
+  typedef Proprietary-password {
+    type string {
+      pattern "(!.+)|([^!].+)";
+    }
+    description
+      "The Proprietary-password type is used to store password
+       using the Cisco proprietary hash function.
+       When a clear text value is set to a leaf of this type, the
+       server calculates a password hash and stores the result
+       in the datastore. The password is never stored in clear text.
+       
+       When a leaf of this type is read, the stored password hash is
+       returned.
+       
+       A value of this type matches one of the forms:
+       
+         !<clear text password>
+         <password hash>
+       
+       The '!' prefix signals that the value is clear text. When
+       such a value is received by the server, a hash value is
+       calculated. This value is stored in the configuration data
+       store.
+       
+       If a value starting without '!' is received, the server knows
+       that the value already represents a hashed value, and stores
+       it as is in the data store.";
+  }
+
+  typedef Type6-password {
+    type string {
+      pattern "(!.+)|([^!].+)";
+    }
+    description
+      "The Type6-password type is used to store password
+       using the Cisco type 6 hash function.
+       When a clear text value is set to a leaf of this type, the
+       server calculates a password hash and stores the result
+       in the datastore. The password is never stored in clear text.
+       
+       When a leaf of this type is read, the stored password hash is
+       returned.
+       
+       A value of this type matches one of the forms:
+       
+         !<clear text password>
+         <password hash>
+       
+       The '!' prefix signals that the value is clear text. When
+       such a value is received by the server, a hash value is
+       calculated. This value is stored in the configuration data
+       store.
+       
+       If a value starting without '!' is received, the server knows
+       that the value already represents a hashed value, and stores
+       it as is in the data store.";
+  }
+
+  typedef Bgp-ipv4-flowspec-address {
+    type string {
+      pattern "[a-fA-F0-9]{4096}";
+    }
+    description
+      "An IPV4 Flowspec address in hexadecimal notation.";
+  }
+
+  typedef Bgp-ipv6-flowspec-address {
+    type string {
+      pattern "[a-fA-F0-9]{4096}";
+    }
+    description
+      "An IPV6 Flowspec address in hexadecimal notation.";
+  }
+
+  typedef Rpl-policy {
+    type string;
+    description
+      "RPL Policy info";
+  }
+
+  typedef Rpl-set {
+    type string;
+    description
+      "RPL Set info";
+  }
+
+  typedef Physical-allowed-node-id {
+    type uint32;
+    description
+      "A physical location encoded as a 32-bit value.";
+  }
+
+  typedef Physical-allowed-node-id-string {
+    type string;
+    description
+      "A physical location which is represented internallyusing string format (eg: 0_6_CPU0).";
+  }
+
+  typedef Bgp-as-number {
+    type union {
+      type uint32 {
+        range "1..65535" {
+          description
+            "2-byte AS number";
+        }
+      }
+      type string {
+        pattern "([1-9][0-9]{0,4}).([0-9]{1,5})" {
+          description
+            "4-byte AS number in asdot (X.Y) format";
+        }
+      }
+      type uint32 {
+        range "65536..4294967295" {
+          description
+            "4-byte AS number in asplain format";
+        }
+      }
+    }
+    description
+      "BGP AS number type";
+  }
+
+  typedef Route-policy-name {
+    type string {
+      length "1..255";
+    }
+    description
+      "Datatype for route policy name";
+  }
+
+  typedef Ospf-area-id {
+    type union {
+      type uint32 {
+        range "0..4294967295";
+      }
+      type inet:ip-address;
+    }
+    description
+      "OSPF area ID. Either OSPF area ID as a decimal value or OSPF area ID in IP address format";
+  }
+
+  typedef Vpn-id {
+    type string {
+      pattern "([0-9a-f]{1,8}):([0-9a-f]{1,8})" {
+        description
+          "VPN ID format (OUI:VPN-Index in hex integer)";
+      }
+    }
+    description
+      "VPN ID format (OUI:VPN-Index in hex integer)";
+  }
+
+  typedef Mpls-label-space-id {
+    type string {
+      pattern "(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]):0" {
+        description
+          "<IPv4 address>:0";
+      }
+    }
+    description
+      "MPLS-LDP labe-space ID format";
+  }
+
+  typedef Bgp-route-distinguisher {
+    type union {
+      type string {
+        pattern "([0-9]{1,5}):([0-9]{1,10})" {
+          description
+            "2-byte AS number:nn (<1-65535>:<0-4294967295>)";
+        }
+      }
+      type string {
+        pattern "([0-9]{5,10}):([0-9]{1,10})" {
+          description
+            "4-byte AS number:nn (<65536-4294967295>:<0-4294967295>)";
+        }
+      }
+      type string {
+        pattern "(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]):([0-9]{1,10})" {
+          description
+            "IP address:nn (A.B.C.D:<0-4294967295>)";
+        }
+      }
+    }
+    description
+      "BGP route distinguisher number format";
+  }
+
+  typedef Evpn-esi-value {
+    type string {
+      pattern "[0-9a-f]{1,2}(\\.[0-9a-f]{1,2}){8}";
+    }
+    description
+      "EVPN 9-octet ESI value";
+  }
+
+  typedef Docker-app-id {
+    type string {
+      pattern "[a-zA-Z0-9][a-zA-Z0-9_.-]+";
+    }
+    description
+      "A Docker container name format.";
+  }
+}
+"""
+
+SRC_YANG_1: str = r"""module Cisco-IOS-XR-um-hostname-cfg {
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XR-um-hostname-cfg";
+  prefix um-hostname-cfg;
+
+  import Cisco-IOS-XR-types {
+    prefix xr;
+  }
+  import cisco-semver {
+    prefix semver;
+  }
+
+  organization
+    "Cisco Systems, Inc.";
+  contact
+    "Cisco Systems, Inc.
+     Customer Service
+     
+     Postal: 170 West Tasman Drive
+     San Jose, CA 95134
+     
+     Tel: +1 800 553-NETS
+     
+     E-mail: cs-yang@cisco.com";
+  description
+    "This module contains a collection of YANG definitions
+     for Cisco IOS-XR hostname package configuration.
+     
+     This YANG module augments the
+     modules with configuration data.
+     
+     Copyright (c) 2021-2022 by Cisco Systems, Inc.
+     All rights reserved.";
+
+  revision 2021-04-21 {
+    description
+      "Initial release";
+    semver:module-version "1.0.0";
+  }
+
+  container hostname {
+    description
+      "Set system's network name";
+    leaf system-network-name {
+      type xr:Cisco-ios-xr-string {
+        length "1..253" {
+          description
+            "This system's network name";
+        }
+        pattern "[a-zA-Z0-9_.-]+";
+      }
+      description
+        "Set system's network name";
+    }
+  }
+}
+"""
+
+SRC_YANG_2: str = r"""module cisco-semver {
+    namespace "http://cisco.com/ns/yang/cisco-semver";
+
+    prefix cisco-semver;
+
+    organization
+        "Cisco Systems
+     170 West Tasman Drive
+     San Jose, CA 95134-1706
+     USA";
+
+    contact
+        "Mailing list: <cs-yang@cisco.com>";
+
+    description
+        "This YANG module defines semantic version for Cisco defined YANG models. 
+     Copyright (c) 2019 by Cisco Systems, Inc.
+     All rights reserved.";
+
+    revision 2019-03-13 {
+        description
+            "Initial Version.";
+
+        reference "draft-verdt-netmod-yang-solutions-00"; 
+    }
+
+    extension module-version {
+        argument "semver";
+        description
+            "The version number for the module. This is
+      expressed as a semantic version number of the form:
+      major.minor.patch(x)  
+      where:
+        * major corresponds to the major version. 
+        * minor corresponds to a minor version. 
+        * patch corresponds to a patch version. It is updated only for 
+          'editorial' changes that do not change the API semantics in 
+          any way. In addition to 'editorial' changes that do not 
+          change the YANG module semantics, the patch field can
+          also be used in a limited way to indicate major and minor 
+          version changes as well. The patch version may be incremented for
+          a major or minor change if that change is happening on a 
+          non-HEAD or non-latest branch. If the patch field is incremented 
+          for a minor version change then it is appended with the 
+          suffix '(m)', if the patch field is incremented for a major 
+          version change then it is appended with the suffix '(M)', 
+          replacing '(m)', if present.
+
+      This version number should be specified as a child of revision 
+      statement to indicate that a specific revision had a specific 
+      semantic version number. Where several modules are used to build 
+      up a single block of functionality, the same module version is 
+      specified across each file that makes up the module.
+
+      Following a release of major version 1, all modules will
+      update 'major.minor.patch' version number as follows:
+
+      1.  if one or more non-backwards-compatible change is made then
+          either the major version number MUST be updated (resetting the
+          minor and patch version numbers to 0) or only the patch version
+          number MUST be updated and appended with '(M)', replacing '(m)'
+          if present.
+   
+      2.  if one or more backwards-compatible change is made then either
+          the minor version number MUST be updated (resetting the patch
+          version numbers to 0) or only the patch version number MUST be
+          updated and appended with '(m)' unless the previous patch version
+          number already had '(M)' appended, in which case the '(M)' suffix
+          is retained for the new patch version.
+   
+      3.  if one or more editorial change is made then the patch version
+          number MUST be updated. If the previous patch version number
+          already had either an '(m') or '(M)' suffix then it is retained
+          for the new patch version regardless of whether the subsequent
+          changes are backwards-compatible, non-backwards-compatible, 
+          or editorial changes. 
+
+      When a field in the version number is incremented, all following
+      fields are reset back to 0.  Major version number 0 indicates that
+      the module is not yet stable and allows non-backwards-compatible
+      changes without requiring the major version number to be incremented
+   
+      Where possible, the version number should be updated using the
+      standard semantic versioning rules, relying on the '(m)' and '(M)'
+      suffixes only used where strictly necessary.";
+    }
+}
+"""
+
+SRC_YANG_3: str = r"""module ietf-inet-types {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
+  prefix "inet";
+
+  organization
+   "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netmod/>
+    WG List:  <mailto:netmod@ietf.org>
+
+    WG Chair: David Kessens
+              <mailto:david.kessens@nsn.com>
+
+    WG Chair: Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>
+
+    Editor:   Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>";
+
+  description
+   "This module contains a collection of generally useful derived
+    YANG data types for Internet addresses and related things.
+
+    Copyright (c) 2013 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC 6991; see
+    the RFC itself for full legal notices.";
+
+  revision 2013-07-15 {
+    description
+     "This revision adds the following new data types:
+      - ip-address-no-zone
+      - ipv4-address-no-zone
+      - ipv6-address-no-zone";
+    reference
+     "RFC 6991: Common YANG Data Types";
+  }
+
+  revision 2010-09-24 {
+    description
+     "Initial revision.";
+    reference
+     "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of types related to protocol fields ***/
+
+  typedef ip-version {
+    type enumeration {
+      enum unknown {
+        value "0";
+        description
+         "An unknown or unspecified version of the Internet
+          protocol.";
+      }
+      enum ipv4 {
+        value "1";
+        description
+         "The IPv4 protocol as defined in RFC 791.";
+      }
+      enum ipv6 {
+        value "2";
+        description
+         "The IPv6 protocol as defined in RFC 2460.";
+      }
+    }
+    description
+     "This value represents the version of the IP protocol.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetVersion textual convention of the SMIv2.";
+    reference
+     "RFC  791: Internet Protocol
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  typedef dscp {
+    type uint8 {
+      range "0..63";
+    }
+    description
+     "The dscp type represents a Differentiated Services Code Point
+      that may be used for marking packets in a traffic stream.
+      In the value set and its semantics, this type is equivalent
+      to the Dscp textual convention of the SMIv2.";
+    reference
+     "RFC 3289: Management Information Base for the Differentiated
+                Services Architecture
+      RFC 2474: Definition of the Differentiated Services Field
+                (DS Field) in the IPv4 and IPv6 Headers
+      RFC 2780: IANA Allocation Guidelines For Values In
+                the Internet Protocol and Related Headers";
+  }
+
+  typedef ipv6-flow-label {
+    type uint32 {
+      range "0..1048575";
+    }
+    description
+     "The ipv6-flow-label type represents the flow identifier or Flow
+      Label in an IPv6 packet header that may be used to
+      discriminate traffic flows.
+
+      In the value set and its semantics, this type is equivalent
+      to the IPv6FlowLabel textual convention of the SMIv2.";
+    reference
+     "RFC 3595: Textual Conventions for IPv6 Flow Label
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification";
+  }
+
+  typedef port-number {
+    type uint16 {
+      range "0..65535";
+    }
+    description
+     "The port-number type represents a 16-bit port number of an
+      Internet transport-layer protocol such as UDP, TCP, DCCP, or
+      SCTP.  Port numbers are assigned by IANA.  A current list of
+      all assignments is available from <http://www.iana.org/>.
+
+      Note that the port number value zero is reserved by IANA.  In
+      situations where the value zero does not make sense, it can
+      be excluded by subtyping the port-number type.
+      In the value set and its semantics, this type is equivalent
+      to the InetPortNumber textual convention of the SMIv2.";
+    reference
+     "RFC  768: User Datagram Protocol
+      RFC  793: Transmission Control Protocol
+      RFC 4960: Stream Control Transmission Protocol
+      RFC 4340: Datagram Congestion Control Protocol (DCCP)
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  /*** collection of types related to autonomous systems ***/
+
+  typedef as-number {
+    type uint32;
+    description
+     "The as-number type represents autonomous system numbers
+      which identify an Autonomous System (AS).  An AS is a set
+      of routers under a single technical administration, using
+      an interior gateway protocol and common metrics to route
+      packets within the AS, and using an exterior gateway
+      protocol to route packets to other ASes.  IANA maintains
+      the AS number space and has delegated large parts to the
+      regional registries.
+
+      Autonomous system numbers were originally limited to 16
+      bits.  BGP extensions have enlarged the autonomous system
+      number space to 32 bits.  This type therefore uses an uint32
+      base type without a range restriction in order to support
+      a larger autonomous system number space.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetAutonomousSystemNumber textual convention of
+      the SMIv2.";
+    reference
+     "RFC 1930: Guidelines for creation, selection, and registration
+                of an Autonomous System (AS)
+      RFC 4271: A Border Gateway Protocol 4 (BGP-4)
+      RFC 4001: Textual Conventions for Internet Network Addresses
+      RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+                Number Space";
+  }
+
+  /*** collection of types related to IP addresses and hostnames ***/
+
+  typedef ip-address {
+    type union {
+      type inet:ipv4-address;
+      type inet:ipv6-address;
+    }
+    description
+     "The ip-address type represents an IP address and is IP
+      version neutral.  The format of the textual representation
+      implies the IP version.  This type supports scoped addresses
+      by allowing zone identifiers in the address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+      + '(%[\p{N}\p{L}]+)?';
+    }
+    description
+      "The ipv4-address type represents an IPv4 address in
+       dotted-quad notation.  The IPv4 address may include a zone
+       index, separated by a % sign.
+
+       The zone index is used to disambiguate identical address
+       values.  For link-local addresses, the zone index will
+       typically be the interface index number or the name of an
+       interface.  If the zone index is not present, the default
+       zone of the device will be used.
+
+       The canonical format for the zone index is the numerical
+       format";
+  }
+
+  typedef ipv6-address {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(%[\p{N}\p{L}]+)?';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(%.+)?';
+    }
+    description
+     "The ipv6-address type represents an IPv6 address in full,
+      mixed, shortened, and shortened-mixed notation.  The IPv6
+      address may include a zone index, separated by a % sign.
+
+      The zone index is used to disambiguate identical address
+      values.  For link-local addresses, the zone index will
+      typically be the interface index number or the name of an
+      interface.  If the zone index is not present, the default
+      zone of the device will be used.
+
+      The canonical format of IPv6 addresses uses the textual
+      representation defined in Section 4 of RFC 5952.  The
+      canonical format for the zone index is the numerical
+      format as described in Section 11.2 of RFC 4007.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-address-no-zone {
+    type union {
+      type inet:ipv4-address-no-zone;
+      type inet:ipv6-address-no-zone;
+    }
+    description
+     "The ip-address-no-zone type represents an IP address and is
+      IP version neutral.  The format of the textual representation
+      implies the IP version.  This type does not support scoped
+      addresses since it does not allow zone identifiers in the
+      address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address-no-zone {
+    type inet:ipv4-address {
+      pattern '[0-9\.]*';
+    }
+    description
+      "An IPv4 address without a zone index.  This type, derived from
+       ipv4-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+  }
+
+  typedef ipv6-address-no-zone {
+    type inet:ipv6-address {
+      pattern '[0-9a-fA-F:\.]*';
+    }
+    description
+      "An IPv6 address without a zone index.  This type, derived from
+       ipv6-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-prefix {
+    type union {
+      type inet:ipv4-prefix;
+      type inet:ipv6-prefix;
+    }
+    description
+     "The ip-prefix type represents an IP prefix and is IP
+      version neutral.  The format of the textual representations
+      implies the IP version.";
+  }
+
+  typedef ipv4-prefix {
+    type string {
+      pattern
+         '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+       +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+       + '/(([0-9])|([1-2][0-9])|(3[0-2]))';
+    }
+    description
+     "The ipv4-prefix type represents an IPv4 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 32.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The canonical format of an IPv4 prefix has all bits of
+      the IPv4 address set to zero that are not part of the
+      IPv4 prefix.";
+  }
+
+  typedef ipv6-prefix {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(/.+)';
+    }
+
+    description
+     "The ipv6-prefix type represents an IPv6 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 128.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The IPv6 address should have all bits that do not belong
+      to the prefix set to zero.
+
+      The canonical format of an IPv6 prefix has all bits of
+      the IPv6 address set to zero that are not part of the
+      IPv6 prefix.  Furthermore, the IPv6 address is represented
+      as defined in Section 4 of RFC 5952.";
+    reference
+     "RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  /*** collection of domain name and URI types ***/
+
+  typedef domain-name {
+    type string {
+      pattern
+        '((([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.)*'
+      + '([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.?)'
+      + '|\.';
+      length "1..253";
+    }
+    description
+     "The domain-name type represents a DNS domain name.  The
+      name SHOULD be fully qualified whenever possible.
+
+      Internet domain names are only loosely specified.  Section
+      3.5 of RFC 1034 recommends a syntax (modified in Section
+      2.1 of RFC 1123).  The pattern above is intended to allow
+      for current practice in domain name use, and some possible
+      future expansion.  It is designed to hold various types of
+      domain names, including names used for A or AAAA records
+      (host names) and other records, such as SRV records.  Note
+      that Internet host names have a stricter syntax (described
+      in RFC 952) than the DNS recommendations in RFCs 1034 and
+      1123, and that systems that want to store host names in
+      schema nodes using the domain-name type are recommended to
+      adhere to this stricter standard to ensure interoperability.
+
+      The encoding of DNS names in the DNS protocol is limited
+      to 255 characters.  Since the encoding consists of labels
+      prefixed by a length bytes and there is a trailing NULL
+      byte, only 253 characters can appear in the textual dotted
+      notation.
+
+      The description clause of schema nodes using the domain-name
+      type MUST describe when and how these names are resolved to
+      IP addresses.  Note that the resolution of a domain-name value
+      may require to query multiple DNS records (e.g., A for IPv4
+      and AAAA for IPv6).  The order of the resolution process and
+      which DNS record takes precedence can either be defined
+      explicitly or may depend on the configuration of the
+      resolver.
+
+      Domain-name values use the US-ASCII encoding.  Their canonical
+      format uses lowercase US-ASCII characters.  Internationalized
+      domain names MUST be A-labels as per RFC 5890.";
+    reference
+     "RFC  952: DoD Internet Host Table Specification
+      RFC 1034: Domain Names - Concepts and Facilities
+      RFC 1123: Requirements for Internet Hosts -- Application
+                and Support
+      RFC 2782: A DNS RR for specifying the location of services
+                (DNS SRV)
+      RFC 5890: Internationalized Domain Names in Applications
+                (IDNA): Definitions and Document Framework";
+  }
+
+  typedef host {
+    type union {
+      type inet:ip-address;
+      type inet:domain-name;
+    }
+    description
+     "The host type represents either an IP address or a DNS
+      domain name.";
+  }
+
+  typedef uri {
+    type string;
+    description
+     "The uri type represents a Uniform Resource Identifier
+      (URI) as defined by STD 66.
+
+      Objects using the uri type MUST be in US-ASCII encoding,
+      and MUST be normalized as described by RFC 3986 Sections
+      6.2.1, 6.2.2.1, and 6.2.2.2.  All unnecessary
+      percent-encoding is removed, and all case-insensitive
+      characters are set to lowercase except for hexadecimal
+      digits, which are normalized to uppercase as described in
+      Section 6.2.2.1.
+
+      The purpose of this normalization is to help provide
+      unique URIs.  Note that this normalization is not
+      sufficient to provide uniqueness.  Two URIs that are
+      textually distinct after this normalization may still be
+      equivalent.
+
+      Objects using the uri type may restrict the schemes that
+      they permit.  For example, 'data:' and 'urn:' schemes
+      might not be appropriate.
+
+      A zero-length URI is not a valid URI.  This can be used to
+      express 'URI absent' where required.
+
+      In the value set and its semantics, this type is equivalent
+      to the Uri SMIv2 textual convention defined in RFC 5017.";
+    reference
+     "RFC 3986: Uniform Resource Identifier (URI): Generic Syntax
+      RFC 3305: Report from the Joint W3C/IETF URI Planning Interest
+                Group: Uniform Resource Identifiers (URIs), URLs,
+                and Uniform Resource Names (URNs): Clarifications
+                and Recommendations
+      RFC 5017: MIB Textual Conventions for Uniform Resource
+                Identifiers (URIs)";
+  }
+
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+        SRC_YANG_2,
+        SRC_YANG_3,
+    ]
+
+
+NS_Cisco_IOS_XR_um_hostname_cfg: str = 'http://cisco.com/ns/yang/Cisco-IOS-XR-um-hostname-cfg'
+NS_cisco_semver: str = 'http://cisco.com/ns/yang/cisco-semver'
+NS_Cisco_IOS_XR_types: str = 'http://cisco.com/ns/yang/cisco-xr-types'
+NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+
+
+_breaker1: None = None
+class Cisco_IOS_XR_um_hostname_cfg__hostname(yadata.MNode):
+    system_network_name: ?str
+
+    mut def __init__(self, system_network_name: ?str) -> None:
+        self.system_network_name = system_network_name
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XR-um-hostname-cfg:hostname'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XR_um_hostname_cfg__hostname:
+        if n is not None:
+            return Cisco_IOS_XR_um_hostname_cfg__hostname(system_network_name=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XR_um_hostname_cfg, 'system-network-name')))
+        return Cisco_IOS_XR_um_hostname_cfg__hostname()
+
+    mut def copy(self) -> Cisco_IOS_XR_um_hostname_cfg__hostname:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XR_um_hostname_cfg__hostname.from_gdata(self.to_gdata())
+
+
+_breaker2: None = None
+class root(yadata.MNode):
+    hostname: Cisco_IOS_XR_um_hostname_cfg__hostname
+
+    mut def __init__(self, hostname: ?Cisco_IOS_XR_um_hostname_cfg__hostname=None) -> None:
+        self.hostname = hostname if hostname is not None else Cisco_IOS_XR_um_hostname_cfg__hostname()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(hostname=Cisco_IOS_XR_um_hostname_cfg__hostname.from_gdata(n.get_opt_cnt(ygdata.Id(NS_Cisco_IOS_XR_um_hostname_cfg, 'hostname'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+
+
+
+_breaker3: None = None
+class Cisco_IOS_XR_um_hostname_cfg__hostname_subs(SubscriptionNode):
+    system_network_name: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.system_network_name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XR_um_hostname_cfg, 'system-network-name'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.system_network_name]
+        return direct
+
+_breaker4: None = None
+class root_subs(SubscriptionNode):
+    hostname: Cisco_IOS_XR_um_hostname_cfg__hostname_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.hostname = Cisco_IOS_XR_um_hostname_cfg__hostname_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XR_um_hostname_cfg, 'hostname'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.hostname]
+        return direct
+
+subs: root_subs = root_subs()
+
+actor DstAdapter(cb: action(?root, ?Exception) -> None):
+    on_update: action(?ygdata.Node, ?Exception) -> None
+    def on_update(n: ?ygdata.Node, err: ?Exception) -> None:
+        if err is not None:
+            cb(None, err)
+            return
+        if n is not None:
+            cb(root.from_gdata(n), None)
+            return
+        cb(None, None)
+
+proc def dst(cb: action(?root, ?Exception) -> None) -> ygdata.Dst:
+    adapter = DstAdapter(cb)
+    return ygdata.Dst(adapter.on_update)

@@ -6,10 +6,10 @@ l0 = root()
 l0.netinfra.global_settings.asn = u64(123)
 
 # List /netinfra/router element: rtr1
-router_element = l0.netinfra.router.create('rtr1', id=u64(1), type='ietf', mock=True)
+router_element = l0.netinfra.router.create('rtr1', id=u64(1), type='ietf', mock=True, ztp=False)
 
 # List /netinfra/router element: rtr2
-router_element = l0.netinfra.router.create('rtr2', id=u64(2), type='ietf', mock=True)
+router_element = l0.netinfra.router.create('rtr2', id=u64(2), type='ietf', mock=True, ztp=False)
 
 # === Round-trip diff (per device) ===
 # device rtr1

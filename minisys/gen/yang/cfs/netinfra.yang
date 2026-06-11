@@ -43,6 +43,18 @@ module netinfra {
         type boolean;
         default false;
       }
+      leaf ztp {
+        description "Onboard this router with Zero Touch Provisioning: no
+          management address is configured; StratoWeave offers bootstrapping
+          data and learns the address from the bootstrap exchange.";
+        type boolean;
+        default false;
+      }
+      leaf ztp-serial {
+        description "Bootstrap identity (serial number) of the router,
+          defaults to the router name";
+        type string;
+      }
       container dynstate {
         sw:dynstate;
         leaf current-datetime {
