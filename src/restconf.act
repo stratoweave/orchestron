@@ -180,6 +180,16 @@ def _path_exists(current_config: ygdata.Node, path_elements: list[ydata.PathElem
     return ygdata.filter(current_config, fnode) is not None
 
 
+class TxRecord(value):
+    """One committed RESTCONF write, for the dashboard's live transaction log."""
+    def __init__(self, seq: int, method: str, path: str, content_type: str, payload: str):
+        self.seq = seq
+        self.method = method
+        self.path = path
+        self.content_type = content_type
+        self.payload = payload
+
+
 actor RestconfServer(
     root: http_router.Router,
     http_log: logging.Logger,
@@ -201,15 +211,41 @@ actor RestconfServer(
     ]
     _restconf_view_by_module = _build_restconf_view_by_module(_restconf_views)
 
-    def _router_make_edit_done(respond, success_status: int, headers: ?dict[str, str] = None):
+    # Transaction stats for the dashboard. We count committed RESTCONF writes
+    # (POST/PUT/PATCH/DELETE) and keep a bounded ring buffer of the most recent
+    # ones so the web UI can render a live, scrolling transaction log. Each
+    # record carries a monotonic seq (== the tx count at commit) so the client
+    # can fetch only what it hasn't seen yet via ?since=<seq>.
+    var _tx_count: int = 0
+    var _tx_recent: list[TxRecord] = []
+    _TX_RECENT_MAX = 50
+
+    def get_tx_stats(since: int) -> (count: int, recent: list[TxRecord]):
+        fresh = []
+        for rec in _tx_recent:
+            if rec.seq > since:
+                fresh.append(rec)
+        return (_tx_count, fresh)
+
+    def _router_make_edit_done(ctx: http_router.Context, respond, success_status: int, headers: ?dict[str, str] = None):
         response_headers: dict[str, str] = {}
         if headers is not None:
             response_headers = headers
+        # Capture the request facts now; the async commit callback fires later
+        # and we want the body/path as they were when the write was accepted.
+        req_method = ctx.request.method
+        req_path = ctx.path
+        req_body = ctx.request.body.decode()
+        req_ct = ctx.request.headers.get("content-type")
         def on_done(result):
             if isinstance(result, Exception):
                 # TODO: extract more context from error
                 respond(500, {}, str(result))
             else:
+                _tx_count = _tx_count + 1
+                _tx_recent.append(TxRecord(_tx_count, req_method, req_path, req_ct if req_ct is not None else "", req_body))
+                for _ in range(max([0, len(_tx_recent) - _TX_RECENT_MAX])):
+                    del _tx_recent[0]
                 respond(success_status, response_headers, "")
         return on_done
 
@@ -249,7 +285,7 @@ actor RestconfServer(
     def _router_handle_restconf_delete(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         input_config = yang.restconf.from_json_path(top_schema, None, _split_restconf_path(ctx.param("rest_path")), ydata.OP_REMOVE, loose=True)
         session = cfs.newsession()
-        session.edit_config(input_config, _router_make_edit_done(respond, 204))
+        session.edit_config(input_config, _router_make_edit_done(ctx, respond, 204))
 
     def _router_parse_write_body(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None, op: str) -> ?ygdata.Container:
         content_type = ctx.request.headers.get("content-type")
@@ -284,7 +320,7 @@ actor RestconfServer(
         # TODO: per RFC 8040 §4.4.1, set Location header pointing to the new
         # resource (parent path + new child id, including any list keys).
         if input_config is not None:
-            _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 201))
+            _router_apply_write(ctx, input_config, _router_make_edit_done(ctx, respond, 201))
 
     def _router_handle_restconf_put(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         input_config = _router_parse_write_body(ctx, respond, ydata.OP_REPLACE)
@@ -293,9 +329,9 @@ actor RestconfServer(
             # not exist, replaces (204) otherwise.
             path_elements = yang.restconf.resolve_path(top_schema, _split_restconf_path(ctx.param("rest_path")))
             if _path_exists(cfs.newsession().get(), path_elements):
-                _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 204))
+                _router_apply_write(ctx, input_config, _router_make_edit_done(ctx, respond, 204))
             else:
-                _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 201, {"Location": ctx.path}))
+                _router_apply_write(ctx, input_config, _router_make_edit_done(ctx, respond, 201, {"Location": ctx.path}))
 
     def _router_handle_restconf_patch(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         try:
@@ -311,7 +347,7 @@ actor RestconfServer(
 
             input_config = _router_parse_write_body(ctx, respond, ydata.OP_MERGE)
             if input_config is not None:
-                _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 204))
+                _router_apply_write(ctx, input_config, _router_make_edit_done(ctx, respond, 204))
 
     def _router_handle_yang_library_version(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         yl_meta = yl.SRC_DNODE.module_metadata["urn:ietf:params:xml:ns:yang:ietf-yang-library"]

@@ -412,6 +412,31 @@ actor HttpServer(
         tmf_http = swtmf_api.TmfHttp(http_router_root, top_schema, cfs)
     restconf = swrestconf.RestconfServer(http_router_root, http_log, top_schema, cfs, restconf_root)
 
+    def _router_handle_transactions(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        # Transaction-engine stats for the dashboard: how many RESTCONF writes
+        # have committed plus a ring buffer of recent ones for the live log.
+        # ?since=<seq> returns only records newer than the client already has.
+        since = 0
+        try:
+            since = int(ctx.query_param("since", "0"))
+        except ValueError:
+            since = 0
+        stats = restconf.get_tx_stats(since)
+        recent = []
+        for rec in stats.recent:
+            recent.append({
+                "seq": rec.seq,
+                "method": rec.method,
+                "path": rec.path,
+                "content_type": rec.content_type,
+                "payload": rec.payload
+            })
+        respond(200, {"Content-Type": "application/json"}, json.encode({
+            "count": stats.count,
+            "recent": recent
+        }))
+    http_router_root.get("/transactions", _router_handle_transactions)
+
     extra_routes = install_extra_routes
     if extra_routes is not None:
         extra_routes(http_router_root)
