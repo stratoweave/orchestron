@@ -86,10 +86,11 @@ own uncorrected examples).
   **no progress reports** to an untrusted server. Lab clients (OPI agent) don't
   enforce this. So: unsigned now [prototype], CMS signing + voucher handling as
   a later phase (§10).
-* Transport is HTTPS-only per the RFC. **Acton currently has a TLS client but
-  no TLS server**, so the prototype serves plain HTTP and documents a
-  TLS-terminating sidecar (nginx) for strict clients; a native TLS listener in
-  Acton is the obvious long-term fix (§10).
+* Transport is HTTPS-only per the RFC. Acton tip has both `net.TLSListener`
+  and `http.TLSListener`, so a native HTTPS bootstrap endpoint is wiring work
+  rather than a platform gap. The prototype serves plain HTTP (the OPI agent
+  accepts http:// bootstrap URLs); adding the TLS listener (own port,
+  configured cert/key) is phase 2 (§10).
 * DHCP discovery: DHCPv4 option 143 / DHCPv6 option 136, content = list of
   `uint16 length + "https://host[:port]"` tuples. Kea has first-class support
   (`v4-sztp-redirect`) emitting the RFC-correct tuple encoding.
@@ -387,11 +388,45 @@ Explicitly out of prototype scope, designed-for: CMS signing + vouchers, TLS
 listener, Kea adapter (stage 2 — started if time allows), c8000v image work,
 DHCPv6/option 136 (encoder is shared; v6 lab plumbing is not).
 
+## 9.1 Prototype findings (what the lab taught us)
+
+The quicklab-ztp environment (sweave + Kea + factory-default XRd 25.3.1 +
+OPI sztp-agent) runs the §8 demo end to end: XRd onboards from factory
+state to NETCONF-managed, and a hostname change made through the normal
+northbound lands on the device. Things learned by running it:
+
+* **IOS-XR ZTP probes the bootfile with `HEAD` before `GET`.** A bootstrap
+  server that only routes GET returns 404 to the probe and XR gives up
+  (and retries forever). We serve both.
+* **A ZTP script cannot commit `ipv4 address dhcp` on the management
+  interface** while bootstrap is running: XR's ipv4-ma rejects it
+  ('Interface is already configured by other type of client') because
+  ZTP's own DHCP client holds the interface, and the whole commit rolls
+  back atomically. The day-0 script instead reads the leased
+  address/prefix/gateway from the Linux network state and persists them
+  as *static* config — which also guarantees the address survives ZTP
+  releasing its lease at exit.
+* **The OPI sztp-agent is stricter than the RFC in one direction and
+  looser in another**: it rejects unknown fields in the RPC output (so we
+  omit `reporting-level`, which is RFC-correct anyway for an untrusted
+  transport) and it expects 200 for report-progress where RFC 8572
+  mandates 204 (it logs an error and continues; we stay RFC-correct).
+* **XRd identifies itself in DHCP option 61** with its serial (e.g.
+  `VSN-GW673EG`) — usable later for per-serial Kea host reservations
+  instead of the pool-wide option 67 the lab uses.
+* **In-memory ZTP state does not survive a StratoWeave restart** (phase,
+  progress log, discovered address). The discovered address is re-learned
+  on the next device check-in / bootstrap retry, but this strengthens the
+  case for modeling ZTP state as proper oper data (§6 option B).
+* The XRd lab state (`clab-*/xr-storage`, root-owned) breaks `docker
+  build` contexts and occasionally acton's project scan; the lab dir
+  carries a `.dockerignore` and the Makefile copies the prebuilt binary.
+
 ## 10. Future work
 
-1. **TLS server in Acton stdlib** — unblocks RFC-compliant SZTP and removes the
-   sidecar. Likely mirrors the existing `net.TLSConnection` around the same TLS
-   backend.
+1. **HTTPS for the SZTP endpoints** — `http.TLSListener` exists in acton tip;
+   serve the bootstrap routes on a dedicated TLS port with a configured
+   cert/key, and extract the device serial from the TLS client certificate.
 2. **Signed conveyed-info**: `openssl cms -sign -nodetach -econtent_type
    1.2.840.113549.1.9.16.1.43` via the `process` module, with
    owner-cert/voucher storage modeled per device (matches what Cisco
