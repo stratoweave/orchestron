@@ -38,6 +38,40 @@ class BaseConfig(base.BaseConfig):
 
         raise UnsupportedDevice()
 
+
+class DhcpOnboarding(base.DhcpOnboarding):
+    """Render an inline DHCP-server config onto a PE for CPE onboarding.
+
+    Produces, for an IOS-XR PE: a DHCP server profile bound to the access
+    interface, serving the onboarding option (e.g. SZTP redirect / option
+    143) and pointing default-router at the PE end of the /31. The pool
+    network and the interface /31 address are PE base infrastructure
+    (provisioned with the access link); StratoWeave adds the onboarding
+    DHCP service on top.
+    """
+    def transform(self, i, di):
+        print("RFS dhcp-onboarding transform running", di.name, i.pe_interface, err=True)
+
+        if "Cisco-IOS-XR-ipv4-dhcpd-cfg" in di.modules:
+            dev = xr_dev.root()
+            dhcpd = dev.create_ipv4_dhcpd()
+
+            # server profile: pool + default-router + the onboarding option
+            prof = dhcpd.profiles.profile.create(i.profile_name)
+            mode = prof.modes.mode.create("server")
+            srv = mode.create_server(pool=i.pool_name)
+            srv.default_routers.default_router.append(i.pe_address)
+            srv.option_codes.option_code.create(i.option_code, hex_string=i.option_hex)
+
+            # bind the profile to the access interface
+            intf = dhcpd.interfaces.interface.create(i.pe_interface)
+            intf.create_profile(profile_name=i.profile_name, mode="server")
+
+            return dev
+
+        raise UnsupportedDevice()
+
+
 actor BaseConfigTransform(path, update_dynstate: proc(?BaseConfigDynstate)->None, update_oper: proc(?y1_oper.stratoweave_rfs__rfs__base_config)->None, dev: swdev.DeviceMgr):
     _subs = gdata.SubscriptionManager(dev.tree_provider(), str(path))
     _dynstate = base.BaseConfig.dynstate_type()()

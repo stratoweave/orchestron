@@ -16,6 +16,21 @@ actor _test_netinfra1(t: testing.AsyncT):
     swts.TransformTester(t, sysspec.SYSSPEC, root.to_gdata())
 
 
+actor _test_ztp_onboarding(t: testing.AsyncT):
+    # An IOS-XR PE plus a ZTP onboarding service for a CPE reached via the
+    # PE's GigabitEthernet0/0/0/0. The PE should render an inline DHCP-server
+    # config (profile + option 143 + interface binding); the CPE device is
+    # created with the deterministic far-end /31 address.
+    root = cfs_layer.root()
+    root.netinfra.global_settings.asn = 123
+    pe = root.netinfra.router.create("pe1", 1, "xr")
+    pe.mock = True
+    root.netinfra.ztp_onboarding.create("cpe1", pe="pe1",
+        pe_interface="GigabitEthernet0/0/0/0", link_index=u64(0), serial="CPE-SERIAL-1")
+
+    swts.TransformTester(t, sysspec.SYSSPEC, root.to_gdata())
+
+
 actor _test_netinfra_router_oper(t: testing.AsyncT):
     root = cfs_layer.root()
     root.netinfra.global_settings.asn = 123

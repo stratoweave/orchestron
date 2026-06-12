@@ -3,6 +3,8 @@ import logging
 import yang.adata as yadata
 import yang.gdata as ygdata # required for linked input parameter to transform function
 import stratoweave.ttt as ttt
+import stratoweave.ipam as ipam
+import stratoweave.ztp.dhcp as ztpdhcp
 
 import mini.layers.base_0 as base
 import mini.layers.y_0 as y_0
@@ -11,6 +13,64 @@ import mini.layers.y_0 as y_0
 import yang.identityref
 import mini.layers.y_0_oper as y0_oper
 import mini.layers.y_1_oper as y1_oper
+
+# Base block out of which onboarding /31 access links are carved. A real
+# resource manager will own this; for now ztp-onboarding/link-index selects
+# the link deterministically.
+ZTP_ONBOARDING_BLOCK = "10.64.0.0"
+
+# StratoWeave's own SZTP bootstrap server, as reachable by a booting CPE
+# (routed via its PE). Deployment fact; hard-coded for the demo.
+SZTP_BOOTSTRAP_HTTPS = "https://172.30.0.10"
+SZTP_BOOTSTRAP_HTTP = "http://172.30.0.10"
+
+class ZtpOnboarding(base.ZtpOnboarding):
+    """Onboard a CPE via an inline DHCP server on a PE port.
+
+    Allocates the /31 access link deterministically from the link-index,
+    creates the CPE device meta-config with the *far* /31 end as its
+    management address (known up front — no discovery needed), and adds a
+    dhcp-onboarding service to the PE's RFS so the PE is configured to serve
+    SZTP bootstrapping data to the CPE on that link.
+    """
+    def transform(self, i):
+        o = base.o_root()
+
+        # Deterministic /31: a = PE end, b = CPE end
+        link = ipam.nth_p2p(ZTP_ONBOARDING_BLOCK, 31, int(i.link_index))
+
+        # The CPE device — its management address IS the far end of the /31,
+        # so StratoWeave knows where to reach it without any discovery step.
+        cpe = o.device.create(i.name)
+        cpe.type = "xr"
+        cpe.approval_required = False
+        cpe.ztp.enabled = True
+        serial = i.serial
+        if serial is not None:
+            cpe.ztp.serial_number = serial
+        cpe_addr = cpe.address.create("oob")
+        cpe_addr.address = link.b_address
+        cpe.credentials.username = "clab"
+        cpe.credentials.password = "clab@123"
+
+        # The PE-side DHCP service. The DHCP option (143 SZTP redirect) is the
+        # standardized value from the platform helper; rendering it into the
+        # PE's vendor config is the RFS transform's job.
+        opt = ztpdhcp.sztp_redirect_option(SZTP_BOOTSTRAP_HTTPS)
+        rfs = o.rfs.create(i.pe)
+        dho = rfs.dhcp_onboarding.create(
+            i.pe_interface,
+            pe_address=link.a_address,
+            cpe_address=link.b_address,
+            prefix_len=u64(31),
+            pool_name="ONBOARD-{i.name}",
+            profile_name="ONBOARD-{i.name}",
+            option_code=u64(opt.code),
+            option_hex=opt.value,
+        )
+
+        return o
+
 
 class GlobalSettings(base.GlobalSettings):
     def transform(self, i):

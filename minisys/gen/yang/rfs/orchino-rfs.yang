@@ -42,6 +42,21 @@ module mini-rfs {
             }
         }
 
+        list dhcp-onboarding {
+            key pe-interface;
+
+            sw:rfs-transform mini.rfs.DhcpOnboarding;
+
+            leaf pe-interface { type string; mandatory true; }
+            leaf pe-address { type string; mandatory true; }
+            leaf cpe-address { type string; mandatory true; }
+            leaf prefix-len { type uint8; mandatory true; }
+            leaf pool-name { type string; mandatory true; }
+            leaf profile-name { type string; mandatory true; }
+            leaf option-code { type uint16; mandatory true; }
+            leaf option-hex { type string; mandatory true; }
+        }
+
         list l3vpn-endpoint {
             key "interface-name";
 

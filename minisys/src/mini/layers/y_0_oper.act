@@ -19,39 +19,50 @@ from yang.sdata import SubscriptionPath, SubscriptionNode
 _identities: list[DIdentity] = []
 
 
-SRC_DNODE_CHILD_0: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='netinfra', config=True, description='Network infrastructure', presence=False, children=[
-    DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='global-settings', config=True, presence=False, exts=[
-            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.GlobalSettings', exts=[])
+SRC_DNODE_CHILD_1: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='global-settings', config=True, presence=False, exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.GlobalSettings', exts=[])
+    ], children=[
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='asn', config=True, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+])
+
+SRC_DNODE_CHILD_2: DList = DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-onboarding', key=['name'], config=True, description='Onboard a CPE via an inline DHCP server on a PE port.', min_elements=0, ordered_by='system', exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.ZtpOnboarding', exts=[])
+    ], children=[
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='name', config=True, description='Name of the CPE device to onboard and create', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='serial', config=True, description='CPE bootstrap identity (SZTP serial); defaults to name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe', config=True, description='PE router that hosts the inline DHCP server', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe-interface', config=True, description='PE interface facing the CPE (the /31 access link)', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='link-index', config=True, description='Index of the /31 onboarding link within the onboarding block.\nDeterministically maps to a PE/CPE address pair. A real resource\nmanager will assign this; for now it is supplied in config.', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+])
+
+SRC_DNODE_CHILD_3: DList = DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='router', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.Router', exts=[]),
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='global', exts=[DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='path', arg='/netinfra/global-settings', exts=[])])
+    ], children=[
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='id', config=True, description='router id', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='type', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='mock', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp', config=True, description='Onboard this router with Zero Touch Provisioning: no\nmanagement address is configured; StratoWeave offers bootstrapping\ndata and learns the address from the bootstrap exchange.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='hostname', config=True, description='Hostname configured on the router, defaults to the\nrouter name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-serial', config=True, description='Bootstrap identity (serial number) of the router,\ndefaults to the router name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='dynstate', config=True, presence=False, exts=[
+            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='dynstate', arg=None, exts=[])
         ], children=[
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='asn', config=True, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='current-datetime', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
     ]),
-    DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='router', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
-            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.Router', exts=[]),
-            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='global', exts=[DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='path', arg='/netinfra/global-settings', exts=[])])
-        ], children=[
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='id', config=True, description='router id', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='type', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='mock', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp', config=True, description='Onboard this router with Zero Touch Provisioning: no\nmanagement address is configured; StratoWeave offers bootstrapping\ndata and learns the address from the bootstrap exchange.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='hostname', config=True, description='Hostname configured on the router, defaults to the\nrouter name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-serial', config=True, description='Bootstrap identity (serial number) of the router,\ndefaults to the router name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='dynstate', config=True, presence=False, exts=[
-                DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='dynstate', arg=None, exts=[])
-            ], children=[
-            DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='current-datetime', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-        ]),
-        DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='state', config=False, presence=False, children=[
-            DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='current-datetime', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-        ])
+    DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='state', config=False, presence=False, children=[
+        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='current-datetime', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
     ])
 ])
 
-SRC_DNODE_CHILD_1: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='p-container', config=True, presence=True, exts=[
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='netinfra', config=True, description='Network infrastructure', presence=False, children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3])
+
+SRC_DNODE_CHILD_4: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='p-container', config=True, presence=True, exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.PContainer', exts=[])
     ])
 
-SRC_DNODE_CHILD_2: DList = DList(module='l3vpn', namespace='http://example.com/l3vpn', prefix='l3vpn', name='l3vpn', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+SRC_DNODE_CHILD_5: DList = DList(module='l3vpn', namespace='http://example.com/l3vpn', prefix='l3vpn', name='l3vpn', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.L3vpn', exts=[]),
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='global', exts=[DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='path', arg='/netinfra:netinfra/netinfra:global-settings', exts=[])])
     ], children=[
@@ -80,7 +91,7 @@ SRC_DNODE_CHILD_2: DList = DList(module='l3vpn', namespace='http://example.com/l
 ])
 
 SRC_DNODE: DRoot = DRoot(
-    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2],
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5],
     identities=[],
     rpcs=[],
     module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://example.com/netinfra':('netinfra', '2019-01-01'), 'http://example.com/l3vpn':('l3vpn', '2019-01-01')},
@@ -215,6 +226,40 @@ SRC_YANG_1: str = r"""module netinfra {
         type uint32;
       }
     }
+    list ztp-onboarding {
+      description "Onboard a CPE via an inline DHCP server on a PE port.";
+      key name;
+
+      sw:transform mini.cfs.ZtpOnboarding;
+
+      leaf name {
+        description "Name of the CPE device to onboard and create";
+        type string;
+      }
+      leaf serial {
+        description "CPE bootstrap identity (SZTP serial); defaults to name";
+        type string;
+      }
+      leaf pe {
+        description "PE router that hosts the inline DHCP server";
+        type string;
+        mandatory true;
+      }
+      leaf pe-interface {
+        description "PE interface facing the CPE (the /31 access link)";
+        type string;
+        mandatory true;
+      }
+      leaf link-index {
+        description
+          "Index of the /31 onboarding link within the onboarding block.
+          Deterministically maps to a PE/CPE address pair. A real resource
+          manager will assign this; for now it is supplied in config.";
+        type uint32;
+        mandatory true;
+      }
+    }
+
     list router {
       key name;
 
@@ -839,6 +884,71 @@ class netinfra__netinfra__global_settings(yadata.MNode):
 
 
 _breaker2: None = None
+class netinfra__netinfra__ztp_onboarding_entry(yadata.MNode):
+    name: str
+    serial: ?str
+    pe: ?str
+    pe_interface: ?str
+    link_index: ?u64
+
+    mut def __init__(self, name: str, serial: ?str, pe: ?str, pe_interface: ?str, link_index: ?u64) -> None:
+        self.name = name
+        self.serial = serial
+        self.pe = pe
+        self.pe_interface = pe_interface
+        self.link_index = link_index
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:netinfra', 'ztp-onboarding'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> netinfra__netinfra__ztp_onboarding_entry:
+        return netinfra__netinfra__ztp_onboarding_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'serial')), pe=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe')), pe_interface=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe-interface')), link_index=n.get_opt_u64(ygdata.Id(NS_netinfra, 'link-index')))
+
+    mut def copy(self) -> netinfra__netinfra__ztp_onboarding_entry:
+        """Create a deep copy of this adata object"""
+        return netinfra__netinfra__ztp_onboarding_entry.from_gdata(self.to_gdata())
+
+_breaker3: None = None
+class netinfra__netinfra__ztp_onboarding(yadata.MKeyedList[str, netinfra__netinfra__ztp_onboarding_entry]):
+    mut def __init__(self, elements: list[netinfra__netinfra__ztp_onboarding_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, serial: ?str=None, pe: ?str=None, pe_interface: ?str=None, link_index: ?u64=None) -> netinfra__netinfra__ztp_onboarding_entry:
+        e = self.get(key)
+        if e is not None:
+            if serial is not None:
+                e.serial = serial
+            if pe is not None:
+                e.pe = pe
+            if pe_interface is not None:
+                e.pe_interface = pe_interface
+            if link_index is not None:
+                e.link_index = link_index
+            return e
+        name = key
+        res = netinfra__netinfra__ztp_onboarding_entry(name=name, serial=serial, pe=pe, pe_interface=pe_interface, link_index=link_index)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[netinfra__netinfra__ztp_onboarding_entry]:
+        if n is not None:
+            return [netinfra__netinfra__ztp_onboarding_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> netinfra__netinfra__ztp_onboarding:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return netinfra__netinfra__ztp_onboarding(elements=copied_elements)
+
+
+_breaker4: None = None
 class netinfra__netinfra__router__dynstate(yadata.MNode):
     current_datetime: ?str
 
@@ -859,7 +969,7 @@ class netinfra__netinfra__router__dynstate(yadata.MNode):
         return netinfra__netinfra__router__dynstate.from_gdata(self.to_gdata())
 
 
-_breaker3: None = None
+_breaker5: None = None
 class netinfra__netinfra__router__state(yadata.MNode):
     current_datetime: ?str
 
@@ -880,7 +990,7 @@ class netinfra__netinfra__router__state(yadata.MNode):
         return netinfra__netinfra__router__state.from_gdata(self.to_gdata())
 
 
-_breaker4: None = None
+_breaker6: None = None
 class netinfra__netinfra__router_entry(yadata.MNode):
     name: str
     id: ?u64
@@ -912,7 +1022,7 @@ class netinfra__netinfra__router_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return netinfra__netinfra__router_entry.from_gdata(self.to_gdata())
 
-_breaker5: None = None
+_breaker7: None = None
 class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__router_entry]):
     mut def __init__(self, elements: list[netinfra__netinfra__router_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -955,13 +1065,15 @@ class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__rout
         return netinfra__netinfra__router(elements=copied_elements)
 
 
-_breaker6: None = None
+_breaker8: None = None
 class netinfra__netinfra(yadata.MNode):
     global_settings: netinfra__netinfra__global_settings
+    ztp_onboarding: netinfra__netinfra__ztp_onboarding
     router: netinfra__netinfra__router
 
-    mut def __init__(self, global_settings: ?netinfra__netinfra__global_settings=None, router: list[netinfra__netinfra__router_entry]=[]) -> None:
+    mut def __init__(self, global_settings: ?netinfra__netinfra__global_settings=None, ztp_onboarding: list[netinfra__netinfra__ztp_onboarding_entry]=[], router: list[netinfra__netinfra__router_entry]=[]) -> None:
         self.global_settings = global_settings if global_settings is not None else netinfra__netinfra__global_settings()
+        self.ztp_onboarding = netinfra__netinfra__ztp_onboarding(elements=ztp_onboarding)
         self.router = netinfra__netinfra__router(elements=router)
 
     mut def to_gdata(self) -> ygdata.Node:
@@ -970,7 +1082,7 @@ class netinfra__netinfra(yadata.MNode):
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> netinfra__netinfra:
         if n is not None:
-            return netinfra__netinfra(global_settings=netinfra__netinfra__global_settings.from_gdata(n.get_opt_cnt(ygdata.Id(NS_netinfra, 'global-settings'))), router=netinfra__netinfra__router.from_gdata(n.get_opt_list(ygdata.Id(NS_netinfra, 'router'))))
+            return netinfra__netinfra(global_settings=netinfra__netinfra__global_settings.from_gdata(n.get_opt_cnt(ygdata.Id(NS_netinfra, 'global-settings'))), ztp_onboarding=netinfra__netinfra__ztp_onboarding.from_gdata(n.get_opt_list(ygdata.Id(NS_netinfra, 'ztp-onboarding'))), router=netinfra__netinfra__router.from_gdata(n.get_opt_list(ygdata.Id(NS_netinfra, 'router'))))
         return netinfra__netinfra()
 
     mut def copy(self) -> netinfra__netinfra:
@@ -978,7 +1090,7 @@ class netinfra__netinfra(yadata.MNode):
         return netinfra__netinfra.from_gdata(self.to_gdata())
 
 
-_breaker7: None = None
+_breaker9: None = None
 class netinfra__p_container(yadata.MNode):
 
     mut def __init__(self) -> None:
@@ -1001,7 +1113,7 @@ class netinfra__p_container(yadata.MNode):
         raise Exception('Unreachable in netinfra__p_container.copy()')
 
 
-_breaker8: None = None
+_breaker10: None = None
 class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
     device: str
     interface_name: str
@@ -1035,7 +1147,7 @@ class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return l3vpn__l3vpn__endpoint_entry.from_gdata(self.to_gdata())
 
-_breaker9: None = None
+_breaker11: None = None
 class l3vpn__l3vpn__endpoint(yadata.MKeyedList[(device: str, interface_name: str), l3vpn__l3vpn__endpoint_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn__endpoint_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.device == k.device and e.interface_name == k.interface_name, elements)
@@ -1080,7 +1192,7 @@ class l3vpn__l3vpn__endpoint(yadata.MKeyedList[(device: str, interface_name: str
         return l3vpn__l3vpn__endpoint(elements=copied_elements)
 
 
-_breaker10: None = None
+_breaker12: None = None
 class l3vpn__l3vpn_entry(yadata.MNode):
     name: str
     customer_name: ?str
@@ -1110,7 +1222,7 @@ class l3vpn__l3vpn_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return l3vpn__l3vpn_entry.from_gdata(self.to_gdata())
 
-_breaker11: None = None
+_breaker13: None = None
 class l3vpn__l3vpn(yadata.MKeyedList[str, l3vpn__l3vpn_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -1151,7 +1263,7 @@ class l3vpn__l3vpn(yadata.MKeyedList[str, l3vpn__l3vpn_entry]):
         return l3vpn__l3vpn(elements=copied_elements)
 
 
-_breaker12: None = None
+_breaker14: None = None
 class root(yadata.MNode):
     netinfra: netinfra__netinfra
     p_container: ?netinfra__p_container
@@ -1189,7 +1301,7 @@ actor rpc_root(tp: ygdata.TreeProvider):
 
 
 
-_breaker13: None = None
+_breaker15: None = None
 class netinfra__netinfra__global_settings_subs(SubscriptionNode):
     asn: SubscriptionNode
 
@@ -1201,7 +1313,53 @@ class netinfra__netinfra__global_settings_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.asn]
         return direct
 
-_breaker14: None = None
+_breaker16: None = None
+class netinfra__netinfra__ztp_onboarding_entry_subs(SubscriptionNode):
+    name: SubscriptionNode
+    serial: SubscriptionNode
+    pe: SubscriptionNode
+    pe_interface: SubscriptionNode
+    link_index: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'name'), parent=path))
+        self.serial = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'serial'), parent=path))
+        self.pe = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe'), parent=path))
+        self.pe_interface = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe-interface'), parent=path))
+        self.link_index = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'link-index'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.serial, self.pe, self.pe_interface, self.link_index]
+        return direct
+
+_breaker17: None = None
+class netinfra__netinfra__ztp_onboarding_subs(SubscriptionNode):
+    name: SubscriptionNode
+    serial: SubscriptionNode
+    pe: SubscriptionNode
+    pe_interface: SubscriptionNode
+    link_index: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'name'), parent=path))
+        self.serial = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'serial'), parent=path))
+        self.pe = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe'), parent=path))
+        self.pe_interface = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe-interface'), parent=path))
+        self.link_index = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'link-index'), parent=path))
+
+    pure def entry(self, name: str) -> netinfra__netinfra__ztp_onboarding_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_netinfra, 'name'), value_match=name),
+        ]
+        base_path = self._path!.parent
+        return netinfra__netinfra__ztp_onboarding_entry_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'ztp-onboarding'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.serial, self.pe, self.pe_interface, self.link_index]
+        return direct
+
+_breaker18: None = None
 class netinfra__netinfra__router__dynstate_subs(SubscriptionNode):
     current_datetime: SubscriptionNode
 
@@ -1213,7 +1371,7 @@ class netinfra__netinfra__router__dynstate_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.current_datetime]
         return direct
 
-_breaker15: None = None
+_breaker19: None = None
 class netinfra__netinfra__router__state_subs(SubscriptionNode):
     current_datetime: SubscriptionNode
 
@@ -1225,7 +1383,7 @@ class netinfra__netinfra__router__state_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.current_datetime]
         return direct
 
-_breaker16: None = None
+_breaker20: None = None
 class netinfra__netinfra__router_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     id: SubscriptionNode
@@ -1253,7 +1411,7 @@ class netinfra__netinfra__router_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.ztp, self.hostname, self.ztp_serial, self.dynstate, self.state]
         return direct
 
-_breaker17: None = None
+_breaker21: None = None
 class netinfra__netinfra__router_subs(SubscriptionNode):
     name: SubscriptionNode
     id: SubscriptionNode
@@ -1287,21 +1445,23 @@ class netinfra__netinfra__router_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.ztp, self.hostname, self.ztp_serial, self.dynstate, self.state]
         return direct
 
-_breaker18: None = None
+_breaker22: None = None
 class netinfra__netinfra_subs(SubscriptionNode):
     global_settings: netinfra__netinfra__global_settings_subs
+    ztp_onboarding: netinfra__netinfra__ztp_onboarding_subs
     router: netinfra__netinfra__router_subs
 
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
         SubscriptionNode.__init__(self, path)
         self.global_settings = netinfra__netinfra__global_settings_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'global-settings'), parent=path))
+        self.ztp_onboarding = netinfra__netinfra__ztp_onboarding_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'ztp-onboarding'), parent=path))
         self.router = netinfra__netinfra__router_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'router'), parent=path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.global_settings, self.router]
+        direct: list[SubscriptionNode] = [self.global_settings, self.ztp_onboarding, self.router]
         return direct
 
-_breaker19: None = None
+_breaker23: None = None
 class netinfra__p_container_subs(SubscriptionNode):
 
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
@@ -1311,7 +1471,7 @@ class netinfra__p_container_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = []
         return direct
 
-_breaker20: None = None
+_breaker24: None = None
 class l3vpn__l3vpn__endpoint_entry_subs(SubscriptionNode):
     device: SubscriptionNode
     interface_name: SubscriptionNode
@@ -1339,7 +1499,7 @@ class l3vpn__l3vpn__endpoint_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.device, self.interface_name, self.ipv4_address, self.prefix_length, self.mtu, self.vlan_id, self.enabled, self.site_code, self.description]
         return direct
 
-_breaker21: None = None
+_breaker25: None = None
 class l3vpn__l3vpn__endpoint_subs(SubscriptionNode):
     device: SubscriptionNode
     interface_name: SubscriptionNode
@@ -1374,7 +1534,7 @@ class l3vpn__l3vpn__endpoint_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.device, self.interface_name, self.ipv4_address, self.prefix_length, self.mtu, self.vlan_id, self.enabled, self.site_code, self.description]
         return direct
 
-_breaker22: None = None
+_breaker26: None = None
 class l3vpn__l3vpn_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     customer_name: SubscriptionNode
@@ -1398,7 +1558,7 @@ class l3vpn__l3vpn_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.customer_name, self.vpn_id, self.service_mtu, self.enabled, self.description, self.endpoint]
         return direct
 
-_breaker23: None = None
+_breaker27: None = None
 class l3vpn__l3vpn_subs(SubscriptionNode):
     name: SubscriptionNode
     customer_name: SubscriptionNode
@@ -1428,7 +1588,7 @@ class l3vpn__l3vpn_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.customer_name, self.vpn_id, self.service_mtu, self.enabled, self.description, self.endpoint]
         return direct
 
-_breaker24: None = None
+_breaker28: None = None
 class root_subs(SubscriptionNode):
     netinfra: netinfra__netinfra_subs
     p_container: netinfra__p_container_subs

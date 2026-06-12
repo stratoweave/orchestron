@@ -109,7 +109,20 @@ SRC_DNODE_CHILD_14: DContainer = DContainer(module='mini-rfs', namespace='http:/
     ])
 ])
 
-SRC_DNODE_CHILD_15: DList = DList(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='l3vpn-endpoint', key=['interface-name'], config=True, min_elements=0, ordered_by='system', exts=[
+SRC_DNODE_CHILD_15: DList = DList(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='dhcp-onboarding', key=['pe-interface'], config=True, min_elements=0, ordered_by='system', exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='mini.rfs.DhcpOnboarding', exts=[])
+    ], children=[
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='pe-interface', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='pe-address', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='cpe-address', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='prefix-len', config=True, mandatory=True, type=DTypeIntegerUnsigned(name='uint8', description=None, reference=None, exts=[], builtin_type='uint8', default=None, ranges=Ranges([(0, 255)]))),
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='pool-name', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='profile-name', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='option-code', config=True, mandatory=True, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
+    DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='option-hex', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+])
+
+SRC_DNODE_CHILD_16: DList = DList(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='l3vpn-endpoint', key=['interface-name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='mini.rfs.L3vpnEndpoint', exts=[])
     ], children=[
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='interface-name', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -127,7 +140,7 @@ SRC_DNODE_CHILD_15: DList = DList(module='mini-rfs', namespace='http://example.c
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='description', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 ])
 
-SRC_DNODE_CHILD_12: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15])
+SRC_DNODE_CHILD_12: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15, SRC_DNODE_CHILD_16])
 
 SRC_DNODE: DRoot = DRoot(
     children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_12],
@@ -178,6 +191,21 @@ SRC_YANG_0: str = r"""module mini-rfs {
                     type string;
                 }
             }
+        }
+
+        list dhcp-onboarding {
+            key pe-interface;
+
+            sw:rfs-transform mini.rfs.DhcpOnboarding;
+
+            leaf pe-interface { type string; mandatory true; }
+            leaf pe-address { type string; mandatory true; }
+            leaf cpe-address { type string; mandatory true; }
+            leaf prefix-len { type uint8; mandatory true; }
+            leaf pool-name { type string; mandatory true; }
+            leaf profile-name { type string; mandatory true; }
+            leaf option-code { type uint16; mandatory true; }
+            leaf option-hex { type string; mandatory true; }
         }
 
         list l3vpn-endpoint {
@@ -1553,6 +1581,76 @@ class stratoweave_rfs__rfs__base_config(yadata.MNode):
 
 
 _breaker22: None = None
+class stratoweave_rfs__rfs__dhcp_onboarding_entry(yadata.MNode):
+    pe_interface: str
+    pe_address: str
+    cpe_address: str
+    prefix_len: u64
+    pool_name: str
+    profile_name: str
+    option_code: u64
+    option_hex: str
+
+    mut def __init__(self, pe_interface: str, pe_address: str, cpe_address: str, prefix_len: u64, pool_name: str, profile_name: str, option_code: u64, option_hex: str) -> None:
+        self.pe_interface = pe_interface
+        self.pe_address = pe_address
+        self.cpe_address = cpe_address
+        self.prefix_len = prefix_len
+        self.pool_name = pool_name
+        self.profile_name = profile_name
+        self.option_code = option_code
+        self.option_hex = option_hex
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:rfs', 'mini-rfs:dhcp-onboarding'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__dhcp_onboarding_entry:
+        return stratoweave_rfs__rfs__dhcp_onboarding_entry(pe_interface=n.get_str(ygdata.Id(NS_mini_rfs, 'pe-interface')), pe_address=n.get_str(ygdata.Id(NS_mini_rfs, 'pe-address')), cpe_address=n.get_str(ygdata.Id(NS_mini_rfs, 'cpe-address')), prefix_len=n.get_u64(ygdata.Id(NS_mini_rfs, 'prefix-len')), pool_name=n.get_str(ygdata.Id(NS_mini_rfs, 'pool-name')), profile_name=n.get_str(ygdata.Id(NS_mini_rfs, 'profile-name')), option_code=n.get_u64(ygdata.Id(NS_mini_rfs, 'option-code')), option_hex=n.get_str(ygdata.Id(NS_mini_rfs, 'option-hex')))
+
+    mut def copy(self) -> stratoweave_rfs__rfs__dhcp_onboarding_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__rfs__dhcp_onboarding_entry.from_gdata(self.to_gdata())
+
+_breaker23: None = None
+class stratoweave_rfs__rfs__dhcp_onboarding(yadata.MKeyedList[str, stratoweave_rfs__rfs__dhcp_onboarding_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__rfs__dhcp_onboarding_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.pe_interface == k, elements)
+
+    mut def create(self, key: str, pe_address: str, cpe_address: str, prefix_len: u64, pool_name: str, profile_name: str, option_code: u64, option_hex: str) -> stratoweave_rfs__rfs__dhcp_onboarding_entry:
+        e = self.get(key)
+        if e is not None:
+            e.pe_address = pe_address
+            e.cpe_address = cpe_address
+            e.prefix_len = prefix_len
+            e.pool_name = pool_name
+            e.profile_name = profile_name
+            e.option_code = option_code
+            e.option_hex = option_hex
+            return e
+        pe_interface = key
+        res = stratoweave_rfs__rfs__dhcp_onboarding_entry(pe_interface=pe_interface, pe_address=pe_address, cpe_address=cpe_address, prefix_len=prefix_len, pool_name=pool_name, profile_name=profile_name, option_code=option_code, option_hex=option_hex)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__dhcp_onboarding_entry]:
+        if n is not None:
+            return [stratoweave_rfs__rfs__dhcp_onboarding_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__rfs__dhcp_onboarding:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__rfs__dhcp_onboarding(elements=copied_elements)
+
+
+_breaker24: None = None
 class stratoweave_rfs__rfs__l3vpn_endpoint_entry(yadata.MNode):
     interface_name: str
     vpn_name: str
@@ -1594,7 +1692,7 @@ class stratoweave_rfs__rfs__l3vpn_endpoint_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__rfs__l3vpn_endpoint_entry.from_gdata(self.to_gdata())
 
-_breaker23: None = None
+_breaker25: None = None
 class stratoweave_rfs__rfs__l3vpn_endpoint(yadata.MKeyedList[str, stratoweave_rfs__rfs__l3vpn_endpoint_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs__l3vpn_endpoint_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.interface_name == k, elements)
@@ -1640,15 +1738,17 @@ class stratoweave_rfs__rfs__l3vpn_endpoint(yadata.MKeyedList[str, stratoweave_rf
         return stratoweave_rfs__rfs__l3vpn_endpoint(elements=copied_elements)
 
 
-_breaker24: None = None
+_breaker26: None = None
 class stratoweave_rfs__rfs_entry(yadata.MNode):
     name: str
     base_config: stratoweave_rfs__rfs__base_config
+    dhcp_onboarding: stratoweave_rfs__rfs__dhcp_onboarding
     l3vpn_endpoint: stratoweave_rfs__rfs__l3vpn_endpoint
 
-    mut def __init__(self, name: str, base_config: stratoweave_rfs__rfs__base_config, l3vpn_endpoint: list[stratoweave_rfs__rfs__l3vpn_endpoint_entry]=[]) -> None:
+    mut def __init__(self, name: str, base_config: stratoweave_rfs__rfs__base_config, dhcp_onboarding: list[stratoweave_rfs__rfs__dhcp_onboarding_entry]=[], l3vpn_endpoint: list[stratoweave_rfs__rfs__l3vpn_endpoint_entry]=[]) -> None:
         self.name = name
         self.base_config = base_config
+        self.dhcp_onboarding = stratoweave_rfs__rfs__dhcp_onboarding(elements=dhcp_onboarding)
         self.l3vpn_endpoint = stratoweave_rfs__rfs__l3vpn_endpoint(elements=l3vpn_endpoint)
 
     mut def to_gdata(self) -> ygdata.Node:
@@ -1656,13 +1756,13 @@ class stratoweave_rfs__rfs_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs_entry:
-        return stratoweave_rfs__rfs_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), base_config=stratoweave_rfs__rfs__base_config.from_gdata(n.get_cnt(ygdata.Id(NS_mini_rfs, 'base-config'))), l3vpn_endpoint=stratoweave_rfs__rfs__l3vpn_endpoint.from_gdata(n.get_opt_list(ygdata.Id(NS_mini_rfs, 'l3vpn-endpoint'))))
+        return stratoweave_rfs__rfs_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), base_config=stratoweave_rfs__rfs__base_config.from_gdata(n.get_cnt(ygdata.Id(NS_mini_rfs, 'base-config'))), dhcp_onboarding=stratoweave_rfs__rfs__dhcp_onboarding.from_gdata(n.get_opt_list(ygdata.Id(NS_mini_rfs, 'dhcp-onboarding'))), l3vpn_endpoint=stratoweave_rfs__rfs__l3vpn_endpoint.from_gdata(n.get_opt_list(ygdata.Id(NS_mini_rfs, 'l3vpn-endpoint'))))
 
     mut def copy(self) -> stratoweave_rfs__rfs_entry:
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__rfs_entry.from_gdata(self.to_gdata())
 
-_breaker25: None = None
+_breaker27: None = None
 class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -1694,7 +1794,7 @@ class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
         return stratoweave_rfs__rfs(elements=copied_elements)
 
 
-_breaker26: None = None
+_breaker28: None = None
 class root(yadata.MNode):
     device: stratoweave_rfs__device
     rfs: stratoweave_rfs__rfs

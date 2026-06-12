@@ -1,0 +1,34 @@
+# device cpe1
+# Top node: /
+cpe1 = root()
+
+# device pe1
+# Top node: /
+pe1 = root()
+
+# Container: /hostname
+pe1.hostname.system_network_name = 'pe1'
+
+# P-container: /ipv4-dhcpd
+ipv4_dhcpd = pe1.create_ipv4_dhcpd()
+
+# List /ipv4-dhcpd/profiles/profile element: ONBOARD-cpe1
+profile_element = ipv4_dhcpd.profiles.profile.create('ONBOARD-cpe1')
+
+# List /ipv4-dhcpd/profiles/profile[profile-name='ONBOARD-cpe1']/modes/mode element: server
+mode_element = profile_element.modes.mode.create('server')
+
+# P-container: /ipv4-dhcpd/profiles/profile[profile-name='ONBOARD-cpe1']/modes/mode[mode='server']/server
+server = mode_element.create_server(pool='ONBOARD-cpe1')
+
+# Container: /ipv4-dhcpd/profiles/profile[profile-name='ONBOARD-cpe1']/modes/mode[mode='server']/server/default-routers
+server.default_routers.default_router = ['10.64.0.0']
+
+# List /ipv4-dhcpd/profiles/profile[profile-name='ONBOARD-cpe1']/modes/mode[mode='server']/server/option-codes/option-code element: 143
+option_code_element = server.option_codes.option_code.create(u64(143), hex_string='001368747470733a2f2f3137322e33302e302e3130')
+
+# List /ipv4-dhcpd/interfaces/interface element: GigabitEthernet0/0/0/0
+interface_element = ipv4_dhcpd.interfaces.interface.create('GigabitEthernet0/0/0/0')
+
+# P-container: /ipv4-dhcpd/interfaces/interface[interface-name='GigabitEthernet0/0/0/0']/profile
+profile = interface_element.create_profile(profile_name='ONBOARD-cpe1', mode='server')

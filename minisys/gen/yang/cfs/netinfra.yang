@@ -19,6 +19,40 @@ module netinfra {
         type uint32;
       }
     }
+    list ztp-onboarding {
+      description "Onboard a CPE via an inline DHCP server on a PE port.";
+      key name;
+
+      sw:transform mini.cfs.ZtpOnboarding;
+
+      leaf name {
+        description "Name of the CPE device to onboard and create";
+        type string;
+      }
+      leaf serial {
+        description "CPE bootstrap identity (SZTP serial); defaults to name";
+        type string;
+      }
+      leaf pe {
+        description "PE router that hosts the inline DHCP server";
+        type string;
+        mandatory true;
+      }
+      leaf pe-interface {
+        description "PE interface facing the CPE (the /31 access link)";
+        type string;
+        mandatory true;
+      }
+      leaf link-index {
+        description
+          "Index of the /31 onboarding link within the onboarding block.
+          Deterministically maps to a PE/CPE address pair. A real resource
+          manager will assign this; for now it is supplied in config.";
+        type uint32;
+        mandatory true;
+      }
+    }
+
     list router {
       key name;
 
