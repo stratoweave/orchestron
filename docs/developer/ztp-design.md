@@ -213,6 +213,104 @@ Notes / review points:
   proper `config false` data retrievable via RESTCONF (and subscribable by
   transforms) is the desired end state — see §6 and §10.
 
+## 5.1 DHCP placement, prefix buckets, and the PE-side flow
+
+This section captures the broader onboarding flow beyond the bootstrap server:
+where DHCP lives, how the mode is chosen, and who renders the device config.
+It supersedes the simpler "central Kea appliance" assumption of §7.
+
+### Mechanism vs placement vs policy
+
+Three independent axes; only the first is standardized:
+
+* **Mechanism → DHCP option** is a pure standardized mapping StratoWeave
+  derives: SZTP → opt 143 (v4) / 136 (v6); classic IOS-XR/XE ZTP → opt 67
+  (+150 TFTP); Cisco PnP → opt 43. The option *value* is StratoWeave's own
+  bootstrap URL, which it computes. Operators never hand-pick the option.
+* **Placement** — central appliance vs inline-on-PE (server *or* relay) — is a
+  topology fact the operator declares.
+* **Policy** — pool layout, client-match, VRF, lease/temporal behaviour — is
+  operator-supplied (with derived defaults where possible).
+
+### The /31 makes the CPE address deterministic (no discovery needed)
+
+The PE↔CPE link is a **/31** (or /30) that StratoWeave **allocates from a
+pool**. The CPE necessarily receives the other end of that /31, so StratoWeave
+**knows the CPE's management address at allocation time, before the CPE boots**
+— it is assigned, not discovered. This dissolves the "we don't have the IP
+early on" problem entirely: the device's meta-config gets its address from the
+allocation up front. The classic-ZTP check-in (and any DHCP lease table) is
+demoted from *address source of truth* to *liveness confirmation that the CPE
+booted and took the lease*. (SZTP devices that learn their own address still
+report it; for the /31 case we already know it.)
+
+### Prefix buckets: choosing the mode without per-device DHCP config
+
+Per-device DHCP customization is often impossible (the central DHCP server is
+someone else's). Instead, pre-carve **prefix blocks where the block determines
+the ZTP mode**: e.g. a /22 split into 1024 SZTP /31 links, a second block for
+classic ZTP, etc. The DHCP server (managed or not) is statically configured to
+serve the right option per block. The per-device choice "SZTP vs classic" then
+becomes **"which pool do I allocate the /31 from"** — something StratoWeave
+always controls, even when it cannot touch the DHCP server. This unifies:
+
+* **Unmanaged central DHCP** — pre-provisioned bucket scopes; StratoWeave only
+  allocates from the right block. No device config at all.
+* **Managed central DHCP** (Kea we control) — StratoWeave renders buckets or
+  per-device scopes.
+* **Inline on PE** (server or relay) — an app transform renders the /31 +
+  DHCP-server-scope or relay onto the PE.
+
+The common spine in all cases: *allocate /31 from the mode's pool → configure
+the PE interface → (maybe) server/relay config*. The mode lives in the prefix.
+
+IOS-XR supports a local DHCP **server** (`Cisco-IOS-XR-ipv4-dhcpd-cfg`:
+`mode server`, pools, `default-routers`, custom `option-codes`), so
+inline-server-on-XR is viable; relay-to-central is the fallback where the
+platform cannot run a server.
+
+**Validated empirically** (probe, xrd-control-plane 25.3.1, 2026-06-12): a
+factory XRd configured with `dhcp ipv4 / profile X server` + a DAPS `pool` bound
+to a Gi data interface **does serve DHCP on that data port** — a Linux client on
+the point-to-point link obtained a lease (`BOUND` in `show dhcp ipv4 server
+binding`). Sending the **SZTP option 143** works as a generic option
+(`option 143 hex <2-byte-len + URI>`), and the client received the exact RFC
+8572 tuple. Caveat: **option 67 is reserved** in the generic option mechanism
+(`'DHCP does not allow config for this DHCP option code'`); the classic-ZTP
+bootfile is set via the dedicated `bootfile <name>` command in the server
+profile instead. Net: inline DHCP server on an XR PE is real, with SZTP/opt-143
+the clean path and classic/opt-67 via the bootfile command.
+
+### Temporal ztp-mode (link lifecycle)
+
+ZTP DHCP is transient. A per-link `ztp-mode` flips `on → off` driven by the ZTP
+phase: while `on`, the PE interface carries the ZTP /31 + scope/relay; when the
+CPE reaches `connected` (the registry tracks this), a transform flips
+`ztp-mode=off` and either **releases the /31** to the pool or **keeps it as the
+permanent management prefix** — per-link operator choice. This is the teardown
+half of the reactive story (oper phase → transform re-run → PE config change),
+using the same subscription pattern CFS transforms already use for telemetry.
+
+### Division of labour: StratoWeave makes services, the app writes the config
+
+StratoWeave does **not** produce concrete vendor DHCP/interface config — that is
+entangled with the operator's network design (VRF, routing, pool layout,
+server-vs-relay) and belongs in the app's transforms. The boundary:
+
+* **Platform (StratoWeave core)**: the ZTP framework + bootstrap server; a pure
+  **option/URL helper** (`mechanism → options + bootstrap URL`); the
+  **lifecycle/phase** a transform can react to; and the small, uniform **CPE
+  day-0** artifact (enable NETCONF + creds), already overridable.
+* **App (operator transforms)**: the **PE-side network config** (interface /31,
+  DHCP server scope or relay, VRF), the **pool/bucket model**, and the
+  **ztp-mode lifecycle policy** — turned into a *service* StratoWeave drives.
+
+To avoid every operator re-deriving "option 67 on IOS-XR", the platform may ship
+**optional reference render helpers** per common vendor as a library the app
+*may* call, but the transform and wiring stay app-owned (mirroring how the
+platform provides the device adapter + RFS device model while `mini.rfs` is app
+code).
+
 ## 6. The address problem — how a discovered IP activates the device
 
 Today `NetconfDriver._connect()` simply waits when `dmc.address` is empty
