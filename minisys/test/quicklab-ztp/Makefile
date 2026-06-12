@@ -2,10 +2,20 @@ TESTENV=mini-quicklab-ztp
 
 # Build the mini binary natively: the sweave container (debian) runs on the
 # same architecture as the build host.
-ACTON_TARGET=
+ACTON_TARGET ?=
+
+# Keep containerlab's lab state (XRd xr-storage is root-owned) out of the
+# source tree so acton builds and docker build contexts keep working with a
+# deployed lab.
+CLAB_LABDIR_BASE=/tmp/$(TESTENV)-lab
 
 include ../common/clab.mk
 include ../common/quicklab.mk
+
+labdir:
+	mkdir -p $(CLAB_LABDIR_BASE)
+
+start: certs labdir
 
 # The OPI sztp-agent insists on having device identity certificates even in
 # plain-HTTP lab mode; generate self-signed throwaways.
@@ -17,8 +27,6 @@ certs/private_key.pem:
 
 .PHONY: certs
 certs: certs/private_key.pem
-
-start: certs
 
 .PHONY: ztp-status
 ztp-status:

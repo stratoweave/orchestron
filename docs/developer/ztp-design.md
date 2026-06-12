@@ -101,7 +101,7 @@ New platform package: `src/ztp/`. It is part of the platform (like
 the device manager), not per-application code:
 
 ```
-src/ztp/ztp.act       -- ZtpRegistry actor + framework types (mechanism-agnostic)
+src/ztp/registry.act  -- ZtpRegistry actor + framework types (mechanism-agnostic)
 src/ztp/sztp.act      -- SZTP bootstrap-server mechanism (RFC 8572 endpoints, CMS)
 src/ztp/classic.act   -- classic ZTP mechanism (HTTP bootfile serving for opt 67)
 ```
@@ -172,14 +172,14 @@ list device {
         "Override: verbatim day-0 bootstrap config. If unset, the day-0
          config is rendered from the device type's template.";
     }
-    container sztp {
-      presence "Offer RFC 8572 bootstrapping data for this device";
-      leaf reporting-level { type enumeration { enum minimal; enum verbose; } default verbose; }
+    leaf format {
+      // mechanism-agnostic: selects the day-0 template for both SZTP
+      // onboarding-information and the classic bootfile
+      type enumeration { enum xr-config; enum xe-python; enum raw; }
+      default xr-config;
     }
-    container classic {
-      presence "Offer classic ZTP bootstrapping data for this device";
-      leaf format { type enumeration { enum xr-config; enum xe-python; } }
-    }
+    container sztp { leaf enabled { type boolean; default true; } }
+    container classic { leaf enabled { type boolean; default true; } }
     container state {
       config false;
       leaf phase { type enumeration { enum waiting; enum bootstrapping; enum bootstrapped; enum connected; enum failed; } }

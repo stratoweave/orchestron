@@ -215,8 +215,21 @@ rfs = r"""module stratoweave-rfs {
         description
           "Verbatim day-0 bootstrap configuration / script. If unset, the
           day-0 artifact is rendered from a template selected by the
-          bootstrap format.";
+          format leaf.";
         type string;
+      }
+      leaf format {
+        description
+          "Day-0 template format used to render the bootstrap artifact
+          when day0-config is unset. Applies to all ZTP mechanisms (the
+          SZTP onboarding-information and the classic bootfile render the
+          same day-0 config).";
+        type enumeration {
+          enum xr-config;
+          enum xe-python;
+          enum raw;
+        }
+        default "xr-config";
       }
       container sztp {
         description "RFC 8572 Secure Zero Touch Provisioning";
@@ -224,28 +237,12 @@ rfs = r"""module stratoweave-rfs {
           type boolean;
           default "true";
         }
-        leaf reporting-level {
-          type enumeration {
-            enum minimal;
-            enum verbose;
-          }
-          default "verbose";
-        }
       }
       container classic {
         description "Classic DHCP-option ZTP (e.g. IOS-XR option 67 bootfile)";
         leaf enabled {
           type boolean;
           default "true";
-        }
-        leaf format {
-          description "Day-0 template format used when day0-config is unset";
-          type enumeration {
-            enum xr-config;
-            enum xe-python;
-            enum raw;
-          }
-          default "xr-config";
         }
       }
     }

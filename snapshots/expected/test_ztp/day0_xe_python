@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
 # StratoWeave classic ZTP day-0 script (IOS-XE), device rtr2
 import cli
+import re
 import urllib.request
 
-def report(ptype, message):
+BASE = "http://192.0.2.1:80/ztp/v1/device/rtr2"
+
+def post(path):
     try:
-        urllib.request.urlopen("http://192.0.2.1:80/ztp/v1/device/rtr2/progress?type=" + ptype + "&message=" + message, timeout=5)
+        # data=b'' forces an HTTP POST (the endpoints are POST-only)
+        urllib.request.urlopen(BASE + path, data=b'', timeout=5)
     except Exception:
         pass
+
+def report(ptype, message):
+    post("/progress?type=" + ptype + "&message=" + message)
 
 report("bootstrap-initiated", "day0-script-started")
 report("config-initiated", "applying-day0-config")
 cli.configurep(["hostname rtr2", "username admin privilege 15 secret 0 admin", "aaa new-model", "aaa authentication login default local", "aaa authorization exec default local", "interface GigabitEthernet1", "ip address dhcp", "no shutdown", "netconf-yang", "line vty 0 4", "login local", "transport input all", "end"])
 report("config-complete", "day0-config-applied")
 cli.execute("write memory")
+# Learn the management address (Gi1) and check in
+brief = cli.execute("show ip interface brief")
+m = re.search(r"GigabitEthernet1\s+(\d+\.\d+\.\d+\.\d+)", brief)
+if m:
+    post("/checkin?address=" + m.group(1))
 report("bootstrap-complete", "day0-script-finished")

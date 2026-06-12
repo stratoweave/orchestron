@@ -12,6 +12,9 @@ PHASE_BOOTSTRAPPED  = "bootstrapped"
 PHASE_CONNECTED     = "connected"
 PHASE_FAILED        = "failed"
 
+## Cap on retained progress events per device
+MAX_PROGRESS_ITEMS  = 200
+
 
 class ProgressItem(object):
     """A single ZTP progress event for a device
@@ -75,7 +78,7 @@ def day0_native_config(st: ZtpDeviceState) -> str:
     user_day0 = st.conf.day0_config
     if user_day0 is not None:
         return user_day0
-    fmt = st.conf.classic.format
+    fmt = st.conf.format
     if fmt == "xr-config":
         return "!! IOS XR\n" + _xr_config_body(st)
     if fmt == "xe-python":
@@ -98,7 +101,7 @@ def day0_bootfile(st: ZtpDeviceState, server_base: str, server_host: str) -> str
     user_day0 = st.conf.day0_config
     if user_day0 is not None:
         return user_day0
-    fmt = st.conf.classic.format
+    fmt = st.conf.format
     if fmt == "xr-config":
         return _xr_bash_script(st, server_base, server_host)
     if fmt == "xe-python":
@@ -227,26 +230,43 @@ def _xe_cli_lines(st: ZtpDeviceState) -> list[str]:
     ]
 
 def _xe_python_script(st: ZtpDeviceState, server_base: str) -> str:
-    """IOS-XE ZTP python bootfile for the day-0 Guest Shell"""
+    """IOS-XE ZTP python bootfile for the day-0 Guest Shell
+
+    Reports progress and checks in with the device's management address
+    (parsed from 'show ip interface brief' for Gi1) so StratoWeave learns
+    where to reach the device, mirroring the IOS-XR bash template.
+    """
     conf_lines = _xe_cli_lines(st)
     quoted = ", ".join(['"' + l.strip() + '"' for l in conf_lines])
     lines = [
         "#!/usr/bin/env python3",
         "# StratoWeave classic ZTP day-0 script (IOS-XE), device {st.name}",
         "import cli",
+        "import re",
         "import urllib.request",
         "",
-        "def report(ptype, message):",
+        'BASE = "{server_base}/ztp/v1/device/{st.name}"',
+        "",
+        "def post(path):",
         "    try:",
-        '        urllib.request.urlopen("{server_base}/ztp/v1/device/{st.name}/progress?type=" + ptype + "&message=" + message, timeout=5)',
+        "        # data=b'' forces an HTTP POST (the endpoints are POST-only)",
+        "        urllib.request.urlopen(BASE + path, data=b'', timeout=5)",
         "    except Exception:",
         "        pass",
+        "",
+        "def report(ptype, message):",
+        '    post("/progress?type=" + ptype + "&message=" + message)',
         "",
         'report("bootstrap-initiated", "day0-script-started")',
         'report("config-initiated", "applying-day0-config")',
         "cli.configurep([" + quoted + ', "end"])',
         'report("config-complete", "day0-config-applied")',
         'cli.execute("write memory")',
+        "# Learn the management address (Gi1) and check in",
+        'brief = cli.execute("show ip interface brief")',
+        r'm = re.search(r"GigabitEthernet1\s+(\d+\.\d+\.\d+\.\d+)", brief)',
+        "if m:",
+        '    post("/checkin?address=" + m.group(1))',
         'report("bootstrap-complete", "day0-script-finished")',
     ]
     return "\n".join(lines) + "\n"
@@ -268,9 +288,9 @@ actor ZtpRegistry(log_handler: logging.Handler):
     registry invokes the activation callback (wired up to the device
     manager at system start), which makes the device's adapter connect.
     """
-    _log_handler = logging.Handler("ZTP")
-    _log_handler.set_handler(log_handler)
-    _log = logging.Logger(_log_handler)
+    # log_handler is already the "ZTP" category handler created in
+    # stratoweave.main; use it directly rather than nesting another.
+    _log = logging.Logger(log_handler)
 
     var devices: dict[str, ZtpDeviceState] = {}
     var activate_cb: ?action(str, str) -> None = None
@@ -317,8 +337,8 @@ actor ZtpRegistry(log_handler: logging.Handler):
         st = devices.get(name)
         if st is not None:
             st.progress.append(ProgressItem(source, ptype, message))
-            for _ in range(max([0, len(st.progress) - 200])):
-                del st.progress[0]
+            if len(st.progress) > MAX_PROGRESS_ITEMS:
+                st.progress = st.progress[-MAX_PROGRESS_ITEMS:]
             if st.phase != PHASE_CONNECTED:
                 if ptype == "bootstrap-complete":
                     st.phase = PHASE_BOOTSTRAPPED

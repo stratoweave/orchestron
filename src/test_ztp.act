@@ -1,28 +1,37 @@
 import base64
-import logging
+import http
+import json
+import http_router
 import testing
 
 from device_meta_config import \
     stratoweave_rfs__device_entry as DeviceMetaConfig, \
     stratoweave_rfs__device__credentials as Credentials, \
     stratoweave_rfs__device__ztp as ZtpConfig, \
+    stratoweave_rfs__device__ztp__sztp as ZtpSztp, \
     stratoweave_rfs__device__ztp__classic as ZtpClassic
 
 import ztp.registry as ztpreg
 import ztp.sztp as ztpsztp
+import ztp.classic as ztpclassic
+import device as swdev
 
 
-def make_ztp_dmc(name: str, serial: ?str=None, ztp_enabled: bool=True) -> DeviceMetaConfig:
+def make_ztp_dmc(name: str, serial: ?str=None, ztp_enabled: bool=True, sztp_enabled: bool=True, classic_enabled: bool=True) -> DeviceMetaConfig:
     return DeviceMetaConfig(
         name=name,
         credentials=Credentials("admin", "admin"),
         type="xr",
-        ztp=ZtpConfig(enabled=ztp_enabled, serial_number=serial, day0_config=None),
+        ztp=ZtpConfig(enabled=ztp_enabled, serial_number=serial, day0_config=None,
+                      sztp=ZtpSztp(enabled=sztp_enabled),
+                      classic=ZtpClassic(enabled=classic_enabled)),
     )
 
 def make_state(name: str, serial: ?str=None, fmt: str="xr-config", day0: ?str=None) -> ztpreg.ZtpDeviceState:
-    conf = ZtpConfig(enabled=True, serial_number=serial, day0_config=day0, classic=ZtpClassic(enabled=True, format=fmt))
+    conf = ZtpConfig(enabled=True, serial_number=serial, day0_config=day0, format=fmt)
     return ztpreg.ZtpDeviceState(name, conf, "xr", "admin", "admin")
+
+
 
 
 #################################################################################
@@ -157,3 +166,279 @@ actor _test_registry_lifecycle(t: testing.AsyncT):
     reg.record_progress("rtr1", "sztp", "bootstrap-initiated", "starting")
     reg.record_progress("rtr1", "sztp", "bootstrap-complete", "done")
     reg.discovered("rtr1", "192.0.2.55")
+
+
+#################################################################################
+## SZTP HTTP handlers
+#################################################################################
+
+actor _test_sztp_get_bootstrapping_data(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpsztp.SztpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", serial="SN1"))
+
+    var status = -1
+    var body = ""
+    def respond(s: int, h: dict[str, str], b: str):
+        status = s
+        body = b
+        check()
+
+    def check():
+        testing.assertEqual(status, 200)
+        # output carries the base64 CMS conveyed-information
+        decoded = json.decode(body)
+        out = decoded.get("ietf-sztp-bootstrap-server:output")
+        if isinstance(out, dict):
+            testing.assertNotNone(out.get("conveyed-information"))
+            t.success()
+        else:
+            t.failure(AssertionError("no output in response"))
+
+    # Basic auth username = serial number (RFC 8572)
+    auth = "Basic " + base64.encode("SN1:x".encode()).decode()
+    def fire():
+        router.serve(http.Request("POST", ztpsztp.OP_GET_BOOTSTRAPPING_DATA, b"HTTP/1.1", {"authorization": auth}, b"{}"), respond)
+    after 0.1: fire()
+
+actor _test_sztp_unknown_device(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpsztp.SztpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", serial="SN1"))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        testing.assertEqual(s, 404)
+        t.success()
+
+    def fire():
+        router.serve(http.Request("POST", ztpsztp.OP_GET_BOOTSTRAPPING_DATA, b"HTTP/1.1", {"x-sztp-serial": "nope"}, b"{}"), respond)
+    after 0.1: fire()
+
+actor _test_sztp_disabled(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpsztp.SztpServer(router, reg, t.log_handler)
+    # ZTP enabled but the SZTP mechanism disabled -> not served
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", serial="SN1", sztp_enabled=False))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        testing.assertEqual(s, 404)
+        t.success()
+
+    def fire():
+        router.serve(http.Request("POST", ztpsztp.OP_GET_BOOTSTRAPPING_DATA, b"HTTP/1.1", {"x-sztp-serial": "SN1"}, b"{}"), respond)
+    after 0.1: fire()
+
+actor _test_sztp_signed_data_preferred(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpsztp.SztpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", serial="SN1"))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        # We cannot produce signed data -> must not return unsigned onboarding info
+        testing.assertEqual(s, 404)
+        t.success()
+
+    def fire():
+        body = r'{"ietf-sztp-bootstrap-server:input": {"signed-data-preferred": [null]}}'
+        router.serve(http.Request("POST", ztpsztp.OP_GET_BOOTSTRAPPING_DATA, b"HTTP/1.1", {"x-sztp-serial": "SN1"}, body.encode()), respond)
+    after 0.1: fire()
+
+actor _test_sztp_report_progress(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpsztp.SztpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", serial="SN1"))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        # RFC 8572: report-progress returns 204 No Content
+        testing.assertEqual(s, 204)
+        st = reg.get("rtr1")
+        if st is not None:
+            found = False
+            for p in st.progress:
+                if p.ptype == "bootstrap-complete":
+                    found = True
+            testing.assertTrue(found)
+            testing.assertEqual(len(st.ssh_host_keys), 1)
+            t.success()
+        else:
+            t.failure(AssertionError("device missing"))
+
+    def fire():
+        body = '<input xmlns="urn:ietf:params:xml:ns:yang:ietf-sztp-bootstrap-server"><progress-type>bootstrap-complete</progress-type><message>done</message><ssh-host-keys><ssh-host-key><algorithm>ssh-rsa</algorithm><key-data>AAAA</key-data></ssh-host-key></ssh-host-keys></input>'
+        router.serve(http.Request("POST", ztpsztp.OP_REPORT_PROGRESS, b"HTTP/1.1", {"x-sztp-serial": "SN1"}, body.encode()), respond)
+    after 0.1: fire()
+
+
+#################################################################################
+## Classic ZTP HTTP handlers
+#################################################################################
+
+actor _test_classic_bootfile(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpclassic.ClassicZtpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1"))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        testing.assertEqual(s, 200)
+        testing.assertIn("#!/bin/bash", b)
+        testing.assertIn("xrapply_string", b)
+        t.success()
+
+    def fire():
+        router.serve(http.Request("GET", "/ztp/v1/device/rtr1/bootfile", b"HTTP/1.1", {"host": "192.0.2.1"}, b""), respond)
+    after 0.1: fire()
+
+actor _test_classic_bootfile_head(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpclassic.ClassicZtpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1"))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        # IOS-XR probes the bootfile with HEAD before GET
+        testing.assertEqual(s, 200)
+        t.success()
+
+    def fire():
+        router.serve(http.Request("HEAD", "/ztp/v1/device/rtr1/bootfile", b"HTTP/1.1", {}, b""), respond)
+    after 0.1: fire()
+
+actor _test_classic_disabled(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpclassic.ClassicZtpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1", classic_enabled=False))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        testing.assertEqual(s, 404)
+        t.success()
+
+    def fire():
+        router.serve(http.Request("GET", "/ztp/v1/device/rtr1/bootfile", b"HTTP/1.1", {}, b""), respond)
+    after 0.1: fire()
+
+actor _test_classic_checkin(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpclassic.ClassicZtpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1"))
+
+    var got_204 = False
+
+    # discovered() is async; assert in the activation callback it triggers
+    def on_activate(name: str, address: str):
+        testing.assertTrue(got_204)
+        testing.assertEqual(name, "rtr1")
+        testing.assertEqual(address, "172.31.255.5")
+        st = reg.get("rtr1")
+        if st is not None:
+            testing.assertEqual(st.discovered_address, "172.31.255.5")
+            t.success()
+        else:
+            t.failure(AssertionError("device missing"))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        testing.assertEqual(s, 204)
+        got_204 = True
+
+    reg.on_activate(on_activate)
+    def fire():
+        router.serve(http.Request("POST", "/ztp/v1/device/rtr1/checkin?address=172.31.255.5", b"HTTP/1.1", {}, b""), respond)
+    after 0.1: fire()
+
+actor _test_classic_checkin_no_address(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    router = http_router.Router()
+    ztpclassic.ClassicZtpServer(router, reg, t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1"))
+
+    def respond(s: int, h: dict[str, str], b: str):
+        testing.assertEqual(s, 400)
+        t.success()
+
+    def fire():
+        router.serve(http.Request("POST", "/ztp/v1/device/rtr1/checkin", b"HTTP/1.1", {}, b""), respond)
+    after 0.1: fire()
+
+
+#################################################################################
+## DeviceMgr discovered-address activation (integration through DeviceRegistry)
+#################################################################################
+
+actor _test_devicemgr_discovered_address(t: testing.AsyncT):
+    """ZtpRegistry.discovered -> DeviceRegistry._ztp_activate -> DeviceMgr"""
+    ztpr = ztpreg.ZtpRegistry(t.log_handler)
+    # connect_cap=None -> system mock mode, no real device connection
+    dev_registry = swdev.DeviceRegistry({}, None, t.log_handler, ztpr)
+
+    dev = dev_registry.get_or_create("rtr1")
+    # ZTP-enabled device with no configured address
+    dev.set_dmc(make_ztp_dmc("rtr1", serial="SN9"))
+
+    def check():
+        # The discovered address propagated all the way to the DeviceMgr
+        testing.assertEqual(dev.get_discovered_address(), "172.31.255.7")
+        # Idempotent: a second identical discovery is a no-op (no crash)
+        ztpr.discovered("rtr1", "172.31.255.7")
+        t.success()
+
+    def drive():
+        ztpr.discovered("rtr1", "172.31.255.7")
+        after 0.1: check()
+
+    # let set_dmc register the device with the ZTP registry first
+    after 0.1: drive()
+
+
+#################################################################################
+## Additional registry behaviors
+#################################################################################
+
+actor _test_registry_failure_phase(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1"))
+
+    def check():
+        st = reg.get("rtr1")
+        if st is not None:
+            testing.assertEqual(st.phase, ztpreg.PHASE_FAILED)
+            t.success()
+        else:
+            t.failure(AssertionError("device missing"))
+
+    reg.record_progress("rtr1", "classic", "bootstrap-initiated", "go")
+    reg.record_progress("rtr1", "classic", "config-error", "boom")
+    after 0.05: check()
+
+actor _test_registry_deregister(t: testing.AsyncT):
+    reg = ztpreg.ZtpRegistry(t.log_handler)
+    reg.register_device("rtr1", make_ztp_dmc("rtr1"))
+
+    def check():
+        # re-registering with ztp disabled drops the device
+        if reg.get("rtr1") is None:
+            t.success()
+        else:
+            t.failure(AssertionError("device should have been dropped"))
+
+    def disable():
+        reg.register_device("rtr1", make_ztp_dmc("rtr1", ztp_enabled=False))
+        after 0.05: check()
+
+    after 0.05: disable()
+
+def _test_day0_raw_requires_config():
+    # format=raw with no day0-config has nothing to render -> error
+    st = make_state("rtr1", fmt="raw")
+    raised = False
+    try:
+        ignore = ztpreg.day0_native_config(st)
+    except ValueError:
+        raised = True
+    testing.assertTrue(raised)

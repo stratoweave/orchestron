@@ -22,8 +22,6 @@ from ztp.registry import ZtpRegistry, ZtpDeviceState, day0_native_config
 ## variant with the IANA-registered content type for JSON-encoded SZTP
 ## conveyed information.
 
-SZTP_NS = "urn:ietf:params:xml:ns:yang:ietf-sztp-bootstrap-server"
-
 OP_GET_BOOTSTRAPPING_DATA = "/restconf/operations/ietf-sztp-bootstrap-server:get-bootstrapping-data"
 OP_REPORT_PROGRESS = "/restconf/operations/ietf-sztp-bootstrap-server:report-progress"
 
@@ -184,7 +182,11 @@ actor SztpServer(root: http_router.Router, registry: ZtpRegistry, log_handler: l
     def _match_device(ctx: http_router.Context) -> ?ZtpDeviceState:
         identity = _identity(ctx)
         if identity is not None:
-            return registry.match(identity)
+            st = registry.match(identity)
+            if st is not None:
+                if not st.conf.sztp.enabled:
+                    return None
+            return st
         return None
 
     def _serve_bootstrapping_data(st: ZtpDeviceState, ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
