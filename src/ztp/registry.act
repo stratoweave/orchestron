@@ -115,7 +115,14 @@ def _credentials(st: ZtpDeviceState) -> (username: str, password: str):
 
 
 def _xr_config_body(st: ZtpDeviceState) -> str:
-    """IOS-XR day-0 config: credentials, SSH + NETCONF, DHCP on mgmt"""
+    """IOS-XR day-0 config: credentials, SSH + NETCONF
+
+    Deliberately excludes management interface addressing: when applied
+    from a ZTP script, configuring 'ipv4 address dhcp' is rejected by
+    ipv4-ma ('Interface is already configured by other type of client')
+    because ZTP's own DHCP client holds the interface during bootstrap.
+    The script instead persists the leased address as static config.
+    """
     creds = _credentials(st)
     lines = [
         "hostname {st.name}",
@@ -129,10 +136,6 @@ def _xr_config_body(st: ZtpDeviceState) -> str:
         "netconf-yang agent",
         " ssh",
         "!",
-        "interface MgmtEth0/RP0/CPU0/0",
-        " ipv4 address dhcp",
-        " no shutdown",
-        "!",
         "end",
     ]
     return "\n".join(lines) + "\n"
@@ -144,7 +147,9 @@ def _xr_bash_script(st: ZtpDeviceState, server_base: str, server_host: str) -> s
     shebang) with the ztp_helper.sh functions available. It determines its
     own management address from the route towards us and reports it via
     the check-in endpoint, since the bootstrap exchange itself does not
-    reveal the device's address.
+    reveal the device's address. The DHCP-leased management address is
+    persisted as static interface config so it survives ZTP's exit (the
+    ZTP DHCP client releases the lease when bootstrap ends).
     """
     conf = _xr_config_body(st)
     lines = [
@@ -157,16 +162,44 @@ def _xr_bash_script(st: ZtpDeviceState, server_base: str, server_host: str) -> s
         r'report() {',
         r'  curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/progress?type=$1&message=$2" -o /dev/null || true',
         r'}',
+        r'mask_from_plen() {',
+        r'  local p=$1 m="" i',
+        r'  for i in 1 2 3 4; do',
+        r'    if [ "$p" -ge 8 ]; then m="$m.255"; p=$((p-8));',
+        r'    else m="$m.$((256 - 2**(8-p)))"; p=0; fi',
+        r'  done',
+        r'  echo "${m#.}"',
+        r'}',
         "report bootstrap-initiated day0-script-started",
         "report config-initiated applying-day0-config",
         'xrapply_string "' + conf + '"',
         "RES=$?",
         "if [ $RES -ne 0 ]; then",
-        "  report config-error xrapply-failed-$RES",
+        "  report config-error xrapply-base-failed-$RES",
         "  exit 1",
         "fi",
-        "report config-complete day0-config-applied",
+        "# Persist the ZTP DHCP lease as static management addressing",
         r"ADDR=$(ip -4 route get $SERVER_HOST 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)",
+        r'PLEN=$(ip -4 -o addr show 2>/dev/null | grep -o "$ADDR/[0-9]*" | head -1 | cut -d/ -f2)',
+        r"GW=$(ip -4 route show default 2>/dev/null | sed -n 's/.* via \([0-9.]*\).*/\1/p' | head -1)",
+        'if [ -n "$ADDR" ] && [ -n "$PLEN" ]; then',
+        '  MASK=$(mask_from_plen "$PLEN")',
+        '  MGMT_CONF="interface MgmtEth0/RP0/CPU0/0',
+        " ipv4 address $ADDR $MASK",
+        " no shutdown",
+        '"',
+        '  if [ -n "$GW" ]; then',
+        '    MGMT_CONF="$MGMT_CONF',
+        "router static",
+        " address-family ipv4 unicast",
+        "  0.0.0.0/0 $GW",
+        '"',
+        "  fi",
+        '  xrapply_string "$MGMT_CONF" || report config-warning mgmt-addressing-failed',
+        "else",
+        "  report config-warning mgmt-addressing-not-found",
+        "fi",
+        "report config-complete day0-config-applied",
         'if [ -n "$ADDR" ]; then',
         '  curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/checkin?address=$ADDR" -o /dev/null || true',
         "fi",

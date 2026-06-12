@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data>
+    <netinfra xmlns="http://example.com/netinfra">
+        <global-settings>
+            <asn>65000</asn>
+        </global-settings>
+        <!-- Factory-default XRd onboarded with classic (DHCP option 67) ZTP.
+             Note: no management address is configured; StratoWeave learns it
+             from the day-0 script check-in. -->
+        <router>
+            <name>xrd1</name>
+            <id>1</id>
+            <type>xr</type>
+            <ztp>true</ztp>
+        </router>
+        <!-- RFC 8572 SZTP client (OPI sztp-agent) identified by serial number -->
+        <router>
+            <name>sztp-dev1</name>
+            <id>2</id>
+            <type>xr</type>
+            <ztp>true</ztp>
+            <ztp-serial>first-serial-number</ztp-serial>
+        </router>
+    </netinfra>
+</data>

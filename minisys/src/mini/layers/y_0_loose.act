@@ -33,6 +33,7 @@ SRC_DNODE_CHILD_0: DContainer = DContainer(module='netinfra', namespace='http://
         DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='type', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='mock', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
         DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp', config=True, description='Onboard this router with Zero Touch Provisioning: no\nmanagement address is configured; StratoWeave offers bootstrapping\ndata and learns the address from the bootstrap exchange.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='hostname', config=True, description='Hostname configured on the router, defaults to the\nrouter name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-serial', config=True, description='Bootstrap identity (serial number) of the router,\ndefaults to the router name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='dynstate', config=True, presence=False, exts=[
                 DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='dynstate', arg=None, exts=[])
@@ -240,6 +241,11 @@ SRC_YANG_1: str = r"""module netinfra {
           data and learns the address from the bootstrap exchange.";
         type boolean;
         default false;
+      }
+      leaf hostname {
+        description "Hostname configured on the router, defaults to the
+          router name";
+        type string;
       }
       leaf ztp-serial {
         description "Bootstrap identity (serial number) of the router,
@@ -856,14 +862,16 @@ class netinfra__netinfra__router_entry(yadata.MNode):
     type: ?str
     mock: ?bool
     ztp: ?bool
+    hostname: ?str
     ztp_serial: ?str
 
-    mut def __init__(self, name: str, id: ?u64, type: ?str, mock: ?bool, ztp: ?bool, ztp_serial: ?str) -> None:
+    mut def __init__(self, name: str, id: ?u64, type: ?str, mock: ?bool, ztp: ?bool, hostname: ?str, ztp_serial: ?str) -> None:
         self.name = name
         self.id = id
         self.type = type
         self.mock = mock
         self.ztp = ztp
+        self.hostname = hostname
         self.ztp_serial = ztp_serial
 
     mut def to_gdata(self) -> ygdata.Node:
@@ -871,7 +879,7 @@ class netinfra__netinfra__router_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> netinfra__netinfra__router_entry:
-        return netinfra__netinfra__router_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), id=n.get_opt_u64(ygdata.Id(NS_netinfra, 'id')), type=n.get_opt_str(ygdata.Id(NS_netinfra, 'type')), mock=n.get_opt_bool(ygdata.Id(NS_netinfra, 'mock')), ztp=n.get_opt_bool(ygdata.Id(NS_netinfra, 'ztp')), ztp_serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'ztp-serial')))
+        return netinfra__netinfra__router_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), id=n.get_opt_u64(ygdata.Id(NS_netinfra, 'id')), type=n.get_opt_str(ygdata.Id(NS_netinfra, 'type')), mock=n.get_opt_bool(ygdata.Id(NS_netinfra, 'mock')), ztp=n.get_opt_bool(ygdata.Id(NS_netinfra, 'ztp')), hostname=n.get_opt_str(ygdata.Id(NS_netinfra, 'hostname')), ztp_serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'ztp-serial')))
 
     mut def copy(self) -> netinfra__netinfra__router_entry:
         """Create a deep copy of this adata object"""
@@ -882,7 +890,7 @@ class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__rout
     mut def __init__(self, elements: list[netinfra__netinfra__router_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
-    mut def create(self, key: str, id: ?u64=None, type: ?str=None, mock: ?bool=None, ztp: ?bool=None, ztp_serial: ?str=None) -> netinfra__netinfra__router_entry:
+    mut def create(self, key: str, id: ?u64=None, type: ?str=None, mock: ?bool=None, ztp: ?bool=None, hostname: ?str=None, ztp_serial: ?str=None) -> netinfra__netinfra__router_entry:
         e = self.get(key)
         if e is not None:
             if id is not None:
@@ -893,11 +901,13 @@ class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__rout
                 e.mock = mock
             if ztp is not None:
                 e.ztp = ztp
+            if hostname is not None:
+                e.hostname = hostname
             if ztp_serial is not None:
                 e.ztp_serial = ztp_serial
             return e
         name = key
-        res = netinfra__netinfra__router_entry(name=name, id=id, type=type, mock=mock, ztp=ztp, ztp_serial=ztp_serial)
+        res = netinfra__netinfra__router_entry(name=name, id=id, type=type, mock=mock, ztp=ztp, hostname=hostname, ztp_serial=ztp_serial)
         self.elements.append(res)
         return res
 

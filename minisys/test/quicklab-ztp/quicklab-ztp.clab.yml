@@ -1,0 +1,61 @@
+name: mini-quicklab-ztp
+# The prefix is prepended to container node names. We override the default
+# "clab-<lab-name>-" prefix here by using the "__lab-name" magic value.
+prefix: __lab-name
+
+mgmt:
+  network: mini-quicklab-ztp
+  # Explicit subnet so the Kea DHCP configuration can be static. Containerlab
+  # pins the nodes below to addresses outside the Kea pool (.100-.149).
+  ipv4-subnet: 172.31.255.0/24
+
+topology:
+  nodes:
+    sweave:
+      kind: linux
+      image: mini-sweave-base
+      mgmt-ipv4: 172.31.255.10
+      ports:
+        - "80/tcp"
+        - "830/tcp"
+
+    # DHCP server for the ZTP devices. Hands out addresses from a pool that
+    # does not collide with the containerlab-assigned addresses, plus:
+    #  - option 67 (bootfile-name) pointing at StratoWeave's classic ZTP
+    #    bootfile endpoint (used by IOS-XR ZTP)
+    #  - option 143 (v4-sztp-redirect) pointing at StratoWeave's SZTP
+    #    bootstrap server (RFC 8572)
+    kea:
+      kind: linux
+      image: docker.cloudsmith.io/isc/docker/kea-dhcp4:3.0.3
+      mgmt-ipv4: 172.31.255.11
+      binds:
+        - kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf:ro
+
+    # Factory-default XRd: ZTP enabled, empty first-boot configuration, no IP
+    # snooping. The XR ZTP process DHCPs on the management interface, fetches
+    # the bootfile (a bash day-0 script) from StratoWeave, applies the day-0
+    # config and checks in with its management address.
+    xrd1:
+      kind: cisco_xrd
+      image: ghcr.io/stratoweave/ios-xr/xrd-control-plane:25.3.1
+      mgmt-ipv4: 172.31.255.20
+      env:
+        XR_ZTP_ENABLE: "1"
+        XR_MGMT_INTERFACES: "linux:eth0,xr_name=Mg0/RP0/CPU0/0,chksum"
+        XR_FIRST_BOOT_CONFIG: "/etc/xrd/empty-first-boot.cfg"
+      binds:
+        - xrd1-empty.cfg:/etc/xrd/empty-first-boot.cfg:ro
+
+    # RFC 8572 SZTP client (OPI sztp-agent) standing in for an SZTP-capable
+    # device: fetches bootstrapping data and reports progress. Retries until
+    # the StratoWeave bootstrap server is up.
+    sztp-dev1:
+      kind: linux
+      image: ghcr.io/opiproject/opi-sztp-client:main
+      mgmt-ipv4: 172.31.255.30
+      binds:
+        - certs:/certs:ro
+        - run-agent.sh:/run-agent.sh:ro
+      entrypoint: sh
+      cmd: /run-agent.sh

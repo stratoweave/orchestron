@@ -75,7 +75,8 @@ class Router(base.Router):
 
         rfs = o.rfs.create(i.name)
         bc = rfs.base_config
-        bc.name = i.name
+        hostname = i.hostname
+        bc.name = hostname if hostname is not None else i.name
         bc.ipv4_address = "10.0.0.{i.id}"
 
         return o

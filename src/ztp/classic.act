@@ -58,6 +58,14 @@ actor ClassicZtpServer(root: http_router.Router, registry: ZtpRegistry, log_hand
         else:
             respond(404, {}, "no bootstrapping data available\n")
 
+    def handle_bootfile_head(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        # IOS-XR ZTP probes the bootfile with HEAD before downloading it
+        st = _match_device(ctx)
+        if st is not None:
+            respond(200, {"Content-Type": "text/plain"}, "")
+        else:
+            respond(404, {}, "")
+
     def handle_progress(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
         st = _match_device(ctx)
         if st is not None:
@@ -82,6 +90,7 @@ actor ClassicZtpServer(root: http_router.Router, registry: ZtpRegistry, log_hand
             respond(404, {}, "unknown device\n")
 
     root.get("/ztp/v1/device/{{name}}/bootfile", handle_bootfile)
+    root.handle("HEAD", "/ztp/v1/device/{{name}}/bootfile", handle_bootfile_head)
     root.post("/ztp/v1/device/{{name}}/progress", handle_progress)
     root.post("/ztp/v1/device/{{name}}/checkin", handle_checkin)
     _log.info("Classic ZTP routes installed", {"bootfile": "/ztp/v1/device/{{name}}/bootfile"})

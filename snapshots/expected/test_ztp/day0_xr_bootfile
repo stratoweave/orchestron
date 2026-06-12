@@ -7,6 +7,14 @@ DEV="rtr1"
 report() {
   curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/progress?type=$1&message=$2" -o /dev/null || true
 }
+mask_from_plen() {
+  local p=$1 m="" i
+  for i in 1 2 3 4; do
+    if [ "$p" -ge 8 ]; then m="$m.255"; p=$((p-8));
+    else m="$m.$((256 - 2**(8-p)))"; p=0; fi
+  done
+  echo "${m#.}"
+}
 report bootstrap-initiated day0-script-started
 report config-initiated applying-day0-config
 xrapply_string "hostname rtr1
@@ -20,19 +28,35 @@ ssh server netconf
 netconf-yang agent
  ssh
 !
-interface MgmtEth0/RP0/CPU0/0
- ipv4 address dhcp
- no shutdown
-!
 end
 "
 RES=$?
 if [ $RES -ne 0 ]; then
-  report config-error xrapply-failed-$RES
+  report config-error xrapply-base-failed-$RES
   exit 1
 fi
-report config-complete day0-config-applied
+# Persist the ZTP DHCP lease as static management addressing
 ADDR=$(ip -4 route get $SERVER_HOST 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
+PLEN=$(ip -4 -o addr show 2>/dev/null | grep -o "$ADDR/[0-9]*" | head -1 | cut -d/ -f2)
+GW=$(ip -4 route show default 2>/dev/null | sed -n 's/.* via \([0-9.]*\).*/\1/p' | head -1)
+if [ -n "$ADDR" ] && [ -n "$PLEN" ]; then
+  MASK=$(mask_from_plen "$PLEN")
+  MGMT_CONF="interface MgmtEth0/RP0/CPU0/0
+ ipv4 address $ADDR $MASK
+ no shutdown
+"
+  if [ -n "$GW" ]; then
+    MGMT_CONF="$MGMT_CONF
+router static
+ address-family ipv4 unicast
+  0.0.0.0/0 $GW
+"
+  fi
+  xrapply_string "$MGMT_CONF" || report config-warning mgmt-addressing-failed
+else
+  report config-warning mgmt-addressing-not-found
+fi
+report config-complete day0-config-applied
 if [ -n "$ADDR" ]; then
   curl -s -m 5 -X POST "$SERVER/ztp/v1/device/$DEV/checkin?address=$ADDR" -o /dev/null || true
 fi

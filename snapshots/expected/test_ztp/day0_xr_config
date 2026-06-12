@@ -10,8 +10,4 @@ ssh server netconf
 netconf-yang agent
  ssh
 !
-interface MgmtEth0/RP0/CPU0/0
- ipv4 address dhcp
- no shutdown
-!
 end

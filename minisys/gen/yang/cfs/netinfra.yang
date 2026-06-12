@@ -50,6 +50,11 @@ module netinfra {
         type boolean;
         default false;
       }
+      leaf hostname {
+        description "Hostname configured on the router, defaults to the
+          router name";
+        type string;
+      }
       leaf ztp-serial {
         description "Bootstrap identity (serial number) of the router,
           defaults to the router name";
