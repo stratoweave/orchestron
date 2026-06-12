@@ -1,0 +1,97 @@
+import logging
+
+## Placeholder IP resource management.
+##
+## StratoWeave will grow a real resource-management subsystem (pools,
+## persistence, reservations, release/reuse). Until then this module hands
+## out point-to-point links (/31 by default, /30 supported) from a base
+## block by simply incrementing an index. It is in-memory and non-persistent
+## — a placeholder behind a minimal interface so the real allocator can slot
+## in without changing callers (transforms, the ZTP onboarding service).
+
+def ipv4_to_int(addr: str) -> int:
+    parts = addr.split(".")
+    if len(parts) != 4:
+        raise ValueError("not a dotted-quad IPv4 address: {addr}")
+    o0 = int(parts[0])
+    o1 = int(parts[1])
+    o2 = int(parts[2])
+    o3 = int(parts[3])
+    return (o0 * 16777216) + (o1 * 65536) + (o2 * 256) + o3
+
+def int_to_ipv4(v: int) -> str:
+    o0 = (v // 16777216) % 256
+    o1 = (v // 65536) % 256
+    o2 = (v // 256) % 256
+    o3 = v % 256
+    return "{o0}.{o1}.{o2}.{o3}"
+
+
+class P2PLink(object):
+    """A point-to-point link allocation.
+
+    `a_address` is the near (e.g. PE) end, `b_address` the far (e.g. CPE)
+    end. For a /31 both addresses are usable per RFC 3021; for a /30 the
+    network and broadcast addresses are skipped (a/b are .1/.2).
+    """
+    network: str
+    prefix_len: int
+    a_address: str
+    b_address: str
+
+    def __init__(self, network: str, prefix_len: int, a_address: str, b_address: str):
+        self.network = network
+        self.prefix_len = prefix_len
+        self.a_address = a_address
+        self.b_address = b_address
+
+    def __str__(self) -> str:
+        return "P2PLink({self.network}/{self.prefix_len} a={self.a_address} b={self.b_address})"
+
+
+def nth_p2p(base: str, prefix_len: int, index: int) -> P2PLink:
+    """Compute the index-th point-to-point link of `prefix_len` (31 or 30)
+    within the `base` block.
+    """
+    if prefix_len != 31 and prefix_len != 30:
+        raise ValueError("point-to-point prefix-len must be 31 or 30, got {prefix_len}")
+    base_int = ipv4_to_int(base)
+    block = 2 if prefix_len == 31 else 4
+    net_int = base_int + (index * block)
+    a_int = net_int if prefix_len == 31 else net_int + 1
+    b_int = a_int + 1
+    return P2PLink(int_to_ipv4(net_int), prefix_len, int_to_ipv4(a_int), int_to_ipv4(b_int))
+
+
+actor SimpleAllocator(base: str, prefix_len: int = 31, log_handler: ?logging.Handler = None):
+    """Placeholder monotonic point-to-point allocator.
+
+    Hands out one P2PLink per key from `base`/`prefix_len`, monotonically.
+    Re-allocating the same key returns the same link (idempotent). Released
+    keys are forgotten but their indices are not reused (placeholder — the
+    real resource manager will reclaim). In-memory only.
+    """
+    _log = logging.Logger(log_handler)
+    var next_index = 0
+    var allocations: dict[str, P2PLink] = {}
+
+    def allocate(key: str) -> P2PLink:
+        existing = allocations.get(key)
+        if existing is not None:
+            return existing
+        link = nth_p2p(base, prefix_len, next_index)
+        next_index += 1
+        allocations[key] = link
+        _log.info("ipam: allocated p2p link", {"key": key, "link": str(link)})
+        return link
+
+    def get(key: str) -> ?P2PLink:
+        return allocations.get(key)
+
+    def release(key: str) -> None:
+        if key in allocations:
+            del allocations[key]
+            _log.info("ipam: released p2p link", {"key": key})
+
+    def list_allocations() -> dict[str, P2PLink]:
+        return allocations

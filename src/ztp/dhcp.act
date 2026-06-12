@@ -1,0 +1,118 @@
+from ztp.registry import ZtpDeviceState
+
+## Standardized mapping from ZTP mechanism to DHCP option(s).
+##
+## This is the part of the DHCP story StratoWeave owns: given a device and
+## the externally-reachable base URL of StratoWeave's own bootstrap
+## endpoints, compute the DHCP option(s) that point a booting device at us.
+## The mapping is standardized — the operator never hand-picks the option
+## number or its encoding:
+##
+##   SZTP (RFC 8572)     -> option 143 (v4) / 136 (v6), value = a length-
+##                          prefixed list of bootstrap-server URIs (the
+##                          "https://host[:port]" redirect; the device
+##                          appends the RESTCONF path after host-meta)
+##   classic IOS-XR/XE   -> option 67 bootfile-name, value = the per-device
+##                          classic bootfile URL StratoWeave serves
+##
+## The result is a vendor-neutral DhcpOption (code + encoding + value). How
+## it is rendered into a particular PE's DHCP-server config (an XR
+## option-codes leaf, an XE `option 143 hex ...`, a Kea option-data entry)
+## is the operator transform's job; the RFC tuple encoding for option 143,
+## being standardized, is computed here.
+
+OPT_V4_SZTP_REDIRECT = 143
+OPT_V6_SZTP_REDIRECT = 136
+OPT_CLASSIC_BOOTFILE = 67
+
+_HEXD = "0123456789abcdef"
+
+def _hex_byte(n: int) -> str:
+    return _HEXD[(n // 16) % 16] + _HEXD[n % 16]
+
+def _ascii_hex(s: str) -> str:
+    return "".join([_hex_byte(b) for b in s.encode()])
+
+def _u16_hex(n: int) -> str:
+    return _hex_byte((n // 256) % 256) + _hex_byte(n % 256)
+
+
+class DhcpOption(object):
+    """A DHCP option to hand a booting device, vendor-neutral.
+
+    `encoding` is "ascii" or "hex"; `value` is the option value in that
+    encoding. `description` is a human label for logs/UX.
+    """
+    code: int
+    encoding: str
+    value: str
+    description: str
+
+    def __init__(self, code: int, encoding: str, value: str, description: str):
+        self.code = code
+        self.encoding = encoding
+        self.value = value
+        self.description = description
+
+    def __str__(self) -> str:
+        return "DhcpOption(code={self.code}, {self.encoding}={self.value})"
+
+
+def sztp_redirect_uri_list_hex(uris: list[str]) -> str:
+    """RFC 8572 §8.3 bootstrap-server-list: back-to-back (uint16 length, URI)
+    tuples, as a hex string suitable for a raw DHCP option value.
+    """
+    out = ""
+    for uri in uris:
+        out += _u16_hex(len(uri)) + _ascii_hex(uri)
+    return out
+
+def sztp_redirect_option(server_https_base: str) -> DhcpOption:
+    """DHCPv4 option 143 pointing the device at our SZTP bootstrap server.
+
+    `server_https_base` is the redirect URI, e.g. "https://192.0.2.10" — no
+    path; the device discovers the RESTCONF root via /.well-known/host-meta.
+    """
+    return DhcpOption(
+        OPT_V4_SZTP_REDIRECT,
+        "hex",
+        sztp_redirect_uri_list_hex([server_https_base]),
+        "SZTP redirect -> {server_https_base}",
+    )
+
+def classic_bootfile_url(device_name: str, server_http_base: str) -> str:
+    """The per-device classic-ZTP bootfile URL StratoWeave serves."""
+    return "{server_http_base}/ztp/v1/device/{device_name}/bootfile"
+
+def classic_bootfile_option(device_name: str, server_http_base: str) -> DhcpOption:
+    """DHCPv4 option 67 (bootfile-name) for classic ZTP.
+
+    NOTE: some platforms reserve option 67 in their generic DHCP-server
+    option mechanism and set the bootfile via a dedicated command (e.g.
+    IOS-XR `bootfile <url>` in the server profile). The operator transform
+    maps this DhcpOption onto whichever node the PE platform uses.
+    """
+    return DhcpOption(
+        OPT_CLASSIC_BOOTFILE,
+        "ascii",
+        classic_bootfile_url(device_name, server_http_base),
+        "classic bootfile -> {classic_bootfile_url(device_name, server_http_base)}",
+    )
+
+
+def ztp_dhcp_options(st: ZtpDeviceState, server_https_base: str, server_http_base: str) -> list[DhcpOption]:
+    """The DHCP option(s) to serve a device, derived from its enabled
+    mechanisms.
+
+    A device may enable both mechanisms; note that on many platforms the
+    secure option (143) outranks the classic one (67), so serving both means
+    the device prefers SZTP. Operators who want a single deterministic mode
+    disable the other mechanism (or, in the prefix-bucket model, the pool the
+    /31 came from already implies the mode).
+    """
+    opts = []
+    if st.conf.sztp.enabled:
+        opts.append(sztp_redirect_option(server_https_base))
+    if st.conf.classic.enabled:
+        opts.append(classic_bootfile_option(st.name, server_http_base))
+    return opts

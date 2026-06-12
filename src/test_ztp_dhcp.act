@@ -1,0 +1,123 @@
+import testing
+
+import ipam as ipam
+import ztp.dhcp as ztpdhcp
+
+from device_meta_config import \
+    stratoweave_rfs__device__ztp as ZtpConfig, \
+    stratoweave_rfs__device__ztp__sztp as ZtpSztp, \
+    stratoweave_rfs__device__ztp__classic as ZtpClassic
+import ztp.registry as ztpreg
+
+
+def _state(name: str, sztp_enabled: bool=True, classic_enabled: bool=True) -> ztpreg.ZtpDeviceState:
+    conf = ZtpConfig(enabled=True, serial_number=None, day0_config=None,
+                     sztp=ZtpSztp(enabled=sztp_enabled), classic=ZtpClassic(enabled=classic_enabled))
+    return ztpreg.ZtpDeviceState(name, conf, "xr", "admin", "admin")
+
+
+#################################################################################
+## IPAM
+#################################################################################
+
+def _test_ipv4_roundtrip():
+    for a in ["0.0.0.0", "10.64.0.0", "192.168.1.255", "255.255.255.255", "172.31.254.7"]:
+        testing.assertEqual(ipam.int_to_ipv4(ipam.ipv4_to_int(a)), a)
+
+def _test_nth_p2p_31():
+    # /31 links within 10.64.0.0: link 0 = .0/.1, link 1 = .2/.3, link 5 = .10/.11
+    l0 = ipam.nth_p2p("10.64.0.0", 31, 0)
+    testing.assertEqual(l0.network, "10.64.0.0")
+    testing.assertEqual(l0.a_address, "10.64.0.0")
+    testing.assertEqual(l0.b_address, "10.64.0.1")
+    testing.assertEqual(l0.prefix_len, 31)
+    l5 = ipam.nth_p2p("10.64.0.0", 31, 5)
+    testing.assertEqual(l5.network, "10.64.0.10")
+    testing.assertEqual(l5.a_address, "10.64.0.10")
+    testing.assertEqual(l5.b_address, "10.64.0.11")
+
+def _test_nth_p2p_30():
+    # /30: usable hosts are .1/.2 (network .0, broadcast .3)
+    l0 = ipam.nth_p2p("10.64.0.0", 30, 0)
+    testing.assertEqual(l0.network, "10.64.0.0")
+    testing.assertEqual(l0.a_address, "10.64.0.1")
+    testing.assertEqual(l0.b_address, "10.64.0.2")
+    l1 = ipam.nth_p2p("10.64.0.0", 30, 1)
+    testing.assertEqual(l1.network, "10.64.0.4")
+    testing.assertEqual(l1.a_address, "10.64.0.5")
+
+def _test_nth_p2p_carry():
+    # crossing an octet boundary: 10.64.0.254/.255 then 10.64.1.0/.1
+    l127 = ipam.nth_p2p("10.64.0.0", 31, 127)
+    testing.assertEqual(l127.a_address, "10.64.0.254")
+    testing.assertEqual(l127.b_address, "10.64.0.255")
+    l128 = ipam.nth_p2p("10.64.0.0", 31, 128)
+    testing.assertEqual(l128.a_address, "10.64.1.0")
+
+def _test_nth_p2p_bad_prefix():
+    raised = False
+    try:
+        ignore = ipam.nth_p2p("10.64.0.0", 24, 0)
+    except ValueError:
+        raised = True
+    testing.assertTrue(raised)
+
+actor _test_allocator(t: testing.AsyncT):
+    alloc = ipam.SimpleAllocator("10.64.0.0", 31, t.log_handler)
+
+    def check():
+        a = alloc.allocate("cpe-a")
+        b = alloc.allocate("cpe-b")
+        a2 = alloc.allocate("cpe-a")   # idempotent
+        if a.a_address == "10.64.0.0" and b.a_address == "10.64.0.2" and a2.a_address == a.a_address:
+            t.success()
+        else:
+            t.failure(AssertionError("unexpected allocation: a={a.a_address} b={b.a_address} a2={a2.a_address}"))
+
+    after 0.05: check()
+
+
+#################################################################################
+## DHCP option helper
+#################################################################################
+
+def _test_sztp_redirect_tuple():
+    # RFC 8572 §8.3: uint16 length + URI. "https://192.0.2.10" = 18 bytes = 0x0012
+    opt = ztpdhcp.sztp_redirect_option("https://192.0.2.10")
+    testing.assertEqual(opt.code, 143)
+    testing.assertEqual(opt.encoding, "hex")
+    # 0012 + ascii-hex("https://192.0.2.10")
+    expected = "0012" + "68747470733a2f2f3139322e302e322e3130"
+    testing.assertEqual(opt.value, expected)
+
+def _test_sztp_redirect_len():
+    # decode: first 2 hex bytes are the length; rest is the URI ascii
+    uri = "https://10.0.0.1:8443"
+    opt = ztpdhcp.sztp_redirect_option(uri)
+    len_hex = opt.value[0:4]
+    testing.assertEqual(len_hex, "0015")   # 21 bytes
+    testing.assertEqual(len(opt.value), 4 + 2 * len(uri))
+
+def _test_classic_bootfile_url():
+    opt = ztpdhcp.classic_bootfile_option("cpe1", "http://192.0.2.10")
+    testing.assertEqual(opt.code, 67)
+    testing.assertEqual(opt.encoding, "ascii")
+    testing.assertEqual(opt.value, "http://192.0.2.10/ztp/v1/device/cpe1/bootfile")
+
+def _test_ztp_dhcp_options_both():
+    opts = ztpdhcp.ztp_dhcp_options(_state("cpe1"), "https://192.0.2.10", "http://192.0.2.10")
+    codes = [o.code for o in opts]
+    testing.assertIn(143, codes)
+    testing.assertIn(67, codes)
+
+def _test_ztp_dhcp_options_sztp_only():
+    opts = ztpdhcp.ztp_dhcp_options(_state("cpe1", classic_enabled=False), "https://192.0.2.10", "http://192.0.2.10")
+    codes = [o.code for o in opts]
+    testing.assertIn(143, codes)
+    testing.assertNotIn(67, codes)
+
+def _test_ztp_dhcp_options_classic_only():
+    opts = ztpdhcp.ztp_dhcp_options(_state("cpe1", sztp_enabled=False), "https://192.0.2.10", "http://192.0.2.10")
+    codes = [o.code for o in opts]
+    testing.assertIn(67, codes)
+    testing.assertNotIn(143, codes)
