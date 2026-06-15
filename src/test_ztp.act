@@ -9,12 +9,16 @@ from device_meta_config import \
     stratoweave_rfs__device__credentials as Credentials, \
     stratoweave_rfs__device__ztp as ZtpConfig, \
     stratoweave_rfs__device__ztp__sztp as ZtpSztp, \
-    stratoweave_rfs__device__ztp__classic as ZtpClassic
+    stratoweave_rfs__device__ztp__classic as ZtpClassic, \
+    stratoweave_rfs__device__mock as Mock
 
 import ztp.registry as ztpreg
 import ztp.sztp as ztpsztp
 import ztp.classic as ztpclassic
 import device as swdev
+import adapters.netconf as swna
+import net
+import yang
 
 
 def make_ztp_dmc(name: str, serial: ?str=None, ztp_enabled: bool=True, sztp_enabled: bool=True, classic_enabled: bool=True) -> DeviceMetaConfig:
@@ -442,3 +446,58 @@ def _test_day0_raw_requires_config():
     except ValueError:
         raised = True
     testing.assertTrue(raised)
+
+
+#################################################################################
+## Onboard-only (ZTP-as-a-Service hands-off mode)
+#################################################################################
+
+# A netconf DeviceType needs a compiled schema, but an onboard-only device is
+# never connected, so nothing in this model is ever served.
+ONBOARD_ONLY_YANG = r"""module onboard-only-test {
+  yang-version "1.1";
+  namespace "urn:example:onboard-only-test";
+  prefix oot;
+  container system-state {
+    config false;
+    leaf current-datetime {
+      type string;
+    }
+  }
+}"""
+
+actor _test_onboard_only_hands_off(t: testing.EnvT):
+    """An onboard-only device registers for ZTP but is never managed: the
+    DeviceMgr keeps the inert NoAdapter even for a real (netconf) device type
+    with mock enabled, which would otherwise connect."""
+    ztpr = ztpreg.ZtpRegistry(t.log_handler)
+    schema = yang.compile([ONBOARD_ONLY_YANG])
+    dev_types = {
+        "netconf": swdev.DeviceType(name="netconf", adapter_type=swna.NetconfAdapter, src_dnode=schema)
+    }
+    # connect_cap present so the device would really try to connect if managed
+    dev_registry = swdev.DeviceRegistry(dev_types, net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))), t.log_handler, ztpr)
+    dev = dev_registry.get_or_create("cpe1")
+
+    dmc = DeviceMetaConfig(
+        name="cpe1",
+        credentials=Credentials("nso-user", "nso-secret"),
+        type="netconf",
+        mock=Mock(enabled=True),
+        ztp=ZtpConfig(enabled=True, serial_number="SN-NSO", onboard_only=True,
+                      day0_config=None, sztp=ZtpSztp(enabled=True), classic=ZtpClassic(enabled=True)),
+    )
+    dev.set_dmc(dmc)
+
+    def check():
+        # registered for ZTP (bootstrap + status still work)
+        st = ztpr.get("cpe1")
+        if st is not None:
+            # but NOT managed: NoAdapter -> no capabilities, never connected
+            testing.assertEqual(len(dev.get_capabilities()), 0)
+            testing.assertNotEqual(st.phase, ztpreg.PHASE_CONNECTED)
+            t.success()
+        else:
+            t.failure(AssertionError("onboard-only device not registered for ZTP"))
+
+    after 0.2: check()

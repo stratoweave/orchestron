@@ -32,7 +32,10 @@ SRC_DNODE_CHILD_2: DList = DList(module='netinfra', namespace='http://example.co
     DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='serial', config=True, description='CPE bootstrap identity (SZTP serial); defaults to name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe', config=True, description='PE router that hosts the inline DHCP server', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe-interface', config=True, description='PE interface facing the CPE (the /31 access link)', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='link-index', config=True, description='Index of the /31 onboarding link within the onboarding block.\nDeterministically maps to a PE/CPE address pair. A real resource\nmanager will assign this; for now it is supplied in config.', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='link-index', config=True, description='Index of the /31 onboarding link within the onboarding block.\nDeterministically maps to a PE/CPE address pair. A real resource\nmanager will assign this; for now it is supplied in config.', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='username', config=True, description='Day-0 credential the device comes up with (supplied by\nthe upstream orchestrator; StratoWeave renders the per-OS config)', default='admin', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='password', config=True, default='admin', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='onboard-only', config=True, description='ZTP-as-a-Service: bring the device to day-0 then forget\nit (StratoWeave never manages it; the upstream orchestrator does)', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
 ])
 
 SRC_DNODE_CHILD_3: DList = DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='router', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
@@ -257,6 +260,22 @@ SRC_YANG_1: str = r"""module netinfra {
           manager will assign this; for now it is supplied in config.";
         type uint32;
         mandatory true;
+      }
+      leaf username {
+        description "Day-0 credential the device comes up with (supplied by
+          the upstream orchestrator; StratoWeave renders the per-OS config)";
+        type string;
+        default "admin";
+      }
+      leaf password {
+        type string;
+        default "admin";
+      }
+      leaf onboard-only {
+        description "ZTP-as-a-Service: bring the device to day-0 then forget
+          it (StratoWeave never manages it; the upstream orchestrator does)";
+        type boolean;
+        default "false";
       }
     }
 
@@ -890,20 +909,26 @@ class netinfra__netinfra__ztp_onboarding_entry(yadata.MNode):
     pe: ?str
     pe_interface: ?str
     link_index: ?u64
+    username: ?str
+    password: ?str
+    onboard_only: ?bool
 
-    mut def __init__(self, name: str, serial: ?str, pe: ?str, pe_interface: ?str, link_index: ?u64) -> None:
+    mut def __init__(self, name: str, serial: ?str, pe: ?str, pe_interface: ?str, link_index: ?u64, username: ?str, password: ?str, onboard_only: ?bool) -> None:
         self.name = name
         self.serial = serial
         self.pe = pe
         self.pe_interface = pe_interface
         self.link_index = link_index
+        self.username = username
+        self.password = password
+        self.onboard_only = onboard_only
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:netinfra', 'ztp-onboarding'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> netinfra__netinfra__ztp_onboarding_entry:
-        return netinfra__netinfra__ztp_onboarding_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'serial')), pe=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe')), pe_interface=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe-interface')), link_index=n.get_opt_u64(ygdata.Id(NS_netinfra, 'link-index')))
+        return netinfra__netinfra__ztp_onboarding_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'serial')), pe=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe')), pe_interface=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe-interface')), link_index=n.get_opt_u64(ygdata.Id(NS_netinfra, 'link-index')), username=n.get_opt_str(ygdata.Id(NS_netinfra, 'username')), password=n.get_opt_str(ygdata.Id(NS_netinfra, 'password')), onboard_only=n.get_opt_bool(ygdata.Id(NS_netinfra, 'onboard-only')))
 
     mut def copy(self) -> netinfra__netinfra__ztp_onboarding_entry:
         """Create a deep copy of this adata object"""
@@ -914,7 +939,7 @@ class netinfra__netinfra__ztp_onboarding(yadata.MKeyedList[str, netinfra__netinf
     mut def __init__(self, elements: list[netinfra__netinfra__ztp_onboarding_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
-    mut def create(self, key: str, serial: ?str=None, pe: ?str=None, pe_interface: ?str=None, link_index: ?u64=None) -> netinfra__netinfra__ztp_onboarding_entry:
+    mut def create(self, key: str, serial: ?str=None, pe: ?str=None, pe_interface: ?str=None, link_index: ?u64=None, username: ?str=None, password: ?str=None, onboard_only: ?bool=None) -> netinfra__netinfra__ztp_onboarding_entry:
         e = self.get(key)
         if e is not None:
             if serial is not None:
@@ -925,9 +950,15 @@ class netinfra__netinfra__ztp_onboarding(yadata.MKeyedList[str, netinfra__netinf
                 e.pe_interface = pe_interface
             if link_index is not None:
                 e.link_index = link_index
+            if username is not None:
+                e.username = username
+            if password is not None:
+                e.password = password
+            if onboard_only is not None:
+                e.onboard_only = onboard_only
             return e
         name = key
-        res = netinfra__netinfra__ztp_onboarding_entry(name=name, serial=serial, pe=pe, pe_interface=pe_interface, link_index=link_index)
+        res = netinfra__netinfra__ztp_onboarding_entry(name=name, serial=serial, pe=pe, pe_interface=pe_interface, link_index=link_index, username=username, password=password, onboard_only=onboard_only)
         self.elements.append(res)
         return res
 
@@ -1320,6 +1351,9 @@ class netinfra__netinfra__ztp_onboarding_entry_subs(SubscriptionNode):
     pe: SubscriptionNode
     pe_interface: SubscriptionNode
     link_index: SubscriptionNode
+    username: SubscriptionNode
+    password: SubscriptionNode
+    onboard_only: SubscriptionNode
 
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
         SubscriptionNode.__init__(self, path)
@@ -1328,9 +1362,12 @@ class netinfra__netinfra__ztp_onboarding_entry_subs(SubscriptionNode):
         self.pe = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe'), parent=path))
         self.pe_interface = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe-interface'), parent=path))
         self.link_index = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'link-index'), parent=path))
+        self.username = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'username'), parent=path))
+        self.password = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'password'), parent=path))
+        self.onboard_only = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'onboard-only'), parent=path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.name, self.serial, self.pe, self.pe_interface, self.link_index]
+        direct: list[SubscriptionNode] = [self.name, self.serial, self.pe, self.pe_interface, self.link_index, self.username, self.password, self.onboard_only]
         return direct
 
 _breaker17: None = None
@@ -1340,6 +1377,9 @@ class netinfra__netinfra__ztp_onboarding_subs(SubscriptionNode):
     pe: SubscriptionNode
     pe_interface: SubscriptionNode
     link_index: SubscriptionNode
+    username: SubscriptionNode
+    password: SubscriptionNode
+    onboard_only: SubscriptionNode
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
         SubscriptionNode.__init__(self, path)
         self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'name'), parent=path))
@@ -1347,6 +1387,9 @@ class netinfra__netinfra__ztp_onboarding_subs(SubscriptionNode):
         self.pe = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe'), parent=path))
         self.pe_interface = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'pe-interface'), parent=path))
         self.link_index = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'link-index'), parent=path))
+        self.username = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'username'), parent=path))
+        self.password = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'password'), parent=path))
+        self.onboard_only = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_netinfra, 'onboard-only'), parent=path))
 
     pure def entry(self, name: str) -> netinfra__netinfra__ztp_onboarding_entry_subs:
         predicates = [
@@ -1356,7 +1399,7 @@ class netinfra__netinfra__ztp_onboarding_subs(SubscriptionNode):
         return netinfra__netinfra__ztp_onboarding_entry_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'ztp-onboarding'), predicates=predicates, parent=base_path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.name, self.serial, self.pe, self.pe_interface, self.link_index]
+        direct: list[SubscriptionNode] = [self.name, self.serial, self.pe, self.pe_interface, self.link_index, self.username, self.password, self.onboard_only]
         return direct
 
 _breaker18: None = None

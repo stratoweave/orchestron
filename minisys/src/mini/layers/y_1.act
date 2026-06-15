@@ -81,6 +81,7 @@ SRC_DNODE_CHILD_10: DContainer = DContainer(module='stratoweave-rfs', namespace=
 SRC_DNODE_CHILD_11: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='ztp', config=True, description="Zero Touch Provisioning. When enabled, StratoWeave offers\nbootstrapping data for this device through the enabled ZTP\nmechanisms and learns the device's management address from the\nbootstrap exchange.", presence=False, children=[
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='enabled', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='serial-number', config=True, description='Device identity used to match incoming bootstrap requests\n(e.g. the SZTP serial number). Defaults to the device name.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='onboard-only', config=True, description="ZTP-as-a-Service mode. When true, StratoWeave only serves\nbootstrapping data and tracks progress for this device; it never\nestablishes a managing NETCONF session and never reconciles the\ndevice's configuration (it uses the inert NoAdapter). An upstream\norchestrator owns the device after day-0.", default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='day0-config', config=True, description='Verbatim day-0 bootstrap configuration / script. If unset, the\nday-0 artifact is rendered from a template selected by the\nformat leaf.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='format', config=True, description='Day-0 template format used to render the bootstrap artifact\nwhen day0-config is unset. Applies to all ZTP mechanisms (the\nSZTP onboarding-information and the classic bootfile render the\nsame day-0 config).', default='xr-config', mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'xr-config':0, 'xe-python':1, 'raw':2})),
     DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='sztp', config=True, description='RFC 8572 Secure Zero Touch Provisioning', presence=False, children=[
@@ -492,6 +493,16 @@ SRC_YANG_2: str = r"""module stratoweave-rfs {
           "Device identity used to match incoming bootstrap requests
           (e.g. the SZTP serial number). Defaults to the device name.";
         type string;
+      }
+      leaf onboard-only {
+        description
+          "ZTP-as-a-Service mode. When true, StratoWeave only serves
+          bootstrapping data and tracks progress for this device; it never
+          establishes a managing NETCONF session and never reconciles the
+          device's configuration (it uses the inert NoAdapter). An upstream
+          orchestrator owns the device after day-0.";
+        type boolean;
+        default "false";
       }
       leaf day0-config {
         description
@@ -1433,14 +1444,16 @@ _breaker17: None = None
 class stratoweave_rfs__device__ztp(yadata.MNode):
     enabled: bool
     serial_number: ?str
+    onboard_only: bool
     day0_config: ?str
     format: str
     sztp: stratoweave_rfs__device__ztp__sztp
     classic: stratoweave_rfs__device__ztp__classic
 
-    mut def __init__(self, enabled: ?bool=None, serial_number: ?str, day0_config: ?str, format: ?str=None, sztp: ?stratoweave_rfs__device__ztp__sztp=None, classic: ?stratoweave_rfs__device__ztp__classic=None) -> None:
+    mut def __init__(self, enabled: ?bool=None, serial_number: ?str, onboard_only: ?bool=None, day0_config: ?str, format: ?str=None, sztp: ?stratoweave_rfs__device__ztp__sztp=None, classic: ?stratoweave_rfs__device__ztp__classic=None) -> None:
         self.enabled = enabled if enabled is not None else False
         self.serial_number = serial_number
+        self.onboard_only = onboard_only if onboard_only is not None else False
         self.day0_config = day0_config
         self.format = format if format is not None else "xr-config"
         self.sztp = sztp if sztp is not None else stratoweave_rfs__device__ztp__sztp()
@@ -1452,7 +1465,7 @@ class stratoweave_rfs__device__ztp(yadata.MNode):
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__ztp:
         if n is not None:
-            return stratoweave_rfs__device__ztp(enabled=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'enabled')), serial_number=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'serial-number')), day0_config=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'day0-config')), format=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'format')), sztp=stratoweave_rfs__device__ztp__sztp.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'sztp'))), classic=stratoweave_rfs__device__ztp__classic.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'classic'))))
+            return stratoweave_rfs__device__ztp(enabled=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'enabled')), serial_number=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'serial-number')), onboard_only=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'onboard-only')), day0_config=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'day0-config')), format=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'format')), sztp=stratoweave_rfs__device__ztp__sztp.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'sztp'))), classic=stratoweave_rfs__device__ztp__classic.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'classic'))))
         return stratoweave_rfs__device__ztp()
 
     mut def copy(self) -> stratoweave_rfs__device__ztp:

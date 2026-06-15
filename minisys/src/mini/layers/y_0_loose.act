@@ -18,45 +18,50 @@ from yang.type import Decimal, Ranges
 _identities: list[DIdentity] = []
 
 
-SRC_DNODE_CHILD_0: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='netinfra', config=True, description='Network infrastructure', presence=False, children=[
-    DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='global-settings', config=True, presence=False, exts=[
-            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.GlobalSettings', exts=[])
+SRC_DNODE_CHILD_1: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='global-settings', config=True, presence=False, exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.GlobalSettings', exts=[])
+    ], children=[
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='asn', config=True, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+])
+
+SRC_DNODE_CHILD_2: DList = DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-onboarding', key=['name'], config=True, description='Onboard a CPE via an inline DHCP server on a PE port.', min_elements=0, ordered_by='system', exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.ZtpOnboarding', exts=[])
+    ], children=[
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='name', config=True, description='Name of the CPE device to onboard and create', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='serial', config=True, description='CPE bootstrap identity (SZTP serial); defaults to name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe', config=True, description='PE router that hosts the inline DHCP server', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe-interface', config=True, description='PE interface facing the CPE (the /31 access link)', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='link-index', config=True, description='Index of the /31 onboarding link within the onboarding block.\nDeterministically maps to a PE/CPE address pair. A real resource\nmanager will assign this; for now it is supplied in config.', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='username', config=True, description='Day-0 credential the device comes up with (supplied by\nthe upstream orchestrator; StratoWeave renders the per-OS config)', default='admin', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='password', config=True, default='admin', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='onboard-only', config=True, description='ZTP-as-a-Service: bring the device to day-0 then forget\nit (StratoWeave never manages it; the upstream orchestrator does)', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+])
+
+SRC_DNODE_CHILD_3: DList = DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='router', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.Router', exts=[]),
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='global', exts=[DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='path', arg='/netinfra/global-settings', exts=[])])
+    ], children=[
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='id', config=True, description='router id', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='type', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='mock', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp', config=True, description='Onboard this router with Zero Touch Provisioning: no\nmanagement address is configured; StratoWeave offers bootstrapping\ndata and learns the address from the bootstrap exchange.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='hostname', config=True, description='Hostname configured on the router, defaults to the\nrouter name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-serial', config=True, description='Bootstrap identity (serial number) of the router,\ndefaults to the router name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='dynstate', config=True, presence=False, exts=[
+            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='dynstate', arg=None, exts=[])
         ], children=[
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='asn', config=True, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
-    ]),
-    DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-onboarding', key=['name'], config=True, description='Onboard a CPE via an inline DHCP server on a PE port.', min_elements=0, ordered_by='system', exts=[
-            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.ZtpOnboarding', exts=[])
-        ], children=[
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='name', config=True, description='Name of the CPE device to onboard and create', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='serial', config=True, description='CPE bootstrap identity (SZTP serial); defaults to name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe', config=True, description='PE router that hosts the inline DHCP server', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='pe-interface', config=True, description='PE interface facing the CPE (the /31 access link)', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='link-index', config=True, description='Index of the /31 onboarding link within the onboarding block.\nDeterministically maps to a PE/CPE address pair. A real resource\nmanager will assign this; for now it is supplied in config.', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
-    ]),
-    DList(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='router', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
-            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.Router', exts=[]),
-            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='global', exts=[DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='path', arg='/netinfra/global-settings', exts=[])])
-        ], children=[
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='id', config=True, description='router id', mandatory=True, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='type', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='mock', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp', config=True, description='Onboard this router with Zero Touch Provisioning: no\nmanagement address is configured; StratoWeave offers bootstrapping\ndata and learns the address from the bootstrap exchange.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='hostname', config=True, description='Hostname configured on the router, defaults to the\nrouter name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='ztp-serial', config=True, description='Bootstrap identity (serial number) of the router,\ndefaults to the router name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='dynstate', config=True, presence=False, exts=[
-                DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='dynstate', arg=None, exts=[])
-            ], children=[
-            DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='current-datetime', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-        ])
+        DLeaf(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='current-datetime', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
     ])
 ])
 
-SRC_DNODE_CHILD_1: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='p-container', config=True, presence=True, exts=[
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='netinfra', config=True, description='Network infrastructure', presence=False, children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3])
+
+SRC_DNODE_CHILD_4: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='p-container', config=True, presence=True, exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.PContainer', exts=[])
     ])
 
-SRC_DNODE_CHILD_2: DList = DList(module='l3vpn', namespace='http://example.com/l3vpn', prefix='l3vpn', name='l3vpn', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+SRC_DNODE_CHILD_5: DList = DList(module='l3vpn', namespace='http://example.com/l3vpn', prefix='l3vpn', name='l3vpn', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.L3vpn', exts=[]),
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='global', exts=[DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='path', arg='/netinfra:netinfra/netinfra:global-settings', exts=[])])
     ], children=[
@@ -85,7 +90,7 @@ SRC_DNODE_CHILD_2: DList = DList(module='l3vpn', namespace='http://example.com/l
 ])
 
 SRC_DNODE: DRoot = DRoot(
-    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2],
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5],
     identities=[],
     rpcs=[],
     module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://example.com/netinfra':('netinfra', '2019-01-01'), 'http://example.com/l3vpn':('l3vpn', '2019-01-01')},
@@ -251,6 +256,22 @@ SRC_YANG_1: str = r"""module netinfra {
           manager will assign this; for now it is supplied in config.";
         type uint32;
         mandatory true;
+      }
+      leaf username {
+        description "Day-0 credential the device comes up with (supplied by
+          the upstream orchestrator; StratoWeave renders the per-OS config)";
+        type string;
+        default "admin";
+      }
+      leaf password {
+        type string;
+        default "admin";
+      }
+      leaf onboard-only {
+        description "ZTP-as-a-Service: bring the device to day-0 then forget
+          it (StratoWeave never manages it; the upstream orchestrator does)";
+        type boolean;
+        default "false";
       }
     }
 
@@ -884,20 +905,26 @@ class netinfra__netinfra__ztp_onboarding_entry(yadata.MNode):
     pe: ?str
     pe_interface: ?str
     link_index: ?u64
+    username: ?str
+    password: ?str
+    onboard_only: ?bool
 
-    mut def __init__(self, name: str, serial: ?str, pe: ?str, pe_interface: ?str, link_index: ?u64) -> None:
+    mut def __init__(self, name: str, serial: ?str, pe: ?str, pe_interface: ?str, link_index: ?u64, username: ?str, password: ?str, onboard_only: ?bool) -> None:
         self.name = name
         self.serial = serial
         self.pe = pe
         self.pe_interface = pe_interface
         self.link_index = link_index
+        self.username = username
+        self.password = password
+        self.onboard_only = onboard_only
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:netinfra', 'ztp-onboarding'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> netinfra__netinfra__ztp_onboarding_entry:
-        return netinfra__netinfra__ztp_onboarding_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'serial')), pe=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe')), pe_interface=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe-interface')), link_index=n.get_opt_u64(ygdata.Id(NS_netinfra, 'link-index')))
+        return netinfra__netinfra__ztp_onboarding_entry(name=n.get_str(ygdata.Id(NS_netinfra, 'name')), serial=n.get_opt_str(ygdata.Id(NS_netinfra, 'serial')), pe=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe')), pe_interface=n.get_opt_str(ygdata.Id(NS_netinfra, 'pe-interface')), link_index=n.get_opt_u64(ygdata.Id(NS_netinfra, 'link-index')), username=n.get_opt_str(ygdata.Id(NS_netinfra, 'username')), password=n.get_opt_str(ygdata.Id(NS_netinfra, 'password')), onboard_only=n.get_opt_bool(ygdata.Id(NS_netinfra, 'onboard-only')))
 
     mut def copy(self) -> netinfra__netinfra__ztp_onboarding_entry:
         """Create a deep copy of this adata object"""
@@ -908,7 +935,7 @@ class netinfra__netinfra__ztp_onboarding(yadata.MKeyedList[str, netinfra__netinf
     mut def __init__(self, elements: list[netinfra__netinfra__ztp_onboarding_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
-    mut def create(self, key: str, serial: ?str=None, pe: ?str=None, pe_interface: ?str=None, link_index: ?u64=None) -> netinfra__netinfra__ztp_onboarding_entry:
+    mut def create(self, key: str, serial: ?str=None, pe: ?str=None, pe_interface: ?str=None, link_index: ?u64=None, username: ?str=None, password: ?str=None, onboard_only: ?bool=None) -> netinfra__netinfra__ztp_onboarding_entry:
         e = self.get(key)
         if e is not None:
             if serial is not None:
@@ -919,9 +946,15 @@ class netinfra__netinfra__ztp_onboarding(yadata.MKeyedList[str, netinfra__netinf
                 e.pe_interface = pe_interface
             if link_index is not None:
                 e.link_index = link_index
+            if username is not None:
+                e.username = username
+            if password is not None:
+                e.password = password
+            if onboard_only is not None:
+                e.onboard_only = onboard_only
             return e
         name = key
-        res = netinfra__netinfra__ztp_onboarding_entry(name=name, serial=serial, pe=pe, pe_interface=pe_interface, link_index=link_index)
+        res = netinfra__netinfra__ztp_onboarding_entry(name=name, serial=serial, pe=pe, pe_interface=pe_interface, link_index=link_index, username=username, password=password, onboard_only=onboard_only)
         self.elements.append(res)
         return res
 

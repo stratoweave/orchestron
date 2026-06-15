@@ -45,13 +45,21 @@ class ZtpOnboarding(base.ZtpOnboarding):
         cpe.type = "xr"
         cpe.approval_required = False
         cpe.ztp.enabled = True
+        # ZTP-as-a-Service: when onboard-only, StratoWeave brings the device
+        # to day-0 and then forgets it (the upstream orchestrator manages it).
+        cpe.ztp.onboard_only = i.onboard_only
         serial = i.serial
         if serial is not None:
             cpe.ztp.serial_number = serial
+        # The day-0 credentials are inputs from the upstream orchestrator;
+        # StratoWeave renders the actual per-OS day-0 config from them.
+        cpe.credentials.username = i.username
+        cpe.credentials.password = i.password
+        # The CPE's management address is the far end of the /31, known up
+        # front (deterministic) — no discovery. For an onboard-only device the
+        # NoAdapter means it is never connected despite having an address.
         cpe_addr = cpe.address.create("oob")
         cpe_addr.address = link.b_address
-        cpe.credentials.username = "clab"
-        cpe.credentials.password = "clab@123"
 
         # The PE-side DHCP service. The DHCP option (143 SZTP redirect) is the
         # standardized value from the platform helper; rendering it into the

@@ -211,6 +211,16 @@ rfs = r"""module stratoweave-rfs {
           (e.g. the SZTP serial number). Defaults to the device name.";
         type string;
       }
+      leaf onboard-only {
+        description
+          "ZTP-as-a-Service mode. When true, StratoWeave only serves
+          bootstrapping data and tracks progress for this device; it never
+          establishes a managing NETCONF session and never reconciles the
+          device's configuration (it uses the inert NoAdapter). An upstream
+          orchestrator owns the device after day-0.";
+        type boolean;
+        default "false";
+      }
       leaf day0-config {
         description
           "Verbatim day-0 bootstrap configuration / script. If unset, the

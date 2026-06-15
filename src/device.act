@@ -474,7 +474,16 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         _log.debug("DeviceMgr.set_dmc", {"old_type": old_type, "new_dmc": new_dmc.to_gdata().to_yang_jsonstr(pretty=False)})
 
         new_dmc_type = new_dmc.type
-        if new_dmc_type is not None:
+        onboard_only = new_dmc.ztp.onboard_only
+        if onboard_only:
+            # ZTP-as-a-Service: StratoWeave only serves bootstrapping data and
+            # tracks progress (both via the HTTP bootstrap server, no adapter
+            # needed). It never manages this device, so keep the inert
+            # NoAdapter — an upstream orchestrator owns the device after day-0.
+            if not isinstance(adapter, NoAdapter):
+                adapter = NoAdapter(bundled_schema, _log_handler, connect_cap)
+                _log.info("DeviceMgr.set_dmc: onboard-only device, staying hands-off (NoAdapter)", {"name": name})
+        elif new_dmc_type is not None:
             device_type = dev_types.get(new_dmc_type)
             if device_type is not None:
                 type_changed = old_type != str(new_dmc.type)

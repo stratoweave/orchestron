@@ -51,6 +51,22 @@ module netinfra {
         type uint32;
         mandatory true;
       }
+      leaf username {
+        description "Day-0 credential the device comes up with (supplied by
+          the upstream orchestrator; StratoWeave renders the per-OS config)";
+        type string;
+        default "admin";
+      }
+      leaf password {
+        type string;
+        default "admin";
+      }
+      leaf onboard-only {
+        description "ZTP-as-a-Service: bring the device to day-0 then forget
+          it (StratoWeave never manages it; the upstream orchestrator does)";
+        type boolean;
+        default "false";
+      }
     }
 
     list router {

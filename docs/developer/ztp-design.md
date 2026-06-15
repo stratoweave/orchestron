@@ -335,37 +335,60 @@ healthier posture and resolves the two-orchestrator hazard.
   so NSO can pin it, and the provisioned identity. Exposed as `config false`
   oper state (subscribable/pollable); optionally pushed to NSO via a callout.
 
-### Onboard-only ownership (the load-bearing rule)
+### Onboard-only ownership — forget the device once it is up (the load-bearing rule)
 
-A SWZTPaaS device is **onboard-only**: StratoWeave configures *only* day-0 and
-then **stops reconciling the device's config**. If StratoWeave kept pushing a
-full target config while NSO also configured the device, the two would fight
-(drift, competing edits). So this is a distinct device mode — StratoWeave brings
-the device to day-0-ready, reports the result, and goes hands-off. The normal
-StratoWeave posture (own the full intended config) is the *other* mode; ZTPaaS
-needs an explicit `onboard-only` / handoff flag on the device so the device
-manager does not run its reconcile loop after day-0.
+A SWZTPaaS device is **onboard-only**: StratoWeave serves it bootstrapping data,
+tracks progress, and then **forgets it** — it never establishes a managing
+NETCONF session and never reconciles the device's config. If StratoWeave kept a
+managing session while NSO also configured the device, the two would fight
+(drift, competing edits). Clean implementation: an `onboard-only` flag makes the
+device manager keep a **NoAdapter** (the inert adapter) instead of building the
+connecting NETCONF adapter, so the device registers for ZTP (the HTTP bootstrap
+server + progress tracking need no adapter) but is never connected or managed.
+The normal StratoWeave posture (own the full intended config) is the *other*
+mode; `onboard-only` is the ZTPaaS one.
 
-### Who defines "a certain level"
+### Who defines "a certain level": NSO gives inputs, StratoWeave renders per-OS
 
-NSO does — via the day-0 intent it supplies. StratoWeave is delivery mechanism;
-NSO is policy (reinforcing the `day0-config` override). Because NSO supplies the
-access config, **it already holds the credentials/keys**, so the handoff payload
-shrinks to "ready + host-key to pin" — a clean, minimal-trust transfer.
+NSO supplies day-0 **inputs** — the credentials/keys it wants on the device —
+**not** the config text. StratoWeave computes the actual day-0 config, because
+the correct config differs by device OS/version (an older OS needs different
+commands); making NSO ship one config intent per OS would be backwards. So NSO =
+parameters, StratoWeave = per-device-type rendering (the `_xr_config_body` /
+`_xe_cli_lines` templates, parameterised by the supplied credentials). The
+verbatim `day0-config` override remains an escape hatch, but the normal ZTPaaS
+path is inputs-in, per-OS-config-out. Because NSO supplied the credentials, it
+already holds them for the takeover.
+
+### NSO needs no completion signal
+
+NSO already has everything to detect readiness itself: it **allocated the /31**
+(so it knows the device's management address) and it **supplied the credentials**
+— so it simply polls the address and logs in when the device answers. StratoWeave
+therefore does not need to push a handoff event. It **does** expose onboarding
+status (phase, progress, captured SSH host key) as `config false` oper state; once
+StratoWeave supports streaming telemetry, NSO (when it supports it) can subscribe
+for progress instead of polling. No outbound callout to NSO is required.
+
+(Note the IPAM ownership flips by deployment: in ZTPaaS **NSO owns IPAM** and
+supplies the /31 / addresses in the request; standalone StratoWeave allocates
+them itself. The `ztp-onboarding` request carries either explicit addresses
+(NSO mode) or a link-index StratoWeave resolves (standalone mode).)
 
 ### Lifecycle
 
-Request → in-progress → day-0-ready (result available) → handed-off → released.
-After handoff the temporal `ztp-mode` flips off (stop serving DHCP; release the
-/31 or keep it as the now-NSO-managed management prefix). The onboarding status
-is the same `ZtpRegistry` phase, surfaced as oper state for NSO to consume.
+Request → in-progress → day-0-ready → forgotten. After day-0 the temporal
+`ztp-mode` flips off (stop serving DHCP; release the /31 or keep it as the
+now-NSO-managed management prefix). Onboarding status is the `ZtpRegistry` phase,
+surfaced as oper state for NSO to read.
 
 ### What this adds to the prototype
 
-Mostly additive: an **onboard-only device mode** (suppress the full-config
-reconcile after day-0), an **onboarding-result oper model** for NSO to read back
-(address + ssh-host-key + status), and optionally a **push callout** to NSO on
-completion. The request side already exists as the `ztp-onboarding` service.
+Additive: an **onboard-only device mode** (NoAdapter — never connect/manage),
+**day-0 credential inputs** in the onboarding request (flow into the device
+credentials and thus the per-OS day-0 render), and an **onboarding-status oper
+model** for NSO to read back (address + ssh-host-key + phase). The request side
+already exists as the `ztp-onboarding` service.
 
 ## 6. The address problem — how a discovered IP activates the device
 
