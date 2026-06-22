@@ -1,3 +1,61 @@
+"""TTT — Transactional Transform Trees: StratoWeave's transaction engine.
+
+TTT runs the transform functions that map a higher service model to a lower
+one, manages their lifecycle (create / modify / remove), and tears down
+downstream configuration automatically on removal — with no per-service
+cleanup code. It is built on Acton actors: concurrency is message-passing
+rather than locks over shared memory, yet edits are strictly serializable.
+
+Two orthogonal structures:
+
+  - Layers stack vertically (CFS -> RFS -> device). Each Layer owns one
+    long-lived root Node tree, its persistence handle, and a subscription
+    pool, and chains to the layer below via `lower`.
+  - Nodes form a Layer's config tree: Container (static children), List
+    (dynamic, key-addressed, with membership managed by a shared ListState
+    actor), and Transform leaves where a transform function runs.
+
+Configuration is stored per source — a dict keyed by the contributing
+source's identity — never as a single tree. `merge` folds the per-source
+contributions into the tree a transform consumes; this is the "monoidal
+composition", and it is a partial monoid: two sources writing different
+values to the same scalar leaf raise rather than one winning. Each transform
+emits only the diff of its new output against its previous output, tagged by
+its own source id, into the next-lower Layer. Removing a source leaves an
+empty per-source map, which emits a remove-everything diff downward — that is
+how teardown propagates through every layer with no cleanup code.
+
+A Session is one editing context over a Layer, with a recursive child Session
+over the layer below. It drives a per-edit tree of Transaction actors keyed by
+a transaction id (tid); each transform leaf stages per-tid candidate state
+that stays invisible until commit. The protocol is two-phase:
+
+    configure -> (link fixpoint) -> lock -> commit -> complete
+
+configure/apply stage candidates and push output diffs downward; lock takes
+each transform's locker mutex top-down then layer-by-layer, serializing
+overlapping tids; commit promotes the candidate to the running state (or
+discards it). The `done` callback fires once the whole stack has committed
+(and, if a db is bound, durably persisted); `complete` fires after the lowest
+layer has finished applying (e.g. pushed device config). Read committed lower
+state in `complete`, not `done`.
+
+Principal actors and types (search by name):
+
+    Layer       — one stack tier; owns the root Node tree and persistence
+    Session     — one editing context; edit_config / apply / lock / commit
+    Node        — persistent tree node, wrapping a Container / List / Transform
+    Transaction — per-node candidate machinery, keyed by tid
+    ListState   — shared list-membership manager (active / provisional keys)
+    Transform / RFSTransform / Device / DeviceConfig — transform-leaf factories
+
+Companion modules: ttt_links.act (cross-tree leafref / static links between
+transforms) and ttt_gen.act (emits the tree-builder root and transform base
+classes from compiled YANG schema).
+
+Full developer documentation, with diagrams and file:line references:
+docs/reference/ttt.md
+"""
 import yang.adata as yadata
 import yang.gdata as gdata
 import db as swdb
