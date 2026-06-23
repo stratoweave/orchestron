@@ -922,6 +922,11 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
             comp_cont = complete
             lock(tid, edit_config_cont)                                     # yield await
         else:
+            # apply (and any linkage re-applies) acquired keys across the tree;
+            # release them so a failed prep does not leak ListState.active
+            # entries forever. Mirrors the abort in edit_config_cont; release()
+            # tolerates lists this apply never descended into.
+            commit(tid, False)
             if done is not None:
                 done(res.errors[0])
             if complete is not None:
@@ -1421,15 +1426,22 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
 
     def release(tid: str, ok: bool, deletes: set[str]):
         #print('====', tid, path, 'release', ok, 'deletes:', deletes, 'provisional:', provisional, err=True)
-        if ok:
-            provisional -= active[tid]
-            provisional |= deletes
-        del active[tid]
-        if not active:
-            #print('====', tid, path, 'deleting:', provisional, err=True)
-            for k in provisional:
-                del elems[k]
-            provisional = set()
+        # Tolerate a tid this list never acquired: a failed edit_config aborts
+        # the whole tree (commit(tid, False)), including lists its apply never
+        # descended into -- e.g. lower layers, when an upper-layer transform
+        # raised before apply cascaded down. Mirrors the missing-tid tolerance
+        # in _TransformTransaction.commit.
+        keys = active.get(tid)
+        if keys is not None:
+            if ok:
+                provisional -= keys
+                provisional |= deletes
+            del active[tid]
+            if not active:
+                #print('====', tid, path, 'deleting:', provisional, err=True)
+                for k in provisional:
+                    del elems[k]
+                provisional = set()
 
     def all():
         #print('====', 'all:', elems.keys(), 'provosional:', provisional, "active:", active)
