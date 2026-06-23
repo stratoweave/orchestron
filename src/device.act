@@ -568,6 +568,27 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             reconf_tids.discard(tid)
             del confq[tid]
 
+    def reconf_done(result: value):
+        """Handle completion of a per-device RFS reconf transaction.
+
+        On failure (the reconf raised before producing config -- e.g. the
+        device's modules can't satisfy the transform, UnsupportedDevice) there is
+        no config to send and thus no "next successfully sent configuration" to
+        release the pending reconf_tids (see reconf_tids above); their
+        synchronous waiters (wait_complete) would block forever. Settle them with
+        the failure instead. On success this is a no-op: the produced config
+        reaches the device through the normal path, which releases reconf_tids
+        via _complete_tids."""
+        if isinstance(result, Exception):
+            _log.debug("DeviceMgr.reconf_done: reconf failed, settling pending reconf transactions", {"reconf_tids": reconf_tids, "error": str(result)})
+            pending = reconf_tids
+            reconf_tids = set()
+            for tid in pending:
+                cb = callbacks.get(tid)
+                if cb is not None:
+                    cb(result)
+                    del callbacks[tid]
+
     def _send_config():
         """Send configuration to the device adapter
 

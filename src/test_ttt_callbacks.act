@@ -182,3 +182,28 @@ actor rfs_transform_exception(t: testing.AsyncT):
 
 
 ########################
+
+# A transaction commits while a device is still unknown, so it registers interest
+# in the device's future reconf (a reconf_tid) and awaits it via wait_complete.
+# When that reconf later fails (no device config is ever produced), the device
+# has no "next successful configuration" to release the reconf_tid. reconf_done
+# must settle the awaiting transaction with the failure -- otherwise a synchronous
+# edit_config waiting on it hangs forever. (app.RfsReconf wires the reconf's
+# done=dm.reconf_done to drive exactly this.)
+actor reconf_done_settles_waiter(t: testing.AsyncT):
+    dev_registry = swdev.DeviceRegistry(log_handler=t.log_handler)
+    dm = dev_registry.get_or_create("k1")
+
+    def waiter_cb(res):
+        testing.assertEqual(isinstance(res, Exception), True)
+        t.success()
+
+    # "tid1" registered intent to configure k1 but awaits its reconf, then a
+    # synchronous waiter starts waiting on it.
+    dm.configure(None, None, "tid1")
+    dm.wait_complete("tid1", waiter_cb)
+    # k1's reconf fails: settle the waiter with the failure rather than hang it.
+    dm.reconf_done(AssertionError("reconf failed"))
+
+
+########################
