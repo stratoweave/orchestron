@@ -553,18 +553,25 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         _update_approval_state()
 
 
-    def _complete_tids(tids: set[str]):
-        """Dispatch and release the wait_complete callbacks for the given tids
-
-        We also drop the config queue and reconf registrations beacuse at this
-        point we're done - config was either applied or the device is already in
-        sync.
-        """
+    def _resolve_tids(tids: set[str], result: value):
+        """Fire and drop the wait_complete callback registered for each tid, with
+        `result` -- True on success, an Exception on failure. The single point
+        through which every terminal device outcome settles the synchronous
+        transactions waiting on this device; callers do any additional queue /
+        reconf bookkeeping themselves (the teardown differs per outcome)."""
         for tid in tids:
             cb = callbacks.get(tid)
             if cb is not None:
-                cb(True)
+                cb(result)
                 del callbacks[tid]
+
+    def _complete_tids(tids: set[str]):
+        """Settle the given tids successfully and drop their config queue and
+        reconf registrations, because reaching here means the config was applied
+        or the device is already in sync.
+        """
+        _resolve_tids(tids, True)
+        for tid in tids:
             reconf_tids.discard(tid)
             del confq[tid]
 
@@ -583,11 +590,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             _log.debug("DeviceMgr.reconf_done: reconf failed, settling pending reconf transactions", {"reconf_tids": reconf_tids, "error": str(result)})
             pending = reconf_tids
             reconf_tids = set()
-            for tid in pending:
-                cb = callbacks.get(tid)
-                if cb is not None:
-                    cb(result)
-                    del callbacks[tid]
+            _resolve_tids(pending, result)
 
     def _send_config():
         """Send configuration to the device adapter
@@ -653,11 +656,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
                         _log.debug("Configuration failed due to bad config", {"error": error})
 
                     # Got a permanent error, giving up
-                    for tid in current_tids:
-                        cb = callbacks.get(tid)
-                        if cb is not None:
-                            cb(error)
-                            del callbacks[tid]
+                    _resolve_tids(current_tids, error)
 
                     # TODO: uh, what else? we need to bubble up this sort of error state to an operator somehow
 
@@ -940,10 +939,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             # goes back to unapproved.
             _log.debug("DeviceMgr.set_confq_approval: rejecting configuration", {"id": id})
             # Notify synchronous requests (wait_complete)
-            cb = callbacks.get(first_key)
-            if cb is not None:
-                cb(Exception("configuration rejected"))
-                del callbacks[first_key]
+            _resolve_tids({first_key}, Exception("configuration rejected"))
             del confq[first_key]
         _update_approval_state()
         if approved:
