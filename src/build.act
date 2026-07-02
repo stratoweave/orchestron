@@ -182,6 +182,7 @@ class CompiledSysSpec(object):
         device_typesrc += "device_types: dict[str, swdev.DeviceType] = {{}}\n"
         for dev_type in self.dev_types.values():
             print("Generating device type {dev_type.name}")
+            modname = "{self.name}.devices.{dev_type.name}"
             # schema.prdaclass mutates the compiled tree when it strips
             # config-false nodes. Emit the oper view first so the subsequent
             # config-only module does not remove state nodes before the oper
@@ -192,13 +193,18 @@ class CompiledSysSpec(object):
             else:
                 print("+ Device type {dev_type.name} oper unchanged")
 
+            # Use split mode with a separate SRC_DNODE module for the device layer.
+            # TODO: device mode
             name = "{output_dir}/{self.name}/devices/{dev_type.name}.act"
-            if _maybe_write_file(fc, name, dev_type.print(loose=True, gen_json=False)):
+            schema_name = "{output_dir}/{self.name}/devices/{dev_type.name}_schema.act"
+            config_main = dev_type.print(loose=True, gen_json=False, schema_module="{modname}_schema")
+            config_schema = dev_type.print_schema()
+            if _maybe_write_file(fc, name, config_main):
                 print("+ Device type {dev_type.name} adata changed")
             else:
                 print("+ Device type {dev_type.name} adata unchanged")
+            _maybe_write_file(fc, schema_name, config_schema)
 
-            modname = "{self.name}.devices.{dev_type.name}"
             dev_alias = "dev_{dev_type.name}"
             dev_oper_alias = "dev_{dev_type.name}_oper"
             syssrc += "import {modname} as {dev_alias}\n"
@@ -311,15 +317,23 @@ class CompiledLayerBase(object):
     root: yschema.DRoot
     src: list[str]
 
-    def print(self, loose=False, gen_json=True, include_state=False, exclude_ext: list[(name: str, namespace: str)]=[], include_subs=False):
+    def print(self, loose=False, gen_json=True, include_state=False, exclude_ext: list[(name: str, namespace: str)]=[], include_subs=False, schema_module: ?str=None):
         """Print the Acton (adata) classes for the layer
 
         This prints the entire contents of the Acton module representing a
         single layer in the application. The module includes generated adata
         classes, XML and JSON deserializers and the schema info. The schema is
         used by the XML and JSON schema-driven deserializers.
+
+        When schema_module is given, the SRC_DNODE schema tree and SRC_YANG raw
+        source are split into that sibling `_schema` module instead of
+        inline.
+        TODO: just expose device mode
         """
-        return self.root.prdaclass(schema_yang=self.src, loose=loose, include_state=include_state, exclude_ext=exclude_ext, include_subs=include_subs)
+        return self.root.prdaclass(schema_yang=self.src, loose=loose, include_state=include_state, exclude_ext=exclude_ext, include_subs=include_subs, schema_module=schema_module)
+
+    def print_schema(self):
+        return self.root.prschema(schema_yang=self.src)
 
 class CompiledLayer(CompiledLayerBase):
     def __init__(self, root: yschema.DRoot, src: list[str], name: ?str=None):
