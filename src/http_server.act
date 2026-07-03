@@ -127,7 +127,12 @@ actor HttpServer(
         target_conf = dev.get_target_conf()
 
         if running_conf is not None and target_conf is not None:
-            config_diff = ygdata.diff(running_conf, target_conf)
+            # Mirror the push path: config_fixer carries device-managed config
+            # (e.g. the containerlab-bootstrapped XR mgmt interface) into the
+            # target, so the diff shown here matches what would actually be
+            # sent to the device rather than showing phantom removals.
+            fixed_conf = swdev.config_fixer(running_conf, target_conf)
+            config_diff = ygdata.diff(running_conf, fixed_conf)
             if config_diff is not None:
                 if format_type == "json":
                     diff_str = config_diff.to_yang_jsonstr()
@@ -296,7 +301,13 @@ actor HttpServer(
         http_log.debug("qp", {"format": format_type})
 
         def format_ci(di: (ci: swdev.ConfigItem, running_conf: ygdata.Node)):
-            config_diff = ygdata.diff(di.running_conf, di.ci.conf)
+            # Mirror the push path: config_fixer carries device-managed config
+            # (e.g. the containerlab-bootstrapped XR mgmt interface) into the
+            # queue item's target, so the rendered diff matches what would
+            # actually be sent to the device rather than showing phantom
+            # removals.
+            fixed_conf = swdev.config_fixer(di.running_conf, di.ci.conf)
+            config_diff = ygdata.diff(di.running_conf, fixed_conf)
 
             config_diff_str = None
             if config_diff is not None:

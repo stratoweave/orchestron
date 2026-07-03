@@ -131,6 +131,45 @@ def _test_yang_push_dialect_yang_library_modules():
         testing.assertEqual(dialect, True)
 
 
+def _yp_establish_unsupported(err: netconf.NetconfError) -> bool:
+    """Whether an establish-subscription failure means the device does not serve
+    the RPC at all, as opposed to rejecting this particular subscription.
+
+    Some devices (e.g. Cisco IOS XR) advertise the ietf-yang-push /
+    ietf-subscribed-notifications YANG modules but do not implement the dynamic
+    establish-subscription RPC over NETCONF, rejecting it with unknown-namespace
+    (unknown-element and operation-not-supported are the other RFC 6241 tags for
+    unimplemented operations).
+    """
+    rpc_errors = err.rpc_error
+    if rpc_errors is not None:
+        for e in rpc_errors:
+            if e.error_tag == "unknown-namespace" or e.error_tag == "unknown-element" or e.error_tag == "operation-not-supported":
+                return True
+    return False
+
+
+def _mk_rpc_error(tag: str) -> netconf.RpcError:
+    return netconf.RpcError(xml.Node("rpc-error", children=[
+        xml.Node("error-type", text="protocol"),
+        xml.Node("error-tag", text=tag),
+        xml.Node("error-severity", text="error"),
+    ]))
+
+
+def _test_yp_establish_unsupported_tags():
+    for tag in ["unknown-namespace", "unknown-element", "operation-not-supported"]:
+        err = netconf.NetconfError("", [_mk_rpc_error(tag)])
+        testing.assertEqual(_yp_establish_unsupported(err), True)
+
+
+def _test_yp_establish_supported_errors():
+    # No structured rpc-error (e.g. synthesized client-side failures) or tags that
+    # reject only this subscription must not trigger the polling fallback.
+    testing.assertEqual(_yp_establish_unsupported(netconf.NetconfError("empty reply", None)), False)
+    testing.assertEqual(_yp_establish_unsupported(netconf.NetconfError("", [_mk_rpc_error("resource-denied")])), False)
+
+
 def _xpath_literal(v) -> ?str:
     if isinstance(v, ygdata.VWildcard):
         return None
@@ -337,6 +376,11 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
     var oper_ds = ygdata.Container({})
     var conf_ds = ygdata.Container({})
     var rpc_log: list[(message_id: str, op: xml.Node)] = []
+    # Emulate devices that advertise the yang-push modules but reject the dynamic
+    # subscription RPCs over NETCONF (tests drive this via
+    # set_reject_subscription_rpcs).
+    var _reject_subscription_rpcs = False
+    var _rejected_subscription_rpcs = 0
     # YANG-push: the last operational tree pushed, to diff against for on-change.
     var _yp_last: ?ygdata.Node = None
     var yp_service: ?nyp.NetconfSubscriptionService = None
@@ -509,6 +553,18 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
         _log.debug("NetconfMockServer received rpc", {"message_id": message_id, "op": op.tag, "rpc_xml": op.encode()})
 
         if yp.is_subscription_rpc(op.tag):
+            if _reject_subscription_rpcs:
+                # Reject like Cisco IOS XR: a protocol-level unknown-namespace
+                # error with no error-message, only a bad-element hint.
+                _rejected_subscription_rpcs += 1
+                rpc_error = xml.Node("rpc-error", children=[
+                    xml.Node("error-type", text="protocol"),
+                    xml.Node("error-tag", text="unknown-namespace"),
+                    xml.Node("error-severity", text="error"),
+                    xml.Node("error-info", children=[xml.Node("bad-element", text=op.tag)])
+                ])
+                send_reply_with_log(s, message_id, [rpc_error])
+                return
             if yp_service is not None:
                 yp_service.handle_rpc(message_id, op)
             else:
@@ -555,6 +611,15 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
 
     var server: netconf.Server = netconf.Server(pipe=pipe, on_rpc=on_rpc, log_handler=log_handler, capabilities=all_capabilities)
     yp_service = nyp.NetconfSubscriptionService(server, _MockPushBackend(_yp_prepare_filter, _yp_snapshot, _yp_change), log_handler)
+
+    def set_reject_subscription_rpcs(reject: bool):
+        """Reject dynamic subscription RPCs like devices that advertise yang-push
+        but do not serve establish-subscription over NETCONF (e.g. Cisco IOS XR)."""
+        _reject_subscription_rpcs = reject
+
+    def get_rejected_subscription_rpcs() -> int:
+        """How many dynamic subscription RPCs were rejected."""
+        return _rejected_subscription_rpcs
 
     def set_oper_ds(new_oper_ds: ygdata.Node, schema: ?yschema.DRoot=None):
         """Set the operational datastore (and optionally its schema) for <get>."""
@@ -1633,7 +1698,13 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             for owner_id in st.owners:
                 _owner_publish(owner_id, err)
             _sub_cancel(spec)
-        else:
+        elif not st.polling:
+            # Only start a poll chain when none is running for this spec: chains
+            # reschedule themselves, so a second entry point (e.g. a pending
+            # pre-connect retry racing the yang-push fallback) must not duplicate
+            # the polling.
+            st.polling = True
+            subs[spec] = st
             _sub_tick(spec)
 
     def _yp_ensure(spec: ygdata.SubscriptionSpec):
@@ -1645,6 +1716,11 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             return
         st = subs[spec]
         if not st.active:
+            return
+        if st.polling:
+            # Already served by the periodic <get> fallback; keep one delivery
+            # mechanism per spec (relevant on reconnect, when finish_connect
+            # re-attempts yang-push for all active specs).
             return
         c = client
         if c is not None:
@@ -1674,10 +1750,20 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                 if _is_stale(cc):
                     return
                 if err is not None:
-                    _log.error("Device: establish-subscription failed", {"error": str(err)})
-                    if spec in subs:
-                        for owner_id in subs[spec].owners:
-                            _owner_publish(owner_id, err)
+                    if _yp_establish_unsupported(err):
+                        # The device advertises the yang-push modules but does not
+                        # serve the dynamic subscription RPCs on this session (Cisco
+                        # IOS XR NETCONF does this): downgrade the connection to
+                        # periodic <get> polling instead of failing the owners.
+                        if _yang_push:
+                            _log.warning("Device: establish-subscription unsupported, falling back to periodic <get> polling", {"error": repr(err)})
+                        _yang_push = False
+                        _sub_start(spec)
+                    else:
+                        _log.error("Device: establish-subscription failed", {"error": str(err)})
+                        if spec in subs:
+                            for owner_id in subs[spec].owners:
+                                _owner_publish(owner_id, err)
                 elif sid is not None and spec in subs:
                     yp_subid_spec[sid] = spec
                     yp_spec_subid[spec] = sid

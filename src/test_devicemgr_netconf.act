@@ -533,6 +533,102 @@ actor _test_subscribe_periodic_yang_push(t: testing.EnvT):
     after 2.0: fail("Timed out waiting for periodic yang-push subscription updates")
 
 
+actor _test_subscribe_periodic_yang_push_unsupported(t: testing.EnvT):
+    """Fallback to <get> polling when yang-push is advertised but not served.
+
+    Some devices (e.g. Cisco IOS XR) advertise the ietf-yang-push modules but
+    reject the dynamic establish-subscription RPC over NETCONF with
+    unknown-namespace. The adapter must downgrade to periodic <get> polling
+    instead of failing the subscription owners.
+
+    1. Mock advertises yang-push but rejects subscription RPCs (XR behavior).
+    2. Declare a periodic subscription: the establish attempt is rejected, the
+       adapter falls back, and update 1 arrives via <get> (no error surfaces to
+       the owner). Assert the mock really rejected an establish-subscription.
+    3. Mutate the oper datastore; the next poll delivers update 2.
+    """
+    mock_current_datetime_1 = "2026-02-21T10:11:12Z"
+    mock_current_datetime_2 = "2026-02-21T10:11:13Z"
+    mock_boot_datetime = "2025-12-31T00:00:00Z"
+
+    var updates = 0
+    var done = False
+    var mock_server: ?swna.NetconfMockServer = None
+
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-yp-unsupported", noop_on_reconf, extra_models=YP_CLOSURE)
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def succeed():
+        if done:
+            return
+        done = True
+        t.success()
+
+    def on_update(n: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            fail("Subscription update error (fallback should not surface one): {err}")
+            return
+        dt = _current_datetime_from_tree(n)
+        if dt is None:
+            fail("Subscription update missing current-datetime")
+            return
+        if _has_boot_datetime(n):
+            fail("Subscription update should not include boot-datetime")
+            return
+
+        updates += 1
+        if updates == 1:
+            if dt != mock_current_datetime_1:
+                fail("Unexpected first datetime: {dt}")
+                return
+            ms = mock_server
+            if ms is not None:
+                if ms.get_rejected_subscription_rpcs() == 0:
+                    fail("Mock rejected no establish-subscription; fallback path not exercised")
+                    return
+                ms.set_oper_ds(_mock_oper_ds(mock_current_datetime_2, mock_boot_datetime))
+            else:
+                fail("Missing mock server for subscription update")
+                return
+        elif updates == 2:
+            if dt != mock_current_datetime_2:
+                fail("Unexpected second datetime: {dt}")
+                return
+            dev.remove_subscriptions("test-yp-unsupported")
+            succeed()
+        else:
+            fail("Unexpected extra subscription update: {updates}")
+
+    def start():
+        adapter = dev.get_adapter()
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            ms = mock_server
+            if ms is not None:
+                ms.set_reject_subscription_rpcs(True)
+                ms.set_oper_ds(_mock_oper_ds(mock_current_datetime_1, mock_boot_datetime))
+                want = set([ygdata.SubscriptionSpec(_current_datetime_filter(), period=0.05)])
+                dev.declare_subscriptions("test-yp-unsupported", on_update, want)
+            else:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+                return
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+
+    after 2.0: fail("Timed out waiting for fallback subscription updates")
+
+
 actor _test_subscription_manager_declare(t: testing.EnvT):
     """Declarative subscription manager over NETCONF mock subscriptions."""
     mock_current_datetime_1 = "2026-02-21T10:11:12Z"

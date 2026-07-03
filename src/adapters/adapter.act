@@ -161,12 +161,17 @@ class SharedSubscription(object):
     latest: ?ygdata.Node
     owners: set[str]
     active: bool
+    polling: bool
 
     def __init__(self, spec: ygdata.SubscriptionSpec):
         self.spec = ygdata.SubscriptionSpec(spec.filt, period=spec.period, on_change=spec.on_change)
         self.latest = None
         self.owners = set()
         self.active = True
+        # Whether a periodic <get> poll chain is running for this spec. Poll
+        # chains reschedule themselves, so chain starts must be guarded against
+        # duplicates.
+        self.polling = False
 
 
 class SubscriptionOwner(object):
