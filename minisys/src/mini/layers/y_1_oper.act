@@ -946,14 +946,6 @@ class stratoweave_rfs__device__address__initial_credentials_entry(yadata.MNode):
         self.password = password
         self.key = key
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:username':
-            return self.username
-        if name == 'sw-rfs:password':
-            return self.password
-        if name == 'sw-rfs:key':
-            return self.key
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address', 'initial-credentials'])
 
@@ -1021,16 +1013,6 @@ class stratoweave_rfs__device__address_entry(yadata.MNode):
         self.address = address
         self.port = port
         self.initial_credentials = stratoweave_rfs__device__address__initial_credentials(elements=initial_credentials)
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:name':
-            return self.name
-        if name == 'sw-rfs:address':
-            return self.address
-        if name == 'sw-rfs:port':
-            return self.port
-        if name == 'sw-rfs:initial-credentials':
-            return iter(self.initial_credentials)
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address'])
@@ -1117,12 +1099,6 @@ class stratoweave_rfs__device__credentials__key_entry(yadata.MNode):
         self.key = key
         self.private_key = private_key
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:key':
-            return self.key
-        if name == 'sw-rfs:private-key':
-            return self.private_key
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials', 'key'])
 
@@ -1208,14 +1184,6 @@ class stratoweave_rfs__device__credentials(yadata.MNode):
         self.password = password
         self.key = stratoweave_rfs__device__credentials__key(elements=key)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:username':
-            return self.username
-        if name == 'sw-rfs:password':
-            return self.password
-        if name == 'sw-rfs:key':
-            return iter(self.key)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials'])
 
@@ -1240,14 +1208,6 @@ class stratoweave_rfs__device__initial_credentials_entry(yadata.MNode):
         self.username = username
         self.password = password
         self.key = key
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:username':
-            return self.username
-        if name == 'sw-rfs:password':
-            return self.password
-        if name == 'sw-rfs:key':
-            return self.key
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'initial-credentials'])
@@ -1316,16 +1276,6 @@ class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
         self.namespace = namespace
         self.revision = revision
         self.feature = feature if feature is not None else []
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:name':
-            return self.name
-        if name == 'sw-rfs:namespace':
-            return self.namespace
-        if name == 'sw-rfs:revision':
-            return self.revision
-        if name == 'sw-rfs:feature':
-            return self.feature
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock', 'module'])
@@ -1412,12 +1362,6 @@ class stratoweave_rfs__device__mock(yadata.MNode):
         self.enabled = enabled
         self.module = stratoweave_rfs__device__mock__module(elements=module)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:enabled':
-            return self.enabled
-        if name == 'sw-rfs:module':
-            return iter(self.module)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock'])
 
@@ -1439,10 +1383,6 @@ class stratoweave_rfs__device__debug(yadata.MNode):
     mut def __init__(self, connection: ?bool) -> None:
         self.connection = connection
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:connection':
-            return self.connection
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'debug'])
 
@@ -1463,10 +1403,6 @@ class stratoweave_rfs__device__feature_flags(yadata.MNode):
 
     mut def __init__(self, runtime_schema_fetch: ?bool) -> None:
         self.runtime_schema_fetch = runtime_schema_fetch
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:runtime-schema-fetch':
-            return self.runtime_schema_fetch
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'feature-flags'])
@@ -1528,30 +1464,6 @@ class stratoweave_rfs__device_entry(yadata.MNode):
         self.debug = debug if debug is not None else stratoweave_rfs__device__debug()
         self.feature_flags = feature_flags if feature_flags is not None else stratoweave_rfs__device__feature_flags()
         self.state = state if state is not None else stratoweave_rfs__device__state()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:name':
-            return self.name
-        if name == 'sw-rfs:description':
-            return self.description
-        if name == 'sw-rfs:type':
-            return self.type
-        if name == 'sw-rfs:address':
-            return iter(self.address)
-        if name == 'sw-rfs:credentials':
-            return self.credentials
-        if name == 'sw-rfs:initial-credentials':
-            return iter(self.initial_credentials)
-        if name == 'sw-rfs:approval-required':
-            return self.approval_required
-        if name == 'sw-rfs:mock':
-            return self.mock
-        if name == 'sw-rfs:debug':
-            return self.debug
-        if name == 'sw-rfs:feature-flags':
-            return self.feature_flags
-        if name == 'sw-rfs:state':
-            return self.state
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device'])
@@ -1638,10 +1550,6 @@ class stratoweave_rfs__rfs__base_config__dynstate(yadata.MNode):
     mut def __init__(self, current_datetime: ?str) -> None:
         self.current_datetime = current_datetime
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'mini-rfs:current-datetime':
-            return self.current_datetime
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'mini-rfs:base-config', 'dynstate'])
 
@@ -1662,10 +1570,6 @@ class stratoweave_rfs__rfs__base_config__state(yadata.MNode):
 
     mut def __init__(self, current_datetime: ?str) -> None:
         self.current_datetime = current_datetime
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'mini-rfs:current-datetime':
-            return self.current_datetime
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'mini-rfs:base-config', 'state'])
@@ -1691,14 +1595,6 @@ class stratoweave_rfs__rfs__base_config(yadata.MNode):
         self.name = name
         self.ipv4_address = ipv4_address
         self.state = state if state is not None else stratoweave_rfs__rfs__base_config__state()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'mini-rfs:name':
-            return self.name
-        if name == 'mini-rfs:ipv4-address':
-            return self.ipv4_address
-        if name == 'mini-rfs:state':
-            return self.state
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'mini-rfs:base-config'])
@@ -1744,34 +1640,6 @@ class stratoweave_rfs__rfs__l3vpn_endpoint_entry(yadata.MNode):
         self.enabled = enabled
         self.site_code = site_code
         self.description = description
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'mini-rfs:interface-name':
-            return self.interface_name
-        if name == 'mini-rfs:vpn-name':
-            return self.vpn_name
-        if name == 'mini-rfs:customer-name':
-            return self.customer_name
-        if name == 'mini-rfs:route-distinguisher':
-            return self.route_distinguisher
-        if name == 'mini-rfs:import-rt':
-            return self.import_rt
-        if name == 'mini-rfs:export-rt':
-            return self.export_rt
-        if name == 'mini-rfs:ipv4-address':
-            return self.ipv4_address
-        if name == 'mini-rfs:prefix-length':
-            return self.prefix_length
-        if name == 'mini-rfs:mtu':
-            return self.mtu
-        if name == 'mini-rfs:vlan-id':
-            return self.vlan_id
-        if name == 'mini-rfs:enabled':
-            return self.enabled
-        if name == 'mini-rfs:site-code':
-            return self.site_code
-        if name == 'mini-rfs:description':
-            return self.description
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'mini-rfs:l3vpn-endpoint'])
@@ -1880,14 +1748,6 @@ class stratoweave_rfs__rfs_entry(yadata.MNode):
         self.base_config = base_config if base_config is not None else stratoweave_rfs__rfs__base_config()
         self.l3vpn_endpoint = stratoweave_rfs__rfs__l3vpn_endpoint(elements=l3vpn_endpoint)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:name':
-            return self.name
-        if name == 'mini-rfs:base-config':
-            return self.base_config
-        if name == 'mini-rfs:l3vpn-endpoint':
-            return iter(self.l3vpn_endpoint)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs'])
 
@@ -1968,12 +1828,6 @@ class root(yadata.MNode):
     mut def __init__(self, device: list[stratoweave_rfs__device_entry]=[], rfs: list[stratoweave_rfs__rfs_entry]=[]) -> None:
         self.device = stratoweave_rfs__device(elements=device)
         self.rfs = stratoweave_rfs__rfs(elements=rfs)
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-rfs:device':
-            return iter(self.device)
-        if name == 'sw-rfs:rfs':
-            return iter(self.rfs)
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True)

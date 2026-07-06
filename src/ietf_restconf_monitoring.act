@@ -1441,10 +1441,6 @@ class ietf_restconf_monitoring__restconf_state__capabilities(yadata.MNode):
     mut def __init__(self, capability: ?list[str]=None) -> None:
         self.capability = capability if capability is not None else []
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'rcmon:capability':
-            return self.capability
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'capabilities'])
 
@@ -1467,12 +1463,6 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(ya
     mut def __init__(self, encoding: str, location: str) -> None:
         self.encoding = encoding
         self.location = location
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'rcmon:encoding':
-            return self.encoding
-        if name == 'rcmon:location':
-            return self.location
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'streams', 'stream', 'access'])
@@ -1562,18 +1552,6 @@ class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yadata.MNo
         self.replay_log_creation_time = replay_log_creation_time
         self.access = ietf_restconf_monitoring__restconf_state__streams__stream__access(elements=access)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'rcmon:name':
-            return self.name
-        if name == 'rcmon:description':
-            return self.description
-        if name == 'rcmon:replay-support':
-            return self.replay_support
-        if name == 'rcmon:replay-log-creation-time':
-            return self.replay_log_creation_time
-        if name == 'rcmon:access':
-            return iter(self.access)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'streams', 'stream'])
 
@@ -1659,10 +1637,6 @@ class ietf_restconf_monitoring__restconf_state__streams(yadata.MNode):
     mut def __init__(self, stream: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]) -> None:
         self.stream = ietf_restconf_monitoring__restconf_state__streams__stream(elements=stream)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'rcmon:stream':
-            return iter(self.stream)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state', 'streams'])
 
@@ -1686,12 +1660,6 @@ class ietf_restconf_monitoring__restconf_state(yadata.MNode):
         self.capabilities = capabilities if capabilities is not None else ietf_restconf_monitoring__restconf_state__capabilities()
         self.streams = streams if streams is not None else ietf_restconf_monitoring__restconf_state__streams()
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'rcmon:capabilities':
-            return self.capabilities
-        if name == 'rcmon:streams':
-            return self.streams
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-restconf-monitoring:restconf-state'])
 
@@ -1712,10 +1680,6 @@ class root(yadata.MNode):
 
     mut def __init__(self, restconf_state: ?ietf_restconf_monitoring__restconf_state=None) -> None:
         self.restconf_state = restconf_state if restconf_state is not None else ietf_restconf_monitoring__restconf_state()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'rcmon:restconf-state':
-            return self.restconf_state
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False)

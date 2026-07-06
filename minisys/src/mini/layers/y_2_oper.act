@@ -150,12 +150,6 @@ class stratoweave_device__devices__device_entry(yadata.MNode):
         self.name = name
         self.modset_id = modset_id
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-dev:name':
-            return self.name
-        if name == 'sw-dev:modset_id':
-            return self.modset_id
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-device:devices', 'device'])
 
@@ -237,10 +231,6 @@ class stratoweave_device__devices(yadata.MNode):
     mut def __init__(self, device: list[stratoweave_device__devices__device_entry]=[]) -> None:
         self.device = stratoweave_device__devices__device(elements=device)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-dev:device':
-            return iter(self.device)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-device:devices'])
 
@@ -261,10 +251,6 @@ class root(yadata.MNode):
 
     mut def __init__(self, devices: ?stratoweave_device__devices=None) -> None:
         self.devices = devices if devices is not None else stratoweave_device__devices()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sw-dev:devices':
-            return self.devices
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True)
