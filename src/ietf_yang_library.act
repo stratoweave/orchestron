@@ -2055,14 +2055,6 @@ class ietf_yang_library__yang_library__module_set__module__submodule_entry(yadat
         self.revision = revision
         self.location = location if location is not None else []
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:name':
-            return self.name
-        if name == 'yanglib:revision':
-            return self.revision
-        if name == 'yanglib:location':
-            return self.location
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library', 'module-set', 'module', 'submodule'])
 
@@ -2156,22 +2148,6 @@ class ietf_yang_library__yang_library__module_set__module_entry(yadata.MNode):
         self.feature = feature if feature is not None else []
         self.deviation = deviation if deviation is not None else []
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:name':
-            return self.name
-        if name == 'yanglib:revision':
-            return self.revision
-        if name == 'yanglib:namespace':
-            return self.namespace
-        if name == 'yanglib:location':
-            return self.location
-        if name == 'yanglib:submodule':
-            return iter(self.submodule)
-        if name == 'yanglib:feature':
-            return self.feature
-        if name == 'yanglib:deviation':
-            return self.deviation
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library', 'module-set', 'module'])
 
@@ -2257,14 +2233,6 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
         self.name = name
         self.revision = revision
         self.location = location if location is not None else []
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:name':
-            return self.name
-        if name == 'yanglib:revision':
-            return self.revision
-        if name == 'yanglib:location':
-            return self.location
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library', 'module-set', 'import-only-module', 'submodule'])
@@ -2355,18 +2323,6 @@ class ietf_yang_library__yang_library__module_set__import_only_module_entry(yada
         self.location = location if location is not None else []
         self.submodule = ietf_yang_library__yang_library__module_set__import_only_module__submodule(elements=submodule)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:name':
-            return self.name
-        if name == 'yanglib:revision':
-            return self.revision
-        if name == 'yanglib:namespace':
-            return self.namespace
-        if name == 'yanglib:location':
-            return self.location
-        if name == 'yanglib:submodule':
-            return iter(self.submodule)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library', 'module-set', 'import-only-module'])
 
@@ -2436,14 +2392,6 @@ class ietf_yang_library__yang_library__module_set_entry(yadata.MNode):
         self.name = name
         self.module = ietf_yang_library__yang_library__module_set__module(elements=module)
         self.import_only_module = ietf_yang_library__yang_library__module_set__import_only_module(elements=import_only_module)
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:name':
-            return self.name
-        if name == 'yanglib:module':
-            return iter(self.module)
-        if name == 'yanglib:import-only-module':
-            return iter(self.import_only_module)
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library', 'module-set'])
@@ -2526,12 +2474,6 @@ class ietf_yang_library__yang_library__schema_entry(yadata.MNode):
         self.name = name
         self.module_set = module_set if module_set is not None else []
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:name':
-            return self.name
-        if name == 'yanglib:module-set':
-            return self.module_set
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library', 'schema'])
 
@@ -2612,12 +2554,6 @@ class ietf_yang_library__yang_library__datastore_entry(yadata.MNode):
     mut def __init__(self, name: Identityref, schema: str) -> None:
         self.name = name
         self.schema = schema
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:name':
-            return self.name
-        if name == 'yanglib:schema':
-            return self.schema
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library', 'datastore'])
@@ -2705,16 +2641,6 @@ class ietf_yang_library__yang_library(yadata.MNode):
         self.datastore = ietf_yang_library__yang_library__datastore(elements=datastore)
         self.content_id = content_id
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:module-set':
-            return iter(self.module_set)
-        if name == 'yanglib:schema':
-            return iter(self.schema)
-        if name == 'yanglib:datastore':
-            return iter(self.datastore)
-        if name == 'yanglib:content-id':
-            return self.content_id
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['ietf-yang-library:yang-library'])
 
@@ -2735,10 +2661,6 @@ class root(yadata.MNode):
 
     mut def __init__(self, yang_library: ietf_yang_library__yang_library) -> None:
         self.yang_library = yang_library
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'yanglib:yang-library':
-            return self.yang_library
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=False)

@@ -8745,12 +8745,6 @@ class ietf_netconf_acm__nacm__groups__group_entry(yadata.MNode):
         self.name = name
         self.user_name = user_name if user_name is not None else []
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'nacm:name':
-            return self.name
-        if name == 'nacm:user-name':
-            return self.user_name
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-netconf-acm:nacm', 'groups', 'group'])
 
@@ -8830,10 +8824,6 @@ class ietf_netconf_acm__nacm__groups(yadata.MNode):
     mut def __init__(self, group: list[ietf_netconf_acm__nacm__groups__group_entry]=[]) -> None:
         self.group = ietf_netconf_acm__nacm__groups__group(elements=group)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'nacm:group':
-            return iter(self.group)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-netconf-acm:nacm', 'groups'])
 
@@ -8868,24 +8858,6 @@ class ietf_netconf_acm__nacm__rule_list__rule_entry(yadata.MNode):
         self.access_operations = access_operations
         self.action_ = action_
         self.comment = comment
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'nacm:name':
-            return self.name
-        if name == 'nacm:module-name':
-            return self.module_name
-        if name == 'nacm:rpc-name':
-            return self.rpc_name
-        if name == 'nacm:notification-name':
-            return self.notification_name
-        if name == 'nacm:path':
-            return self.path
-        if name == 'nacm:access-operations':
-            return self.access_operations
-        if name == 'nacm:action':
-            return self.action_
-        if name == 'nacm:comment':
-            return self.comment
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-netconf-acm:nacm', 'rule-list', 'rule'])
@@ -8984,14 +8956,6 @@ class ietf_netconf_acm__nacm__rule_list_entry(yadata.MNode):
         self.group = group if group is not None else []
         self.rule = ietf_netconf_acm__nacm__rule_list__rule(elements=rule)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'nacm:name':
-            return self.name
-        if name == 'nacm:group':
-            return self.group
-        if name == 'nacm:rule':
-            return iter(self.rule)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-netconf-acm:nacm', 'rule-list'])
 
@@ -9089,28 +9053,6 @@ class ietf_netconf_acm__nacm(yadata.MNode):
         self.groups = groups if groups is not None else ietf_netconf_acm__nacm__groups()
         self.rule_list = ietf_netconf_acm__nacm__rule_list(elements=rule_list)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'nacm:enable-nacm':
-            return self.enable_nacm
-        if name == 'nacm:read-default':
-            return self.read_default
-        if name == 'nacm:write-default':
-            return self.write_default
-        if name == 'nacm:exec-default':
-            return self.exec_default
-        if name == 'nacm:enable-external-groups':
-            return self.enable_external_groups
-        if name == 'nacm:denied-operations':
-            return self.denied_operations
-        if name == 'nacm:denied-data-writes':
-            return self.denied_data_writes
-        if name == 'nacm:denied-notifications':
-            return self.denied_notifications
-        if name == 'nacm:groups':
-            return self.groups
-        if name == 'nacm:rule-list':
-            return iter(self.rule_list)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-netconf-acm:nacm'])
 
@@ -9134,12 +9076,6 @@ class ietf_system__system__clock(yadata.MNode):
         self.timezone_name = timezone_name
         self.timezone_utc_offset = timezone_utc_offset
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:timezone-name':
-            return self.timezone_name
-        if name == 'sys:timezone-utc-offset':
-            return self.timezone_utc_offset
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'clock'])
 
@@ -9162,12 +9098,6 @@ class ietf_system__system__ntp__server__udp(yadata.MNode):
     mut def __init__(self, address: ?str, port: ?u64) -> None:
         self.address = address
         self.port = port
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:address':
-            return self.address
-        if name == 'sys:port':
-            return self.port
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'ntp', 'server', 'udp'])
@@ -9197,18 +9127,6 @@ class ietf_system__system__ntp__server_entry(yadata.MNode):
         self.association_type = association_type
         self.iburst = iburst
         self.prefer = prefer
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:name':
-            return self.name
-        if name == 'sys:udp':
-            return self.udp
-        if name == 'sys:association-type':
-            return self.association_type
-        if name == 'sys:iburst':
-            return self.iburst
-        if name == 'sys:prefer':
-            return self.prefer
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'ntp', 'server'])
@@ -9297,12 +9215,6 @@ class ietf_system__system__ntp(yadata.MNode):
         self.enabled = enabled
         self.server = ietf_system__system__ntp__server(elements=server)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:enabled':
-            return self.enabled
-        if name == 'sys:server':
-            return iter(self.server)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'ntp'])
 
@@ -9329,12 +9241,6 @@ class ietf_system__system__dns_resolver__server__udp_and_tcp(yadata.MNode):
         self.address = address
         self.port = port
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:address':
-            return self.address
-        if name == 'sys:port':
-            return self.port
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'dns-resolver', 'server', 'udp-and-tcp'])
 
@@ -9357,12 +9263,6 @@ class ietf_system__system__dns_resolver__server_entry(yadata.MNode):
     mut def __init__(self, name: str, udp_and_tcp: ?ietf_system__system__dns_resolver__server__udp_and_tcp=None) -> None:
         self.name = name
         self.udp_and_tcp = udp_and_tcp if udp_and_tcp is not None else ietf_system__system__dns_resolver__server__udp_and_tcp()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:name':
-            return self.name
-        if name == 'sys:udp-and-tcp':
-            return self.udp_and_tcp
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'dns-resolver', 'server'])
@@ -9445,12 +9345,6 @@ class ietf_system__system__dns_resolver__options(yadata.MNode):
         self.timeout = timeout
         self.attempts = attempts
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:timeout':
-            return self.timeout
-        if name == 'sys:attempts':
-            return self.attempts
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'dns-resolver', 'options'])
 
@@ -9475,14 +9369,6 @@ class ietf_system__system__dns_resolver(yadata.MNode):
         self.search = search if search is not None else []
         self.server = ietf_system__system__dns_resolver__server(elements=server)
         self.options = options if options is not None else ietf_system__system__dns_resolver__options()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:search':
-            return self.search
-        if name == 'sys:server':
-            return iter(self.server)
-        if name == 'sys:options':
-            return self.options
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'dns-resolver'])
@@ -9509,14 +9395,6 @@ class ietf_system__system__radius__server__udp(yadata.MNode):
         self.authentication_port = authentication_port
         self.shared_secret = shared_secret
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:address':
-            return self.address
-        if name == 'sys:authentication-port':
-            return self.authentication_port
-        if name == 'sys:shared-secret':
-            return self.shared_secret
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'radius', 'server', 'udp'])
 
@@ -9541,14 +9419,6 @@ class ietf_system__system__radius__server_entry(yadata.MNode):
         self.name = name
         self.udp = udp if udp is not None else ietf_system__system__radius__server__udp()
         self.authentication_type = authentication_type
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:name':
-            return self.name
-        if name == 'sys:udp':
-            return self.udp
-        if name == 'sys:authentication-type':
-            return self.authentication_type
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'radius', 'server'])
@@ -9633,12 +9503,6 @@ class ietf_system__system__radius__options(yadata.MNode):
         self.timeout = timeout
         self.attempts = attempts
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:timeout':
-            return self.timeout
-        if name == 'sys:attempts':
-            return self.attempts
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'radius', 'options'])
 
@@ -9661,12 +9525,6 @@ class ietf_system__system__radius(yadata.MNode):
     mut def __init__(self, server: list[ietf_system__system__radius__server_entry]=[], options: ?ietf_system__system__radius__options=None) -> None:
         self.server = ietf_system__system__radius__server(elements=server)
         self.options = options if options is not None else ietf_system__system__radius__options()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:server':
-            return iter(self.server)
-        if name == 'sys:options':
-            return self.options
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'radius'])
@@ -9692,14 +9550,6 @@ class ietf_system__system__authentication__user__authorized_key_entry(yadata.MNo
         self.name = name
         self.algorithm = algorithm
         self.key_data = key_data
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:name':
-            return self.name
-        if name == 'sys:algorithm':
-            return self.algorithm
-        if name == 'sys:key-data':
-            return self.key_data
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'authentication', 'user', 'authorized-key'])
@@ -9788,14 +9638,6 @@ class ietf_system__system__authentication__user_entry(yadata.MNode):
         self.password = password
         self.authorized_key = ietf_system__system__authentication__user__authorized_key(elements=authorized_key)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:name':
-            return self.name
-        if name == 'sys:password':
-            return self.password
-        if name == 'sys:authorized-key':
-            return iter(self.authorized_key)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'authentication', 'user'])
 
@@ -9879,12 +9721,6 @@ class ietf_system__system__authentication(yadata.MNode):
         self.user_authentication_order = user_authentication_order if user_authentication_order is not None else []
         self.user = ietf_system__system__authentication__user(elements=user)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:user-authentication-order':
-            return self.user_authentication_order
-        if name == 'sys:user':
-            return iter(self.user)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system', 'authentication'])
 
@@ -9930,24 +9766,6 @@ class ietf_system__system(yadata.MNode):
         self.ntp = res
         return res
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:contact':
-            return self.contact
-        if name == 'sys:hostname':
-            return self.hostname
-        if name == 'sys:location':
-            return self.location
-        if name == 'sys:clock':
-            return self.clock
-        if name == 'sys:ntp':
-            return self.ntp
-        if name == 'sys:dns-resolver':
-            return self.dns_resolver
-        if name == 'sys:radius':
-            return self.radius
-        if name == 'sys:authentication':
-            return self.authentication
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system'])
 
@@ -9975,16 +9793,6 @@ class ietf_system__system_state__platform(yadata.MNode):
         self.os_version = os_version
         self.machine = machine
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:os-name':
-            return self.os_name
-        if name == 'sys:os-release':
-            return self.os_release
-        if name == 'sys:os-version':
-            return self.os_version
-        if name == 'sys:machine':
-            return self.machine
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system-state', 'platform'])
 
@@ -10008,12 +9816,6 @@ class ietf_system__system_state__clock(yadata.MNode):
         self.current_datetime = current_datetime
         self.boot_datetime = boot_datetime
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:current-datetime':
-            return self.current_datetime
-        if name == 'sys:boot-datetime':
-            return self.boot_datetime
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system-state', 'clock'])
 
@@ -10036,12 +9838,6 @@ class ietf_system__system_state(yadata.MNode):
     mut def __init__(self, platform: ?ietf_system__system_state__platform=None, clock: ?ietf_system__system_state__clock=None) -> None:
         self.platform = platform if platform is not None else ietf_system__system_state__platform()
         self.clock = clock if clock is not None else ietf_system__system_state__clock()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:platform':
-            return self.platform
-        if name == 'sys:clock':
-            return self.clock
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:system-state'])
@@ -10090,36 +9886,6 @@ class ietf_interfaces__interfaces__interface__statistics(yadata.MNode):
         self.out_discards = out_discards
         self.out_errors = out_errors
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'if:discontinuity-time':
-            return self.discontinuity_time
-        if name == 'if:in-octets':
-            return self.in_octets
-        if name == 'if:in-unicast-pkts':
-            return self.in_unicast_pkts
-        if name == 'if:in-broadcast-pkts':
-            return self.in_broadcast_pkts
-        if name == 'if:in-multicast-pkts':
-            return self.in_multicast_pkts
-        if name == 'if:in-discards':
-            return self.in_discards
-        if name == 'if:in-errors':
-            return self.in_errors
-        if name == 'if:in-unknown-protos':
-            return self.in_unknown_protos
-        if name == 'if:out-octets':
-            return self.out_octets
-        if name == 'if:out-unicast-pkts':
-            return self.out_unicast_pkts
-        if name == 'if:out-broadcast-pkts':
-            return self.out_broadcast_pkts
-        if name == 'if:out-multicast-pkts':
-            return self.out_multicast_pkts
-        if name == 'if:out-discards':
-            return self.out_discards
-        if name == 'if:out-errors':
-            return self.out_errors
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'statistics'])
 
@@ -10146,16 +9912,6 @@ class ietf_interfaces__interfaces__interface__ipv4__address_entry(yadata.MNode):
         self.prefix_length = prefix_length
         self.netmask = netmask
         self.origin = origin
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:prefix-length':
-            return self.prefix_length
-        if name == 'ip:netmask':
-            return self.netmask
-        if name == 'ip:origin':
-            return self.origin
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'ietf-ip:ipv4', 'address'])
@@ -10245,14 +10001,6 @@ class ietf_interfaces__interfaces__interface__ipv4__neighbor_entry(yadata.MNode)
         self.ip = ip
         self.link_layer_address = link_layer_address
         self.origin = origin
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:link-layer-address':
-            return self.link_layer_address
-        if name == 'ip:origin':
-            return self.origin
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'ietf-ip:ipv4', 'neighbor'])
@@ -10345,18 +10093,6 @@ class ietf_interfaces__interfaces__interface__ipv4(yadata.MNode):
         self.address = ietf_interfaces__interfaces__interface__ipv4__address(elements=address)
         self.neighbor = ietf_interfaces__interfaces__interface__ipv4__neighbor(elements=neighbor)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:enabled':
-            return self.enabled
-        if name == 'ip:forwarding':
-            return self.forwarding
-        if name == 'ip:mtu':
-            return self.mtu
-        if name == 'ip:address':
-            return iter(self.address)
-        if name == 'ip:neighbor':
-            return iter(self.neighbor)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'ietf-ip:ipv4'])
 
@@ -10386,16 +10122,6 @@ class ietf_interfaces__interfaces__interface__ipv6__address_entry(yadata.MNode):
         self.prefix_length = prefix_length
         self.origin = origin
         self.status = status
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:prefix-length':
-            return self.prefix_length
-        if name == 'ip:origin':
-            return self.origin
-        if name == 'ip:status':
-            return self.status
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'ietf-ip:ipv6', 'address'])
@@ -10490,18 +10216,6 @@ class ietf_interfaces__interfaces__interface__ipv6__neighbor_entry(yadata.MNode)
         self.is_router = is_router
         self.state = state
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:link-layer-address':
-            return self.link_layer_address
-        if name == 'ip:origin':
-            return self.origin
-        if name == 'ip:is-router':
-            return self.is_router
-        if name == 'ip:state':
-            return self.state
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'ietf-ip:ipv6', 'neighbor'])
 
@@ -10595,16 +10309,6 @@ class ietf_interfaces__interfaces__interface__ipv6__autoconf(yadata.MNode):
         self.temporary_valid_lifetime = temporary_valid_lifetime
         self.temporary_preferred_lifetime = temporary_preferred_lifetime
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:create-global-addresses':
-            return self.create_global_addresses
-        if name == 'ip:create-temporary-addresses':
-            return self.create_temporary_addresses
-        if name == 'ip:temporary-valid-lifetime':
-            return self.temporary_valid_lifetime
-        if name == 'ip:temporary-preferred-lifetime':
-            return self.temporary_preferred_lifetime
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'ietf-ip:ipv6', 'autoconf'])
 
@@ -10637,22 +10341,6 @@ class ietf_interfaces__interfaces__interface__ipv6(yadata.MNode):
         self.neighbor = ietf_interfaces__interfaces__interface__ipv6__neighbor(elements=neighbor)
         self.dup_addr_detect_transmits = dup_addr_detect_transmits
         self.autoconf = autoconf if autoconf is not None else ietf_interfaces__interfaces__interface__ipv6__autoconf()
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:enabled':
-            return self.enabled
-        if name == 'ip:forwarding':
-            return self.forwarding
-        if name == 'ip:mtu':
-            return self.mtu
-        if name == 'ip:address':
-            return iter(self.address)
-        if name == 'ip:neighbor':
-            return iter(self.neighbor)
-        if name == 'ip:dup-addr-detect-transmits':
-            return self.dup_addr_detect_transmits
-        if name == 'ip:autoconf':
-            return self.autoconf
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface', 'ietf-ip:ipv6'])
@@ -10737,40 +10425,6 @@ class ietf_interfaces__interfaces__interface_entry(yadata.MNode):
         res = ietf_interfaces__interfaces__interface__ipv6(enabled=enabled, forwarding=forwarding, mtu=mtu, dup_addr_detect_transmits=dup_addr_detect_transmits)
         self.ipv6 = res
         return res
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'if:name':
-            return self.name
-        if name == 'if:description':
-            return self.description
-        if name == 'if:type':
-            return self.type
-        if name == 'if:enabled':
-            return self.enabled
-        if name == 'if:link-up-down-trap-enable':
-            return self.link_up_down_trap_enable
-        if name == 'if:admin-status':
-            return self.admin_status
-        if name == 'if:oper-status':
-            return self.oper_status
-        if name == 'if:last-change':
-            return self.last_change
-        if name == 'if:if-index':
-            return self.if_index
-        if name == 'if:phys-address':
-            return self.phys_address
-        if name == 'if:higher-layer-if':
-            return self.higher_layer_if
-        if name == 'if:lower-layer-if':
-            return self.lower_layer_if
-        if name == 'if:speed':
-            return self.speed
-        if name == 'if:statistics':
-            return self.statistics
-        if name == 'ip:ipv4':
-            return self.ipv4
-        if name == 'ip:ipv6':
-            return self.ipv6
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces', 'interface'])
@@ -10871,10 +10525,6 @@ class ietf_interfaces__interfaces(yadata.MNode):
     mut def __init__(self, interface: list[ietf_interfaces__interfaces__interface_entry]=[]) -> None:
         self.interface = ietf_interfaces__interfaces__interface(elements=interface)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'if:interface':
-            return iter(self.interface)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces'])
 
@@ -10922,36 +10572,6 @@ class ietf_interfaces__interfaces_state__interface__statistics(yadata.MNode):
         self.out_discards = out_discards
         self.out_errors = out_errors
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'if:discontinuity-time':
-            return self.discontinuity_time
-        if name == 'if:in-octets':
-            return self.in_octets
-        if name == 'if:in-unicast-pkts':
-            return self.in_unicast_pkts
-        if name == 'if:in-broadcast-pkts':
-            return self.in_broadcast_pkts
-        if name == 'if:in-multicast-pkts':
-            return self.in_multicast_pkts
-        if name == 'if:in-discards':
-            return self.in_discards
-        if name == 'if:in-errors':
-            return self.in_errors
-        if name == 'if:in-unknown-protos':
-            return self.in_unknown_protos
-        if name == 'if:out-octets':
-            return self.out_octets
-        if name == 'if:out-unicast-pkts':
-            return self.out_unicast_pkts
-        if name == 'if:out-broadcast-pkts':
-            return self.out_broadcast_pkts
-        if name == 'if:out-multicast-pkts':
-            return self.out_multicast_pkts
-        if name == 'if:out-discards':
-            return self.out_discards
-        if name == 'if:out-errors':
-            return self.out_errors
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface', 'statistics'])
 
@@ -10978,16 +10598,6 @@ class ietf_interfaces__interfaces_state__interface__ipv4__address_entry(yadata.M
         self.prefix_length = prefix_length
         self.netmask = netmask
         self.origin = origin
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:prefix-length':
-            return self.prefix_length
-        if name == 'ip:netmask':
-            return self.netmask
-        if name == 'ip:origin':
-            return self.origin
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface', 'ietf-ip:ipv4', 'address'])
@@ -11078,14 +10688,6 @@ class ietf_interfaces__interfaces_state__interface__ipv4__neighbor_entry(yadata.
         self.link_layer_address = link_layer_address
         self.origin = origin
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:link-layer-address':
-            return self.link_layer_address
-        if name == 'ip:origin':
-            return self.origin
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface', 'ietf-ip:ipv4', 'neighbor'])
 
@@ -11175,16 +10777,6 @@ class ietf_interfaces__interfaces_state__interface__ipv4(yadata.MNode):
         self.address = ietf_interfaces__interfaces_state__interface__ipv4__address(elements=address)
         self.neighbor = ietf_interfaces__interfaces_state__interface__ipv4__neighbor(elements=neighbor)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:forwarding':
-            return self.forwarding
-        if name == 'ip:mtu':
-            return self.mtu
-        if name == 'ip:address':
-            return iter(self.address)
-        if name == 'ip:neighbor':
-            return iter(self.neighbor)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface', 'ietf-ip:ipv4'])
 
@@ -11214,16 +10806,6 @@ class ietf_interfaces__interfaces_state__interface__ipv6__address_entry(yadata.M
         self.prefix_length = prefix_length
         self.origin = origin
         self.status = status
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:prefix-length':
-            return self.prefix_length
-        if name == 'ip:origin':
-            return self.origin
-        if name == 'ip:status':
-            return self.status
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface', 'ietf-ip:ipv6', 'address'])
@@ -11318,18 +10900,6 @@ class ietf_interfaces__interfaces_state__interface__ipv6__neighbor_entry(yadata.
         self.is_router = is_router
         self.state = state
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:ip':
-            return self.ip
-        if name == 'ip:link-layer-address':
-            return self.link_layer_address
-        if name == 'ip:origin':
-            return self.origin
-        if name == 'ip:is-router':
-            return self.is_router
-        if name == 'ip:state':
-            return self.state
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface', 'ietf-ip:ipv6', 'neighbor'])
 
@@ -11423,16 +10993,6 @@ class ietf_interfaces__interfaces_state__interface__ipv6(yadata.MNode):
         self.address = ietf_interfaces__interfaces_state__interface__ipv6__address(elements=address)
         self.neighbor = ietf_interfaces__interfaces_state__interface__ipv6__neighbor(elements=neighbor)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'ip:forwarding':
-            return self.forwarding
-        if name == 'ip:mtu':
-            return self.mtu
-        if name == 'ip:address':
-            return iter(self.address)
-        if name == 'ip:neighbor':
-            return iter(self.neighbor)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface', 'ietf-ip:ipv6'])
 
@@ -11504,34 +11064,6 @@ class ietf_interfaces__interfaces_state__interface_entry(yadata.MNode):
         res = ietf_interfaces__interfaces_state__interface__ipv6(forwarding=forwarding, mtu=mtu)
         self.ipv6 = res
         return res
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'if:name':
-            return self.name
-        if name == 'if:type':
-            return self.type
-        if name == 'if:admin-status':
-            return self.admin_status
-        if name == 'if:oper-status':
-            return self.oper_status
-        if name == 'if:last-change':
-            return self.last_change
-        if name == 'if:if-index':
-            return self.if_index
-        if name == 'if:phys-address':
-            return self.phys_address
-        if name == 'if:higher-layer-if':
-            return self.higher_layer_if
-        if name == 'if:lower-layer-if':
-            return self.lower_layer_if
-        if name == 'if:speed':
-            return self.speed
-        if name == 'if:statistics':
-            return self.statistics
-        if name == 'ip:ipv4':
-            return self.ipv4
-        if name == 'ip:ipv6':
-            return self.ipv6
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state', 'interface'])
@@ -11626,10 +11158,6 @@ class ietf_interfaces__interfaces_state(yadata.MNode):
     mut def __init__(self, interface: list[ietf_interfaces__interfaces_state__interface_entry]=[]) -> None:
         self.interface = ietf_interfaces__interfaces_state__interface(elements=interface)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'if:interface':
-            return iter(self.interface)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-interfaces:interfaces-state'])
 
@@ -11659,18 +11187,6 @@ class root(yadata.MNode):
         self.interfaces = interfaces if interfaces is not None else ietf_interfaces__interfaces()
         self.interfaces_state = interfaces_state if interfaces_state is not None else ietf_interfaces__interfaces_state()
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'nacm:nacm':
-            return self.nacm
-        if name == 'sys:system':
-            return self.system
-        if name == 'sys:system-state':
-            return self.system_state
-        if name == 'if:interfaces':
-            return self.interfaces
-        if name == 'if:interfaces-state':
-            return self.interfaces_state
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True)
 
@@ -11691,10 +11207,6 @@ class ietf_system__set_current_datetime__input(yadata.MNode):
 
     mut def __init__(self, current_datetime: ?str) -> None:
         self.current_datetime = current_datetime
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'sys:current-datetime':
-            return self.current_datetime
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['ietf-system:set-current-datetime', 'input'])

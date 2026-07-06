@@ -791,10 +791,6 @@ class netinfra__netinfra__global_settings(yadata.MNode):
     mut def __init__(self, asn: ?u64) -> None:
         self.asn = asn
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'netinfra:asn':
-            return self.asn
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:netinfra', 'global-settings'])
 
@@ -815,10 +811,6 @@ class netinfra__netinfra__router__dynstate(yadata.MNode):
 
     mut def __init__(self, current_datetime: ?str) -> None:
         self.current_datetime = current_datetime
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'netinfra:current-datetime':
-            return self.current_datetime
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:netinfra', 'router', 'dynstate'])
@@ -846,16 +838,6 @@ class netinfra__netinfra__router_entry(yadata.MNode):
         self.id = id
         self.type = type
         self.mock = mock
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'netinfra:name':
-            return self.name
-        if name == 'netinfra:id':
-            return self.id
-        if name == 'netinfra:type':
-            return self.type
-        if name == 'netinfra:mock':
-            return self.mock
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:netinfra', 'router'])
@@ -944,12 +926,6 @@ class netinfra__netinfra(yadata.MNode):
         self.global_settings = global_settings if global_settings is not None else netinfra__netinfra__global_settings()
         self.router = netinfra__netinfra__router(elements=router)
 
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'netinfra:global-settings':
-            return self.global_settings
-        if name == 'netinfra:router':
-            return iter(self.router)
-
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:netinfra'])
 
@@ -986,26 +962,6 @@ class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
         self.enabled = enabled
         self.site_code = site_code
         self.description = description
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'l3vpn:device':
-            return self.device
-        if name == 'l3vpn:interface-name':
-            return self.interface_name
-        if name == 'l3vpn:ipv4-address':
-            return self.ipv4_address
-        if name == 'l3vpn:prefix-length':
-            return self.prefix_length
-        if name == 'l3vpn:mtu':
-            return self.mtu
-        if name == 'l3vpn:vlan-id':
-            return self.vlan_id
-        if name == 'l3vpn:enabled':
-            return self.enabled
-        if name == 'l3vpn:site-code':
-            return self.site_code
-        if name == 'l3vpn:description':
-            return self.description
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['l3vpn:l3vpn', 'endpoint'])
@@ -1092,22 +1048,6 @@ class l3vpn__l3vpn_entry(yadata.MNode):
         self.enabled = enabled
         self.description = description
         self.endpoint = l3vpn__l3vpn__endpoint(elements=endpoint)
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'l3vpn:name':
-            return self.name
-        if name == 'l3vpn:customer-name':
-            return self.customer_name
-        if name == 'l3vpn:vpn-id':
-            return self.vpn_id
-        if name == 'l3vpn:service-mtu':
-            return self.service_mtu
-        if name == 'l3vpn:enabled':
-            return self.enabled
-        if name == 'l3vpn:description':
-            return self.description
-        if name == 'l3vpn:endpoint':
-            return iter(self.endpoint)
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['l3vpn:l3vpn'])
@@ -1199,12 +1139,6 @@ class root(yadata.MNode):
     mut def __init__(self, netinfra: ?netinfra__netinfra=None, l3vpn: list[l3vpn__l3vpn_entry]=[]) -> None:
         self.netinfra = netinfra if netinfra is not None else netinfra__netinfra()
         self.l3vpn = l3vpn__l3vpn(elements=l3vpn)
-
-    pure def _get_attr(self, name: str) -> ?value:
-        if name == 'netinfra:netinfra':
-            return self.netinfra
-        if name == 'l3vpn:l3vpn':
-            return iter(self.l3vpn)
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True)
