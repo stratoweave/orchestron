@@ -851,8 +851,7 @@ class netinfra__netinfra__router_entry(yadata.MNode):
         return netinfra__netinfra__router_entry.from_gdata(self.to_gdata())
 
 _breaker4: None = None
-class netinfra__netinfra__router(yadata.MNode):
-    elements: list[netinfra__netinfra__router_entry]
+class netinfra__netinfra__router(yadata.MList[netinfra__netinfra__router_entry]):
     mut def __init__(self, elements: list[netinfra__netinfra__router_entry]=[]) -> None:
         self.elements = elements
 
@@ -892,9 +891,6 @@ class netinfra__netinfra__router(yadata.MNode):
                 copied_elements.append(ce)
         return netinfra__netinfra__router(elements=copied_elements)
 
-extension netinfra__netinfra__router(Iterable[netinfra__netinfra__router_entry]):
-    def __iter__(self) -> Iterator[netinfra__netinfra__router_entry]:
-        return self.elements.__iter__()
 
 extension netinfra__netinfra__router(Indexed[str, netinfra__netinfra__router_entry]):
     def __getitem__(self, k: str) -> netinfra__netinfra__router_entry:
@@ -975,8 +971,7 @@ class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
         return l3vpn__l3vpn__endpoint_entry.from_gdata(self.to_gdata())
 
 _breaker7: None = None
-class l3vpn__l3vpn__endpoint(yadata.MNode):
-    elements: list[l3vpn__l3vpn__endpoint_entry]
+class l3vpn__l3vpn__endpoint(yadata.MList[l3vpn__l3vpn__endpoint_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn__endpoint_entry]=[]) -> None:
         self.elements = elements
 
@@ -1026,9 +1021,6 @@ class l3vpn__l3vpn__endpoint(yadata.MNode):
                 copied_elements.append(ce)
         return l3vpn__l3vpn__endpoint(elements=copied_elements)
 
-extension l3vpn__l3vpn__endpoint(Iterable[l3vpn__l3vpn__endpoint_entry]):
-    def __iter__(self) -> Iterator[l3vpn__l3vpn__endpoint_entry]:
-        return self.elements.__iter__()
 
 _breaker8: None = None
 class l3vpn__l3vpn_entry(yadata.MNode):
@@ -1061,8 +1053,7 @@ class l3vpn__l3vpn_entry(yadata.MNode):
         return l3vpn__l3vpn_entry.from_gdata(self.to_gdata())
 
 _breaker9: None = None
-class l3vpn__l3vpn(yadata.MNode):
-    elements: list[l3vpn__l3vpn_entry]
+class l3vpn__l3vpn(yadata.MList[l3vpn__l3vpn_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn_entry]=[]) -> None:
         self.elements = elements
 
@@ -1106,9 +1097,6 @@ class l3vpn__l3vpn(yadata.MNode):
                 copied_elements.append(ce)
         return l3vpn__l3vpn(elements=copied_elements)
 
-extension l3vpn__l3vpn(Iterable[l3vpn__l3vpn_entry]):
-    def __iter__(self) -> Iterator[l3vpn__l3vpn_entry]:
-        return self.elements.__iter__()
 
 extension l3vpn__l3vpn(Indexed[str, l3vpn__l3vpn_entry]):
     def __getitem__(self, k: str) -> l3vpn__l3vpn_entry:

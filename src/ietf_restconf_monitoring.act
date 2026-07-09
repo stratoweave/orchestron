@@ -1476,8 +1476,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(ya
         return ietf_restconf_monitoring__restconf_state__streams__stream__access_entry.from_gdata(self.to_gdata())
 
 _breaker3: None = None
-class ietf_restconf_monitoring__restconf_state__streams__stream__access(yadata.MNode):
-    elements: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]
+class ietf_restconf_monitoring__restconf_state__streams__stream__access(yadata.MList[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
     mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]=[]) -> None:
         self.elements = elements
 
@@ -1512,9 +1511,6 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access(yadata.M
                 copied_elements.append(ce)
         return ietf_restconf_monitoring__restconf_state__streams__stream__access(elements=copied_elements)
 
-extension ietf_restconf_monitoring__restconf_state__streams__stream__access(Iterable[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
-    def __iter__(self) -> Iterator[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]:
-        return self.elements.__iter__()
 
 extension ietf_restconf_monitoring__restconf_state__streams__stream__access(Indexed[str, ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
     def __getitem__(self, k: str) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
@@ -1564,8 +1560,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yadata.MNo
         return ietf_restconf_monitoring__restconf_state__streams__stream_entry.from_gdata(self.to_gdata())
 
 _breaker5: None = None
-class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MNode):
-    elements: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]
+class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MList[ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
     mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]) -> None:
         self.elements = elements
 
@@ -1605,9 +1600,6 @@ class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_restconf_monitoring__restconf_state__streams__stream(elements=copied_elements)
 
-extension ietf_restconf_monitoring__restconf_state__streams__stream(Iterable[ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
-    def __iter__(self) -> Iterator[ietf_restconf_monitoring__restconf_state__streams__stream_entry]:
-        return self.elements.__iter__()
 
 extension ietf_restconf_monitoring__restconf_state__streams__stream(Indexed[str, ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
     def __getitem__(self, k: str) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
