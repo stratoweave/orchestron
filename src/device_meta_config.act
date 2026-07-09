@@ -803,8 +803,7 @@ class stratoweave_rfs__device__address__initial_credentials_entry(yadata.MNode):
         return stratoweave_rfs__device__address__initial_credentials_entry.from_gdata(self.to_gdata())
 
 _breaker2: None = None
-class stratoweave_rfs__device__address__initial_credentials(yadata.MNode):
-    elements: list[stratoweave_rfs__device__address__initial_credentials_entry]
+class stratoweave_rfs__device__address__initial_credentials(yadata.MList[stratoweave_rfs__device__address__initial_credentials_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
         self.elements = elements
 
@@ -842,9 +841,6 @@ class stratoweave_rfs__device__address__initial_credentials(yadata.MNode):
                 copied_elements.append(ce)
         return stratoweave_rfs__device__address__initial_credentials(elements=copied_elements)
 
-extension stratoweave_rfs__device__address__initial_credentials(Iterable[stratoweave_rfs__device__address__initial_credentials_entry]):
-    def __iter__(self) -> Iterator[stratoweave_rfs__device__address__initial_credentials_entry]:
-        return self.elements.__iter__()
 
 _breaker3: None = None
 class stratoweave_rfs__device__address_entry(yadata.MNode):
@@ -871,8 +867,7 @@ class stratoweave_rfs__device__address_entry(yadata.MNode):
         return stratoweave_rfs__device__address_entry.from_gdata(self.to_gdata())
 
 _breaker4: None = None
-class stratoweave_rfs__device__address(yadata.MNode):
-    elements: list[stratoweave_rfs__device__address_entry]
+class stratoweave_rfs__device__address(yadata.MList[stratoweave_rfs__device__address_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__address_entry]=[]) -> None:
         self.elements = elements
 
@@ -909,9 +904,6 @@ class stratoweave_rfs__device__address(yadata.MNode):
                 copied_elements.append(ce)
         return stratoweave_rfs__device__address(elements=copied_elements)
 
-extension stratoweave_rfs__device__address(Iterable[stratoweave_rfs__device__address_entry]):
-    def __iter__(self) -> Iterator[stratoweave_rfs__device__address_entry]:
-        return self.elements.__iter__()
 
 extension stratoweave_rfs__device__address(Indexed[str, stratoweave_rfs__device__address_entry]):
     def __getitem__(self, k: str) -> stratoweave_rfs__device__address_entry:
@@ -955,8 +947,7 @@ class stratoweave_rfs__device__credentials__key_entry(yadata.MNode):
         return stratoweave_rfs__device__credentials__key_entry.from_gdata(self.to_gdata())
 
 _breaker6: None = None
-class stratoweave_rfs__device__credentials__key(yadata.MNode):
-    elements: list[stratoweave_rfs__device__credentials__key_entry]
+class stratoweave_rfs__device__credentials__key(yadata.MList[stratoweave_rfs__device__credentials__key_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
         self.elements = elements
 
@@ -992,9 +983,6 @@ class stratoweave_rfs__device__credentials__key(yadata.MNode):
                 copied_elements.append(ce)
         return stratoweave_rfs__device__credentials__key(elements=copied_elements)
 
-extension stratoweave_rfs__device__credentials__key(Iterable[stratoweave_rfs__device__credentials__key_entry]):
-    def __iter__(self) -> Iterator[stratoweave_rfs__device__credentials__key_entry]:
-        return self.elements.__iter__()
 
 extension stratoweave_rfs__device__credentials__key(Indexed[str, stratoweave_rfs__device__credentials__key_entry]):
     def __getitem__(self, k: str) -> stratoweave_rfs__device__credentials__key_entry:
@@ -1065,8 +1053,7 @@ class stratoweave_rfs__device__initial_credentials_entry(yadata.MNode):
         return stratoweave_rfs__device__initial_credentials_entry.from_gdata(self.to_gdata())
 
 _breaker9: None = None
-class stratoweave_rfs__device__initial_credentials(yadata.MNode):
-    elements: list[stratoweave_rfs__device__initial_credentials_entry]
+class stratoweave_rfs__device__initial_credentials(yadata.MList[stratoweave_rfs__device__initial_credentials_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__initial_credentials_entry]=[]) -> None:
         self.elements = elements
 
@@ -1104,9 +1091,6 @@ class stratoweave_rfs__device__initial_credentials(yadata.MNode):
                 copied_elements.append(ce)
         return stratoweave_rfs__device__initial_credentials(elements=copied_elements)
 
-extension stratoweave_rfs__device__initial_credentials(Iterable[stratoweave_rfs__device__initial_credentials_entry]):
-    def __iter__(self) -> Iterator[stratoweave_rfs__device__initial_credentials_entry]:
-        return self.elements.__iter__()
 
 _breaker10: None = None
 class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
@@ -1133,8 +1117,7 @@ class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
         return stratoweave_rfs__device__mock__module_entry.from_gdata(self.to_gdata())
 
 _breaker11: None = None
-class stratoweave_rfs__device__mock__module(yadata.MNode):
-    elements: list[stratoweave_rfs__device__mock__module_entry]
+class stratoweave_rfs__device__mock__module(yadata.MList[stratoweave_rfs__device__mock__module_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
         self.elements = elements
 
@@ -1171,9 +1154,6 @@ class stratoweave_rfs__device__mock__module(yadata.MNode):
                 copied_elements.append(ce)
         return stratoweave_rfs__device__mock__module(elements=copied_elements)
 
-extension stratoweave_rfs__device__mock__module(Iterable[stratoweave_rfs__device__mock__module_entry]):
-    def __iter__(self) -> Iterator[stratoweave_rfs__device__mock__module_entry]:
-        return self.elements.__iter__()
 
 extension stratoweave_rfs__device__mock__module(Indexed[str, stratoweave_rfs__device__mock__module_entry]):
     def __getitem__(self, k: str) -> stratoweave_rfs__device__mock__module_entry:
@@ -1298,8 +1278,7 @@ class stratoweave_rfs__device_entry(yadata.MNode):
         return stratoweave_rfs__device_entry.from_gdata(self.to_gdata())
 
 _breaker16: None = None
-class stratoweave_rfs__device(yadata.MNode):
-    elements: list[stratoweave_rfs__device_entry]
+class stratoweave_rfs__device(yadata.MList[stratoweave_rfs__device_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
         self.elements = elements
 
@@ -1340,9 +1319,6 @@ class stratoweave_rfs__device(yadata.MNode):
                 copied_elements.append(ce)
         return stratoweave_rfs__device(elements=copied_elements)
 
-extension stratoweave_rfs__device(Iterable[stratoweave_rfs__device_entry]):
-    def __iter__(self) -> Iterator[stratoweave_rfs__device_entry]:
-        return self.elements.__iter__()
 
 extension stratoweave_rfs__device(Indexed[str, stratoweave_rfs__device_entry]):
     def __getitem__(self, k: str) -> stratoweave_rfs__device_entry:

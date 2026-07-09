@@ -2067,8 +2067,7 @@ class ietf_yang_library__yang_library__module_set__module__submodule_entry(yadat
         return ietf_yang_library__yang_library__module_set__module__submodule_entry.from_gdata(self.to_gdata())
 
 _breaker2: None = None
-class ietf_yang_library__yang_library__module_set__module__submodule(yadata.MNode):
-    elements: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]
+class ietf_yang_library__yang_library__module_set__module__submodule(yadata.MList[ietf_yang_library__yang_library__module_set__module__submodule_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]=[]) -> None:
         self.elements = elements
 
@@ -2104,9 +2103,6 @@ class ietf_yang_library__yang_library__module_set__module__submodule(yadata.MNod
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set__module__submodule(elements=copied_elements)
 
-extension ietf_yang_library__yang_library__module_set__module__submodule(Iterable[ietf_yang_library__yang_library__module_set__module__submodule_entry]):
-    def __iter__(self) -> Iterator[ietf_yang_library__yang_library__module_set__module__submodule_entry]:
-        return self.elements.__iter__()
 
 extension ietf_yang_library__yang_library__module_set__module__submodule(Indexed[str, ietf_yang_library__yang_library__module_set__module__submodule_entry]):
     def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
@@ -2160,8 +2156,7 @@ class ietf_yang_library__yang_library__module_set__module_entry(yadata.MNode):
         return ietf_yang_library__yang_library__module_set__module_entry.from_gdata(self.to_gdata())
 
 _breaker4: None = None
-class ietf_yang_library__yang_library__module_set__module(yadata.MNode):
-    elements: list[ietf_yang_library__yang_library__module_set__module_entry]
+class ietf_yang_library__yang_library__module_set__module(yadata.MList[ietf_yang_library__yang_library__module_set__module_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module_entry]=[]) -> None:
         self.elements = elements
 
@@ -2198,9 +2193,6 @@ class ietf_yang_library__yang_library__module_set__module(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set__module(elements=copied_elements)
 
-extension ietf_yang_library__yang_library__module_set__module(Iterable[ietf_yang_library__yang_library__module_set__module_entry]):
-    def __iter__(self) -> Iterator[ietf_yang_library__yang_library__module_set__module_entry]:
-        return self.elements.__iter__()
 
 extension ietf_yang_library__yang_library__module_set__module(Indexed[str, ietf_yang_library__yang_library__module_set__module_entry]):
     def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set__module_entry:
@@ -2246,8 +2238,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
         return ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry.from_gdata(self.to_gdata())
 
 _breaker6: None = None
-class ietf_yang_library__yang_library__module_set__import_only_module__submodule(yadata.MNode):
-    elements: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]
+class ietf_yang_library__yang_library__module_set__import_only_module__submodule(yadata.MList[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]=[]) -> None:
         self.elements = elements
 
@@ -2283,9 +2274,6 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set__import_only_module__submodule(elements=copied_elements)
 
-extension ietf_yang_library__yang_library__module_set__import_only_module__submodule(Iterable[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]):
-    def __iter__(self) -> Iterator[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]:
-        return self.elements.__iter__()
 
 extension ietf_yang_library__yang_library__module_set__import_only_module__submodule(Indexed[str, ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]):
     def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
@@ -2335,8 +2323,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module_entry(yada
         return ietf_yang_library__yang_library__module_set__import_only_module_entry.from_gdata(self.to_gdata())
 
 _breaker8: None = None
-class ietf_yang_library__yang_library__module_set__import_only_module(yadata.MNode):
-    elements: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]
+class ietf_yang_library__yang_library__module_set__import_only_module(yadata.MList[ietf_yang_library__yang_library__module_set__import_only_module_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]=[]) -> None:
         self.elements = elements
 
@@ -2378,9 +2365,6 @@ class ietf_yang_library__yang_library__module_set__import_only_module(yadata.MNo
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set__import_only_module(elements=copied_elements)
 
-extension ietf_yang_library__yang_library__module_set__import_only_module(Iterable[ietf_yang_library__yang_library__module_set__import_only_module_entry]):
-    def __iter__(self) -> Iterator[ietf_yang_library__yang_library__module_set__import_only_module_entry]:
-        return self.elements.__iter__()
 
 _breaker9: None = None
 class ietf_yang_library__yang_library__module_set_entry(yadata.MNode):
@@ -2405,8 +2389,7 @@ class ietf_yang_library__yang_library__module_set_entry(yadata.MNode):
         return ietf_yang_library__yang_library__module_set_entry.from_gdata(self.to_gdata())
 
 _breaker10: None = None
-class ietf_yang_library__yang_library__module_set(yadata.MNode):
-    elements: list[ietf_yang_library__yang_library__module_set_entry]
+class ietf_yang_library__yang_library__module_set(yadata.MList[ietf_yang_library__yang_library__module_set_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set_entry]=[]) -> None:
         self.elements = elements
 
@@ -2440,9 +2423,6 @@ class ietf_yang_library__yang_library__module_set(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set(elements=copied_elements)
 
-extension ietf_yang_library__yang_library__module_set(Iterable[ietf_yang_library__yang_library__module_set_entry]):
-    def __iter__(self) -> Iterator[ietf_yang_library__yang_library__module_set_entry]:
-        return self.elements.__iter__()
 
 extension ietf_yang_library__yang_library__module_set(Indexed[str, ietf_yang_library__yang_library__module_set_entry]):
     def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set_entry:
@@ -2486,8 +2466,7 @@ class ietf_yang_library__yang_library__schema_entry(yadata.MNode):
         return ietf_yang_library__yang_library__schema_entry.from_gdata(self.to_gdata())
 
 _breaker12: None = None
-class ietf_yang_library__yang_library__schema(yadata.MNode):
-    elements: list[ietf_yang_library__yang_library__schema_entry]
+class ietf_yang_library__yang_library__schema(yadata.MList[ietf_yang_library__yang_library__schema_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__schema_entry]=[]) -> None:
         self.elements = elements
 
@@ -2521,9 +2500,6 @@ class ietf_yang_library__yang_library__schema(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__schema(elements=copied_elements)
 
-extension ietf_yang_library__yang_library__schema(Iterable[ietf_yang_library__yang_library__schema_entry]):
-    def __iter__(self) -> Iterator[ietf_yang_library__yang_library__schema_entry]:
-        return self.elements.__iter__()
 
 extension ietf_yang_library__yang_library__schema(Indexed[str, ietf_yang_library__yang_library__schema_entry]):
     def __getitem__(self, k: str) -> ietf_yang_library__yang_library__schema_entry:
@@ -2567,8 +2543,7 @@ class ietf_yang_library__yang_library__datastore_entry(yadata.MNode):
         return ietf_yang_library__yang_library__datastore_entry.from_gdata(self.to_gdata())
 
 _breaker14: None = None
-class ietf_yang_library__yang_library__datastore(yadata.MNode):
-    elements: list[ietf_yang_library__yang_library__datastore_entry]
+class ietf_yang_library__yang_library__datastore(yadata.MList[ietf_yang_library__yang_library__datastore_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__datastore_entry]=[]) -> None:
         self.elements = elements
 
@@ -2603,9 +2578,6 @@ class ietf_yang_library__yang_library__datastore(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__datastore(elements=copied_elements)
 
-extension ietf_yang_library__yang_library__datastore(Iterable[ietf_yang_library__yang_library__datastore_entry]):
-    def __iter__(self) -> Iterator[ietf_yang_library__yang_library__datastore_entry]:
-        return self.elements.__iter__()
 
 extension ietf_yang_library__yang_library__datastore(Indexed[Identityref, ietf_yang_library__yang_library__datastore_entry]):
     def __getitem__(self, k: Identityref) -> ietf_yang_library__yang_library__datastore_entry:

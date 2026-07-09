@@ -161,8 +161,7 @@ class stratoweave_device__devices__device_entry(yadata.MNode):
         return stratoweave_device__devices__device_entry.from_gdata(self.to_gdata())
 
 _breaker2: None = None
-class stratoweave_device__devices__device(yadata.MNode):
-    elements: list[stratoweave_device__devices__device_entry]
+class stratoweave_device__devices__device(yadata.MList[stratoweave_device__devices__device_entry]):
     mut def __init__(self, elements: list[stratoweave_device__devices__device_entry]=[]) -> None:
         self.elements = elements
 
@@ -198,9 +197,6 @@ class stratoweave_device__devices__device(yadata.MNode):
                 copied_elements.append(ce)
         return stratoweave_device__devices__device(elements=copied_elements)
 
-extension stratoweave_device__devices__device(Iterable[stratoweave_device__devices__device_entry]):
-    def __iter__(self) -> Iterator[stratoweave_device__devices__device_entry]:
-        return self.elements.__iter__()
 
 extension stratoweave_device__devices__device(Indexed[str, stratoweave_device__devices__device_entry]):
     def __getitem__(self, k: str) -> stratoweave_device__devices__device_entry:

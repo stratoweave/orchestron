@@ -336,8 +336,7 @@ class ietf_netconf_acm__nacm__groups__group_entry(yadata.MNode):
         return ietf_netconf_acm__nacm__groups__group_entry.from_gdata(self.to_gdata())
 
 _breaker2: None = None
-class ietf_netconf_acm__nacm__groups__group(yadata.MNode):
-    elements: list[ietf_netconf_acm__nacm__groups__group_entry]
+class ietf_netconf_acm__nacm__groups__group(yadata.MList[ietf_netconf_acm__nacm__groups__group_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__groups__group_entry]=[]) -> None:
         self.elements = elements
 
@@ -371,9 +370,6 @@ class ietf_netconf_acm__nacm__groups__group(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_netconf_acm__nacm__groups__group(elements=copied_elements)
 
-extension ietf_netconf_acm__nacm__groups__group(Iterable[ietf_netconf_acm__nacm__groups__group_entry]):
-    def __iter__(self) -> Iterator[ietf_netconf_acm__nacm__groups__group_entry]:
-        return self.elements.__iter__()
 
 extension ietf_netconf_acm__nacm__groups__group(Indexed[str, ietf_netconf_acm__nacm__groups__group_entry]):
     def __getitem__(self, k: str) -> ietf_netconf_acm__nacm__groups__group_entry:
@@ -450,8 +446,7 @@ class ietf_netconf_acm__nacm__rule_list__rule_entry(yadata.MNode):
         return ietf_netconf_acm__nacm__rule_list__rule_entry.from_gdata(self.to_gdata())
 
 _breaker5: None = None
-class ietf_netconf_acm__nacm__rule_list__rule(yadata.MNode):
-    elements: list[ietf_netconf_acm__nacm__rule_list__rule_entry]
+class ietf_netconf_acm__nacm__rule_list__rule(yadata.MList[ietf_netconf_acm__nacm__rule_list__rule_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__rule_list__rule_entry]=[]) -> None:
         self.elements = elements
 
@@ -499,9 +494,6 @@ class ietf_netconf_acm__nacm__rule_list__rule(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_netconf_acm__nacm__rule_list__rule(elements=copied_elements)
 
-extension ietf_netconf_acm__nacm__rule_list__rule(Iterable[ietf_netconf_acm__nacm__rule_list__rule_entry]):
-    def __iter__(self) -> Iterator[ietf_netconf_acm__nacm__rule_list__rule_entry]:
-        return self.elements.__iter__()
 
 extension ietf_netconf_acm__nacm__rule_list__rule(Indexed[str, ietf_netconf_acm__nacm__rule_list__rule_entry]):
     def __getitem__(self, k: str) -> ietf_netconf_acm__nacm__rule_list__rule_entry:
@@ -547,8 +539,7 @@ class ietf_netconf_acm__nacm__rule_list_entry(yadata.MNode):
         return ietf_netconf_acm__nacm__rule_list_entry.from_gdata(self.to_gdata())
 
 _breaker7: None = None
-class ietf_netconf_acm__nacm__rule_list(yadata.MNode):
-    elements: list[ietf_netconf_acm__nacm__rule_list_entry]
+class ietf_netconf_acm__nacm__rule_list(yadata.MList[ietf_netconf_acm__nacm__rule_list_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__rule_list_entry]=[]) -> None:
         self.elements = elements
 
@@ -582,9 +573,6 @@ class ietf_netconf_acm__nacm__rule_list(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_netconf_acm__nacm__rule_list(elements=copied_elements)
 
-extension ietf_netconf_acm__nacm__rule_list(Iterable[ietf_netconf_acm__nacm__rule_list_entry]):
-    def __iter__(self) -> Iterator[ietf_netconf_acm__nacm__rule_list_entry]:
-        return self.elements.__iter__()
 
 extension ietf_netconf_acm__nacm__rule_list(Indexed[str, ietf_netconf_acm__nacm__rule_list_entry]):
     def __getitem__(self, k: str) -> ietf_netconf_acm__nacm__rule_list_entry:
@@ -713,8 +701,7 @@ class ietf_system__system__ntp__server_entry(yadata.MNode):
         return ietf_system__system__ntp__server_entry.from_gdata(self.to_gdata())
 
 _breaker12: None = None
-class ietf_system__system__ntp__server(yadata.MNode):
-    elements: list[ietf_system__system__ntp__server_entry]
+class ietf_system__system__ntp__server(yadata.MList[ietf_system__system__ntp__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__ntp__server_entry]=[]) -> None:
         self.elements = elements
 
@@ -754,9 +741,6 @@ class ietf_system__system__ntp__server(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_system__system__ntp__server(elements=copied_elements)
 
-extension ietf_system__system__ntp__server(Iterable[ietf_system__system__ntp__server_entry]):
-    def __iter__(self) -> Iterator[ietf_system__system__ntp__server_entry]:
-        return self.elements.__iter__()
 
 extension ietf_system__system__ntp__server(Indexed[str, ietf_system__system__ntp__server_entry]):
     def __getitem__(self, k: str) -> ietf_system__system__ntp__server_entry:
@@ -849,8 +833,7 @@ class ietf_system__system__dns_resolver__server_entry(yadata.MNode):
         return ietf_system__system__dns_resolver__server_entry.from_gdata(self.to_gdata())
 
 _breaker16: None = None
-class ietf_system__system__dns_resolver__server(yadata.MNode):
-    elements: list[ietf_system__system__dns_resolver__server_entry]
+class ietf_system__system__dns_resolver__server(yadata.MList[ietf_system__system__dns_resolver__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__dns_resolver__server_entry]=[]) -> None:
         self.elements = elements
 
@@ -884,9 +867,6 @@ class ietf_system__system__dns_resolver__server(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_system__system__dns_resolver__server(elements=copied_elements)
 
-extension ietf_system__system__dns_resolver__server(Iterable[ietf_system__system__dns_resolver__server_entry]):
-    def __iter__(self) -> Iterator[ietf_system__system__dns_resolver__server_entry]:
-        return self.elements.__iter__()
 
 extension ietf_system__system__dns_resolver__server(Indexed[str, ietf_system__system__dns_resolver__server_entry]):
     def __getitem__(self, k: str) -> ietf_system__system__dns_resolver__server_entry:
@@ -1005,8 +985,7 @@ class ietf_system__system__radius__server_entry(yadata.MNode):
         return ietf_system__system__radius__server_entry.from_gdata(self.to_gdata())
 
 _breaker21: None = None
-class ietf_system__system__radius__server(yadata.MNode):
-    elements: list[ietf_system__system__radius__server_entry]
+class ietf_system__system__radius__server(yadata.MList[ietf_system__system__radius__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__radius__server_entry]=[]) -> None:
         self.elements = elements
 
@@ -1042,9 +1021,6 @@ class ietf_system__system__radius__server(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_system__system__radius__server(elements=copied_elements)
 
-extension ietf_system__system__radius__server(Iterable[ietf_system__system__radius__server_entry]):
-    def __iter__(self) -> Iterator[ietf_system__system__radius__server_entry]:
-        return self.elements.__iter__()
 
 extension ietf_system__system__radius__server(Indexed[str, ietf_system__system__radius__server_entry]):
     def __getitem__(self, k: str) -> ietf_system__system__radius__server_entry:
@@ -1136,8 +1112,7 @@ class ietf_system__system__authentication__user__authorized_key_entry(yadata.MNo
         return ietf_system__system__authentication__user__authorized_key_entry.from_gdata(self.to_gdata())
 
 _breaker25: None = None
-class ietf_system__system__authentication__user__authorized_key(yadata.MNode):
-    elements: list[ietf_system__system__authentication__user__authorized_key_entry]
+class ietf_system__system__authentication__user__authorized_key(yadata.MList[ietf_system__system__authentication__user__authorized_key_entry]):
     mut def __init__(self, elements: list[ietf_system__system__authentication__user__authorized_key_entry]=[]) -> None:
         self.elements = elements
 
@@ -1175,9 +1150,6 @@ class ietf_system__system__authentication__user__authorized_key(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_system__system__authentication__user__authorized_key(elements=copied_elements)
 
-extension ietf_system__system__authentication__user__authorized_key(Iterable[ietf_system__system__authentication__user__authorized_key_entry]):
-    def __iter__(self) -> Iterator[ietf_system__system__authentication__user__authorized_key_entry]:
-        return self.elements.__iter__()
 
 extension ietf_system__system__authentication__user__authorized_key(Indexed[str, ietf_system__system__authentication__user__authorized_key_entry]):
     def __getitem__(self, k: str) -> ietf_system__system__authentication__user__authorized_key_entry:
@@ -1223,8 +1195,7 @@ class ietf_system__system__authentication__user_entry(yadata.MNode):
         return ietf_system__system__authentication__user_entry.from_gdata(self.to_gdata())
 
 _breaker27: None = None
-class ietf_system__system__authentication__user(yadata.MNode):
-    elements: list[ietf_system__system__authentication__user_entry]
+class ietf_system__system__authentication__user(yadata.MList[ietf_system__system__authentication__user_entry]):
     mut def __init__(self, elements: list[ietf_system__system__authentication__user_entry]=[]) -> None:
         self.elements = elements
 
@@ -1260,9 +1231,6 @@ class ietf_system__system__authentication__user(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_system__system__authentication__user(elements=copied_elements)
 
-extension ietf_system__system__authentication__user(Iterable[ietf_system__system__authentication__user_entry]):
-    def __iter__(self) -> Iterator[ietf_system__system__authentication__user_entry]:
-        return self.elements.__iter__()
 
 extension ietf_system__system__authentication__user(Indexed[str, ietf_system__system__authentication__user_entry]):
     def __getitem__(self, k: str) -> ietf_system__system__authentication__user_entry:
@@ -1376,8 +1344,7 @@ class ietf_interfaces__interfaces__interface__ipv4__address_entry(yadata.MNode):
         return ietf_interfaces__interfaces__interface__ipv4__address_entry.from_gdata(self.to_gdata())
 
 _breaker31: None = None
-class ietf_interfaces__interfaces__interface__ipv4__address(yadata.MNode):
-    elements: list[ietf_interfaces__interfaces__interface__ipv4__address_entry]
+class ietf_interfaces__interfaces__interface__ipv4__address(yadata.MList[ietf_interfaces__interfaces__interface__ipv4__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv4__address_entry]=[]) -> None:
         self.elements = elements
 
@@ -1415,9 +1382,6 @@ class ietf_interfaces__interfaces__interface__ipv4__address(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv4__address(elements=copied_elements)
 
-extension ietf_interfaces__interfaces__interface__ipv4__address(Iterable[ietf_interfaces__interfaces__interface__ipv4__address_entry]):
-    def __iter__(self) -> Iterator[ietf_interfaces__interfaces__interface__ipv4__address_entry]:
-        return self.elements.__iter__()
 
 extension ietf_interfaces__interfaces__interface__ipv4__address(Indexed[str, ietf_interfaces__interfaces__interface__ipv4__address_entry]):
     def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv4__address_entry:
@@ -1461,8 +1425,7 @@ class ietf_interfaces__interfaces__interface__ipv4__neighbor_entry(yadata.MNode)
         return ietf_interfaces__interfaces__interface__ipv4__neighbor_entry.from_gdata(self.to_gdata())
 
 _breaker33: None = None
-class ietf_interfaces__interfaces__interface__ipv4__neighbor(yadata.MNode):
-    elements: list[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]
+class ietf_interfaces__interfaces__interface__ipv4__neighbor(yadata.MList[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]=[]) -> None:
         self.elements = elements
 
@@ -1498,9 +1461,6 @@ class ietf_interfaces__interfaces__interface__ipv4__neighbor(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv4__neighbor(elements=copied_elements)
 
-extension ietf_interfaces__interfaces__interface__ipv4__neighbor(Iterable[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]):
-    def __iter__(self) -> Iterator[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]:
-        return self.elements.__iter__()
 
 extension ietf_interfaces__interfaces__interface__ipv4__neighbor(Indexed[str, ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]):
     def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv4__neighbor_entry:
@@ -1576,8 +1536,7 @@ class ietf_interfaces__interfaces__interface__ipv6__address_entry(yadata.MNode):
         return ietf_interfaces__interfaces__interface__ipv6__address_entry.from_gdata(self.to_gdata())
 
 _breaker36: None = None
-class ietf_interfaces__interfaces__interface__ipv6__address(yadata.MNode):
-    elements: list[ietf_interfaces__interfaces__interface__ipv6__address_entry]
+class ietf_interfaces__interfaces__interface__ipv6__address(yadata.MList[ietf_interfaces__interfaces__interface__ipv6__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv6__address_entry]=[]) -> None:
         self.elements = elements
 
@@ -1613,9 +1572,6 @@ class ietf_interfaces__interfaces__interface__ipv6__address(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv6__address(elements=copied_elements)
 
-extension ietf_interfaces__interfaces__interface__ipv6__address(Iterable[ietf_interfaces__interfaces__interface__ipv6__address_entry]):
-    def __iter__(self) -> Iterator[ietf_interfaces__interfaces__interface__ipv6__address_entry]:
-        return self.elements.__iter__()
 
 extension ietf_interfaces__interfaces__interface__ipv6__address(Indexed[str, ietf_interfaces__interfaces__interface__ipv6__address_entry]):
     def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv6__address_entry:
@@ -1659,8 +1615,7 @@ class ietf_interfaces__interfaces__interface__ipv6__neighbor_entry(yadata.MNode)
         return ietf_interfaces__interfaces__interface__ipv6__neighbor_entry.from_gdata(self.to_gdata())
 
 _breaker38: None = None
-class ietf_interfaces__interfaces__interface__ipv6__neighbor(yadata.MNode):
-    elements: list[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]
+class ietf_interfaces__interfaces__interface__ipv6__neighbor(yadata.MList[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]=[]) -> None:
         self.elements = elements
 
@@ -1696,9 +1651,6 @@ class ietf_interfaces__interfaces__interface__ipv6__neighbor(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv6__neighbor(elements=copied_elements)
 
-extension ietf_interfaces__interfaces__interface__ipv6__neighbor(Iterable[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]):
-    def __iter__(self) -> Iterator[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]:
-        return self.elements.__iter__()
 
 extension ietf_interfaces__interfaces__interface__ipv6__neighbor(Indexed[str, ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]):
     def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv6__neighbor_entry:
@@ -1845,8 +1797,7 @@ class ietf_interfaces__interfaces__interface_entry(yadata.MNode):
         return ietf_interfaces__interfaces__interface_entry.from_gdata(self.to_gdata())
 
 _breaker42: None = None
-class ietf_interfaces__interfaces__interface(yadata.MNode):
-    elements: list[ietf_interfaces__interfaces__interface_entry]
+class ietf_interfaces__interfaces__interface(yadata.MList[ietf_interfaces__interfaces__interface_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface_entry]=[]) -> None:
         self.elements = elements
 
@@ -1888,9 +1839,6 @@ class ietf_interfaces__interfaces__interface(yadata.MNode):
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface(elements=copied_elements)
 
-extension ietf_interfaces__interfaces__interface(Iterable[ietf_interfaces__interfaces__interface_entry]):
-    def __iter__(self) -> Iterator[ietf_interfaces__interfaces__interface_entry]:
-        return self.elements.__iter__()
 
 extension ietf_interfaces__interfaces__interface(Indexed[str, ietf_interfaces__interfaces__interface_entry]):
     def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface_entry:
@@ -1981,18 +1929,21 @@ class ietf_system__set_current_datetime__input(yadata.MNode):
 
 
 actor rpc_root(tp: ygdata.TreeProvider):
-    def set_current_datetime(cb: action(?Exception) -> None, inp: ietf_system__set_current_datetime__input):
+    set_current_datetime: action(cb: action(?Exception) -> None, inp: ietf_system__set_current_datetime__input) -> None
+    def set_current_datetime(cb, inp):
         rpc_xml = xml.Node('set-current-datetime', nsdefs=[(None, 'urn:ietf:params:xml:ns:yang:ietf-system')])
         if inp is not None:
             gdata_inp = yadata.from_adata(SRC_DNODE, inp, True, ["ietf-system:set-current-datetime", "input"])
             rpc_xml.children.extend(gdata_inp.to_xml())
         tp.rpc_xml(lambda _, err: cb(err), rpc_xml)
 
-    def system_restart(cb: action(?Exception) -> None):
+    system_restart: action(cb: action(?Exception) -> None) -> None
+    def system_restart(cb):
         rpc_xml = xml.Node('system-restart', nsdefs=[(None, 'urn:ietf:params:xml:ns:yang:ietf-system')])
         tp.rpc_xml(lambda _, err: cb(err), rpc_xml)
 
-    def system_shutdown(cb: action(?Exception) -> None):
+    system_shutdown: action(cb: action(?Exception) -> None) -> None
+    def system_shutdown(cb):
         rpc_xml = xml.Node('system-shutdown', nsdefs=[(None, 'urn:ietf:params:xml:ns:yang:ietf-system')])
         tp.rpc_xml(lambda _, err: cb(err), rpc_xml)
 
