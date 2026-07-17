@@ -43,12 +43,20 @@ class SystemSettings(value):
     netconf_host_key_path: ?str
     netconf_user: str
     netconf_password: str
+    udp_notif_listen_address: str
+    udp_notif_receiver_address: ?str
+    udp_notif_source_interface: ?str
+    udp_notif_max_segment_size: int
     exit_on_done: bool
 
     def __init__(self, startup_config_files: list[str], db_spec: ?str,
                  http_port: int, netconf_port: int,
                  netconf_host_key_path: ?str,
                  netconf_user: str, netconf_password: str,
+                 udp_notif_listen_address: str,
+                 udp_notif_receiver_address: ?str,
+                 udp_notif_source_interface: ?str,
+                 udp_notif_max_segment_size: int,
                  exit_on_done: bool):
         self.startup_config_files = startup_config_files
         self.db_spec = db_spec
@@ -57,6 +65,10 @@ class SystemSettings(value):
         self.netconf_host_key_path = netconf_host_key_path
         self.netconf_user = netconf_user
         self.netconf_password = netconf_password
+        self.udp_notif_listen_address = udp_notif_listen_address
+        self.udp_notif_receiver_address = udp_notif_receiver_address
+        self.udp_notif_source_interface = udp_notif_source_interface
+        self.udp_notif_max_segment_size = udp_notif_max_segment_size
         self.exit_on_done = exit_on_done
 
     @staticmethod
@@ -81,6 +93,22 @@ class SystemSettings(value):
             "netconf_password", default="admin",
             help="NETCONF SSH password (v1 static credential)"
         )
+        p.add_str(
+            "udp_notif_listen_address", default="0.0.0.0",
+            help="Local address for IOS XR UDP-Notif listeners"
+        )
+        p.add_str(
+            "udp_notif_receiver_address", default="",
+            help="Address IOS XR devices use to reach this StratoWeave instance; enables UDP-Notif"
+        )
+        p.add_str(
+            "udp_notif_source_interface", default="",
+            help="Optional IOS XR source interface for UDP-Notif traffic"
+        )
+        p.add_int(
+            "udp_notif_max_segment_size", default=1232,
+            help="Maximum IOS XR UDP-Notif datagram segment size"
+        )
         p.add_bool("exit_on_done", help="Exit after startup config has been applied")
         return p
 
@@ -92,6 +120,8 @@ class SystemSettings(value):
         args = SystemSettings.parser().parse(argv, system_settings, environment)
         db_spec = args.get_str("db")
         host_key = args.get_str("netconf_host_key")
+        receiver_address = args.get_str("udp_notif_receiver_address")
+        source_interface = args.get_str("udp_notif_source_interface")
         return SystemSettings(
             args.rest,
             db_spec if db_spec != "" else None,
@@ -100,6 +130,10 @@ class SystemSettings(value):
             host_key if host_key != "" else None,
             args.get_str("netconf_user"),
             args.get_str("netconf_password"),
+            args.get_str("udp_notif_listen_address"),
+            receiver_address if receiver_address != "" else None,
+            source_interface if source_interface != "" else None,
+            args.get_int("udp_notif_max_segment_size"),
             args.get_bool("exit_on_done"))
 
 

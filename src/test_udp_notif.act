@@ -1,0 +1,240 @@
+"""Protocol and loopback tests for UDP-Notif."""
+
+import json
+import net
+import testing
+
+import udp_notif
+import udp_notif_receiver
+
+
+def _u16(value: int) -> bytes:
+    return bytes([(value >> 8) & 255, value & 255])
+
+
+def _u32(value: int) -> bytes:
+    return bytes([(value >> 24) & 255, (value >> 16) & 255,
+                  (value >> 8) & 255, value & 255])
+
+
+def _packet(payload: bytes, publisher_id: int=7, message_id: int=1,
+            segment: ?int=None, last: bool=False) -> bytes:
+    options = bytes([])
+    if segment is not None:
+        bits = (segment! << 1) + (1 if last else 0)
+        options = bytes([udp_notif.OPTION_SEGMENTATION, 4]) + _u16(bits)
+    header_length = udp_notif.FIXED_HEADER_LENGTH + len(options)
+    message_length = header_length + len(payload)
+    return (bytes([33, header_length]) + _u16(message_length) +
+            _u32(publisher_id) + _u32(message_id) + options + payload)
+
+
+def _payload(sub_id: int=43111) -> bytes:
+    return json.encode({
+        udp_notif.NOTIF_ENVELOPE: {
+            "event-time": "2026-07-17T21:16:25.385Z",
+            "hostname": "xrd",
+            "sequence-number": 100047,
+            "contents": {
+                udp_notif.NOTIF_PUSH_UPDATE: {
+                    "id": sub_id,
+                    "datastore-contents": {
+                        "Cisco-IOS-XR-shellutil-oper:system-time": {
+                            "uptime": {"host-name": "xrd", "uptime": 4932805}
+                        }
+                    }
+                }
+            }
+        }
+    }).encode()
+
+
+def _test_decode_xr_datagram():
+    payload = _payload()
+    decoded = udp_notif.decode_datagram(_packet(payload, publisher_id=0, message_id=100047))
+    testing.assertEqual(decoded.media_type, udp_notif.MEDIA_YANG_JSON)
+    testing.assertEqual(decoded.publisher_id, 0)
+    testing.assertEqual(decoded.message_id, 100047)
+    testing.assertEqual(decoded.payload, payload)
+
+
+def _test_decode_rejects_length_mismatch():
+    try:
+        udp_notif.decode_datagram(_packet(_payload()) + bytes([0]))
+    except ValueError:
+        return
+    testing.error("expected UDP-Notif length mismatch to be rejected")
+
+
+def _test_parse_xr_envelope():
+    notif = udp_notif.parse_json_notification(_payload())
+    testing.assertEqual(notif.kind, udp_notif.NOTIF_PUSH_UPDATE)
+    testing.assertEqual(notif.sub_id, 43111)
+    testing.assertEqual(notif.hostname, "xrd")
+    testing.assertEqual(notif.sequence_number, 100047)
+    testing.assertTrue(notif.datastore_contents is not None)
+
+
+def _test_parse_restconf_wrapper():
+    body = json.encode({udp_notif.NOTIF_WRAPPER: {
+        "event-time": "2026-07-17T21:16:25Z",
+        udp_notif.NOTIF_SUBSCRIPTION_STARTED: {"id": 55}
+    }}).encode()
+    notif = udp_notif.parse_json_notification(body)
+    testing.assertEqual(notif.kind, udp_notif.NOTIF_SUBSCRIPTION_STARTED)
+    testing.assertEqual(notif.sub_id, 55)
+
+
+def _test_parse_xr_push_change_update():
+    changes = {
+        "yang-patch": {
+            "patch-id": "1",
+            "edit": [{
+                "edit-id": "1",
+                "operation": "replace",
+                "target": "/Cisco-IOS-XR-pfi-im-cmd-oper:interfaces/interface-xr/interface[interface-name='Loopback0']",
+                "value": {
+                    "Cisco-IOS-XR-pfi-im-cmd-oper:interface": {
+                        "interface-name": "Loopback0",
+                        "state": "im-state-admin-down"
+                    }
+                }
+            }]
+        }
+    }
+    patch = udp_notif.parse_json_patch(changes)
+    testing.assertEqual(patch.patch_id, "1")
+    testing.assertEqual(len(patch.edits), 1)
+    testing.assertEqual(patch.edits[0].operation, "replace")
+    testing.assertEqual(patch.edits[0].target, "/Cisco-IOS-XR-pfi-im-cmd-oper:interfaces/interface-xr/interface[interface-name='Loopback0']")
+    testing.assertTrue(patch.edits[0].value is not None)
+
+
+def _test_reassembles_unordered_segments_and_detects_gap():
+    assembler = udp_notif.Reassembler()
+    payload = _payload()
+    cut = len(payload) // 2
+    second = assembler.feed("192.0.2.1", _packet(payload[cut:], message_id=10,
+                                                  segment=1, last=True))
+    testing.assertTrue(second is None)
+    complete = assembler.feed("192.0.2.1", _packet(payload[:cut], message_id=10,
+                                                    segment=0))
+    testing.assertTrue(complete is not None)
+    if complete is not None:
+        testing.assertEqual(complete!.payload, payload)
+    gap = assembler.feed("192.0.2.1", _packet(payload, message_id=13))
+    testing.assertTrue(gap is not None)
+    if gap is not None:
+        testing.assertEqual(gap!.lost_before, 2)
+    testing.assertEqual(assembler.lost_messages, 2)
+    duplicate = assembler.feed("192.0.2.1", _packet(payload, message_id=13))
+    testing.assertTrue(duplicate is None)
+    testing.assertEqual(assembler.duplicate_messages, 1)
+
+
+def _test_expired_first_message_reports_loss():
+    assembler = udp_notif.Reassembler()
+    payload = _payload()
+    assembler.feed("192.0.2.1#5000", _packet(payload[:10], message_id=1,
+                                             segment=0))
+    expired_endpoints = assembler.expire(0.0)
+    testing.assertEqual(expired_endpoints, {"192.0.2.1#5000"})
+    complete = assembler.feed("192.0.2.1#5000",
+                              _packet(payload, message_id=2))
+    testing.assertTrue(complete is not None)
+    if complete is not None:
+        testing.assertEqual(complete!.lost_before, 1)
+    testing.assertEqual(assembler.expired_messages, 1)
+
+
+def _test_distinct_source_ports_have_independent_message_sequences():
+    assembler = udp_notif.Reassembler()
+    payload = _payload()
+    first = assembler.feed("192.0.2.1#5000",
+                           _packet(payload, message_id=1))
+    second = assembler.feed("192.0.2.1#5001",
+                            _packet(payload, message_id=1))
+    testing.assertTrue(first is not None)
+    testing.assertTrue(second is not None)
+    testing.assertEqual(assembler.duplicate_messages, 0)
+    duplicate = assembler.feed("192.0.2.1#5000",
+                               _packet(payload, message_id=1))
+    testing.assertTrue(duplicate is None)
+    testing.assertEqual(assembler.duplicate_messages, 1)
+
+
+def _test_forget_endpoint_starts_a_new_publisher_generation():
+    assembler = udp_notif.Reassembler()
+    payload = _payload()
+    endpoint = "192.0.2.1#5000"
+    first = assembler.feed(endpoint, _packet(payload, message_id=100))
+    testing.assertTrue(first is not None)
+    assembler.feed(endpoint, _packet(payload[:10], message_id=101,
+                                     segment=0))
+    testing.assertEqual(len(assembler.pending), 1)
+    assembler.forget_endpoint(endpoint)
+    testing.assertEqual(len(assembler.pending), 0)
+    restarted = assembler.feed(endpoint, _packet(payload, message_id=1))
+    testing.assertTrue(restarted is not None)
+
+
+actor _test_receiver_loopback(t: testing.EnvT):
+    listen_cap = net.UDPListenCap(net.UDPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.UDPConnectCap(net.UDPCap(net.NetCap(t.env.cap)))
+    config = udp_notif_receiver.ReceiverConfig(listen_cap, "127.0.0.1", "127.0.0.1")
+    expected = _payload(77)
+    var receiver: ?udp_notif_receiver.Receiver = None
+    var sender: ?net.UDPConnection = None
+    var done = False
+    var assembler = udp_notif.Reassembler()
+
+    action def cleanup():
+        if receiver is not None:
+            receiver!.close()
+        if sender is not None:
+            sender!.close()
+
+    action def fail(message: str):
+        if not done:
+            done = True
+            cleanup()
+            t.failure(ValueError(message))
+
+    action def on_receiver_listen(r: udp_notif_receiver.Receiver, err: ?str):
+        receiver = r
+        if err is not None:
+            fail(err!)
+            return
+
+        def connect_sender():
+            port = await async r.local_port()
+            if port == 0:
+                after 0.01: connect_sender()
+                return
+            sender = net.UDPConnection(connect_cap, "127.0.0.1", port,
+                lambda c: c.write(_packet(expected)),
+                lambda c, data, address, source_port: None,
+                lambda c, error: fail(error))
+        connect_sender()
+
+    action def on_datagram(r: udp_notif_receiver.Receiver, data: bytes,
+                           address: str, port: int):
+        if done:
+            return
+        message = assembler.feed(address, data)
+        if message is None:
+            return
+        notif = udp_notif.parse_json_notification(message!.payload)
+        if notif.sub_id != 77:
+            fail("loopback receiver decoded the wrong subscription")
+            return
+        done = True
+        cleanup()
+        t.success()
+
+    action def on_error(r: udp_notif_receiver.Receiver, error: str):
+        fail(error)
+
+    receiver = udp_notif_receiver.Receiver(config)
+    receiver!.listen(on_receiver_listen, on_datagram, on_error)
+    after 5.0: fail("timed out waiting for UDP-Notif loopback")

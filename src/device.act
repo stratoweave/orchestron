@@ -23,7 +23,7 @@ from device_oper import \
 from device_schema import DeviceSchema, SchemaTreeTransform
 
 from adapters.adapter import \
-    DeviceAdapter, NoAdapter, MockAdapter, MockRoot, \
+    AdapterContext, DeviceAdapter, NoAdapter, MockAdapter, MockRoot, \
     DeviceError, TransientError, PermanentError, NotConnectedError, \
     BusyError, LockedError, TxidMismatchError, ConfigError, ModCap, \
     hash_modset, modset_eq, SubscriptionStatus
@@ -363,7 +363,7 @@ class DeviceType(object):
     ## Adapter type, i.e. the DeviceAdapter subclass to use
     # TODO: why is @property needed here?
     @property
-    adapter_type: proc(DeviceMgr, DeviceSchema, DeviceMetaConfig, SchemaRegistry, logging.Handler, ?net.TCPConnectCap) -> DeviceAdapter
+    adapter_type: proc(DeviceMgr, DeviceSchema, DeviceMetaConfig, SchemaRegistry, logging.Handler, ?net.TCPConnectCap, ?AdapterContext) -> DeviceAdapter
 
     bundled_schema: DeviceSchema
 
@@ -379,7 +379,7 @@ class DeviceType(object):
         self.bundled_schema = DeviceSchema(name, src_dnode, oper_src_dnode, schema_transforms)
         self.software_adapter_type = software_adapter_type
 
-actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, log_handler: logging.Handler):
+actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, log_handler: logging.Handler, adapter_context: ?AdapterContext=None):
     """Device Registry keeps track of all devices and hands out references to
     them based on name.
 
@@ -403,7 +403,7 @@ actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPC
 
     def get_or_create(name: str) -> DeviceMgr:
         if name not in devices:
-            devices[name] = DeviceMgr(dev_types, connect_cap, name, log_handler, reconf_cb, schema_registry, self)
+            devices[name] = DeviceMgr(dev_types, connect_cap, name, log_handler, reconf_cb, schema_registry, self, adapter_context)
         dev = devices[name]
         return dev
 
@@ -551,7 +551,7 @@ class DeviceTreeProvider(ygdata.TreeProvider):
 
 
 
-actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, name: str, log_handler: logging.Handler, on_reconf: action(str) -> None, schema_registry: SchemaRegistry, device_registry: ?DeviceRegistry=None):
+actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, name: str, log_handler: logging.Handler, on_reconf: action(str) -> None, schema_registry: SchemaRegistry, device_registry: ?DeviceRegistry=None, adapter_context: ?AdapterContext=None):
     """Device Manager manages a device and represents that device, as an
     abstract device, in the system. Platform specific handling is implemented in
     the DeviceAdapter, i.e.  in subclasses of DeviceAdapter, like NetconfAdapter
@@ -807,7 +807,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             return False
 
         def build_adapter(device_type: DeviceType, new_dmc: DeviceMetaConfig, effective_mock: bool) -> DeviceAdapter:
-            candidate = device_type.adapter_type(self, device_type.bundled_schema, new_dmc, schema_registry, _log_handler, connect_cap)
+            candidate = device_type.adapter_type(self, device_type.bundled_schema, new_dmc, schema_registry, _log_handler, connect_cap, adapter_context)
             if effective_mock and not candidate.supports_mocking():
                 return MockAdapter(self.on_connect, device_type.bundled_schema, _log_handler, connect_cap)
             return candidate
@@ -985,7 +985,9 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
                 elif isinstance(error, TransientError):
                     _log.debug("Transient error", {"error": error})
                     if isinstance(error, BusyError):
-                        _log.debug("DeviceAdapter busy, ignoring this error as adapter will trigger us once it is done with current operation")
+                        _log.debug("DeviceAdapter busy, scheduling configuration retry")
+                        current_tids = set()
+                        after 0.1: _send_config()
                         return
                     if isinstance(error, TxidMismatchError):
                         _log.debug("Device txid mismatch, re-syncing device")
