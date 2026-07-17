@@ -1,0 +1,587 @@
+"""Pure IOS XR configured YANG Push and UDP-Notif wire adaptations."""
+
+import testing
+import uri
+import std.xml as xml
+
+import yang
+import yang.filter_xpath as filter_xpath
+import yang.json as yjson
+import yang.restconf as yrestconf
+import yang.schema as yschema
+import yang.gdata as ygdata
+import yang.xpath as yxpath
+import yang.ypatch as ypatch
+
+import udp_notif
+
+
+MODULE_YANG_PUSH = "Cisco-IOS-XR-um-yang-push-cfg"
+NS_YANG_PUSH = "http://cisco.com/ns/yang/Cisco-IOS-XR-um-yang-push-cfg"
+NS_TELEMETRY = "http://cisco.com/ns/yang/Cisco-IOS-XR-um-telemetry-model-driven-cfg"
+MODULE_NETWORK_INSTANCE = "openconfig-network-instance"
+RECEIVER_PREFIX = "stratoweave-"
+
+
+def receiver_name(subscription_id: int) -> str:
+    return RECEIVER_PREFIX + str(subscription_id)
+
+
+class OwnedConfig(object):
+    subscription_ids: list[int]
+    receiver_names: list[str]
+
+    def __init__(self, subscription_ids: list[int],
+                 receiver_names: list[str]):
+        self.subscription_ids = subscription_ids
+        self.receiver_names = receiver_names
+
+
+def _normalize_list_key(node: yschema.DList, name: str, raw: str) -> str:
+    if (node.module == MODULE_NETWORK_INSTANCE and node.name == "protocol"
+            and name == "identifier" and raw == "BGP"):
+        return "openconfig-policy-types:BGP"
+    return raw
+
+
+def _normalize_protocol_entry_in_place(entry: dict[str, ?value]):
+    for key in ["identifier", MODULE_NETWORK_INSTANCE + ":identifier"]:
+        identifier = entry.get(key)
+        if isinstance(identifier, str) and identifier == "BGP":
+            entry[key] = "openconfig-policy-types:BGP"
+
+
+def _value_dict(raw: ?value) -> ?dict[str, ?value]:
+    if isinstance(raw, dict):
+        return raw
+    return None
+
+
+def _value_list(raw: ?value) -> ?list[?value]:
+    if isinstance(raw, list):
+        return raw
+    return None
+
+
+def normalize_datastore_contents_in_place(contents: dict[str, ?value]):
+    """Normalize known IOS XR deviations before schema-aware JSON decoding.
+
+    XR 25.3.1 emits the OpenConfig protocol identityref as bare ``BGP`` in
+    protocol snapshots. RFC 7951 requires a cross-module identity to carry its
+    module name. Follow only the network-instance/protocol schema shape so an
+    unrelated leaf named ``identifier`` is never rewritten. The explicit
+    ``in_place`` name documents ownership of the decoded notification object.
+    """
+    network_instances = _value_dict(contents.get(
+        MODULE_NETWORK_INSTANCE + ":network-instances"))
+    if network_instances is None:
+        return
+    network_instances_dict = network_instances!
+    instances = _value_list(network_instances_dict.get("network-instance"))
+    if instances is None:
+        return
+    instance_values = instances!
+    for instance in instance_values:
+        instance_dict = _value_dict(instance)
+        if instance_dict is None:
+            continue
+        protocols = _value_dict(instance_dict!.get("protocols"))
+        if protocols is None:
+            continue
+        protocols_dict = protocols!
+        entries = _value_list(protocols_dict.get("protocol"))
+        if entries is None:
+            continue
+        entry_values = entries!
+        for entry in entry_values:
+            entry_dict = _value_dict(entry)
+            if entry_dict is not None:
+                _normalize_protocol_entry_in_place(entry_dict!)
+
+
+def _inner(node: yschema.DNode) -> yschema.DNodeInner:
+    if isinstance(node, yschema.DNodeInner):
+        return node
+    raise ValueError("XPath leaf cannot have children")
+
+
+def _schema_child(parent: yschema.DNodeInner,
+                  step: yxpath.NodeTestStep) -> yschema.DNode:
+    qualifier = step.prefix
+    if qualifier is not None:
+        try:
+            return parent.get(step.name, prefix=qualifier!,
+                              allow_unqualified=False)
+        except ValueError:
+            return parent.get(step.name, module=qualifier!,
+                              allow_unqualified=False)
+    return parent.get(step.name, allow_unqualified=False)
+
+
+def _node_step(step: yxpath.Step) -> yxpath.NodeTestStep:
+    if isinstance(step, yxpath.NodeTestStep):
+        return step
+    raise ValueError("IOS XR XPath uses an unsupported step")
+
+
+def _omit_xr_predicate(list_node: yschema.DNode,
+                       key_node: yschema.DNode) -> bool:
+    # XR 25.3.1 rejects the identityref half of OpenConfig protocol's compound
+    # key in configured YANG Push filters. The sibling string key remains a
+    # valid predicate. Keep the deviation deliberately narrow: protocol name
+    # and all other list keys, including the neighbor address, remain on the
+    # wire. Consumers decode against the schema and can validate the protocol
+    # identity.
+    return (isinstance(list_node, yschema.DList)
+            and list_node.module == MODULE_NETWORK_INSTANCE
+            and list_node.name == "protocol"
+            and isinstance(key_node, yschema.DLeaf)
+            and key_node.name == "identifier"
+            and isinstance(key_node.type, yschema.DTypeIdentityref))
+
+
+def to_xpath(root: yschema.DRoot, standard_xpath: str) -> str:
+    """Render XR's configured-YANG-Push dialect from a standard XPath.
+
+    XR qualifies only module boundaries, uses the YANG module name rather than
+    the module prefix, and expects a sensor path without XPath's leading slash.
+    The shared FNode renderer remains the source of path and predicate
+    semantics; this pass only adapts the wire spelling.
+    """
+    location = yxpath.parse_location_path(standard_xpath)
+    if not isinstance(location, yxpath.AbsoluteLocationPath):
+        raise ValueError("IOS XR YANG Push filter must be an absolute path")
+
+    current: yschema.DNode = root
+    parts: list[str] = []
+    for index, raw_step in enumerate(location.steps):
+        step = _node_step(raw_step)
+        parent = _inner(current)
+        child = _schema_child(parent, step)
+        name = child.name
+        if index == 0 or parent.namespace != child.namespace:
+            name = child.module + ":" + name
+        for predicate in step.predicates:
+            parsed = filter_xpath.parse_predicate_text(predicate.predicate)
+            pred_name = "." if parsed.self_match else parsed.name
+            if not parsed.self_match:
+                inner = _inner(child)
+                try:
+                    pred_schema = inner.get(parsed.name, prefix=parsed.prefix,
+                                            allow_unqualified=True)
+                except ValueError:
+                    pred_schema = inner.get(parsed.name, module=parsed.prefix,
+                                            allow_unqualified=True)
+                if _omit_xr_predicate(child, pred_schema):
+                    continue
+                if pred_schema.namespace != child.namespace:
+                    pred_name = pred_schema.module + ":" + pred_name
+            name += "[" + pred_name + "=" + filter_xpath.xpath_literal(parsed.val) + "]"
+        parts.append(name)
+        current = child
+    return "/".join(parts)
+
+
+def config(subscription_id: int, receiver_name: str,
+           receiver_address: str, receiver_port: int,
+           max_segment_size: int, xpath: str,
+           source_interface: ?str=None,
+           period_cs: ?int=None, on_change: bool=False) -> list[xml.Node]:
+    if on_change:
+        policy = xml.Node("on-change", children=[xml.Node("sync-on-start")])
+    elif period_cs is not None:
+        period = period_cs!
+        if period < 3000:
+            period = 3000
+        policy = xml.Node("periodic", children=[
+            xml.Node("period", text=str(period))
+        ])
+    else:
+        raise ValueError("IOS XR UDP-Notif requires periodic or on-change update policy")
+
+    subscription_children = [
+        xml.Node("subscription-id", text=str(subscription_id)),
+        xml.Node("encoding", children=[xml.Node("json")]),
+        xml.Node("filter", children=[
+            xml.Node("xpaths", children=[
+                xml.Node("xpath", children=[
+                    xml.Node("xpath-string", text=xpath)
+                ])
+            ])
+        ])
+    ]
+    if source_interface is not None:
+        subscription_children.append(xml.Node("source-interface",
+                                              text=source_interface!))
+    subscription_children.append(xml.Node("update-policy", children=[policy]))
+    subscription_children.append(xml.Node("receivers", children=[
+        xml.Node("receiver", children=[
+            xml.Node("receiver-name", text=receiver_name)
+        ])
+    ]))
+
+    replace = [("xc:operation", "replace")]
+    return [
+        xml.Node("telemetry", nsdefs=[(None, NS_TELEMETRY)], children=[
+            xml.Node("model-driven")
+        ]),
+        xml.Node("yang-push", nsdefs=[(None, NS_YANG_PUSH)], children=[
+            xml.Node("receivers", children=[
+                # Replacing each keyed entry makes this idempotent and prevents
+                # a changed XPath from being merged beside an old value.
+                xml.Node("receiver", attributes=replace, children=[
+                    xml.Node("receiver-name", text=receiver_name),
+                    xml.Node("transport", children=[
+                        xml.Node("udp-notif", children=[
+                            xml.Node("max-segment-size",
+                                     text=str(max_segment_size))
+                        ])
+                    ]),
+                    xml.Node("address", text=receiver_address),
+                    xml.Node("port", text=str(receiver_port))
+                ])
+            ]),
+            xml.Node("subscriptions", children=[
+                xml.Node("subscription", attributes=replace,
+                         children=subscription_children)
+            ])
+        ])
+    ]
+
+
+def cleanup_many(subscription_ids: list[int],
+                 receiver_names: list[str]) -> list[xml.Node]:
+    remove = [("xc:operation", "remove")]
+    children: list[xml.Node] = []
+    if len(subscription_ids) > 0:
+        subscriptions: list[xml.Node] = []
+        for subscription_id in subscription_ids:
+            subscriptions.append(xml.Node(
+                "subscription", attributes=remove, children=[
+                    xml.Node("subscription-id", text=str(subscription_id))
+                ]))
+        children.append(xml.Node("subscriptions", children=subscriptions))
+    if len(receiver_names) > 0:
+        receivers: list[xml.Node] = []
+        for receiver_name in receiver_names:
+            receivers.append(xml.Node("receiver", attributes=remove, children=[
+                xml.Node("receiver-name", text=receiver_name)
+            ]))
+        children.append(xml.Node("receivers", children=receivers))
+    return [xml.Node("yang-push", nsdefs=[(None, NS_YANG_PUSH)],
+                     children=children)]
+
+
+def cleanup(subscription_id: int, receiver_name: str) -> list[xml.Node]:
+    return cleanup_many([subscription_id], [receiver_name])
+
+
+def owned_config_filter() -> xml.Node:
+    """Subtree filter for configured XR YANG Push ownership discovery."""
+    return xml.Node("filter", children=[
+        xml.Node("yang-push", nsdefs=[(None, NS_YANG_PUSH)], children=[
+            xml.Node("subscriptions"),
+            xml.Node("receivers")
+        ])
+    ])
+
+
+def _children(node: xml.Node, tag: str) -> list[xml.Node]:
+    matches: list[xml.Node] = []
+    for child in node.children:
+        if child.tag == tag:
+            matches.append(child)
+    return matches
+
+
+def _descendants(node: xml.Node, tag: str) -> list[xml.Node]:
+    matches: list[xml.Node] = []
+    for child in node.children:
+        if child.tag == tag:
+            matches.append(child)
+        matches.extend(_descendants(child, tag))
+    return matches
+
+
+def owned_config(reply: xml.Node) -> OwnedConfig:
+    """Find all configured subscriptions and receivers owned by StratoWeave."""
+    subscription_ids: list[int] = []
+    receiver_names: list[str] = []
+    for yang_push in _descendants(reply, "yang-push"):
+        for receiver_parent in _children(yang_push, "receivers"):
+            for receiver in _children(receiver_parent, "receiver"):
+                names = _children(receiver, "receiver-name")
+                name_value = None if len(names) == 0 else names[0].text
+                if (name_value is not None
+                        and name_value!.startswith(RECEIVER_PREFIX)):
+                    name = name_value!
+                    if name not in receiver_names:
+                        receiver_names.append(name)
+        for subscription_parent in _children(yang_push, "subscriptions"):
+            for subscription in _children(subscription_parent, "subscription"):
+                owned = False
+                for name_node in _descendants(subscription, "receiver-name"):
+                    name_value = name_node.text
+                    if (name_value is not None
+                            and name_value!.startswith(RECEIVER_PREFIX)):
+                        owned = True
+                        break
+                ids = _children(subscription, "subscription-id")
+                id_value = None if len(ids) == 0 else ids[0].text
+                if owned and id_value is not None:
+                    try:
+                        subscription_id = int(id_value!)
+                        if subscription_id not in subscription_ids:
+                            subscription_ids.append(subscription_id)
+                    except ValueError:
+                        pass
+    return OwnedConfig(subscription_ids, receiver_names)
+
+
+def _xpath_target_to_restconf(root: yschema.DRoot, target: str) -> (target: str, segments: list[str], terminal: yschema.DNode):
+    """Convert XR's XPath YANG-Patch target to an RFC 8040 data path."""
+    location = yxpath.parse_location_path(target)
+    if not isinstance(location, yxpath.AbsoluteLocationPath):
+        raise ValueError("IOS XR YANG Patch target must be an absolute XPath")
+
+    current: yschema.DNode = root
+    parts: list[str] = []
+    segments: list[str] = []
+    for raw_step in location.steps:
+        step = _node_step(raw_step)
+        parent = _inner(current)
+        child = _schema_child(parent, step)
+        name = child.name
+        if parent.namespace != child.namespace:
+            name = child.module + ":" + name
+        segment = name
+        segments.append(name)
+        if isinstance(child, yschema.DList):
+            key_values: dict[str, str] = {}
+            for predicate in step.predicates:
+                parsed = filter_xpath.parse_predicate_text(predicate.predicate)
+                if parsed.self_match or parsed.name not in child.key:
+                    raise ValueError("IOS XR YANG Patch list target has a non-key predicate")
+                key_values[parsed.name] = _normalize_list_key(
+                    child, parsed.name, parsed.val)
+            if len(key_values) != len(child.key):
+                raise ValueError("IOS XR YANG Patch list target does not identify every key")
+            encoded: list[str] = []
+            for key in child.key:
+                encoded.append(uri.quote(key_values[key], safe=""))
+            key_segment = ",".join(encoded)
+            segment += "=" + key_segment
+            segments.append(key_segment)
+        elif len(step.predicates) > 0:
+            raise ValueError("IOS XR YANG Patch predicates are only supported on lists")
+        parts.append(segment)
+        current = child
+    return (target="/" + "/".join(parts), segments=segments,
+            terminal=current)
+
+
+def json_edit_to_gdata(root: yschema.DRoot,
+                       edit: udp_notif.JsonPatchEdit) -> ygdata.Node:
+    converted = _xpath_target_to_restconf(root, edit.target)
+    operation = edit.operation
+    if operation == "insert" or operation == "move":
+        raise ValueError("ordered IOS XR YANG Patch edits are unsupported")
+    if operation == "create" or operation == "merge":
+        restconf_op = "merge"
+    elif operation == "delete" or operation == "remove":
+        restconf_op = "remove"
+    elif operation == "replace":
+        restconf_op = "replace"
+    else:
+        raise ValueError("unsupported IOS XR YANG Patch operation {operation}")
+
+    terminal = converted.terminal
+    if isinstance(terminal, yschema.DNodeInner):
+        body = edit.value
+        if body is not None and isinstance(terminal, yschema.DList):
+            key = terminal.module + ":" + terminal.name
+            entry = body!.get(key)
+            if isinstance(entry, dict):
+                # A targeted OpenConfig protocol entry can carry XR's bare BGP
+                # identityref too. Copy it before normalization so conversion
+                # never mutates the JsonPatch object supplied by the caller.
+                if (terminal.module == MODULE_NETWORK_INSTANCE
+                        and terminal.name == "protocol"):
+                    copied_entry: dict[str, ?value] = {}
+                    for entry_key, entry_value in entry.items():
+                        copied_entry[entry_key] = entry_value
+                    _normalize_protocol_entry_in_place(copied_entry)
+                    entry = copied_entry
+                # XR encodes one targeted list entry as an object; RFC 7951
+                # wraps even a single entry in an array.
+                body = {key: [entry]}
+        return yrestconf.from_json_path(root, body, converted.segments,
+                                        restconf_op, loose=True)
+
+    # The sparse RESTCONF helper ends at inner nodes. Parse scalar leaves with
+    # their schema, then delegate the patch operation to the YANG Patch codec.
+    xml_value: ?xml.Node = None
+    if restconf_op != "remove":
+        body = edit.value
+        if body is None:
+            raise ValueError("IOS XR YANG Patch value is missing")
+        key = terminal.module + ":" + terminal.name
+        raw_value = body!.get(key)
+        if raw_value is None:
+            raw_value = body!.get(terminal.name)
+        if isinstance(terminal, yschema.DNodeLeaf):
+            path = yrestconf.resolve_path(root, converted.segments)
+            typed = yjson.try_parse_json_value(raw_value, terminal,
+                                                terminal.type, path, root)
+            if typed is None:
+                raise ValueError("IOS XR YANG Patch leaf value is invalid")
+            typed_value = typed!
+            xml_value = ygdata.leaf_xml(terminal.name, terminal.namespace,
+                                        typed_value.val)
+        else:
+            raise ValueError("IOS XR YANG Patch leaf-list replacement is unsupported")
+    return ypatch.edit_to_gdata(root, ypatch.Edit(edit.edit_id, operation,
+                                                  converted.target, xml_value))
+
+
+XPATH_TEST_YANG = r"""module test-interfaces {
+  namespace "urn:test:interfaces";
+  prefix ti;
+  container interfaces {
+    list interface {
+      key "name";
+      leaf name { type string; }
+      leaf in-octets { type uint64; }
+    }
+  }
+}"""
+
+
+XPATH_IDENTITYREF_KEY_TEST_YANG = r"""module openconfig-network-instance {
+  namespace "http://openconfig.net/yang/network-instance";
+  prefix oc-ni;
+  identity protocol;
+  identity BGP { base protocol; }
+  container protocols {
+    list protocol {
+      key "identifier name";
+      leaf identifier { type identityref { base protocol; } }
+      leaf name { type string; }
+      container state { leaf session-state { type string; } }
+    }
+  }
+}"""
+
+
+def _test_xpath_dialect():
+    root = yang.compile([XPATH_TEST_YANG])
+    testing.assertEqual(to_xpath(root,
+        "/ti:interfaces/ti:interface[ti:name='eth0']/ti:in-octets"),
+        "test-interfaces:interfaces/interface[name='eth0']/in-octets")
+
+
+def _test_xpath_dialect_omits_xr_identityref_key_deviation():
+    root = yang.compile([XPATH_IDENTITYREF_KEY_TEST_YANG])
+    testing.assertEqual(to_xpath(root,
+        "/oc-ni:protocols/oc-ni:protocol[oc-ni:identifier='oc-ni:BGP'][oc-ni:name='default']/oc-ni:state/oc-ni:session-state"),
+        "openconfig-network-instance:protocols/protocol[name='default']/state/session-state")
+
+
+def _test_normalize_datastore_contents():
+    contents = {"openconfig-network-instance:network-instances": {
+        "network-instance": [{"name": "DEFAULT", "protocols": {
+            "protocol": [{"identifier": "BGP", "name": "default"}]
+        }}]
+    }}
+    normalize_datastore_contents_in_place(contents)
+    network_instances = contents[
+        "openconfig-network-instance:network-instances"]
+    testing.assertTrue(isinstance(network_instances, dict))
+    if isinstance(network_instances, dict):
+        instances = network_instances["network-instance"]
+        testing.assertTrue(isinstance(instances, list))
+        if isinstance(instances, list):
+            instance = instances[0]
+            testing.assertTrue(isinstance(instance, dict))
+            if isinstance(instance, dict):
+                protocols = instance["protocols"]
+                testing.assertTrue(isinstance(protocols, dict))
+                if isinstance(protocols, dict):
+                    entries = protocols["protocol"]
+                    testing.assertTrue(isinstance(entries, list))
+                    if isinstance(entries, list):
+                        entry = entries[0]
+                        testing.assertTrue(isinstance(entry, dict))
+                        if isinstance(entry, dict):
+                            testing.assertEqual(entry["identifier"],
+                                                "openconfig-policy-types:BGP")
+
+    unrelated = {"identifier": "BGP"}
+    normalize_datastore_contents_in_place(unrelated)
+    testing.assertEqual(unrelated["identifier"], "BGP")
+
+
+def _test_config_replaces_entries_and_clamps_period():
+    nodes = config(1234, "receiver", "192.0.2.1", 50000, 1200,
+                   "example:state", period_cs=1)
+    yang_push = nodes[1]
+    receiver = yang_push.children[0].children[0]
+    subscription = yang_push.children[1].children[0]
+    testing.assertEqual(len(receiver.attributes), 1)
+    testing.assertEqual(receiver.attributes[0], ("xc:operation", "replace"))
+    testing.assertEqual(len(subscription.attributes), 1)
+    testing.assertEqual(subscription.attributes[0],
+                        ("xc:operation", "replace"))
+    period = subscription.children[3].children[0].children[0]
+    testing.assertEqual(period.text, "3000")
+
+
+def _test_config_source_interface():
+    nodes = config(1234, "receiver", "192.0.2.1", 50000, 1232,
+                   "example:state", source_interface="MgmtEth0/RP0/CPU0/0",
+                   on_change=True)
+    subscription = nodes[1].children[1].children[0]
+    testing.assertEqual(subscription.children[3].tag, "source-interface")
+    testing.assertEqual(subscription.children[3].text, "MgmtEth0/RP0/CPU0/0")
+    testing.assertEqual(subscription.children[4].tag, "update-policy")
+
+
+def _test_owned_config_discovery_and_cleanup():
+    configured = config(1234, "stratoweave-1234", "192.0.2.1", 50000,
+                        1232, "example:state", on_change=True)
+    reply = xml.Node("rpc-reply", children=[
+        xml.Node("data", children=configured)
+    ])
+    owned = owned_config(reply)
+    testing.assertEqual(owned.subscription_ids, [1234])
+    testing.assertEqual(owned.receiver_names, ["stratoweave-1234"])
+    cleanup_nodes = cleanup_many(owned.subscription_ids,
+                                 owned.receiver_names)
+    yang_push = cleanup_nodes[0]
+    testing.assertEqual(yang_push.children[0].tag, "subscriptions")
+    testing.assertEqual(yang_push.children[1].tag, "receivers")
+
+
+XR_PATCH_TEST_YANG = r"""module xr-patch-test {
+  namespace "urn:test:xr-patch";
+  prefix xpt;
+  container peers {
+    list peer {
+      key "address";
+      leaf address { type string; }
+      leaf state { type string; }
+    }
+  }
+}"""
+
+
+def _test_json_patch_xpath_target():
+    root = yang.compile([XR_PATCH_TEST_YANG])
+    edit = udp_notif.JsonPatchEdit(
+        "1", "replace", "/xr-patch-test:peers/peer[address='192.0.2.1']",
+        {"xr-patch-test:peer": {"address": "192.0.2.1", "state": "down"}})
+    patch = json_edit_to_gdata(root, edit)
+    result = ygdata.patch(ygdata.Container({}), patch)
+    testing.assertEqual(result!.to_yang_jsonstr(pretty=False,
+                                                deterministic=True),
+                        r'{"xr-patch-test:peers":{"peer":[{"address":"192.0.2.1","state":"down"}]}}')

@@ -1,0 +1,77 @@
+"""Acton UDP socket receiver for UDP-Notif messages."""
+
+import net
+
+class ReceiverConfig(object):
+    cap: net.UDPListenCap
+    listen_address: str
+    advertised_address: str
+    source_interface: ?str
+    port: int
+    max_segment_size: int
+    reassembly_timeout: float
+
+    def __init__(self, cap: net.UDPListenCap, listen_address: str,
+                 advertised_address: str, source_interface: ?str=None, port: int=0,
+                 max_segment_size: int=1232, reassembly_timeout: float=5.0):
+        if advertised_address == "":
+            raise ValueError("UDP-Notif advertised receiver address is required")
+        if max_segment_size < 1232 or max_segment_size > 65527:
+            raise ValueError("UDP-Notif max segment size must be 1232..65527")
+        if reassembly_timeout <= 0.0:
+            raise ValueError("UDP-Notif reassembly timeout must be positive")
+        self.cap = cap
+        self.listen_address = listen_address
+        self.advertised_address = advertised_address
+        self.source_interface = source_interface
+        self.port = port
+        self.max_segment_size = max_segment_size
+        self.reassembly_timeout = reassembly_timeout
+
+
+actor Receiver(config: ReceiverConfig):
+    var listener: ?net.UDPListener = None
+
+    action def close():
+        current = listener
+        listener = None
+        if current is not None:
+            current!.close()
+
+    action def local_port() -> int:
+        current = listener
+        if current is None:
+            return 0
+        sock = current!
+        port = await async sock.local_port()
+        return port
+
+    action def listen(on_listen: action(Receiver, ?str) -> None,
+                      on_datagram: action(Receiver, bytes, str, int) -> None,
+                      on_error: action(Receiver, str) -> None):
+        previous = listener
+        listener = None
+        if previous is not None:
+            previous!.close()
+
+        action def listened(sock: net.UDPListener, err: ?str):
+            current = listener
+            if current is None or current! is not sock:
+                sock.close()
+                return
+            on_listen(self, err)
+
+        action def received(sock: net.UDPListener, data: bytes,
+                            source_address: str, source_port: int):
+            current = listener
+            if current is None or current! is not sock:
+                return
+            on_datagram(self, data, source_address, source_port)
+
+        action def socket_error(sock: net.UDPListener, err: str):
+            current = listener
+            if current is not None and current! is sock:
+                on_error(self, err)
+
+        listener = net.UDPListener(config.cap, config.listen_address, config.port,
+                                   listened, received, socket_error)

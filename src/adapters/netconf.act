@@ -5,6 +5,9 @@ import time
 import testing
 import std.xml as xml
 
+import yang
+import yang.filter_xpath as filter_xpath
+import yang.json as yjson
 import yang.schema as yschema
 import yang.gdata as ygdata
 import yang.xml as yxml
@@ -12,6 +15,9 @@ import yang.ypatch as ypatch
 
 import netconf
 import netconf.yp as nyp
+import udp_notif
+import udp_notif_receiver
+import xr_udp_notif
 import yp
 from yp.engine import YangPushBackend
 import device as swdev
@@ -22,11 +28,12 @@ from device_schema import DeviceSchema
 from device_meta_config import \
     stratoweave_rfs__device_entry as DeviceMetaConfig
 from adapters.adapter import \
-    DeviceAdapter, ModCap, DISCONNECTED, CONNECTING, CONNECTED, TRANSACTION, \
+    AdapterContext, DeviceAdapter, ModCap, DISCONNECTED, CONNECTING, CONNECTED, TRANSACTION, \
     NotConnectedError, BusyError, LockedError, TxidMismatchError, ConfigError, \
     SharedSubscription, SubscriptionOwner, parse_cap, \
     subscription_delay, merge_subscription_tree, \
     SubscriptionStatus, SUBSCRIPTION_YANG_PUSH, SUBSCRIPTION_POLL, SUBSCRIPTION_CONNECTING
+from adapters.adapter import SUBSCRIPTION_UDP_NOTIF
 
 MODULE_YANG_PUSH = "ietf-yang-push"
 MODULE_SUBSCRIBED_NOTIFICATIONS = "ietf-subscribed-notifications"
@@ -34,21 +41,128 @@ MODULE_EVENT_NOTIFICATIONS = "ietf-event-notifications"
 MODULE_PREFIX_IOSXR = "Cisco-IOS-XR-"
 RUNTIME_SCHEMA_MODULE_SETS = ["no-openconfig"]
 
-# TODO: Delete this table and read module prefixes from the compiled YANG
-# schema instead. XML namespace prefixes are supposed to be aliases, but IOS XE's
-# event-notifications YANG Push XPath handling currently rejects otherwise
-# equivalent filters when we generate synthetic prefixes such as "ypf0". This
-# hard-coded list is only here to keep the IOS XE interop path working while the
-# adapter is forced to synthesize XPath from FNode. The right place for this
-# knowledge is acton-yang/schema metadata: given a namespace, ask the compiled
-# schema for the advertised module prefix and use that when serializing XPath.
-XPATH_PREFERRED_PREFIXES = {
-    "urn:ietf:params:xml:ns:yang:iana-if-type": "ianaift",
-    "urn:ietf:params:xml:ns:yang:ietf-interfaces": "if",
-    "urn:ietf:params:xml:ns:yang:ietf-ip": "ip",
-    "urn:ietf:params:xml:ns:yang:ietf-system": "sys",
-    "urn:ietf:params:xml:ns:yang:ietf-yang-library": "yanglib",
-}
+UDP_DATAGRAM_ACCEPT = "accept"
+UDP_DATAGRAM_DROP = "drop"
+UDP_DATAGRAM_RESYNC_SPEC = "resync-spec"
+UDP_UNKNOWN_FORGET = "forget"
+UDP_UNKNOWN_RETAIN = "retain"
+UDP_UNKNOWN_RESYNC = "resync"
+XR_CLOSE_CLEANUP_GRACE_SECONDS = 5.0
+
+
+def _augment_schema(primary: yschema.DRoot,
+                    fallback: yschema.DRoot) -> yschema.DRoot:
+    """Add modules absent from a runtime schema from the bundled device slice."""
+    namespaces: set[str] = set()
+    for namespace in primary.module_metadata.keys():
+        namespaces.add(namespace)
+    children: list[yschema.DNode] = []
+    for child in primary.children:
+        if not isinstance(child, yschema.DRpc):
+            children.append(child)
+    identities: list[yschema.DIdentity] = []
+    for identity in primary.identities:
+        identities.append(identity)
+    rpcs: list[yschema.DRpc] = []
+    for rpc in primary.rpcs:
+        rpcs.append(rpc)
+    module_metadata: dict[str, (module: str, revision: ?str)] = {}
+    for namespace, metadata in primary.module_metadata.items():
+        module_metadata[namespace] = metadata
+    for child in fallback.children:
+        if (not isinstance(child, yschema.DRpc)
+                and child.namespace not in namespaces):
+            children.append(child)
+    for identity in fallback.identities:
+        if identity.namespace not in namespaces:
+            identities.append(identity)
+    for rpc in fallback.rpcs:
+        if rpc.namespace not in namespaces:
+            rpcs.append(rpc)
+    for namespace, metadata in fallback.module_metadata.items():
+        if namespace not in namespaces:
+            module_metadata[namespace] = metadata
+    return yschema.DRoot(children=children, identities=identities, rpcs=rpcs,
+                         module_metadata=module_metadata)
+
+
+class UDPDatagramDisposition(object):
+    decision: str
+    pin_source: bool
+
+    def __init__(self, decision: str, pin_source: bool=False):
+        self.decision = decision
+        self.pin_source = pin_source
+
+
+def _udp_datagram_disposition(expected_source: ?str, source_address: str,
+                              mapped: bool,
+                              subscription_failure: bool=False) -> UDPDatagramDisposition:
+    """Classify a datagram without letting untrusted traffic trigger resync."""
+    if expected_source is not None and source_address != expected_source!:
+        return UDPDatagramDisposition(UDP_DATAGRAM_DROP)
+    if not mapped:
+        return UDPDatagramDisposition(UDP_DATAGRAM_DROP)
+    if subscription_failure:
+        return UDPDatagramDisposition(UDP_DATAGRAM_RESYNC_SPEC)
+    return UDPDatagramDisposition(UDP_DATAGRAM_ACCEPT,
+                                  pin_source=expected_source is None)
+
+
+def _test_udp_datagram_disposition():
+    unknown = _udp_datagram_disposition(None, "192.0.2.1", False)
+    testing.assertEqual(unknown.decision, UDP_DATAGRAM_DROP)
+
+    first = _udp_datagram_disposition(None, "192.0.2.1", True)
+    testing.assertEqual(first.decision, UDP_DATAGRAM_ACCEPT)
+    testing.assertTrue(first.pin_source)
+
+    unexpected = _udp_datagram_disposition("192.0.2.1", "192.0.2.2", True)
+    testing.assertEqual(unexpected.decision, UDP_DATAGRAM_DROP)
+
+    bad_patch = _udp_datagram_disposition(
+        "192.0.2.1", "192.0.2.1", True, subscription_failure=True)
+    testing.assertEqual(bad_patch.decision, UDP_DATAGRAM_RESYNC_SPEC)
+
+
+def _unknown_subscription_action(tracked_endpoint: bool,
+                                 lost_before: int) -> str:
+    if tracked_endpoint:
+        if lost_before > 0:
+            return UDP_UNKNOWN_RESYNC
+        return UDP_UNKNOWN_RETAIN
+    return UDP_UNKNOWN_FORGET
+
+
+def _test_unknown_subscription_action():
+    testing.assertEqual(_unknown_subscription_action(False, 0),
+                        UDP_UNKNOWN_FORGET)
+    testing.assertEqual(_unknown_subscription_action(False, 2),
+                        UDP_UNKNOWN_FORGET)
+    testing.assertEqual(_unknown_subscription_action(True, 0),
+                        UDP_UNKNOWN_RETAIN)
+    testing.assertEqual(_unknown_subscription_action(True, 2),
+                        UDP_UNKNOWN_RESYNC)
+
+
+def _udp_config_from_context(context: ?AdapterContext) -> ?udp_notif_receiver.ReceiverConfig:
+    if context is None:
+        return None
+    receiver_address = context!.options.get("udp-notif-receiver-address")
+    if receiver_address is None:
+        return None
+    network_cap = context!.net_cap
+    if network_cap is None:
+        raise ValueError("UDP-Notif requires a network capability")
+    listen_address = context!.options.get("udp-notif-listen-address")
+    max_segment_size = context!.options.get("udp-notif-max-segment-size")
+    return udp_notif_receiver.ReceiverConfig(
+        net.UDPListenCap(net.UDPCap(network_cap!)),
+        "0.0.0.0" if listen_address is None else listen_address!,
+        receiver_address!,
+        source_interface=context!.options.get("udp-notif-source-interface"),
+        max_segment_size=1232 if max_segment_size is None else int(max_segment_size!))
+
 
 def extract_txid(conf: ?xml.Node) -> ?str:
     """Attempt to extract a txid from configuration
@@ -64,28 +178,48 @@ def extract_txid(conf: ?xml.Node) -> ?str:
                     return attr_value
 
 
-def _is_iosxr(modules: dict[str, ModCap]) -> bool:
-    for name in modules.keys():
+def _advertised_modules(capabilities: list[str], modules: dict[str, ModCap]) -> list[str]:
+    """Every YANG module name the device advertises.
+
+    Servers list their modules either as "<namespace>?module=..." URIs in
+    <hello> (older style) or via ietf-yang-library, where they arrive in the
+    discovered module set rather than in the hello capabilities.
+    """
+    names = list(modules.keys())
+    for cap in capabilities:
+        if "?module=" in cap or "&module=" in cap:
+            names.append(parse_cap(cap).name)
+    return names
+
+
+def _supports_module(name: str, capabilities: list[str], modules: dict[str, ModCap]) -> bool:
+    return name in _advertised_modules(capabilities, modules)
+
+
+def _is_iosxr(capabilities: list[str], modules: dict[str, ModCap]) -> bool:
+    for name in _advertised_modules(capabilities, modules):
         if name.startswith(MODULE_PREFIX_IOSXR):
             return True
     return False
 
 
-def _yang_push_event_notifs(modules: dict[str, ModCap]) -> ?bool:
+def _yang_push_event_notifs(capabilities: list[str], modules: dict[str, ModCap]) -> ?bool:
     """Return the YANG Push RPC dialect, or None when dynamic YANG Push is absent.
 
     False means the standard RFC 8639/8641 combination: ietf-yang-push over
     ietf-subscribed-notifications. True means IOS XE's non-standard
     ietf-yang-push over ietf-event-notifications shape.
     """
-    if _is_iosxr(modules):
-        # TODO: IOS XRd advertises the YANG Push modules but it only works over UDP-Notif (WIP)
+    if _is_iosxr(capabilities, modules):
+        # IOS XR advertises the YANG Push modules, but dynamic subscriptions over
+        # NETCONF do not work on it. It pushes over UDP-Notif instead, which
+        # _xr_subscription_method picks when a receiver endpoint is configured.
         return None
-    if MODULE_YANG_PUSH not in modules:
+    if not _supports_module(MODULE_YANG_PUSH, capabilities, modules):
         return None
-    if MODULE_SUBSCRIBED_NOTIFICATIONS in modules:
+    if _supports_module(MODULE_SUBSCRIBED_NOTIFICATIONS, capabilities, modules):
         return False
-    if MODULE_EVENT_NOTIFICATIONS in modules:
+    if _supports_module(MODULE_EVENT_NOTIFICATIONS, capabilities, modules):
         return True
     return None
 
@@ -101,142 +235,122 @@ def _test_yang_push_dialect():
         ([MODULE_YANG_PUSH, MODULE_EVENT_NOTIFICATIONS, "Cisco-IOS-XE-native"], True),
     ]
     for names, want in cases:
+        # The same module list, advertised the two ways a device can advertise it.
         modules = {name: ModCap(name, "") for name in names}
-        testing.assertEqual(_yang_push_event_notifs(modules), want, "modules: {names}")
+        testing.assertEqual(_yang_push_event_notifs([], modules), want, "modules: {names}")
+        caps = ["urn:example:{name}?module={name}" for name in names]
+        testing.assertEqual(_yang_push_event_notifs(caps, {}), want, "capabilities: {names}")
 
 
-def _xpath_literal(v) -> ?str:
-    if isinstance(v, ygdata.VWildcard):
-        return None
-    s = ygdata.yang_str(v)
-    if "'" in s:
-        return None
-    return "'" + s + "'"
+def _xpath_inner(node: yschema.DNode) -> yschema.DNodeInner:
+    if isinstance(node, yschema.DNodeInner):
+        return node
+    raise ValueError("XPath filter leaf cannot have children")
 
 
-def _xpath_name(name: ygdata.Id, prefixes: dict[str, str], nsdefs: list[(?str, str)]) -> str:
-    if name.q == "":
-        return name.name
-    if name.q not in prefixes:
-        preferred = XPATH_PREFERRED_PREFIXES.get(name.q)
-        if preferred is not None:
-            prefix = preferred!
-        else:
-            prefix = "ypf" + str(len(prefixes))
-        prefixes[name.q] = prefix
-        nsdefs.append((prefix, name.q))
-    return prefixes[name.q] + ":" + name.name
+def _fnode_xpath_nsdefs(root: yschema.DRoot, filt: ygdata.FNode) -> list[(?str, str)]:
+    """Return the namespace bindings used by filter_xpath's rendered prefixes."""
+    namespaces: dict[str, str] = {}
 
+    def collect(parent: yschema.DNodeInner, node: ygdata.FNode):
+        schema_node = filter_xpath.child_schema(parent, node)
+        prefix = schema_node.prefix
+        if prefix != "":
+            previous = namespaces.get(prefix)
+            if previous is not None and previous! != schema_node.namespace:
+                raise ValueError("XPath prefix {prefix} maps to multiple namespaces")
+            namespaces[prefix] = schema_node.namespace
+        if len(node.children) > 0:
+            inner = _xpath_inner(schema_node)
+            for child in node.children:
+                collect(inner, child)
 
-def _fnode_xpath_step(filt: ygdata.FNode, prefixes: dict[str, str], nsdefs: list[(?str, str)]) -> ?str:
-    if filt.name is None or filt.value_match is not None:
-        return None
+    if filt.name is None:
+        for child in filt.children:
+            collect(root, child)
+    else:
+        collect(root, filt)
 
-    step = _xpath_name(filt.name!, prefixes, nsdefs)
-    predicates: list[str] = []
-    path_child: ?str = None
-
-    for child in filt.children:
-        if child.value_match is not None:
-            if child.name is None or len(child.children) > 0:
-                return None
-            lit = _xpath_literal(child.value_match!)
-            if lit is None:
-                return None
-            predicates.append(_xpath_name(child.name!, prefixes, nsdefs) + "=" + lit!)
-        else:
-            if path_child is not None:
-                return None
-            child_path = _fnode_xpath_step(child, prefixes, nsdefs)
-            if child_path is None:
-                return None
-            path_child = child_path
-
-    if len(predicates) > 0:
-        step = step + "[" + " and ".join(predicates) + "]"
-
-    if path_child is not None:
-        return step + "/" + path_child!
-    return step
-
-
-def _fnode_to_xpath_filter(filt: ygdata.FNode) -> (xpath: ?str, nsdefs: list[(?str, str)]):
-    # TODO: Remove this whole FNode-to-XPath bridge. FNode is the internal
-    # subtree-filter representation, and translating it back into an XPath string
-    # here is a leaky compatibility hack for IOS XE's event-notifications YANG
-    # Push implementation. It only handles a single simple path with equality
-    # predicates, rejects multi-branch filters, cannot preserve arbitrary XPath
-    # expressions, and currently has to paper over IOS XE's prefix sensitivity via
-    # XPATH_PREFERRED_PREFIXES above. The cleaner design is for the filter layer
-    # to carry an adapter-neutral typed filter that can be rendered as either
-    # subtree XML or XPath at the protocol boundary, with prefixes supplied by the
-    # compiled schema rather than by this adapter.
-    root = filt
-    if root.name is None:
-        if root.value_match is not None or len(root.children) != 1:
-            return (xpath=None, nsdefs=[])
-        root = root.children[0]
-
-    prefixes: dict[str, str] = {}
     nsdefs: list[(?str, str)] = []
-    path = _fnode_xpath_step(root, prefixes, nsdefs)
-    if path is None:
-        return (xpath=None, nsdefs=[])
-    return (xpath="/" + path!, nsdefs=nsdefs)
+    for prefix, namespace in namespaces.items():
+        nsdefs.append((prefix, namespace))
+    return nsdefs
 
 
-def _test_fnode_to_xpath_filter_simple_path():
-    ns = "urn:test:system"
-    res = _fnode_to_xpath_filter(ygdata.FNode(children=[
-        ygdata.FNode(ygdata.Id(ns, "system-state"), children=[
-            ygdata.FNode(ygdata.Id(ns, "clock"), children=[
-                ygdata.FNode(ygdata.Id(ns, "current-datetime"))
+def _fnode_to_xpath_filter(root: yschema.DRoot, filt: ygdata.FNode) -> (xpath: str, nsdefs: list[(?str, str)]):
+    paths = filter_xpath.to_xpaths(root, filt)
+    if len(paths) != 1:
+        raise ValueError("event-notifications YANG Push requires exactly one XPath filter path")
+    return (xpath=paths[0], nsdefs=_fnode_xpath_nsdefs(root, filt))
+
+
+XPATH_TEST_NS = "urn:test:interfaces"
+XPATH_TEST_YANG = r"""module test-interfaces {
+  namespace "urn:test:interfaces";
+  prefix ti;
+  container interfaces {
+    list interface {
+      key "name";
+      leaf name { type string; }
+      leaf in-octets { type uint64; }
+      leaf out-octets { type uint64; }
+    }
+  }
+}"""
+
+
+def _test_fnode_to_xpath_filter():
+    root = yang.compile([XPATH_TEST_YANG])
+    filt = ygdata.FNode(children=[
+        ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "interfaces"), children=[
+            ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "interface"), children=[
+                ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "name"), value_match="eth0"),
+                ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "in-octets"))
             ])
         ])
-    ]))
-    testing.assertEqual(res.xpath, "/ypf0:system-state/ypf0:clock/ypf0:current-datetime")
+    ])
+    res = _fnode_to_xpath_filter(root, filt)
+    testing.assertEqual(res.xpath, "/ti:interfaces/ti:interface[ti:name='eth0']/ti:in-octets")
     testing.assertEqual(len(res.nsdefs), 1)
-    testing.assertEqual(res.nsdefs[0].0, "ypf0")
-    testing.assertEqual(res.nsdefs[0].1, ns)
+    testing.assertEqual(res.nsdefs[0].0, "ti")
+    testing.assertEqual(res.nsdefs[0].1, XPATH_TEST_NS)
 
 
-def _test_fnode_to_xpath_filter_list_predicate():
-    ns = "urn:test:interfaces"
-    res = _fnode_to_xpath_filter(ygdata.FNode(children=[
-        ygdata.FNode(ygdata.Id(ns, "interfaces"), children=[
-            ygdata.FNode(ygdata.Id(ns, "interface"), children=[
-                ygdata.FNode(ygdata.Id(ns, "name"), value_match="eth0"),
-                ygdata.FNode(ygdata.Id(ns, "in-octets"))
+def _test_fnode_to_xpath_filter_rejects_multiple_paths():
+    root = yang.compile([XPATH_TEST_YANG])
+    filt = ygdata.FNode(children=[
+        ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "interfaces"), children=[
+            ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "interface"), children=[
+                ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "in-octets")),
+                ygdata.FNode(ygdata.Id(XPATH_TEST_NS, "out-octets"))
             ])
         ])
-    ]))
-    testing.assertEqual(res.xpath, "/ypf0:interfaces/ypf0:interface[ypf0:name='eth0']/ypf0:in-octets")
-    testing.assertEqual(len(res.nsdefs), 1)
-    testing.assertEqual(res.nsdefs[0].1, ns)
+    ])
+    try:
+        _fnode_to_xpath_filter(root, filt)
+    except ValueError:
+        return
+    testing.error("expected a multi-path XPath filter to be rejected")
 
 
-def _test_fnode_to_xpath_filter_prefers_known_prefix():
-    ns = "urn:ietf:params:xml:ns:yang:ietf-interfaces"
-    res = _fnode_to_xpath_filter(ygdata.FNode(children=[
-        ygdata.FNode(ygdata.Id(ns, "interfaces-state"))
-    ]))
-    testing.assertEqual(res.xpath, "/if:interfaces-state")
-    testing.assertEqual(len(res.nsdefs), 1)
-    testing.assertEqual(res.nsdefs[0].0, "if")
-    testing.assertEqual(res.nsdefs[0].1, ns)
+def _xr_subscription_method(capabilities: list[str], modules: dict[str, ModCap],
+                            udp_notif_enabled: bool) -> (method: str, event_notifs: bool):
+    """Select one native/poll subscription transport for this NETCONF device."""
+    if udp_notif_enabled and _supports_module(xr_udp_notif.MODULE_YANG_PUSH,
+                                               capabilities, modules):
+        return (method=SUBSCRIPTION_UDP_NOTIF, event_notifs=False)
+    dialect = _yang_push_event_notifs(capabilities, modules)
+    if dialect is not None:
+        return (method=SUBSCRIPTION_YANG_PUSH, event_notifs=dialect!)
+    return (method=SUBSCRIPTION_POLL, event_notifs=False)
 
 
-def _test_fnode_to_xpath_filter_rejects_multi_branch():
-    ns = "urn:test:system"
-    res = _fnode_to_xpath_filter(ygdata.FNode(children=[
-        ygdata.FNode(ygdata.Id(ns, "system-state"), children=[
-            ygdata.FNode(ygdata.Id(ns, "clock"), children=[
-                ygdata.FNode(ygdata.Id(ns, "current-datetime")),
-                ygdata.FNode(ygdata.Id(ns, "boot-datetime"))
-            ])
-        ])
-    ]))
-    testing.assertEqual(res.xpath is None, True)
+def _test_xr_subscription_method_prefers_udp_notif():
+    selected = _xr_subscription_method([], {
+        xr_udp_notif.MODULE_YANG_PUSH: ModCap(
+            xr_udp_notif.MODULE_YANG_PUSH, xr_udp_notif.NS_YANG_PUSH)
+    }, True)
+    testing.assertEqual(selected.method, SUBSCRIPTION_UDP_NOTIF)
 
 
 def _mock_capabilities_from_dmc(new_dmc: DeviceMetaConfig) -> list[str]:
@@ -581,7 +695,12 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
         rpc_cb = cb
 
 
-actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc: DeviceMetaConfig, schema_registry: swdev.SchemaRegistry, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap):
+actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema,
+                    init_dmc: DeviceMetaConfig,
+                    schema_registry: swdev.SchemaRegistry,
+                    log_handler: logging.Handler,
+                    connect_cap: ?net.TCPConnectCap,
+                    udp_config: ?udp_notif_receiver.ReceiverConfig=None):
     """NETCONF device adapter
 
     It is possible to configure a device using different transaction commit
@@ -647,23 +766,35 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
     var modset: dict[str, ModCap] = {}
     var schema_hash = None
+    var runtime_oper_schema: ?yschema.DRoot = None
 
     var subs: dict[ygdata.SubscriptionSpec, SharedSubscription] = {}
     var sub_owners: dict[str, SubscriptionOwner] = {}
 
-    # How we monitor this device, decided from its advertised modules at connect
-    # time (None until connected): yang-push when usable, else periodic <get>
-    # polling. _yp_event_notifs selects IOS XE's event-notifications
-    # RPC dialect; False is the standard subscribed-notifications dialect. When
-    # using yang-push we establish device-side subscriptions and route their
-    # push-update notifications back to the matching shared spec via these id maps;
-    # yp_pending guards against establishing twice while an establish-subscription
-    # is in flight.
-    var _yang_push: ?bool = None
+    # How we monitor this device, decided from its advertised capabilities and
+    # modules at connect time (None until connected): IOS XR's configured YANG
+    # Push over UDP-Notif when a receiver endpoint was supplied, else dynamic
+    # yang-push when usable, else periodic <get> polling. _yp_event_notifs
+    # selects IOS XE's event-notifications RPC dialect; False is the standard
+    # subscribed-notifications dialect. With either push transport we establish
+    # device-side subscriptions and route their push-update notifications back
+    # to the matching shared spec via these id maps; the pending sets guard
+    # against establishing twice while an establish-subscription is in flight.
+    var _subscription_transport: ?str = None
     var _yp_event_notifs = False
     var yp_subid_spec: dict[int, ygdata.SubscriptionSpec] = {}
     var yp_spec_subid: dict[ygdata.SubscriptionSpec, int] = {}
     var yp_pending: set[ygdata.SubscriptionSpec] = set()
+
+    var _udp_receiver: ?udp_notif_receiver.Receiver = None
+    var _udp_port = 0
+    var _udp_source_address: ?str = None
+    var _udp_endpoint_specs: dict[str, set[ygdata.SubscriptionSpec]] = {}
+    var _udp_reassembler = udp_notif.Reassembler()
+    var xr_subid_spec: dict[int, ygdata.SubscriptionSpec] = {}
+    var xr_spec_subid: dict[ygdata.SubscriptionSpec, int] = {}
+    var xr_pending: set[ygdata.SubscriptionSpec] = set()
+    var xr_generation_prepared = False
 
     NS_NC_1_0 = "urn:ietf:params:xml:ns:netconf:base:1.0"
 
@@ -706,6 +837,278 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             return c is not cur
         return True
 
+    def _udp_failed(error: Exception):
+        receiver = _udp_receiver
+        _udp_receiver = None
+        _udp_port = 0
+        _udp_source_address = None
+        _udp_endpoint_specs = {}
+        _udp_reassembler = udp_notif.Reassembler()
+        if receiver is not None:
+            receiver!.close()
+        _log.error("IOS XR UDP-Notif receiver error", {"error": str(error)})
+        affected = list(xr_spec_subid.keys())
+        for spec in affected:
+            _xrd_resync(spec, error)
+        for spec, st in subs.items():
+            if st.active and spec not in affected:
+                for owner_id in st.owners:
+                    _owner_publish(owner_id, error)
+        after 1.0: _udp_start()
+
+    def _udp_start():
+        config = udp_config
+        if config is None or _udp_receiver is not None:
+            return
+        receiver = udp_notif_receiver.Receiver(config!)
+        _udp_receiver = receiver
+
+        def on_listen(r: udp_notif_receiver.Receiver, error: ?str):
+            if _udp_receiver is None or _udp_receiver! is not r:
+                return
+            if error is not None:
+                _udp_failed(ValueError("failed to listen for UDP-Notif: {error!}"))
+                return
+            port = await async r.local_port()
+            if port <= 0:
+                _udp_failed(ValueError("UDP-Notif listener did not report a local port"))
+                return
+            _udp_port = port
+            after config!.reassembly_timeout: _udp_expire(r)
+            if _subscription_transport == SUBSCRIPTION_UDP_NOTIF:
+                for spec in subs.keys():
+                    if subs[spec].active:
+                        _xrd_ensure(spec)
+
+        def on_datagram(r: udp_notif_receiver.Receiver, data: bytes,
+                        source_address: str, source_port: int):
+            if _udp_receiver is not None and _udp_receiver! is r:
+                _on_udp_datagram(data, source_address, source_port)
+
+        def on_error(r: udp_notif_receiver.Receiver, error: str):
+            if _udp_receiver is not None and _udp_receiver! is r:
+                _udp_failed(ValueError(error))
+
+        receiver.listen(on_listen, on_datagram, on_error)
+
+    def _udp_expire(receiver: udp_notif_receiver.Receiver):
+        """Expire silent partial messages without waiting for more traffic."""
+        current = _udp_receiver
+        config = udp_config
+        if current is None or current! is not receiver or config is None:
+            return
+        expired_endpoints = _udp_reassembler.expire(config!.reassembly_timeout)
+        for endpoint_key in expired_endpoints:
+            if endpoint_key in _udp_endpoint_specs:
+                _xrd_resync_endpoint(endpoint_key, ValueError(
+                    "UDP-Notif segmented message timed out for the active publisher"))
+            else:
+                _udp_reassembler.forget_endpoint(endpoint_key)
+        after config!.reassembly_timeout: _udp_expire(receiver)
+
+    def _publish_xr_spec(spec: ygdata.SubscriptionSpec):
+        if spec in subs:
+            for owner_id in subs[spec].owners:
+                _owner_publish(owner_id)
+
+    def _xrd_resync(spec: ygdata.SubscriptionSpec, error: Exception):
+        """Discard a potentially stale baseline and force XR to sync-on-start."""
+        if spec not in subs:
+            return
+        st = subs[spec]
+        st.latest = None
+        subs[spec] = st
+        for owner_id in st.owners:
+            _owner_publish(owner_id, error)
+        sid = xr_spec_subid.get(spec)
+        if sid is None:
+            _xrd_ensure(spec)
+            return
+        del xr_spec_subid[spec]
+        if sid! in xr_subid_spec:
+            del xr_subid_spec[sid!]
+        xr_pending.discard(spec)
+        _udp_forget_spec(spec)
+        cleanup_client = client
+        if cleanup_client is None:
+            return
+        bound_cleanup_client: netconf.Client = cleanup_client!
+
+        def after_cleanup(cleanup_error: ?Exception):
+            if client is None or client! is not bound_cleanup_client:
+                return
+            if spec not in subs or not subs[spec].active:
+                return
+            if cleanup_error is not None:
+                after 1.0: _xrd_cleanup(
+                    sid!, xr_udp_notif.receiver_name(sid!), after_cleanup,
+                    bound_cleanup_client)
+            else:
+                _xrd_ensure(spec)
+
+        _xrd_cleanup(sid!, xr_udp_notif.receiver_name(sid!), after_cleanup,
+                     bound_cleanup_client)
+
+    def _udp_track_endpoint(endpoint_key: str,
+                            spec: ygdata.SubscriptionSpec):
+        endpoint_specs = _udp_endpoint_specs.get(endpoint_key)
+        if endpoint_specs is None:
+            _udp_endpoint_specs[endpoint_key] = {spec}
+        else:
+            endpoint_specs!.add(spec)
+
+    def _udp_forget_spec(spec: ygdata.SubscriptionSpec):
+        empty: list[str] = []
+        for endpoint_key, endpoint_specs in _udp_endpoint_specs.items():
+            endpoint_specs.discard(spec)
+            if len(endpoint_specs) == 0:
+                empty.append(endpoint_key)
+        for endpoint_key in empty:
+            _udp_reassembler.forget_endpoint(endpoint_key)
+            del _udp_endpoint_specs[endpoint_key]
+
+    def _xrd_resync_endpoint(endpoint_key: str, error: Exception):
+        """Resync only subscriptions mapped to one XR publisher endpoint."""
+        endpoint_specs = _udp_endpoint_specs.get(endpoint_key)
+        if endpoint_specs is None:
+            return
+        affected = list(endpoint_specs!)
+        for spec in affected:
+            _xrd_resync(spec, error)
+
+    def _on_udp_datagram(data: bytes, source_address: str, source_port: int):
+        config = udp_config
+        if config is None:
+            return
+        expected_source = _udp_source_address
+        if expected_source is not None and source_address != expected_source!:
+            _log.warning("Dropping UDP-Notif from an unexpected source", {
+                "source-address": source_address,
+                "expected-source-address": expected_source})
+            return
+        endpoint_key = source_address + "#" + str(source_port)
+        message: ?udp_notif.Message = None
+        notification: ?udp_notif.Notification = None
+        try:
+            # IOS XR uses publisher-id 0 and overlapping message-id sequences
+            # for independent configured subscriptions. Its UDP source port is
+            # stable per publisher stream, so include the complete source
+            # endpoint in the reassembly key while source validation remains
+            # pinned to the configured address.
+            message = _udp_reassembler.feed(endpoint_key, data)
+            if message is None:
+                return
+            if message!.media_type != udp_notif.MEDIA_YANG_JSON:
+                raise ValueError("IOS XR UDP-Notif requires YANG JSON encoding")
+            notification = udp_notif.parse_json_notification(message!.payload)
+        except Exception as error:
+            if endpoint_key in _udp_endpoint_specs:
+                _xrd_resync_endpoint(endpoint_key, error)
+            else:
+                # An unknown endpoint at the router address is not yet a
+                # trusted publisher stream and cannot disrupt active telemetry.
+                _udp_reassembler.forget_endpoint(endpoint_key)
+                _log.warning("Dropping malformed UDP-Notif datagram", {
+                    "source-address": source_address, "error": str(error)})
+            return
+
+        sid = notification!.sub_id
+        mapped = False
+        if sid is not None and sid! in xr_subid_spec:
+            mapped_spec = xr_subid_spec[sid!]
+            mapped = mapped_spec in subs and subs[mapped_spec].active
+        if message!.lost_before > 0:
+            if mapped:
+                if expected_source is None:
+                    _udp_source_address = source_address
+                spec = xr_subid_spec[sid!]
+                _udp_track_endpoint(endpoint_key, spec)
+                _xrd_resync_endpoint(endpoint_key, ValueError(
+                    "UDP-Notif transport lost {message!.lost_before} message(s) before id {message!.message_id}"))
+            else:
+                unknown_action = _unknown_subscription_action(
+                    endpoint_key in _udp_endpoint_specs,
+                    message!.lost_before)
+                if unknown_action == UDP_UNKNOWN_RESYNC:
+                    _xrd_resync_endpoint(endpoint_key, ValueError(
+                        "UDP-Notif transport lost {message!.lost_before} message(s) before unknown subscription id {sid}"))
+                elif unknown_action == UDP_UNKNOWN_FORGET:
+                    _udp_reassembler.forget_endpoint(endpoint_key)
+            return
+        if not mapped:
+            if (_unknown_subscription_action(
+                    endpoint_key in _udp_endpoint_specs, 0)
+                    == UDP_UNKNOWN_FORGET):
+                _udp_reassembler.forget_endpoint(endpoint_key)
+            _log.debug("Ignoring UDP-Notif for an unknown subscription", {"subscription-id": sid})
+            return
+        spec = xr_subid_spec[sid!]
+        disposition = _udp_datagram_disposition(
+            expected_source, source_address, True)
+        if disposition.pin_source:
+            _udp_source_address = source_address
+        _udp_track_endpoint(endpoint_key, spec)
+        _log.debug("IOS XR UDP-Notif notification received", {
+            "subscription-id": sid!,
+            "notification": notification!.kind,
+            "event-time": notification!.event_time,
+            "publisher-id": message!.publisher_id,
+            "message-id": message!.message_id,
+            "source-port": source_port})
+
+        # XR's envelope sequence-number is publisher-global, so messages for
+        # other subscriptions legitimately create gaps in any one stream. The
+        # UDP-Notif publisher/message ID already supplies global duplicate,
+        # reordering, and loss detection in the reassembler.
+        if notification!.kind == udp_notif.NOTIF_SUBSCRIPTION_STARTED:
+            st = subs[spec]
+            st.latest = None
+            subs[spec] = st
+            return
+        if notification!.kind == udp_notif.NOTIF_SUBSCRIPTION_TERMINATED or notification!.kind == udp_notif.NOTIF_SUBSCRIPTION_SUSPENDED:
+            _xrd_resync(spec, ValueError("IOS XR UDP-Notif subscription {sid!} is not active"))
+            return
+
+        try:
+            root = _oper_schema()
+            if root is None:
+                raise ValueError("IOS XR UDP-Notif has no operational device schema")
+            st = subs[spec]
+            current: ?ygdata.Node = st.latest
+            if notification!.kind == udp_notif.NOTIF_PUSH_UPDATE:
+                contents = notification!.datastore_contents
+                if contents is None:
+                    raise ValueError("IOS XR UDP-Notif push-update has no datastore contents")
+                # A push-update is the complete selected datastore snapshot, not
+                # a merge delta. Replacing the baseline also removes leaves that
+                # disappeared since a prior sync-on-start.
+                xr_udp_notif.normalize_datastore_contents_in_place(contents!)
+                current = yjson.from_json(root!, contents!, loose=True)
+            elif notification!.kind == udp_notif.NOTIF_PUSH_CHANGE_UPDATE:
+                changes = notification!.datastore_changes
+                if changes is None:
+                    raise ValueError("IOS XR UDP-Notif push-change-update has no datastore changes")
+                if current is None:
+                    raise ValueError("IOS XR UDP-Notif change arrived before its sync snapshot")
+                patch = udp_notif.parse_json_patch(changes!)
+                current = current!
+                for edit in patch.edits:
+                    current = ygdata.patch(
+                        current, xr_udp_notif.json_edit_to_gdata(root!, edit))
+            else:
+                return
+            st.latest = current
+            subs[spec] = st
+            _publish_xr_spec(spec)
+        except Exception as error:
+            # This notification was mapped to a specific subscription. Its
+            # baseline may now be stale, so resync only that subscription.
+            disposition = _udp_datagram_disposition(
+                _udp_source_address, source_address, True,
+                subscription_failure=True)
+            if disposition.decision == UDP_DATAGRAM_RESYNC_SPEC:
+                _xrd_resync(spec, error)
+
     def _on_connect(c: netconf.Client, err):
         if _is_stale(c):
             _log.debug("Device._on_connect: ignoring callback from stale client")
@@ -719,22 +1122,55 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         def finish_connect(new_modset: dict[str, ModCap], new_schema_hash: ?u64=None):
             modset = new_modset
             schema_hash = new_schema_hash
-            # Pick the monitoring method from the device's modules. A fresh
+            runtime_oper_schema = None
+            if dmc.feature_flags.runtime_schema_fetch:
+                fetched_oper_schema = schema_registry.get_schema(new_schema_hash)
+                if fetched_oper_schema is not None:
+                    runtime_oper_schema = _augment_schema(
+                        fetched_oper_schema!, bundled_schema.oper_src_dnode)
+            # Pick the monitoring method from the device's capabilities. A fresh
             # client session invalidates any prior device-side subscriptions, so
             # drop the stale id maps and (re-)establish for this connection.
-            yp_event_notifs = _yang_push_event_notifs(new_modset)
-            _yang_push = yp_event_notifs is not None
-            _yp_event_notifs = False
-            if yp_event_notifs is not None:
-                _yp_event_notifs = yp_event_notifs
+            selected = _xr_subscription_method(c.get_capabilities(), new_modset,
+                                               udp_config is not None)
+            _subscription_transport = selected.method
+            _yp_event_notifs = selected.event_notifs
             yp_subid_spec = {}
             yp_spec_subid = {}
             yp_pending = set()
-            if _yang_push:
+            xr_subid_spec = {}
+            xr_spec_subid = {}
+            xr_pending = set()
+            xr_generation_prepared = False
+            _udp_source_address = None
+            _udp_endpoint_specs = {}
+            # A new NETCONF session starts a new configured-subscription
+            # generation. XR commonly reuses publisher-id 0 and restarts its
+            # message counter after reboot, so no transport ordering state may
+            # survive across this boundary.
+            _udp_reassembler = udp_notif.Reassembler()
+            def activate_subscriptions():
+                if (_is_stale(c)
+                        or _subscription_transport != selected.method):
+                    return
+                if selected.method == SUBSCRIPTION_UDP_NOTIF:
+                    xr_generation_prepared = True
                 for spec in subs.keys():
                     if subs[spec].active:
-                        _yp_ensure(spec)
-            dev.on_connect(modset, schema_hash)
+                        if selected.method == SUBSCRIPTION_UDP_NOTIF:
+                            _xrd_ensure(spec)
+                        elif selected.method == SUBSCRIPTION_YANG_PUSH:
+                            _yp_ensure(spec)
+                dev.on_connect(modset, schema_hash)
+
+            # Configured XR subscriptions survive process and NETCONF session
+            # failure. Garbage-collect the complete StratoWeave namespace once
+            # per generation, including specs that are no longer desired, then
+            # establish exactly the active set.
+            if selected.method == SUBSCRIPTION_UDP_NOTIF:
+                _xrd_prepare_generation(c, activate_subscriptions)
+            else:
+                activate_subscriptions()
 
         def list_schemas(c1: netconf.Client, schema_list: list[(identifier: str, namespace: str, version: str, format: str)], error: ?netconf.NetconfError):
             if _is_stale(c1):
@@ -895,19 +1331,21 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         con_log_level = logging.TRACE if new_dmc.debug.connection else logging.WARNING
         _con_log_handler.set_output_level(con_log_level)
 
-        # Reconnect only when session parameters / feature-flags change
+        # Reconnect only when session parameters / feature-flags change.
         ns = "http://stratoweave.org/yang/stratoweave-rfs"
-        if not (old_g.get_opt_cnt(ygdata.Id(ns, "credentials")) == new_g.get_opt_cnt(ygdata.Id(ns, "credentials"))
+        reconnect = not (old_g.get_opt_cnt(ygdata.Id(ns, "credentials")) == new_g.get_opt_cnt(ygdata.Id(ns, "credentials"))
                 and old_g.get_opt_list(ygdata.Id(ns, "address")) == new_g.get_opt_list(ygdata.Id(ns, "address"))
                 and old_g.get_opt_cnt(ygdata.Id(ns, "mock")) == new_g.get_opt_cnt(ygdata.Id(ns, "mock"))
-                and old_g.get_opt_cnt(ygdata.Id(ns, "feature-flags")) == new_g.get_opt_cnt(ygdata.Id(ns, "feature-flags"))):
+                and old_g.get_opt_cnt(ygdata.Id(ns, "feature-flags")) == new_g.get_opt_cnt(ygdata.Id(ns, "feature-flags")))
+        dmc = new_dmc
+        if reconnect:
             _log.debug("Device.set_dmc: reconnect required, reconnecting")
-            _connect(new_dmc)
+            close(lambda: _connect(new_dmc))
         else:
             _log.debug("Device.set_dmc: no reconnect required, keeping client")
-        dmc = new_dmc
 
     def _connect(new_dmc):
+        _udp_start()
         use_mock_server = system_mock or new_dmc.mock.enabled or len(new_dmc.mock.module.elements) > 0
 
         username = new_dmc.credentials.username
@@ -964,15 +1402,73 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         """
         _log.debug("Device.close")
         c = client
-        if c is not None:
-            client = None
-            state = DISCONNECTED
-            c.close()
-            _log.debug("Device closed")
-        else:
+        receiver = _udp_receiver
+        if receiver is not None:
+            _udp_receiver = None
+            _udp_port = 0
+            _udp_source_address = None
+            _udp_endpoint_specs = {}
+            _udp_reassembler = udp_notif.Reassembler()
+            receiver!.close()
+        if c is None:
             _log.debug("Device.close: No client, nothing to close")
-        if on_close is not None:
-            on_close()
+            if on_close is not None:
+                on_close()
+            return
+
+        active_client = c!
+        cleanups: list[(int, str)] = []
+        for spec, sid in xr_spec_subid.items():
+            cleanups.append((sid, xr_udp_notif.receiver_name(sid)))
+        # Stop new work while the configured XR subscriptions are removed.
+        _subscription_transport = None
+        xr_subid_spec = {}
+        xr_spec_subid = {}
+        xr_pending = set()
+        xr_generation_prepared = False
+        close_state = [False]
+
+        def finish_close():
+            if close_state[0]:
+                return
+            close_state[0] = True
+            if client is not None and client! is active_client:
+                client = None
+                state = DISCONNECTED
+                active_client.close()
+            _log.debug("Device closed")
+            if on_close is not None:
+                on_close()
+
+        def cleanup_next(index: int):
+            if index >= len(cleanups):
+                finish_close()
+                return
+            cleanup = cleanups[index]
+            _xrd_cleanup(cleanup.0, cleanup.1,
+                         lambda ignored: cleanup_next(index + 1),
+                         active_client)
+
+        def begin_cleanup():
+            # A configured subscription may be committing right now. Let that
+            # transaction settle before deleting every captured id, otherwise
+            # closing the NETCONF session can strand persistent XR config.
+            if (client is not None and client! is active_client
+                    and state == TRANSACTION):
+                after 0.1: begin_cleanup()
+                return
+            if len(cleanups) > 0 and state == CONNECTED:
+                cleanup_next(0)
+            else:
+                finish_close()
+
+        def force_close():
+            if not close_state[0]:
+                _log.warning("IOS XR subscription cleanup exceeded close grace period; forcing NETCONF close")
+                finish_close()
+
+        after XR_CLOSE_CLEANUP_GRACE_SECONDS: force_close()
+        begin_cleanup()
 
     # TODO: Restart protocol
     def restart():
@@ -1390,19 +1886,19 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
     def subscription_status() -> SubscriptionStatus:
         # How subscriptions are realized against this device, decided from its
-        # advertised modules at connect ("connecting" until then). yang-push is a
-        # native push (periodic, or on-change when any active sub asked for it);
-        # poll emulates periodic with client-side <get>.
-        m = _yang_push
+        # advertised capabilities and modules at connect ("connecting" until
+        # then). udp-notif and yang-push are native pushes (periodic, or
+        # on-change when any active sub asked for it); poll emulates periodic
+        # with client-side <get>.
+        m = _subscription_transport
         if m is None:
             return SubscriptionStatus(SUBSCRIPTION_CONNECTING)
         periodic = True
         for spec, _st in subs.items():
             if spec.on_change:
                 periodic = False
-        if m:
-            return SubscriptionStatus(SUBSCRIPTION_YANG_PUSH, periodic=periodic, emulated=False)
-        return SubscriptionStatus(SUBSCRIPTION_POLL, periodic=periodic, emulated=True)
+        return SubscriptionStatus(m!, periodic=periodic,
+                                  emulated=m! == SUBSCRIPTION_POLL)
 
     def subscription_method() -> str:
         return subscription_status().method
@@ -1525,10 +2021,12 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         return xml.Node("filter", attributes=[("type", "subtree")], children=filt.to_filter_xml(deterministic=True))
 
     def _oper_schema() -> ?yschema.DRoot:
-        # The schema to parse/patch operational data against: the runtime-fetched one
-        # when enabled, else the bundled oper schema.
+        # Runtime discovery intentionally prunes OpenConfig on large devices.
+        # Augment it with missing modules from the app's bundled operational
+        # slice so application-selected OpenConfig telemetry remains usable.
         if dmc.feature_flags.runtime_schema_fetch:
-            return schema_registry.get_schema(schema_hash)
+            if runtime_oper_schema is not None:
+                return runtime_oper_schema
         return bundled_schema.oper_src_dnode
 
     def _parse_data_node(data_tag: xml.Node) -> ?ygdata.Node:
@@ -1656,10 +2154,15 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         if yp_xml is not None and root is not None:
             try:
                 patch = ypatch.Patch.from_xml(yp_xml)
-                cur: ?ygdata.Node = st.latest if st.latest is not None else ygdata.Container({})
+                cur = st.latest
+                if cur is None:
+                    raise ValueError("push-change-update arrived before its sync snapshot")
+                current: ?ygdata.Node = cur!
                 for e in patch.edits:
-                    cur = ygdata.patch(cur, ypatch.edit_to_gdata(root, e))
-                st.latest = cur
+                    if current is None:
+                        raise ValueError("push-change-update removed its root before the final edit")
+                    current = ygdata.patch(current!, ypatch.edit_to_gdata(root, e))
+                st.latest = current
                 subs[spec] = st
                 for owner_id in st.owners:
                     _owner_publish(owner_id)
@@ -1687,6 +2190,17 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             if c is not None:
                 c.delete_subscription((lambda cc, err: None), sid, event_notifs=_yp_event_notifs)
         yp_pending.discard(spec)
+        if spec in xr_spec_subid:
+            xr_sid = xr_spec_subid[spec]
+            del xr_spec_subid[spec]
+            if xr_sid in xr_subid_spec:
+                del xr_subid_spec[xr_sid]
+            cleanup_client = client
+            if cleanup_client is not None:
+                _xrd_cleanup(xr_sid, xr_udp_notif.receiver_name(xr_sid),
+                             expected_client=cleanup_client!)
+        xr_pending.discard(spec)
+        _udp_forget_spec(spec)
 
     def _period_centiseconds(period_ns) -> ?int:
         # SubscriptionSpec.period is normalized nanoseconds; establish-subscription
@@ -1707,21 +2221,210 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         st = subs[spec]
         if not st.active:
             return
-        method = _yang_push
+        method = _subscription_transport
         if client is None or method is None:
             after subscription_delay(st.spec): _sub_start(spec)
             return
-        if method:
+        if method == SUBSCRIPTION_UDP_NOTIF:
+            _xrd_ensure(spec)
+        elif method == SUBSCRIPTION_YANG_PUSH:
             _yp_ensure(spec)
-        elif st.spec.on_change:
+        elif method == SUBSCRIPTION_POLL and st.spec.on_change:
             # on-change can only be realized by a device that pushes natively; there
             # is no poll emulation for it, so fail rather than silently degrade.
             err = ValueError("on-change subscription requires device yang-push support")
             for owner_id in st.owners:
                 _owner_publish(owner_id, err)
             _sub_cancel(spec)
-        else:
+        elif method == SUBSCRIPTION_POLL:
             _sub_tick(spec)
+
+    def _xr_edit_config(config: list[xml.Node],
+                        done: action(?Exception) -> None):
+        c = client
+        if c is None or state != CONNECTED:
+            done(BusyError())
+            return
+        state = TRANSACTION
+
+        def finish(error: ?Exception):
+            if not _is_stale(c):
+                state = CONNECTED
+            done(error)
+
+        def on_discard(cc: netconf.Client, ignored: ?netconf.NetconfError,
+                       original: netconf.NetconfError):
+            finish(original)
+
+        def on_commit(cc: netconf.Client, error: ?netconf.NetconfError):
+            if _is_stale(cc):
+                finish(NotConnectedError())
+            else:
+                finish(error)
+
+        def on_edit(cc: netconf.Client, error: ?netconf.NetconfError):
+            if _is_stale(cc):
+                finish(NotConnectedError())
+            elif error is not None:
+                cc.discard_changes(lambda c2, e2: on_discard(c2, e2, error!))
+            else:
+                cc.commit(on_commit)
+
+        c!.edit_config(config, on_edit, "candidate", "merge")
+
+    def _xr_subscription_id(spec: ygdata.SubscriptionSpec) -> int:
+        first = int(wyhash.hash(0, str(spec).encode()) % u64(64536)) + 1000
+        candidate = first
+        while candidate in xr_subid_spec and xr_subid_spec[candidate] != spec:
+            candidate += 1
+            if candidate > 65535:
+                candidate = 1000
+            if candidate == first:
+                raise ValueError("no IOS XR UDP-Notif subscription IDs available")
+        return candidate
+
+    def _xrd_prepare_generation(expected_client: netconf.Client,
+                                done: action() -> None):
+        """Remove every configured XR entry in StratoWeave's namespace."""
+        c = client
+        if (c is None or c! is not expected_client
+                or _subscription_transport != SUBSCRIPTION_UDP_NOTIF):
+            return
+        if state != CONNECTED:
+            after 0.1: _xrd_prepare_generation(expected_client, done)
+            return
+        current_client = expected_client
+
+        def retry(error: Exception):
+            if (not _is_stale(current_client)
+                    and _subscription_transport == SUBSCRIPTION_UDP_NOTIF):
+                _log.warning("IOS XR UDP-Notif generation cleanup failed; retrying", {
+                    "error": str(error)})
+                after 1.0: _xrd_prepare_generation(expected_client, done)
+
+        def on_removed(error: ?Exception):
+            if (_is_stale(current_client)
+                    or _subscription_transport != SUBSCRIPTION_UDP_NOTIF):
+                return
+            if error is not None:
+                retry(error!)
+            else:
+                done()
+
+        def on_discovered(cc: netconf.Client, reply: ?xml.Node,
+                          error: ?netconf.NetconfError):
+            if _is_stale(cc) or cc is not current_client:
+                return
+            if error is not None:
+                retry(error!)
+                return
+            if reply is None:
+                retry(ValueError("IOS XR YANG Push ownership query returned no data"))
+                return
+            owned = xr_udp_notif.owned_config(reply!)
+            if (len(owned.subscription_ids) == 0
+                    and len(owned.receiver_names) == 0):
+                done()
+                return
+            _xr_edit_config(xr_udp_notif.cleanup_many(
+                owned.subscription_ids, owned.receiver_names), on_removed)
+
+        current_client.get_config(on_discovered, "running",
+                                  xr_udp_notif.owned_config_filter())
+
+    def _xrd_ensure(spec: ygdata.SubscriptionSpec):
+        if spec in xr_spec_subid or spec in xr_pending:
+            return
+        if spec not in subs or not subs[spec].active:
+            return
+        if _subscription_transport != SUBSCRIPTION_UDP_NOTIF:
+            return
+        if not xr_generation_prepared:
+            return
+        config = udp_config
+        c = client
+        if config is None or c is None or _udp_port == 0 or state != CONNECTED:
+            after 0.1: _xrd_ensure(spec)
+            return
+        config_client: netconf.Client = c!
+
+        st = subs[spec]
+        filt = st.spec.filt
+        root = _oper_schema()
+        if filt is None or root is None:
+            err = ValueError("IOS XR UDP-Notif requires an XPath-compatible filter and operational schema")
+            for owner_id in st.owners:
+                _owner_publish(owner_id, err)
+            return
+        sid: int = 0
+        edit: list[xml.Node] = []
+        try:
+            standard_xpath = _fnode_to_xpath_filter(root!, filt!).xpath
+            xpath = xr_udp_notif.to_xpath(root!, standard_xpath)
+            sid = _xr_subscription_id(spec)
+            receiver_name = xr_udp_notif.receiver_name(sid)
+            period_cs = _period_centiseconds(st.spec.period)
+            edit = xr_udp_notif.config(
+                sid, receiver_name, config!.advertised_address, _udp_port,
+                config!.max_segment_size, xpath,
+                source_interface=config!.source_interface,
+                period_cs=period_cs, on_change=st.spec.on_change)
+        except Exception as error:
+            for owner_id in st.owners:
+                _owner_publish(owner_id, error)
+            return
+
+        xr_pending.add(spec)
+        xr_subid_spec[sid] = spec
+        xr_spec_subid[spec] = sid
+
+        def on_configured(error: ?Exception):
+            if client is None or client! is not config_client:
+                return
+            xr_pending.discard(spec)
+            if error is not None:
+                if spec in xr_spec_subid:
+                    del xr_spec_subid[spec]
+                if sid in xr_subid_spec:
+                    del xr_subid_spec[sid]
+                if spec in subs:
+                    _log.error("IOS XR UDP-Notif subscription configuration failed", {
+                        "subscription-id": sid, "error": str(error)})
+                    for owner_id in subs[spec].owners:
+                        _owner_publish(owner_id, error)
+                    after 1.0: _xrd_ensure(spec)
+
+        _xr_edit_config(edit, on_configured)
+
+    def _xrd_cleanup(subscription_id: int, receiver_name: str,
+                     done: ?action(?Exception) -> None=None,
+                     expected_client: ?netconf.Client=None):
+        current_client = client
+        if (current_client is None
+                or (expected_client is not None
+                    and current_client! is not expected_client!)):
+            if done is not None:
+                done(NotConnectedError())
+            return
+        bound_client: netconf.Client = current_client!
+        if state != CONNECTED:
+            after 0.1: _xrd_cleanup(subscription_id, receiver_name, done,
+                                    bound_client)
+            return
+
+        def on_cleaned(error: ?Exception):
+            if client is None or client! is not bound_client:
+                if done is not None:
+                    done(NotConnectedError())
+                return
+            if error is not None:
+                _log.warning("IOS XR UDP-Notif subscription cleanup failed", {
+                    "subscription-id": subscription_id, "error": str(error)})
+            if done is not None:
+                done(error)
+
+        _xr_edit_config(xr_udp_notif.cleanup(subscription_id, receiver_name),
+                        on_cleaned)
 
     def _yp_ensure(spec: ygdata.SubscriptionSpec):
         # Establish a device-side yang-push subscription for spec, unless one is
@@ -1742,14 +2445,21 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             if sf is not None:
                 filt = sf!
                 if _yp_event_notifs:
-                    xpath = _fnode_to_xpath_filter(filt)
-                    if xpath.xpath is None:
-                        err = ValueError("event-notifications yang-push only supports simple subscription filters")
+                    root = _oper_schema()
+                    if root is None:
+                        err = ValueError("event-notifications YANG Push requires a device schema for XPath filters")
                         for owner_id in st.owners:
                             _owner_publish(owner_id, err)
                         return
-                    xpath_filter = xpath.xpath
-                    xpath_nsdefs = xpath.nsdefs
+                    try:
+                        xpath = _fnode_to_xpath_filter(root!, filt)
+                        xpath_filter = xpath.xpath
+                        xpath_nsdefs = xpath.nsdefs
+                    except ValueError as ex:
+                        err = ValueError("invalid event-notifications YANG Push filter: {ex}")
+                        for owner_id in st.owners:
+                            _owner_publish(owner_id, err)
+                        return
                 else:
                     # Carry the whole filter, including multi-root filters; dropping
                     # it would subscribe to the entire datastore and leak far more
@@ -1900,13 +2610,20 @@ class NetconfAdapter(DeviceAdapter):
     def supports_mocking(self) -> bool:
         return True
 
-    def __init__(self, dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc: DeviceMetaConfig, schema_registry: swdev.SchemaRegistry, log_handler, connect_cap: ?net.TCPConnectCap):
+    def __init__(self, dev: swdev.DeviceMgr, bundled_schema: DeviceSchema,
+                 init_dmc: DeviceMetaConfig,
+                 schema_registry: swdev.SchemaRegistry, log_handler,
+                 connect_cap: ?net.TCPConnectCap,
+                 context: ?AdapterContext=None):
         self._dev = dev
         self._bundled_schema = bundled_schema
         self._schema_registry = schema_registry
         self._log_handler = log_handler
         self._connect_cap = connect_cap
-        self._driver = NetconfDriver(self._dev, self._bundled_schema, init_dmc, self._schema_registry, self._log_handler, self._connect_cap)
+        self._driver = NetconfDriver(self._dev, self._bundled_schema, init_dmc,
+                                     self._schema_registry, self._log_handler,
+                                     self._connect_cap,
+                                     _udp_config_from_context(context))
 
     def set_dmc(self, new_dmc: DeviceMetaConfig):
         self._driver.set_dmc(new_dmc)

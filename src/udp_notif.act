@@ -1,0 +1,448 @@
+"""UDP-Notif framing, reassembly, and JSON notification decoding.
+
+Implements the version-1 wire format from draft-ietf-netconf-udp-notif-25.
+Schema-aware YANG semantics intentionally remain in the NETCONF adapter.
+"""
+
+import json
+import time
+
+
+VERSION = 1
+FIXED_HEADER_LENGTH = 12
+MEDIA_YANG_JSON = 1
+MEDIA_YANG_XML = 2
+MEDIA_YANG_CBOR = 3
+OPTION_SEGMENTATION = 1
+MAX_MESSAGE_ID = 4294967295
+
+NOTIF_WRAPPER = "ietf-notification:notification"
+NOTIF_ENVELOPE = "ietf-yp-notification:envelope"
+NOTIF_SUBSCRIPTION_STARTED = "ietf-subscribed-notifications:subscription-started"
+NOTIF_SUBSCRIPTION_TERMINATED = "ietf-subscribed-notifications:subscription-terminated"
+NOTIF_SUBSCRIPTION_SUSPENDED = "ietf-subscribed-notifications:subscription-suspended"
+NOTIF_PUSH_UPDATE = "ietf-yang-push:push-update"
+NOTIF_PUSH_CHANGE_UPDATE = "ietf-yang-push:push-change-update"
+
+
+class Datagram(object):
+    media_type: int
+    private_media_type: bool
+    publisher_id: int
+    message_id: int
+    segment_number: ?int
+    last_segment: bool
+    payload: bytes
+
+    def __init__(self, media_type: int, private_media_type: bool,
+                 publisher_id: int, message_id: int, segment_number: ?int,
+                 last_segment: bool, payload: bytes):
+        self.media_type = media_type
+        self.private_media_type = private_media_type
+        self.publisher_id = publisher_id
+        self.message_id = message_id
+        self.segment_number = segment_number
+        self.last_segment = last_segment
+        self.payload = payload
+
+
+class Message(object):
+    endpoint_key: str
+    media_type: int
+    publisher_id: int
+    message_id: int
+    lost_before: int
+    payload: bytes
+
+    def __init__(self, endpoint_key: str, media_type: int, publisher_id: int,
+                 message_id: int, lost_before: int, payload: bytes):
+        self.endpoint_key = endpoint_key
+        self.media_type = media_type
+        self.publisher_id = publisher_id
+        self.message_id = message_id
+        self.lost_before = lost_before
+        self.payload = payload
+
+
+class Notification(object):
+    kind: str
+    sub_id: ?int
+    event_time: ?str
+    hostname: ?str
+    sequence_number: ?int
+    datastore_contents: ?dict[str, ?value]
+    datastore_changes: ?dict[str, ?value]
+    raw: dict[str, ?value]
+
+    def __init__(self, kind: str, sub_id: ?int, event_time: ?str,
+                 hostname: ?str, sequence_number: ?int,
+                 datastore_contents: ?dict[str, ?value],
+                 datastore_changes: ?dict[str, ?value],
+                 raw: dict[str, ?value]):
+        self.kind = kind
+        self.sub_id = sub_id
+        self.event_time = event_time
+        self.hostname = hostname
+        self.sequence_number = sequence_number
+        self.datastore_contents = datastore_contents
+        self.datastore_changes = datastore_changes
+        self.raw = raw
+
+
+class JsonPatchEdit(object):
+    """One RFC 8072 JSON YANG Patch edit carried by push-change-update."""
+    edit_id: str
+    operation: str
+    target: str
+    value: ?dict[str, ?value]
+
+    def __init__(self, edit_id: str, operation: str, target: str,
+                 value: ?dict[str, ?value]=None):
+        self.edit_id = edit_id
+        self.operation = operation
+        self.target = target
+        self.value = value
+
+
+class JsonPatch(object):
+    patch_id: str
+    edits: list[JsonPatchEdit]
+
+    def __init__(self, patch_id: str, edits: list[JsonPatchEdit]):
+        self.patch_id = patch_id
+        self.edits = edits
+
+
+def _u16(data: bytes, offset: int) -> int:
+    return int(data[offset]) * 256 + int(data[offset + 1])
+
+
+def _u32(data: bytes, offset: int) -> int:
+    return (_u16(data, offset) * 65536) + _u16(data, offset + 2)
+
+
+def decode_datagram(data: bytes) -> Datagram:
+    """Decode and validate one complete UDP-Notif datagram."""
+    if len(data) < FIXED_HEADER_LENGTH:
+        raise ValueError("UDP-Notif datagram is shorter than its fixed header")
+
+    flags = int(data[0])
+    version = flags >> 5
+    private_media_type = (flags & 16) != 0
+    media_type = flags & 15
+    header_length = int(data[1])
+    message_length = _u16(data, 2)
+
+    if version != VERSION:
+        raise ValueError("unsupported UDP-Notif version {version}")
+    if private_media_type:
+        raise ValueError("private UDP-Notif media types are unsupported")
+    if media_type < MEDIA_YANG_JSON or media_type > MEDIA_YANG_CBOR:
+        raise ValueError("unsupported UDP-Notif media type {media_type}")
+    if header_length < FIXED_HEADER_LENGTH or header_length > message_length:
+        raise ValueError("invalid UDP-Notif header length {header_length}")
+    if message_length != len(data):
+        raise ValueError("UDP-Notif message length {message_length} does not match datagram length {len(data)}")
+
+    segment_number: ?int = None
+    last_segment = False
+    offset = FIXED_HEADER_LENGTH
+    option_index = 0
+    while offset < header_length:
+        if offset + 2 > header_length:
+            raise ValueError("truncated UDP-Notif option header")
+        option_type = int(data[offset])
+        option_length = int(data[offset + 1])
+        if option_length < 2 or offset + option_length > header_length:
+            raise ValueError("invalid UDP-Notif option length {option_length}")
+        if option_type == OPTION_SEGMENTATION:
+            if option_index != 0:
+                raise ValueError("UDP-Notif segmentation option must be first")
+            if option_length != 4:
+                raise ValueError("UDP-Notif segmentation option length must be 4")
+            segment_bits = _u16(data, offset + 2)
+            segment_number = segment_bits >> 1
+            last_segment = (segment_bits & 1) == 1
+        offset += option_length
+        option_index += 1
+    if offset != header_length:
+        raise ValueError("UDP-Notif options do not fill the declared header")
+
+    return Datagram(media_type, private_media_type, _u32(data, 4),
+                    _u32(data, 8), segment_number, last_segment,
+                    data[header_length:message_length])
+
+
+class SegmentSet(object):
+    endpoint_key: str
+    media_type: int
+    publisher_key: str
+    pieces: dict[int, bytes]
+    last_segment: ?int
+    age: time.Stopwatch
+
+    def __init__(self, endpoint_key: str, media_type: int,
+                 publisher_key: str):
+        self.endpoint_key = endpoint_key
+        self.media_type = media_type
+        self.publisher_key = publisher_key
+        self.pieces = {}
+        self.last_segment = None
+        self.age = time.Stopwatch()
+
+
+class Reassembler(object):
+    """Reassemble unordered segments and account for message-ID gaps."""
+    pending: dict[str, SegmentSet]
+    last_ids: dict[str, int]
+    expired_by_publisher: dict[str, int]
+    lost_messages: int
+    duplicate_messages: int
+    expired_messages: int
+    max_pending: int
+
+    def __init__(self, max_pending: int=1024):
+        self.pending = {}
+        self.last_ids = {}
+        self.expired_by_publisher = {}
+        self.lost_messages = 0
+        self.duplicate_messages = 0
+        self.expired_messages = 0
+        self.max_pending = max_pending
+
+    def _publisher_key(self, endpoint_key: str, publisher_id: int) -> str:
+        return endpoint_key + "/" + str(publisher_id)
+
+    def _message_key(self, endpoint_key: str, packet: Datagram) -> str:
+        return self._publisher_key(endpoint_key, packet.publisher_id) + "/" + str(packet.message_id)
+
+    def _finish(self, endpoint_key: str, packet: Datagram,
+                payload: bytes) -> ?Message:
+        publisher_key = self._publisher_key(endpoint_key, packet.publisher_id)
+        expired = self.expired_by_publisher.get(publisher_key)
+        expired_count = 0 if expired is None else expired!
+        if expired is not None:
+            del self.expired_by_publisher[publisher_key]
+        gap = 0
+        previous = self.last_ids.get(publisher_key)
+        if previous is not None:
+            delta = (packet.message_id - previous!) & MAX_MESSAGE_ID
+            if delta == 0 or delta >= 2147483648:
+                self.duplicate_messages += 1
+                if expired_count > 0:
+                    self.expired_by_publisher[publisher_key] = expired_count
+                return None
+            gap = delta - 1
+            self.lost_messages += gap
+            self.last_ids[publisher_key] = packet.message_id
+        else:
+            self.last_ids[publisher_key] = packet.message_id
+        lost = max([gap, expired_count])
+        return Message(endpoint_key, packet.media_type, packet.publisher_id,
+                       packet.message_id, lost, payload)
+
+    def feed(self, endpoint_key: str, data: bytes) -> ?Message:
+        packet = decode_datagram(data)
+        segment_number = packet.segment_number
+        if segment_number is None:
+            return self._finish(endpoint_key, packet, packet.payload)
+
+        key = self._message_key(endpoint_key, packet)
+        segments = self.pending.get(key)
+        if segments is None:
+            if len(self.pending) >= self.max_pending:
+                raise ValueError("UDP-Notif reassembly limit reached")
+            publisher_key = self._publisher_key(endpoint_key, packet.publisher_id)
+            self.pending[key] = SegmentSet(endpoint_key, packet.media_type,
+                                           publisher_key)
+        else:
+            if segments!.media_type != packet.media_type:
+                raise ValueError("UDP-Notif segments disagree on media type")
+        segment_set = self.pending[key]
+        number = segment_number!
+        known_last = segment_set.last_segment
+        if known_last is not None and number > known_last!:
+            raise ValueError("UDP-Notif segment follows the declared final segment")
+        old_piece = segment_set.pieces.get(number)
+        if old_piece is not None:
+            if old_piece! != packet.payload:
+                raise ValueError("conflicting duplicate UDP-Notif segment")
+            return None
+        segment_set.pieces[number] = packet.payload
+        if packet.last_segment:
+            old_last = segment_set.last_segment
+            if old_last is not None and old_last! != number:
+                raise ValueError("UDP-Notif segments disagree on final segment")
+            for stored_number in segment_set.pieces.keys():
+                if stored_number > number:
+                    raise ValueError("UDP-Notif final segment precedes a received segment")
+            segment_set.last_segment = number
+
+        last = segment_set.last_segment
+        if last is None or len(segment_set.pieces) != last! + 1:
+            return None
+        parts: list[bytes] = []
+        for i in range(last! + 1):
+            piece = segment_set.pieces.get(i)
+            if piece is None:
+                return None
+            parts.append(piece!)
+        del self.pending[key]
+        return self._finish(endpoint_key, packet, bytes([]).join(parts))
+
+    def expire(self, max_age_seconds: float) -> set[str]:
+        """Expire incomplete messages and return their publisher endpoint keys."""
+        expired: list[str] = []
+        expired_endpoints: set[str] = set()
+        for key, segments in self.pending.items():
+            if segments.age.elapsed().to_float() >= max_age_seconds:
+                expired.append(key)
+        for key in expired:
+            segments = self.pending[key]
+            expired_endpoints.add(segments.endpoint_key)
+            publisher_key = segments.publisher_key
+            count = self.expired_by_publisher.get(publisher_key)
+            self.expired_by_publisher[publisher_key] = 1 if count is None else count! + 1
+            del self.pending[key]
+            self.expired_messages += 1
+        return expired_endpoints
+
+    def forget_endpoint(self, endpoint_key: str):
+        """Discard all ordering and partial-message state for one publisher endpoint."""
+        pending_keys: list[str] = []
+        for key, segments in self.pending.items():
+            if segments.endpoint_key == endpoint_key:
+                pending_keys.append(key)
+        for key in pending_keys:
+            del self.pending[key]
+
+        publisher_prefix = endpoint_key + "/"
+        last_keys: list[str] = []
+        for key in self.last_ids.keys():
+            if key.startswith(publisher_prefix):
+                last_keys.append(key)
+        for key in last_keys:
+            del self.last_ids[key]
+
+        expired_keys: list[str] = []
+        for key in self.expired_by_publisher.keys():
+            if key.startswith(publisher_prefix):
+                expired_keys.append(key)
+        for key in expired_keys:
+            del self.expired_by_publisher[key]
+
+
+def _as_int(v: ?value) -> ?int:
+    if v is not None:
+        if isinstance(v, int):
+            return v
+        if isinstance(v, u64):
+            return int(v)
+        if isinstance(v, bigint):
+            return int(v)
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                return None
+    return None
+
+
+def _dict(v: ?value) -> ?dict[str, ?value]:
+    if isinstance(v, dict):
+        return v
+    return None
+
+
+def parse_json_notification(payload: bytes) -> Notification:
+    decoded = json.decode(payload.decode())
+    if not isinstance(decoded, dict):
+        raise ValueError("UDP-Notif JSON payload must be an object")
+    raw: dict[str, ?value] = decoded
+    body = raw
+    event_time: ?str = None
+    hostname: ?str = None
+    sequence_number: ?int = None
+
+    wrapper = _dict(raw.get(NOTIF_WRAPPER))
+    if wrapper is not None:
+        body = wrapper!
+    envelope = _dict(body.get(NOTIF_ENVELOPE))
+    if envelope is not None:
+        body = envelope!
+        contents = _dict(body.get("contents"))
+        if contents is None:
+            raise ValueError("UDP-Notif envelope has no contents object")
+        event = body.get("event-time")
+        if isinstance(event, str):
+            event_time = event
+        host = body.get("hostname")
+        if isinstance(host, str):
+            hostname = host
+        sequence_number = _as_int(body.get("sequence-number"))
+        body = contents!
+    else:
+        event = body.get("event-time")
+        if event is None:
+            event = body.get("eventTime")
+        if isinstance(event, str):
+            event_time = event
+
+    supported = [NOTIF_SUBSCRIPTION_STARTED, NOTIF_SUBSCRIPTION_TERMINATED,
+                 NOTIF_SUBSCRIPTION_SUSPENDED, NOTIF_PUSH_UPDATE,
+                 NOTIF_PUSH_CHANGE_UPDATE]
+    for kind in supported:
+        notification = _dict(body.get(kind))
+        if notification is not None:
+            n = notification!
+            return Notification(kind, _as_int(n.get("id")), event_time,
+                                hostname, sequence_number,
+                                _dict(n.get("datastore-contents")),
+                                _dict(n.get("datastore-changes")), raw)
+    raise ValueError("UDP-Notif payload contains no supported notification")
+
+
+def parse_json_patch(changes: dict[str, ?value]) -> JsonPatch:
+    """Parse the JSON YANG Patch inside a push-change-update.
+
+    IOS XR currently emits the unqualified ``yang-patch`` member because the
+    enclosing datastore-changes node already establishes its namespace. Accept
+    the explicitly-qualified RFC 8072 spelling as well.
+    """
+    patch = _dict(changes.get("ietf-yang-patch:yang-patch"))
+    if patch is None:
+        patch = _dict(changes.get("yang-patch"))
+    if patch is None:
+        raise ValueError("push-change-update has no YANG Patch object")
+
+    patch_id = patch!.get("patch-id")
+    if isinstance(patch_id, str):
+        patch_id_str = patch_id
+    else:
+        raise ValueError("YANG Patch patch-id must be a string")
+    raw_edits = patch!.get("edit")
+    if isinstance(raw_edits, list):
+        edit_values = raw_edits
+    else:
+        raise ValueError("YANG Patch edit must be an array")
+
+    edits: list[JsonPatchEdit] = []
+    for raw_edit in edit_values:
+        if not isinstance(raw_edit, dict):
+            raise ValueError("YANG Patch edit entry must be an object")
+        edit_id = raw_edit.get("edit-id")
+        operation = raw_edit.get("operation")
+        target = raw_edit.get("target")
+        if isinstance(edit_id, str) and isinstance(operation, str) and isinstance(target, str):
+            edit_id_str = edit_id
+            operation_str = operation
+            target_str = target
+        else:
+            raise ValueError("YANG Patch edit requires string edit-id, operation, and target")
+        if operation_str not in {"create", "delete", "insert", "merge", "move", "replace", "remove"}:
+            raise ValueError("unsupported YANG Patch operation {operation_str}")
+        edit_value = _dict(raw_edit.get("value"))
+        if operation_str in {"create", "insert", "merge", "replace"} and edit_value is None:
+            raise ValueError("YANG Patch {operation_str} edit requires a value object")
+        edits.append(JsonPatchEdit(edit_id_str, operation_str, target_str, edit_value))
+    return JsonPatch(patch_id_str, edits)

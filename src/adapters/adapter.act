@@ -16,6 +16,18 @@ CONNECTING    = 1
 CONNECTED     = 2
 TRANSACTION   = 3
 
+
+class AdapterContext(object):
+    """Adapter-neutral process capabilities and string runtime options."""
+    net_cap: ?net.NetCap
+    options: dict[str, str]
+
+    def __init__(self, net_cap: ?net.NetCap=None,
+                 options: dict[str, str]={}):
+        self.net_cap = net_cap
+        self.options = options
+
+
 class MockRoot(yadata.MNode):
     """Mock root node for mock devices"""
     def __init__(self):
@@ -185,6 +197,7 @@ class SubscriptionOwner(object):
 # subscription_method() / SubscriptionStatus.method values: the transport used to
 # realize a subscription against a device.
 SUBSCRIPTION_YANG_PUSH = "yang-push"   # device pushes natively (RFC 8641)
+SUBSCRIPTION_UDP_NOTIF = "udp-notif"   # configured IOS XR YANG Push over UDP-Notif
 SUBSCRIPTION_POLL = "poll"             # client-side periodic <get> polling
 SUBSCRIPTION_CONNECTING = "connecting" # not yet determined (device connecting)
 SUBSCRIPTION_MOCK = "mock"             # in-process mock adapter
@@ -214,6 +227,8 @@ class SubscriptionStatus(object):
         """One-line, human-facing summary for e.g. ncurl monitor."""
         if self.method == SUBSCRIPTION_YANG_PUSH:
             return "true periodic (yang-push)" if self.periodic else "true on-change (yang-push)"
+        if self.method == SUBSCRIPTION_UDP_NOTIF:
+            return "true periodic (udp-notif)" if self.periodic else "true on-change (udp-notif)"
         if self.method == SUBSCRIPTION_POLL:
             return "emulated periodic (polling)"
         return self.method

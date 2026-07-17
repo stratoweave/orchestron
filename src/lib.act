@@ -14,6 +14,7 @@ import device as swdev
 import http_server as swhttp
 import netconf_server as swnetconf
 import test_rig as swts
+from adapters.adapter import AdapterContext
 
 
 # Reserve a 1 TiB virtual map; LMDB grows physical storage with its data.
@@ -120,7 +121,8 @@ def _start(sysspec: swapp.SysSpec, env: Env,
 
     top_schema = sysspec.schema_for_layer(0)
     top_oper_schema = sysspec.schema_for_oper_layer(0)
-    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap)))
+    net_cap = net.NetCap(env.cap)
+    connect_cap = net.TCPConnectCap(net.TCPCap(net_cap))
     db: ?swdb.Store = None
     db_spec = system_settings.db_spec
     if db_spec is not None:
@@ -132,7 +134,20 @@ def _start(sysspec: swapp.SysSpec, env: Env,
         else:
             raise ValueError("Database backend is not available: {spec.backend}")
 
-    dev_registry = swdev.DeviceRegistry(sysspec.device_types, connect_cap, logh_dev)
+    adapter_options: dict[str, str] = {}
+    receiver_address = system_settings.udp_notif_receiver_address
+    if receiver_address is not None:
+        adapter_options["udp-notif-listen-address"] = system_settings.udp_notif_listen_address
+        adapter_options["udp-notif-receiver-address"] = receiver_address!
+        adapter_options["udp-notif-max-segment-size"] = str(system_settings.udp_notif_max_segment_size)
+        source_interface = system_settings.udp_notif_source_interface
+        if source_interface is not None:
+            adapter_options["udp-notif-source-interface"] = source_interface!
+    dev_registry = swdev.DeviceRegistry(
+        sysspec.device_types,
+        connect_cap,
+        logh_dev,
+        AdapterContext(net_cap, adapter_options))
     cfs = sysspec.get_layers(dev_registry, logh_ttt, db)
     swapp.RfsReconf(dev_registry, cfs)
 
