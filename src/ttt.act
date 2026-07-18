@@ -2189,16 +2189,20 @@ class _RFSTransaction(_TransformTransactionBase):
         return newoutmem    # TODO: dynstate for RFS?
 
     def clear(self, tid, out):
-        output = self.output
-        if out is not None and output is not None:
-            diff = difference(output, gdata.Container())
-            if isinstance(diff, gdata.Container):
-                dev_content = {
-                    gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname),
-                    gdata.Id(NS_stratoweave_device, "config"): diff
-                }
-                embedded_diff: gdata.Node = self.embed(dev_content)
-                out.configure(tid, {self.me: embedded_diff})
+        if out is not None and (self.output is not None or len(self.running) > 0):
+            # Retract this transform's entire contribution to the device entry
+            # in the lower layer, as an Absent list element, so the per-source
+            # patch collapses to nothing. Retracting only the config subtree
+            # would re-assert the name leaf and leave modset_id behind, keeping
+            # the device entry alive after all its sources are gone.
+            retraction: gdata.Node = gdata.Container({
+                gdata.Id(NS_stratoweave_device, "devices"): gdata.Container({
+                    gdata.Id(NS_stratoweave_device, "device"): gdata.List([gdata.Id(NS_stratoweave_device, "name")], [
+                        gdata.Absent({gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname)})
+                    ])
+                })
+            }, ns=NS_stratoweave_device, module="stratoweave-device")
+            out.configure(tid, {self.me: retraction})
 
     def embed(self, dev_content):
         return gdata.Container({
