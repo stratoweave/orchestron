@@ -533,6 +533,98 @@ actor _test_subscribe_periodic_yang_push(t: testing.EnvT):
     after 2.0: fail("Timed out waiting for periodic yang-push subscription updates")
 
 
+actor _test_stop_silences_device(t: testing.EnvT):
+    """DeviceMgr.stop() shuts the NETCONF driver down for good.
+
+    1. DeviceMgr in NETCONF mock mode with a periodic poll subscription.
+    2. On the first update, stop the device.
+    3. After a settle delay, require silence for several would-be poll
+       periods: pending poll ticks must die against the cleared
+       subscription state instead of rescheduling forever.
+    4. declare_subscriptions on the stopped device must error immediately.
+    """
+    mock_current_datetime = "2026-02-21T10:11:12Z"
+    mock_boot_datetime = "2025-12-31T00:00:00Z"
+
+    var done = False
+    var stop_sent = False
+    var settled = False
+    var updates_after_settle = 0
+
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-stop", noop_on_reconf)
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def succeed():
+        if done:
+            return
+        done = True
+        t.success()
+
+    def on_late_update(n: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is None:
+            fail("declare_subscriptions on stopped device delivered data")
+            return
+        succeed()
+
+    def check_quiet():
+        if done:
+            return
+        if updates_after_settle > 0:
+            fail("Subscription updates continued after stop: {updates_after_settle}")
+            return
+        want = set([ygdata.SubscriptionSpec(_current_datetime_filter(), period=0.05)])
+        dev.declare_subscriptions("late-owner", on_late_update, want)
+
+    def settle():
+        if done:
+            return
+        settled = True
+        after 0.3: check_quiet()
+
+    def on_update(n: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if settled:
+            updates_after_settle += 1
+            return
+        if stop_sent:
+            # Deliveries racing the stop, including the final shutdown error
+            # notice, are tolerated until the settle point.
+            return
+        if err is not None:
+            fail("Subscription update error before stop: {err}")
+            return
+        stop_sent = True
+        dev.stop()
+        after 0.15: settle()
+
+    def start():
+        adapter = dev.get_adapter()
+        if isinstance(adapter, swna.NetconfAdapter):
+            ms0 = adapter.get_mock_server()
+            if ms0 is None:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+                return
+            ygdata.expect(ms0, "mock server").set_oper_ds(_mock_oper_ds(mock_current_datetime, mock_boot_datetime))
+            want = set([ygdata.SubscriptionSpec(_current_datetime_filter(), period=0.05)])
+            dev.declare_subscriptions("test-stop", on_update, want)
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+
+    after 2.0: fail("Timed out waiting for stop test")
+
+
 actor _test_subscription_manager_declare(t: testing.EnvT):
     """Declarative subscription manager over NETCONF mock subscriptions."""
     mock_current_datetime_1 = "2026-02-21T10:11:12Z"
