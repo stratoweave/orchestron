@@ -74,6 +74,20 @@ actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPC
     def list():
         return devices.keys()
 
+    def remove(name: str) -> None:
+        """Remove a device from the registry and stop its DeviceMgr
+
+        Used when the device is deleted from the configuration. The DeviceMgr
+        is stopped: its adapter connection is closed and it no longer accepts
+        configuration. Unknown device names are ignored.
+        """
+        dev = devices.get(name)
+        if dev is not None:
+            del devices[name]
+            if name in devices_needing_approval:
+                del devices_needing_approval[name]
+            dev.stop()
+
     def on_reconf(on_reconf: action(str) -> None):
         reconf_cb = on_reconf
 
@@ -340,6 +354,34 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
     var needs_approval = False
     var conf_log: list[LogItem] = []
 
+    # Set when the device has been removed from the system. A stopped
+    # DeviceMgr ignores new configuration and device events.
+    var stopped = False
+
+    def stop():
+        """Stop managing the device
+
+        Called when the device is removed from the system. Closes the adapter
+        connection and unblocks any transactions waiting for completion. The
+        configuration last sent to the device is left in place; nothing is
+        wiped from the device itself.
+        """
+        if stopped:
+            return
+        stopped = True
+        _log.info("DeviceMgr stopping", {"name": name})
+        adapter.close()
+        # Unblock waiting transactions. Consistent with wait_complete() for
+        # unknown tids, they complete rather than error: there is nothing
+        # left to wait for on a removed device.
+        for tid, cb in callbacks.items():
+            cb(True)
+        callbacks = {}
+        confq = {}
+        current_tids = set()
+        reconf_tids = set()
+        needs_approval = False
+
     def get_state():
         """Get the device state information"""
         has_running = False
@@ -399,10 +441,14 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         return target_conf
 
     def on_modset_update(new_modset: dict[str, ModCap]):
+        if stopped:
+            return
         _log.debug("Modset updated", {"new_modset": new_modset})
         on_reconf(name)
 
     def on_connect(new_modset: dict[str, ModCap], new_schema_hash: ?u64):
+        if stopped:
+            return
         _log.debug("Device connected", {"new_modset": new_modset, "new_schema_hash": new_schema_hash})
         resync()
         if modset_eq(modset, new_modset):
@@ -416,6 +462,10 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             return
 
     def set_dmc(new_dmc: DeviceMetaConfig) -> None:
+        if stopped:
+            _log.debug("DeviceMgr.set_dmc: device stopped, ignoring")
+            return
+
         def is_mock_device(new_dmc: DeviceMetaConfig) -> bool:
             if new_dmc.mock.enabled:
                 return True
@@ -510,6 +560,8 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         This function manages the transaction queue and calls the adapter's
         configure method with the current target configuration.
         """
+        if stopped:
+            return
         # Check if we already have a transaction in progress
         if len(current_tids) > 0:
             _log.debug("DeviceMgr._send_config: there is currently an outstanding configuration, skipping", {"current_tids": current_tids})
@@ -668,6 +720,9 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
                 _log.debug("No send config, cannot compute diff")
 
     def configure(new_conf: ?ygdata.Node, conf_modset_id: ?str, tid: str="0"):
+        if stopped:
+            _log.debug("DeviceMgr.configure: device stopped, ignoring configuration", {"tid": tid})
+            return
         if new_conf is not None and conf_modset_id is not None:
             if conf_modset_id != modset_id:
                 _log.debug("DeviceMgr.configure: modset_id mismatch, ignoring configuration", {"conf_modset_id": str(conf_modset_id), "modset_id": str(modset_id)})
@@ -690,6 +745,9 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         txid matches our cached version. If the device does not support txid,
         we have to fetch the full config and diff it against our cached version.
         """
+        if stopped:
+            return
+
         def on_fetch_config_done(new_conf: ?ygdata.Node, err: ?Exception) -> None:
             if err is not None:
                 _log.error("Error fetching config from device", {"error": err})

@@ -2306,11 +2306,15 @@ def devname_from_device_path(path: Path):
 
 class _DeviceTransaction(_TransformTransactionBase):
     dev: swdev.DeviceMgr
+    devname: str
+    dev_registry: swdev.DeviceRegistry
     logger: logging.Logger
 
     def __init__(self, path, dev_registry: swdev.DeviceRegistry, log_handler):
         _TransformTransactionBase.__init__(self, path, None)
-        self.dev = dev_registry.get_or_create(devname_from_device_path(path))
+        self.devname = devname_from_device_path(path)
+        self.dev_registry = dev_registry
+        self.dev = dev_registry.get_or_create(self.devname)
         self.logger = logging.Logger(log_handler)
 
     def compute(self, tid, merged, linked, out):
@@ -2325,6 +2329,10 @@ class _DeviceTransaction(_TransformTransactionBase):
         if config is not None:
             meta_config = DeviceMetaConfig.from_gdata(config)
             self.dev.set_dmc(meta_config)
+        else:
+            # The device meta-config entry was deleted: the device is no
+            # longer part of the system, so remove and stop its DeviceMgr.
+            self.dev_registry.remove(self.devname)
 
 
 ################# DeviceConfig #####################

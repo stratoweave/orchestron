@@ -246,6 +246,12 @@ class DeviceAdapter(object):
     def supports_mocking(self) -> bool:
         return False
 
+    ## Close any connection to the device. Adapters that hold no connection
+    ## inherit this no-op.
+    def close(self, on_close: ?action() -> None=None):
+        if on_close is not None:
+            on_close()
+
     set_dmc: proc(new_dmc: DeviceMetaConfig) -> None
 
     ## Configure the device with the given configuration
