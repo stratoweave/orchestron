@@ -1158,7 +1158,11 @@ class _ContainerTransaction(_Transaction):
             tr.lock(tid, out, actself.lock_cont, dbuf)              # yield await
         except StopIteration:
             #print('   #', tid, '(Container)', _format_path(self.path), 'LOCK IMMEDIATELY DONE', err=True)
-            done(CfgOk())
+            # Nothing was configured under this node in this transaction, so
+            # the lock result must not veto emptiness: it lands in the parent's
+            # accum (replacing the configure-phase result) and list entry
+            # deletion at commit requires the entry result to remain empty.
+            done(CfgOk(empty=True))
 
     def lock_cont(self, actself, res):
         state = self.state
@@ -1532,7 +1536,13 @@ class _ListTransaction(_Transaction):
             tr.lock(tid, out, actself.lock_cont, dbuf)                  # yield await
         except StopIteration:
             #print('   #', tid, '(List)', _format_path(self.path), 'LOCK IMMEDIATELY DONE', err=True)
-            done(CfgOk())
+            # Nothing was configured in this list in this transaction, so the
+            # lock result must not veto emptiness: it lands in the parent's
+            # accum (replacing the configure-phase result) and list entry
+            # deletion at commit requires the entry result to remain empty.
+            # A deleted entry holding an empty nested list would otherwise be
+            # reported non-empty here and never removed.
+            done(CfgOk(empty=True))
 
     def lock_cont(self, actself, res):
         state = self.state
