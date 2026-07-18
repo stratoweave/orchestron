@@ -1,5 +1,7 @@
 import testing
 
+import yang.gdata as ygdata
+
 import mini.layers.y_0 as cfs_layer
 import mini.layers.y_0_oper as cfs_oper
 import mini.sysspec as sysspec
@@ -43,6 +45,68 @@ actor _test_netinfra_router_oper(t: testing.AsyncT):
         after 0: poll()
 
     tr.edit_config(root.to_gdata(), cont)
+
+
+actor _test_router_delete(t: testing.AsyncT):
+    """Deleting a router must clean up all layers and the device registry"""
+    root = cfs_layer.root()
+    root.netinfra.global_settings.asn = 123
+    router = root.netinfra.router.create("rtr1", 1, "ietf")
+    router.mock = True
+
+    tr = stratoweave.test_main(sysspec.SYSSPEC, t.log_handler)
+
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id("http://example.com/netinfra", n)
+
+    delete_config = ygdata.Container({
+        q("netinfra"): ygdata.Container({
+            q("router"): ygdata.List([q("name")], [
+                ygdata.Absent({q("name"): ygdata.Leaf("rtr1")})
+            ])
+        })
+    })
+
+    var attempts = 0
+
+    def leftovers() -> ?str:
+        names = [n for n in tr.dev_registry.list()]
+        if len(names) > 0:
+            return "device registry still tracks {names}"
+        for depth in [0, 1, 2]:
+            layer_str = tr.layer_config(depth).to_yang_jsonstr()
+            if "rtr1" in layer_str:
+                return "layer {depth} still contains rtr1: {layer_str}"
+        return None
+
+    def poll():
+        attempts += 1
+        problem = leftovers()
+        if problem is not None:
+            if attempts >= 20:
+                t.failure(ValueError("Device not cleaned up after delete: {problem}"))
+                return
+            after 0.01: poll()
+            return
+        t.success()
+
+    def deleted(r: value):
+        if isinstance(r, Exception):
+            t.failure(r)
+            return
+        after 0: poll()
+
+    def created(r: value):
+        if isinstance(r, Exception):
+            t.failure(r)
+            return
+        names = [n for n in tr.dev_registry.list()]
+        if "rtr1" not in names:
+            t.failure(ValueError("Device rtr1 not tracked after create"))
+            return
+        tr.edit_config(delete_config, deleted)
+
+    tr.edit_config(root.to_gdata(), created)
 
 
 actor _test_l3vpn1(t: testing.AsyncT):
