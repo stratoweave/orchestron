@@ -1417,13 +1417,19 @@ class _ListTransaction(_Transaction):
         self.state = None
         self.reset = False
 
-    def configure(self, tid, diff, out: ?Session, force=False, dbuf: ?swdb.Buffer=None):
-        #print('####', tid, '(List)', _format_path(self.path), 'configure', actorid(), err=True)
+    def _maybe_reset(self):
+        # Commit defers the reset (for the benefit of wait_complete), so every
+        # transaction entry point must drop the previous transaction's state
+        # before reusing this object.
         if self.reset:
             self.elems = {}
             self.accum = {}
             self.retracted = set()
             self.reset = False
+
+    def configure(self, tid, diff, out: ?Session, force=False, dbuf: ?swdb.Buffer=None):
+        #print('####', tid, '(List)', _format_path(self.path), 'configure', actorid(), err=True)
+        self._maybe_reset()
         diff_by_key = transpose_list(diff)
         leaves_by_key = {}
         if len(diff_by_key) == 0 and force:
@@ -1501,13 +1507,8 @@ class _ListTransaction(_Transaction):
 
     def linkage(self, tid, requests, updates, out, dbuf):
         #print('####', tid, '(List)', _format_path(self.path), 'linkage', len(requests), len(updates), err=True)
-        # linkage can now be a transaction entry point, so like configure()
-        # it must clear the previous transaction stale state
-        if self.reset:
-            self.elems = {}
-            self.accum = {}
-            self.retracted = set()
-            self.reset = False
+        # linkage can be a transaction entry point, just like configure()
+        self._maybe_reset()
 
         # linkage may target list entries committed by an earlier tx and not
         # configured in this one. Acquire those existing entries so we can
