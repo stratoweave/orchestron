@@ -1890,9 +1890,10 @@ class NetconfAdapter(DeviceAdapter):
     def close(self, on_close: ?action() -> None=None):
         """Permanently close the connection to the device
 
-        Adapter close is used when the device is removed from the system, so
-        shut the driver down for good: cancel subscriptions and reconnect
-        retries in addition to closing the connection.
+        Adapter close is used when the device is removed from the system or
+        the adapter is replaced, so shut the driver down for good: cancel
+        subscriptions and reconnect retries in addition to closing the
+        connection.
         """
         self._driver.shutdown(on_close)
 

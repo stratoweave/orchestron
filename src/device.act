@@ -508,6 +508,10 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
                         "effective_mock": effective_mock,
                         "use_generic_mock_adapter": use_generic_mock_adapter
                     })
+                    # The replaced adapter is never used again: shut it down
+                    # for good so its driver stops polling, reconnecting and
+                    # feeding device events into this DeviceMgr.
+                    adapter.close()
                     adapter = new_adapter
                     _log.info("DeviceMgr.set_dmc: using adapter", {"adapter": adapter})
                     bundled_schema = device_type.bundled_schema
