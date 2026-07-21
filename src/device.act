@@ -84,8 +84,8 @@ actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPC
         dev = devices.get(name)
         if dev is not None:
             del devices[name]
-            if name in devices_needing_approval:
-                del devices_needing_approval[name]
+            # stop() unregisters the device from devices_needing_approval
+            # through _update_approval_state().
             dev.stop()
 
     def on_reconf(on_reconf: action(str) -> None):
@@ -100,9 +100,11 @@ actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPC
     def unregister_needs_approval(name: str):
         """Unregister a device from needing approval
 
-        For example when all configs are approved or rejected or approval-required has been disabled
+        For example when all configs are approved or rejected or approval-required has been disabled.
+        Unknown names are ignored: a registration can race a device removal.
         """
-        del devices_needing_approval[name]
+        if name in devices_needing_approval:
+            del devices_needing_approval[name]
 
     def get_devices_needing_approval() -> dict[str, DeviceMgr]:
         """Get devices that have pending approvals
@@ -380,7 +382,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         confq = {}
         current_tids = set()
         reconf_tids = set()
-        needs_approval = False
+        _update_approval_state()
 
     def get_state():
         """Get the device state information"""
