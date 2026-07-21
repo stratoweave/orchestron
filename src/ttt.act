@@ -2201,7 +2201,7 @@ class _RFSTransaction(_TransformTransactionBase):
             newoutmem = gdata.Container({}), None
 
         if out is not None:
-            embedded_res = self.embed(dev_content)
+            embedded_res = self.embed(gdata.Container(dev_content))
             out.configure(tid, {self.me: embedded_res})
         return newoutmem    # TODO: dynstate for RFS?
 
@@ -2212,21 +2212,13 @@ class _RFSTransaction(_TransformTransactionBase):
             # patch collapses to nothing. Retracting only the config subtree
             # would re-assert the name leaf and leave modset_id behind, keeping
             # the device entry alive after all its sources are gone.
-            retraction: gdata.Node = gdata.Container({
-                gdata.Id(NS_stratoweave_device, "devices"): gdata.Container({
-                    gdata.Id(NS_stratoweave_device, "device"): gdata.List([gdata.Id(NS_stratoweave_device, "name")], [
-                        gdata.Absent({gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname)})
-                    ])
-                })
-            }, ns=NS_stratoweave_device, module="stratoweave-device")
+            retraction = self.embed(gdata.Absent({gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname)}))
             out.configure(tid, {self.me: retraction})
 
-    def embed(self, dev_content):
+    def embed(self, elem: gdata.Node):
         return gdata.Container({
             gdata.Id(NS_stratoweave_device, "devices"): gdata.Container({
-                gdata.Id(NS_stratoweave_device, "device"): gdata.List([gdata.Id(NS_stratoweave_device, "name")], [
-                    gdata.Container(dev_content)
-                ])
+                gdata.Id(NS_stratoweave_device, "device"): gdata.List([gdata.Id(NS_stratoweave_device, "name")], [elem])
             })
         }, ns=NS_stratoweave_device, module="stratoweave-device")
 
