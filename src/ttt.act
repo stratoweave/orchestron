@@ -2159,6 +2159,7 @@ class _RFSTransaction(_TransformTransactionBase):
     function: RFSFunction
     devname: str
     dev: swdev.DeviceMgr
+    dev_registry: swdev.DeviceRegistry
     memory: ?gdata.Node
     dynstate: ?gdata.Node
     node: ?Node
@@ -2171,11 +2172,16 @@ class _RFSTransaction(_TransformTransactionBase):
         self.devname = devname_from_rfs_path(path)
         _TransformTransactionBase.__init__(self, path, None)
         self.function = function(log_handler)
+        self.dev_registry = dev_registry
         self.dev = dev_registry.get_or_create(self.devname)
         self.lower = lower
 
     def compute(self, tid, merged, linked, out):
         #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', actorid(), err=True)
+        # Re-resolve the DeviceMgr: a concurrent delete may have removed and
+        # stopped the instance cached at construction, and a re-created device
+        # gets a fresh DeviceMgr that must be used in its place.
+        self.dev = self.dev_registry.get_or_create(self.devname)
         dev_content = {
             gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname),
         }
@@ -2339,6 +2345,11 @@ class _DeviceTransaction(_TransformTransactionBase):
         config = self.output
         if config is not None:
             meta_config = DeviceMetaConfig.from_gdata(config)
+            # Re-resolve the DeviceMgr: a concurrent delete may have removed
+            # and stopped the instance cached at construction. The entry still
+            # exists, so the device must be (re-)managed under a fresh
+            # DeviceMgr rather than configured into the stopped one.
+            self.dev = self.dev_registry.get_or_create(self.devname)
             self.dev.set_dmc(meta_config)
         else:
             # The device meta-config entry was deleted: the device is no
@@ -2366,11 +2377,15 @@ def devname_from_deviceconfig_path(path: Path):
 
 class _DeviceConfigTransaction(_TransformTransactionBase):
     dev: swdev.DeviceMgr
+    devname: str
+    dev_registry: swdev.DeviceRegistry
     logger: logging.Logger
 
     def __init__(self, path, dev_registry: swdev.DeviceRegistry, log_handler):
         _TransformTransactionBase.__init__(self, path)
-        self.dev = dev_registry.get_or_create(devname_from_deviceconfig_path(path))
+        self.devname = devname_from_deviceconfig_path(path)
+        self.dev_registry = dev_registry
+        self.dev = dev_registry.get_or_create(self.devname)
         self.logger = logging.Logger(log_handler)
         self.cont = None
 
@@ -2384,6 +2399,10 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
         #print('####', tid, '(DeviceConfig)', _format_path(self.path), 'finalize', actorid(), err=True)
         device = self.output
         if device is not None:
+            # Re-resolve the DeviceMgr: a concurrent delete may have removed
+            # and stopped the instance cached at construction; configuring the
+            # stopped one would silently discard this entry's configuration.
+            self.dev = self.dev_registry.get_or_create(self.devname)
             if isinstance(device, gdata.Container):
                 config = device.children.get(gdata.Id(NS_stratoweave_device, "config"))
                 if config is not None:
