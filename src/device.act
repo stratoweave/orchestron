@@ -362,7 +362,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         """Stop managing the device
 
         Called when the device is removed from the system. Closes the adapter
-        connection and unblocks any transactions waiting for completion. The
+        connection and fails any transactions waiting for completion. The
         configuration last sent to the device is left in place; nothing is
         wiped from the device itself.
         """
@@ -371,11 +371,11 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         stopped = True
         _log.info("DeviceMgr stopping", {"name": name})
         adapter.close()
-        # Unblock waiting transactions. Consistent with wait_complete() for
-        # unknown tids, they complete rather than error: there is nothing
-        # left to wait for on a removed device.
+        # Fail waiting transactions: their configuration is discarded here
+        # unpushed (or unconfirmed), so completing with success would falsely
+        # report it as committed to the device.
         for tid, cb in callbacks.items():
-            cb(True)
+            cb(NotConnectedError("device removed"))
         callbacks = {}
         confq = {}
         current_tids = set()
