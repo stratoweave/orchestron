@@ -2179,10 +2179,14 @@ class _RFSTransaction(_TransformTransactionBase):
 
     def compute(self, tid, merged, linked, out):
         #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', actorid(), err=True)
-        # Re-resolve the DeviceMgr: a concurrent delete may have removed and
-        # stopped the instance cached at construction, and a re-created device
-        # gets a fresh DeviceMgr that must be used in its place.
-        self.dev = self.dev_registry.get_or_create(self.devname)
+        # Re-resolve the DeviceMgr: a delete and re-create replaces the
+        # instance cached at construction. Only adopt a currently registered
+        # instance; never create one here, since this transform can recompute
+        # while its entry is being torn down and creating would resurrect the
+        # removed device in the registry.
+        dev = self.dev_registry.get(self.devname)
+        if dev is not None:
+            self.dev = dev
         dev_content = {
             gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname),
         }
@@ -2392,10 +2396,18 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
         #print('####', tid, '(DeviceConfig)', _format_path(self.path), 'finalize', actorid(), err=True)
         device = self.output
         if device is not None:
-            # Re-resolve the DeviceMgr: a concurrent delete may have removed
-            # and stopped the instance cached at construction; configuring the
-            # stopped one would silently discard this entry's configuration.
-            self.dev = self.dev_registry.get_or_create(self.devname)
+            # Re-resolve the DeviceMgr: a delete and re-create replaces the
+            # instance cached at construction; configuring the stopped one
+            # would silently discard this entry's configuration. Only adopt a
+            # currently registered instance; never create one here, since this
+            # entry can outlive its device while a teardown is in flight, and
+            # creating would resurrect the removed device. With no registered
+            # device there is nowhere to push this configuration.
+            dev = self.dev_registry.get(self.devname)
+            if dev is not None:
+                self.dev = dev
+            else:
+                return
             if isinstance(device, gdata.Container):
                 config = device.children.get(gdata.Id(NS_stratoweave_device, "config"))
                 if config is not None:
