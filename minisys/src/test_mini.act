@@ -49,21 +49,20 @@ actor _test_l3vpn1(t: testing.AsyncT):
     root = cfs_layer.root()
     root.netinfra.global_settings.asn = 123
 
-    router1 = root.netinfra.router.create(name="rtr1", id=1, type="ietf")
+    router1 = root.netinfra.router.create("rtr1", id=1, type="ietf")
     router1.mock = True
 
-    router2 = root.netinfra.router.create(name="rtr2", id=2, type="ietf")
+    router2 = root.netinfra.router.create("rtr2", id=2, type="ietf")
     router2.mock = True
 
     vpn = root.l3vpn.create(
-        name="blue",
+        "blue",
         customer_name="acme",
         vpn_id=100,
         service_mtu=1600,
     )
     vpn.endpoint.create(
-        device="rtr1",
-        interface_name="ge-0/0/0.101",
+        ("rtr1", "ge-0/0/0.101"),
         ipv4_address="192.0.2.1",
         prefix_length=31,
         mtu=1580,
@@ -72,8 +71,7 @@ actor _test_l3vpn1(t: testing.AsyncT):
         description="Stockholm CE",
     )
     vpn.endpoint.create(
-        device="rtr2",
-        interface_name="ge-0/0/0.202",
+        ("rtr2", "ge-0/0/0.202"),
         ipv4_address="192.0.2.3",
         prefix_length=31,
         vlan_id=202,

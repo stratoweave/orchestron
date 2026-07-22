@@ -87,12 +87,12 @@ class L3vpn(base.L3vpn):
                 mtu = i.service_mtu
 
             rfs_endpoint = rfs_dev.l3vpn_endpoint.create(
+                endpoint.interface_name,
                 vpn_name            = i.name,
                 customer_name       = i.customer_name,
                 route_distinguisher = rd,
                 import_rt           = rt,
                 export_rt           = rt,
-                interface_name      = endpoint.interface_name,
                 ipv4_address        = endpoint.ipv4_address,
                 prefix_length       = endpoint.prefix_length,
                 mtu                 = mtu,

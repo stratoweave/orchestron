@@ -2067,22 +2067,17 @@ class ietf_yang_library__yang_library__module_set__module__submodule_entry(yadat
         return ietf_yang_library__yang_library__module_set__module__submodule_entry.from_gdata(self.to_gdata())
 
 _breaker2: None = None
-class ietf_yang_library__yang_library__module_set__module__submodule(yadata.MList[ietf_yang_library__yang_library__module_set__module__submodule_entry]):
+class ietf_yang_library__yang_library__module_set__module__submodule(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set__module__submodule_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_yang_library__yang_library__module_set__module__submodule_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
-        e = self.get(name)
+    mut def create(self, key: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
+        e = self.get(key)
         if e is not None:
             if revision is not None:
                 e.revision = revision
             return e
+        name = key
         res = ietf_yang_library__yang_library__module_set__module__submodule_entry(name=name, revision=revision)
         self.elements.append(res)
         return res
@@ -2103,27 +2098,6 @@ class ietf_yang_library__yang_library__module_set__module__submodule(yadata.MLis
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set__module__submodule(elements=copied_elements)
 
-
-extension ietf_yang_library__yang_library__module_set__module__submodule(Indexed[str, ietf_yang_library__yang_library__module_set__module__submodule_entry]):
-    def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_yang_library__yang_library__module_set__module__submodule_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker3: None = None
 class ietf_yang_library__yang_library__module_set__module_entry(yadata.MNode):
@@ -2156,23 +2130,18 @@ class ietf_yang_library__yang_library__module_set__module_entry(yadata.MNode):
         return ietf_yang_library__yang_library__module_set__module_entry.from_gdata(self.to_gdata())
 
 _breaker4: None = None
-class ietf_yang_library__yang_library__module_set__module(yadata.MList[ietf_yang_library__yang_library__module_set__module_entry]):
+class ietf_yang_library__yang_library__module_set__module(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set__module_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_yang_library__yang_library__module_set__module_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, namespace: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module_entry:
-        e = self.get(name)
+    mut def create(self, key: str, namespace: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module_entry:
+        e = self.get(key)
         if e is not None:
             e.namespace = namespace
             if revision is not None:
                 e.revision = revision
             return e
+        name = key
         res = ietf_yang_library__yang_library__module_set__module_entry(name=name, namespace=namespace, revision=revision)
         self.elements.append(res)
         return res
@@ -2193,27 +2162,6 @@ class ietf_yang_library__yang_library__module_set__module(yadata.MList[ietf_yang
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set__module(elements=copied_elements)
 
-
-extension ietf_yang_library__yang_library__module_set__module(Indexed[str, ietf_yang_library__yang_library__module_set__module_entry]):
-    def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set__module_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_yang_library__yang_library__module_set__module_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker5: None = None
 class ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry(yadata.MNode):
@@ -2238,22 +2186,17 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
         return ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry.from_gdata(self.to_gdata())
 
 _breaker6: None = None
-class ietf_yang_library__yang_library__module_set__import_only_module__submodule(yadata.MList[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]):
+class ietf_yang_library__yang_library__module_set__import_only_module__submodule(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
-        e = self.get(name)
+    mut def create(self, key: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
+        e = self.get(key)
         if e is not None:
             if revision is not None:
                 e.revision = revision
             return e
+        name = key
         res = ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry(name=name, revision=revision)
         self.elements.append(res)
         return res
@@ -2274,27 +2217,6 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set__import_only_module__submodule(elements=copied_elements)
 
-
-extension ietf_yang_library__yang_library__module_set__import_only_module__submodule(Indexed[str, ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]):
-    def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker7: None = None
 class ietf_yang_library__yang_library__module_set__import_only_module_entry(yadata.MNode):
@@ -2323,28 +2245,16 @@ class ietf_yang_library__yang_library__module_set__import_only_module_entry(yada
         return ietf_yang_library__yang_library__module_set__import_only_module_entry.from_gdata(self.to_gdata())
 
 _breaker8: None = None
-class ietf_yang_library__yang_library__module_set__import_only_module(yadata.MList[ietf_yang_library__yang_library__module_set__import_only_module_entry]):
+class ietf_yang_library__yang_library__module_set__import_only_module(yadata.MKeyedList[(name: str, revision: str), ietf_yang_library__yang_library__module_set__import_only_module_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: (e.name, e.revision), elements)
 
-    pure def get(self, name: str, revision: str) -> ?ietf_yang_library__yang_library__module_set__import_only_module_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            e_revision = e.revision
-            revision_match = False
-            if isinstance(e_revision, str) and isinstance(revision, str):
-                if e_revision == revision:
-                    revision_match = True
-            if not revision_match:
-                continue
-            return e
-
-    mut def create(self, name: str, revision: str, namespace: str) -> ietf_yang_library__yang_library__module_set__import_only_module_entry:
-        e = self.get(name, revision)
+    mut def create(self, key: (name: str, revision: str), namespace: str) -> ietf_yang_library__yang_library__module_set__import_only_module_entry:
+        e = self.get(key)
         if e is not None:
             e.namespace = namespace
             return e
+        (name=name, revision=revision) = key
         res = ietf_yang_library__yang_library__module_set__import_only_module_entry(name=name, revision=revision, namespace=namespace)
         self.elements.append(res)
         return res
@@ -2389,20 +2299,15 @@ class ietf_yang_library__yang_library__module_set_entry(yadata.MNode):
         return ietf_yang_library__yang_library__module_set_entry.from_gdata(self.to_gdata())
 
 _breaker10: None = None
-class ietf_yang_library__yang_library__module_set(yadata.MList[ietf_yang_library__yang_library__module_set_entry]):
+class ietf_yang_library__yang_library__module_set(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_yang_library__yang_library__module_set_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str) -> ietf_yang_library__yang_library__module_set_entry:
-        e = self.get(name)
+    mut def create(self, key: str) -> ietf_yang_library__yang_library__module_set_entry:
+        e = self.get(key)
         if e is not None:
             return e
+        name = key
         res = ietf_yang_library__yang_library__module_set_entry(name=name)
         self.elements.append(res)
         return res
@@ -2423,27 +2328,6 @@ class ietf_yang_library__yang_library__module_set(yadata.MList[ietf_yang_library
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__module_set(elements=copied_elements)
 
-
-extension ietf_yang_library__yang_library__module_set(Indexed[str, ietf_yang_library__yang_library__module_set_entry]):
-    def __getitem__(self, k: str) -> ietf_yang_library__yang_library__module_set_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_yang_library__yang_library__module_set_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker11: None = None
 class ietf_yang_library__yang_library__schema_entry(yadata.MNode):
@@ -2466,20 +2350,15 @@ class ietf_yang_library__yang_library__schema_entry(yadata.MNode):
         return ietf_yang_library__yang_library__schema_entry.from_gdata(self.to_gdata())
 
 _breaker12: None = None
-class ietf_yang_library__yang_library__schema(yadata.MList[ietf_yang_library__yang_library__schema_entry]):
+class ietf_yang_library__yang_library__schema(yadata.MKeyedList[str, ietf_yang_library__yang_library__schema_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__schema_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_yang_library__yang_library__schema_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str) -> ietf_yang_library__yang_library__schema_entry:
-        e = self.get(name)
+    mut def create(self, key: str) -> ietf_yang_library__yang_library__schema_entry:
+        e = self.get(key)
         if e is not None:
             return e
+        name = key
         res = ietf_yang_library__yang_library__schema_entry(name=name)
         self.elements.append(res)
         return res
@@ -2500,27 +2379,6 @@ class ietf_yang_library__yang_library__schema(yadata.MList[ietf_yang_library__ya
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__schema(elements=copied_elements)
 
-
-extension ietf_yang_library__yang_library__schema(Indexed[str, ietf_yang_library__yang_library__schema_entry]):
-    def __getitem__(self, k: str) -> ietf_yang_library__yang_library__schema_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_yang_library__yang_library__schema_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker13: None = None
 class ietf_yang_library__yang_library__datastore_entry(yadata.MNode):
@@ -2543,21 +2401,16 @@ class ietf_yang_library__yang_library__datastore_entry(yadata.MNode):
         return ietf_yang_library__yang_library__datastore_entry.from_gdata(self.to_gdata())
 
 _breaker14: None = None
-class ietf_yang_library__yang_library__datastore(yadata.MList[ietf_yang_library__yang_library__datastore_entry]):
+class ietf_yang_library__yang_library__datastore(yadata.MKeyedList[Identityref, ietf_yang_library__yang_library__datastore_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__datastore_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: Identityref) -> ?ietf_yang_library__yang_library__datastore_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: Identityref, schema: str) -> ietf_yang_library__yang_library__datastore_entry:
-        e = self.get(name)
+    mut def create(self, key: Identityref, schema: str) -> ietf_yang_library__yang_library__datastore_entry:
+        e = self.get(key)
         if e is not None:
             e.schema = schema
             return e
+        name = key
         res = ietf_yang_library__yang_library__datastore_entry(name=name, schema=schema)
         self.elements.append(res)
         return res
@@ -2578,27 +2431,6 @@ class ietf_yang_library__yang_library__datastore(yadata.MList[ietf_yang_library_
                 copied_elements.append(ce)
         return ietf_yang_library__yang_library__datastore(elements=copied_elements)
 
-
-extension ietf_yang_library__yang_library__datastore(Indexed[Identityref, ietf_yang_library__yang_library__datastore_entry]):
-    def __getitem__(self, k: Identityref) -> ietf_yang_library__yang_library__datastore_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: Identityref, n: ietf_yang_library__yang_library__datastore_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: Identityref) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker15: None = None
 class ietf_yang_library__yang_library(yadata.MNode):
