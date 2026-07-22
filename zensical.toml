@@ -18,6 +18,7 @@ nav = [
       "developer/system-spec.md",
       "developer/transforms.md",
       "developer/testing.md",
+      "developer/service-discovery.md",
   ]},
   { "Operations" = [
       "operations/index.md",
