@@ -38,7 +38,12 @@ def transpose_list(cfg_per_src: dict[str, gdata.Node]) -> dict[str, dict[str, gd
                 else:
                     cfg_per_key[key] = {src: le}
         elif isinstance(conf, gdata.Absent):
-            cfg_per_key[WILDKEY] = {src: conf}
+            # Several sources can retract in the same transaction: merge them
+            # instead of letting the last one overwrite the others.
+            if WILDKEY in cfg_per_key:
+                cfg_per_key[WILDKEY][src] = conf
+            else:
+                cfg_per_key[WILDKEY] = {src: conf}
         else:
             raise NotImplementedError("Cannot transpose configuration type {type(conf)} in transpose_list")
     return cfg_per_key
@@ -54,7 +59,12 @@ def transpose_container(cfg_per_src: dict[str, gdata.Node]) -> dict[gdata.Id, di
                 else:
                     cfg_per_key[key] = {src: subconf}
         elif isinstance(conf, gdata.Absent):
-            cfg_per_key[WILDID] = {src: conf}
+            # Several sources can retract in the same transaction: merge them
+            # instead of letting the last one overwrite the others.
+            if WILDID in cfg_per_key:
+                cfg_per_key[WILDID][src] = conf
+            else:
+                cfg_per_key[WILDID] = {src: conf}
         else:
             raise NotImplementedError("Cannot transpose configuration type {type(conf)} in transpose_container")
     return cfg_per_key

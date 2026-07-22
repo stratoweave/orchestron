@@ -262,6 +262,277 @@ class WriteDevs(ttt.TransformFunction):
     def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory, dynstate):
         return out5, None
 
+class FanF(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        """Emit one lower-layer list element per non-key child leaf.
+
+        Dropping a leaf from the input must retract the corresponding element
+        from the transform's contribution in the layer below.
+        """
+        elems = []
+        if isinstance(cfg, gdata.Container):
+            name = cfg.get_leaf(q("name")).val
+            for cid, child in cfg.children.items():
+                if cid == q("name"):
+                    continue
+                if isinstance(child, gdata.Leaf):
+                    elems.append(gdata.Container({
+                        q("id"): gdata.Leaf("{name}-{cid.name}"),
+                        q("data"): gdata.Container({
+                            q("val"): gdata.Leaf(child.val)
+                        })
+                    }))
+        return gdata.Container({
+            q('devices'): gdata.List([q("id")], elems)
+        }), None
+
+
+fan_cfg = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("k1"),
+        q("n1"): gdata.Leaf(1),
+        q("n2"): gdata.Leaf(2)
+    })
+])
+
+fan_out_full = gdata.Container({
+    q('devices'): gdata.List([q("id")], [
+        gdata.Container({
+            q("id"): gdata.Leaf("k1-n1"),
+            q("data"): gdata.Container({
+                q("val"): gdata.Leaf(1)
+            })
+        }),
+        gdata.Container({
+            q("id"): gdata.Leaf("k1-n2"),
+            q("data"): gdata.Container({
+                q("val"): gdata.Leaf(2)
+            })
+        })
+    ])
+})
+
+fan_retract_n2 = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("k1"),
+        q("n2"): gdata.Absent()
+    })
+])
+
+fan_out_reduced = gdata.Container({
+    q('devices'): gdata.List([q("id")], [
+        gdata.Container({
+            q("id"): gdata.Leaf("k1-n1"),
+            q("data"): gdata.Container({
+                q("val"): gdata.Leaf(1)
+            })
+        })
+    ])
+})
+
+actor transform_output_element_retraction(t: testing.AsyncT):
+    # A transform whose new output no longer contains a list element must
+    # retract that element from its contribution in the layer below. The
+    # lower layer is structural (container of keyed list entries), like the
+    # rfs/device layers, so the retraction must survive the list routing.
+    stack = ttt.Layer("top",
+                ttt.List(ttt.Transform(FanF), [q("name")]),
+                ttt.Layer("bottom",
+                    ttt.Container({
+                        q("devices"): ttt.List(
+                            ttt.Container({q("data"): ttt.Transform(ttt.PassThrough)}),
+                            [q("id")])
+                    }),
+                    None))
+
+    sess = stack.newsession()
+
+    var sess2 = stack.newsession()
+
+    def cont1(r: value):
+        if isinstance(r, Exception):
+            t.failure(AssertionError("Initial config failed: {r}"))
+            return
+        r1 = sess.below().get()
+        testing.assertEqual(r1.prsrc(True), fan_out_full.prsrc(True))
+        sess2 = stack.newsession()
+        sess2.edit_config(fan_retract_n2, cont2)
+
+    def cont2(r: value):
+        if isinstance(r, Exception):
+            t.failure(AssertionError("Retraction config failed: {r}"))
+            return
+        # Read through sess2's own lower session so the read is ordered after
+        # this transaction's commit.
+        r2 = sess2.below().get()
+        testing.assertEqual(r2.prsrc(True), fan_out_reduced.prsrc(True))
+        t.success()
+
+    sess.edit_config(fan_cfg, cont1)
+
+
+class FanOwn(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        """Per-router transform: contributes the router's own device entry."""
+        elems = []
+        if isinstance(cfg, gdata.Container):
+            name = cfg.get_leaf(q("name")).val
+            elems.append(gdata.Container({
+                q("id"): gdata.Leaf(name),
+                q("own"): gdata.Container({
+                    q("o"): gdata.Leaf(1)
+                })
+            }))
+        return gdata.Container({
+            q('devices'): gdata.List([q("id")], elems)
+        }), None
+
+
+class FanHub(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        """Fullmesh-style transform: contributes to every member's device
+        entry, including a nested list of the other members."""
+        elems = []
+        if isinstance(cfg, gdata.Container):
+            members = []
+            for cid, child in cfg.children.items():
+                if cid == q("name"):
+                    continue
+                if isinstance(child, gdata.Leaf):
+                    members.append(cid.name)
+            for m in sorted(members):
+                nbrs = []
+                for o in sorted(members):
+                    if o != m:
+                        nbrs.append(gdata.Container({
+                            q("addr"): gdata.Leaf(o)
+                        }))
+                elems.append(gdata.Container({
+                    q("id"): gdata.Leaf(m),
+                    q("extra"): gdata.Container({
+                        q("x"): gdata.Leaf(1)
+                    }),
+                    q("nbrs"): gdata.List([q("addr")], nbrs)
+                }))
+        return gdata.Container({
+            q('devices'): gdata.List([q("id")], elems)
+        }), None
+
+
+hub_cfg = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("r1")
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("r2")
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("hub"),
+        q("r1"): gdata.Leaf(1),
+        q("r2"): gdata.Leaf(2)
+    })
+])
+
+hub_out_full = gdata.Container({
+    q('devices'): gdata.List([q("id")], [
+        gdata.Container({
+            q("id"): gdata.Leaf("r1"),
+            q("own"): gdata.Container({q("o"): gdata.Leaf(1)}),
+            q("extra"): gdata.Container({q("x"): gdata.Leaf(1)}),
+            q("nbrs"): gdata.List([q("addr")], [
+                gdata.Container({q("addr"): gdata.Leaf("r2")})
+            ])
+        }),
+        gdata.Container({
+            q("id"): gdata.Leaf("r2"),
+            q("own"): gdata.Container({q("o"): gdata.Leaf(1)}),
+            q("extra"): gdata.Container({q("x"): gdata.Leaf(1)}),
+            q("nbrs"): gdata.List([q("addr")], [
+                gdata.Container({q("addr"): gdata.Leaf("r1")})
+            ])
+        })
+    ])
+})
+
+hub_retract_r2 = gdata.List([q("name")], [
+    gdata.Absent({
+        q("name"): gdata.Leaf("r2")
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("hub"),
+        q("r2"): gdata.Absent()
+    })
+])
+
+hub_out_reduced = gdata.Container({
+    q('devices'): gdata.List([q("id")], [
+        gdata.Container({
+            q("id"): gdata.Leaf("r1"),
+            q("own"): gdata.Container({q("o"): gdata.Leaf(1)}),
+            q("extra"): gdata.Container({q("x"): gdata.Leaf(1)}),
+            q("nbrs"): gdata.List([q("addr")], [])
+        })
+    ])
+})
+
+
+class FanBoth(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        """Per-entry dispatch: the 'hub' entry acts as the fullmesh transform,
+        router entries as their own-entry transform."""
+        if isinstance(cfg, gdata.Container):
+            name = cfg.get_leaf(q("name")).val
+            if isinstance(name, str) and name == "hub":
+                return FanHub().transform_wrapper(cfg, linked, memory, dynstate)
+        return FanOwn().transform_wrapper(cfg, linked, memory, dynstate)
+
+
+actor transform_retraction_multi_source(t: testing.AsyncT):
+    # A device entry co-produced by a per-router transform (deleted with its
+    # router: clear-path retraction) and a fullmesh transform (survives and
+    # drops the member from its output: compute-path retraction). Deleting
+    # the router plus its membership must remove the device entry and every
+    # fragment of both contributions, including nested list elements on the
+    # surviving entries.
+    stack = ttt.Layer("top",
+                ttt.List(ttt.Transform(FanBoth), [q("name")]),
+                ttt.Layer("bottom",
+                    ttt.Container({
+                        q("devices"): ttt.List(
+                            ttt.Container({
+                                q("own"): ttt.Transform(ttt.PassThrough),
+                                q("extra"): ttt.Transform(ttt.PassThrough),
+                                q("nbrs"): ttt.List(
+                                    ttt.Container({}),
+                                    [q("addr")])
+                            }),
+                            [q("id")])
+                    }),
+                    None))
+
+    sess = stack.newsession()
+    var sess2 = stack.newsession()
+
+    def cont1(r: value):
+        if isinstance(r, Exception):
+            t.failure(AssertionError("Initial config failed: {r}"))
+            return
+        r1 = sess.below().get()
+        testing.assertEqual(r1.prsrc(True), hub_out_full.prsrc(True))
+        sess2 = stack.newsession()
+        sess2.edit_config(hub_retract_r2, cont2)
+
+    def cont2(r: value):
+        if isinstance(r, Exception):
+            t.failure(AssertionError("Retraction config failed: {r}"))
+            return
+        r2 = sess2.below().get()
+        testing.assertEqual(r2.prsrc(True), hub_out_reduced.prsrc(True))
+        t.success()
+
+    sess.edit_config(hub_cfg, cont1)
+
+
 actor _test_redundant_config(t: testing.AsyncT):
     stack = ttt.Layer("top",
         ttt.Transform(WriteDevs),
