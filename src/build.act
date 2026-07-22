@@ -65,7 +65,7 @@ class SysSpec(object):
         def _compile_dev_type(dev_type: DeviceType, idx: int) -> CompiledDeviceType:
             print("Compiling device type {dev_type.name} ({idx+1}/{num_dev_types})...", end='', flush=True)
             sw = time.Stopwatch()
-            r = CompiledDeviceType(yang.compile(dev_type.models, allow_failure=allow_failure), dev_type.models, dev_type.name)
+            r = CompiledDeviceType(yang.compile(dev_type.models, strict_quoting=False, allow_failure=allow_failure), dev_type.models, dev_type.name)
             print(" {sw.elapsed().to_float():.3f}s")
             return r
         compiled_layers = [_compile_layer(l, idx) for (idx, l) in enumerate(self.layers)]
