@@ -515,16 +515,18 @@ actor Client(
     def list_schemas(cb: action(Client, list[(identifier: str, namespace: str, version: str, format: str)], ?NetconfError) -> None) -> None:
         """List available schemas and return parsed list of (identifier, namespace, version, format) tuples
 
-        Uses ietf-yang-library (RFC 8525) if available, which returns modules used by
-        the running datastore. Falls back to ietf-netconf-monitoring (RFC 6022) which
-        returns all schemas available on the device.
+        Uses ietf-yang-library if available: the RFC 8525 /yang-library tree for
+        devices advertising yang-library:1.1, or the RFC 7895 /modules-state tree
+        for devices advertising yang-library:1.0. Falls back to
+        ietf-netconf-monitoring (RFC 6022) which returns all schemas available on
+        the device.
         """
         _log.info("NETCONF list-schemas")
 
         def parse_response_yang_library(c: Client, result: ?xml.Node, error: ?NetconfError):
             """Parse response from ietf-yang-library query"""
             if error is not None:
-                _log.error("ietf-yang-library query failed", {"error": error})
+                _log.error("ietf-yang-library (RFC 8525) query failed", {"error": error})
                 cb(c, [], error)
                 return
 
@@ -533,7 +535,7 @@ actor Client(
                 for child in result.children:
                     if child.tag == "data":
                         schemas = parse_yang_library_data(child)
-                        _log.debug("Found schemas in yang-library", {"count": len(schemas)})
+                        _log.debug("Found schemas in yang-library (RFC 8525)", {"count": len(schemas)})
 
             cb(c, schemas, None)
 
@@ -630,6 +632,63 @@ actor Client(
 
             return schemas
 
+        def parse_response_modules_state(c: Client, result: ?xml.Node, error: ?NetconfError):
+            """Parse response from RFC 7895 /modules-state query"""
+            if error is not None:
+                _log.error("ietf-yang-library modules-state (RFC 7895) query failed", {"error": error})
+                cb(c, [], error)
+                return
+
+            schemas = []
+            if result is not None and result.tag == "rpc-reply":
+                for child in result.children:
+                    if child.tag == "data":
+                        schemas = parse_modules_state_data(child)
+                        _log.debug("Found schemas in modules-state (RFC 7895)", {"count": len(schemas)})
+
+            cb(c, schemas, None)
+
+        def parse_modules_state_data(data_node: xml.Node) -> list[(identifier: str, namespace: str, version: str, format: str)]:
+            """Parse module data from RFC 7895 /modules-state response"""
+            schemas = []
+            for modules_state in data_node.children:
+                if modules_state.tag == "modules-state":
+                    for module in modules_state.children:
+                        if module.tag == "module":
+                            name = None
+                            namespace = None
+                            revision = None
+                            submodules: list[(name: str, revision: str)] = []
+                            for attr in module.children:
+                                attr_text = attr.text
+                                if attr.tag == "name" and attr_text is not None:
+                                    name = attr_text
+                                elif attr.tag == "namespace" and attr_text is not None:
+                                    namespace = attr_text
+                                elif attr.tag == "revision" and attr_text is not None:
+                                    revision = attr_text
+                                elif attr.tag == "submodule":
+                                    submod_name = None
+                                    submod_revision = None
+                                    for submod_attr in attr.children:
+                                        submod_text = submod_attr.text
+                                        if submod_attr.tag == "name" and submod_text is not None:
+                                            submod_name = submod_text
+                                        elif submod_attr.tag == "revision" and submod_text is not None:
+                                            submod_revision = submod_text
+                                    if submod_name is not None:
+                                        submod_version = submod_revision if submod_revision is not None else ""
+                                        submodules.append((name=submod_name, revision=submod_version))
+
+                            if name is not None and namespace is not None:
+                                version = revision if revision is not None else ""
+                                schemas.append((identifier=name, namespace=namespace, version=version, format="yang"))
+
+                                # Submodules inherit the namespace from their parent module
+                                for submod in submodules:
+                                    schemas.append((identifier=submod.name, namespace=namespace, version=submod.revision, format="yang"))
+            return schemas
+
         def parse_response_netconf_monitoring(c: Client, result: ?xml.Node, error: ?NetconfError):
             """Parse response from ietf-netconf-monitoring query"""
             if error is not None:
@@ -675,17 +734,22 @@ actor Client(
 
         # Check what capabilities the server supports
         supports_yang_library = False
+        supports_modules_state = False
         supports_netconf_monitoring = False
 
         for cap in capabilities:
-            if "urn:ietf:params:netconf:capability:yang-library" in cap:
+            if "urn:ietf:params:netconf:capability:yang-library:1.1" in cap:
+                # RFC 8525: device implements the /yang-library tree
                 supports_yang_library = True
+            elif "urn:ietf:params:netconf:capability:yang-library:1.0" in cap:
+                # RFC 7895: device implements only the /modules-state tree
+                supports_modules_state = True
             if "urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring" in cap:
                 supports_netconf_monitoring = True
 
         # Use yang-library if available (preferred), otherwise netconf-monitoring
         if supports_yang_library:
-            _log.debug("Using ietf-yang-library for schema discovery")
+            _log.debug("Using ietf-yang-library (RFC 8525) for schema discovery")
             # Get the complete yang-library data including:
             # - datastore definitions (to know which module-sets each datastore uses)
             # - module-sets (containing modules and import-only-modules)
@@ -700,6 +764,14 @@ actor Client(
                 )
             ], None, None)
             get(parse_response_yang_library, filter_node)
+        elif supports_modules_state:
+            _log.debug("Using ietf-yang-library modules-state (RFC 7895) for schema discovery")
+            filter_node = xml.Node("filter", None, None, [("type", "subtree")], [
+                xml.Node("modules-state",
+                    [(None, "urn:ietf:params:xml:ns:yang:ietf-yang-library")]
+                )
+            ], None, None)
+            get(parse_response_modules_state, filter_node)
         elif supports_netconf_monitoring:
             _log.debug("Using ietf-netconf-monitoring for schema discovery")
             filter_node = xml.Node("filter", None, None, [("type", "subtree")], [
