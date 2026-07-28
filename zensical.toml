@@ -10,7 +10,7 @@ Copyright &copy; 2026 StratoWeave Project &copy; 2026 The Linux Foundation&trade
 
 nav = [
   { "Get started" = [
-        "get-started/index.md",
+        "introduction/index.md",
     ]},
   { "Developer" = [
       "developer/index.md",
@@ -24,11 +24,12 @@ nav = [
       "operations/index.md",
       "operations/run.md",
       "operations/devices.md",
-      "operations/http-api.md",
       "operations/restconf.md",
+      "operations/http-api.md",
   ]},
   { "Reference" = [
       "reference/index.md",
+      "reference/yang-to-acton.md",
       "reference/subscriptions.md",
   ]},
 ]
