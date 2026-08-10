@@ -1,11 +1,11 @@
 import file
 import logging
-import lmdb
 import net
 
 import tmf.cfs
 
 import app as swapp
+import db as swdb
 import device as swdev
 import http_server as swhttp
 import netconf_server as swnetconf
@@ -68,7 +68,7 @@ def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
     top_schema = sysspec.schema_for_layer(0)
     db_path = args.db_path
     if db_path is not None:
-        db = lmdb.Db(file.WriteFileCap(fcap), db_path, TTT_DB_MAP_SIZE)
+        db = swdb.LmdbStore(file.WriteFileCap(fcap), db_path, TTT_DB_MAP_SIZE)
     else:
         db = None
 

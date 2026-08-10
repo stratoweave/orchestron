@@ -6,7 +6,6 @@ import adapters.adapter as swadapt
 from device_meta_config import stratoweave_rfs__device_entry as DeviceMetaConfig
 import std.xml as xml
 import logging
-import lmdb
 
 def unwrap[T](t: ?T) -> T:
     if t is not None:
@@ -512,7 +511,7 @@ actor Node(impl: _Node):
     def get_data(filt: ?gdata.FNode=None):
         return impl.get_data(filt)
 
-    def bind_db(db: ?lmdb.Db):
+    def bind_db(db: ?swdb.Store):
         """Attach DB handle to this node (and its children)
 
         The DB used for persistence is not bound in at construction time which
@@ -533,7 +532,7 @@ class _Node(object):
     get: proc() -> gdata.Node
     def get_data(self, filt: ?gdata.FNode=None) -> ?gdata.Node:
         return gdata.filter(self.get(), filt)
-    def bind_db(self, db: ?lmdb.Db) -> None:
+    def bind_db(self, db: ?swdb.Store) -> None:
         pass
     restore: proc(list[str], str, ?str, bytes) -> None
     def is_empty(self) -> bool:
@@ -569,7 +568,7 @@ actor Transaction(impl: _Transaction):
     def get_data(filt: ?gdata.FNode=None):
         return impl.get_data(filt)
 
-    def bind_db(db: ?lmdb.Db):
+    def bind_db(db: ?swdb.Store):
         impl.bind_db(db)
 
     def restore(attr: str, qualifier: ?str, raw: bytes):
@@ -601,7 +600,7 @@ class _Transaction(object):
     def get_data(self, filt: ?gdata.FNode=None) -> ?gdata.Node:
         return gdata.filter(self.get(), filt)
 
-    def bind_db(self, db: ?lmdb.Db) -> None:
+    def bind_db(self, db: ?swdb.Store) -> None:
         pass
 
     def restore(self, attr: str, qualifier: ?str, raw: bytes) -> None:
@@ -621,46 +620,96 @@ class _Transaction(object):
 
 ####################### Layer ########################
 
-actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg: ?lmdb.Db=None):
+actor LayerRestore(
+    name: str,
+    root: Node,
+    lower,
+    store: swdb.Store,
+    top_only: bool,
+    done: action(?Exception) -> None
+):
+    var codec = swdb.KeyCodec([])
+    var prefix = b""
+    var scan: ?swdb.Scan = None
+    var result_error: ?Exception = None
+    var finished = False
+
+    def read_next() -> None:
+        scan!.next(got_record)
+
+    def closed(error: ?Exception) -> None:
+        final_error = result_error if result_error is not None else error
+        if final_error is not None:
+            done(final_error)
+        elif not top_only and lower is not None:
+            lower.load_from_db(done, False)
+        else:
+            done(None)
+
+    def finish(error: ?Exception) -> None:
+        if finished:
+            return
+        finished = True
+        result_error = error
+        if scan is not None:
+            scan.close(closed)
+        else:
+            closed(None)
+
+    def got_record(kv: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            finish(error)
+            return
+        if kv is None:
+            finish(None)
+            return
+
+        try:
+            entry = kv!
+            if not entry.key.startswith(prefix):
+                finish(None)
+                return
+            boundary = entry.key[len(prefix)] if len(entry.key) > len(prefix) else None
+            if boundary != swdb.PATH_SEPARATOR[0] and boundary != swdb.ATTRIBUTE_SEPARATOR[0]:
+                finish(None)
+                return
+            path, attr, qualifier = swdb.parse_attr_key(entry.key, codec)
+            if len(path) == 0 or path[0] != name:
+                raise ValueError("Unexpected persistence path for layer {name}: {path}")
+            await async root.restore(path[1:], attr, qualifier, entry.value)
+            read_next()
+        except Exception as e:
+            finish(e)
+
+    def got_metadata(raw: ?bytes, error: ?Exception) -> None:
+        if error is not None:
+            finish(error)
+            return
+        try:
+            if not root.is_empty():
+                raise ValueError("TTT restore requires an empty tree in layer {name}")
+            codec = swdb.decode_key_codec(raw)
+            prefix = swdb.to_key([name], codec)
+            scan = store.scan(prefix, None)
+            read_next()
+        except Exception as e:
+            finish(e)
+
+    store.get(swdb.META_KEY, got_metadata)
+
+
+actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg: ?swdb.Store=None):
     root = rootgen(PathRoot(name), lower)
     root.bind_db(db_arg)
     var subs: dict[gdata.SubscriptionSpec, LayerSharedSubscription] = {}
     var sub_owners: dict[str, LayerSubscriptionOwner] = {}
 
-    def load_from_db(top_only=False):
-        db = db_arg!
-        read_txn = db.begin_read()
-        try:
-            codec = swdb.read_key_codec(read_txn)
-            load_from_read_txn(read_txn, codec, top_only)
-            await async read_txn.commit()
-        except Exception as e:
-            await async read_txn.abort()
-            raise e
-
-    def load_from_read_txn(read_txn: lmdb.ReadTransaction, codec: swdb.KeyCodec, top_only=False):
-        if not root.is_empty():
-            raise ValueError("TTT restore requires an empty tree in layer {name}")
-        prefix = swdb.to_key([name], codec)
-        cursor = read_txn.cursor()
-        kv = cursor.seek_prefix(prefix)
-        while kv is not None:
-            entry = kv!
-            if not entry.key.startswith(prefix):
-                break
-            boundary = entry.key[len(prefix)] if len(entry.key) > len(prefix) else None
-            if boundary != swdb.PATH_SEPARATOR[0] and boundary != swdb.ATTRIBUTE_SEPARATOR[0]:
-                break
-            path, attr, qualifier = swdb.parse_attr_key(entry.key, codec)
-            if len(path) == 0 or path[0] != name:
-                raise ValueError("Unexpected persistence path for layer {name}: {path}")
-            # TODO: we should branch out the load of different nodes. Just pass
-            # a new cursor to this child node, then skip forward etc so we can
-            # do concurrent load using many cursors across the whole tree
-            await async root.restore(path[1:], attr, qualifier, entry.value)
-            kv = cursor.next()
-        if not top_only and lower is not None:
-            await async lower.load_from_read_txn(read_txn, codec, False)
+    def load_from_db(done: action(?Exception) -> None, top_only=False) -> None:
+        db = db_arg
+        if db is not None:
+            LayerRestore(name, root, lower, db, top_only, done)
+        else:
+            done(ValueError("Missing db for TTT persistence restore in layer {name}"))
 
     def newsession(dbuf: ?swdb.Buffer=None):
         return Session(name, root, lower, db_arg, dbuf)
@@ -789,7 +838,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
             _remove_owner_spec(owner_id, spec)
 
 
-actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_arg: ?swdb.Buffer=None):
+actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, dbuf_arg: ?swdb.Buffer=None):
     dbuf: ?swdb.Buffer = dbuf_arg if dbuf_arg is not None else swdb.Buffer() if db is not None else None
     root: Transaction = rootnode.newtrans()
     lower: ?Session = lowerlayer.newsession(dbuf) if lowerlayer is not None else None
@@ -801,37 +850,20 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
     var tid_state: ?str = None
 
     def _flush_dbuffer_then_commit():
-        def finish(ok: bool, result: value) -> None:
-            commit(tid_state!, ok)
-            edit_config_finish(result)
-
-        proc def write_txn_ready(dbuf: swdb.Buffer, error: ?Exception, txn: ?lmdb.WriteTransaction):
-            if error is not None:
-                finish(False, error)
-                return
-            if txn is not None:
-                dbtr = swdb.WriteTransaction(txn)
-                try:
-                    await async dbuf.flush_to_db(dbtr)
-                    swdb.write_metadata(dbtr)
-                    await async dbtr.txn.commit()
-                except Exception as e:
-                    try:
-                        await async dbtr.txn.abort()
-                    except Exception:
-                        pass
-                    finish(False, e)
-                    return
-                finish(True, "Ok")
-                return
-            e = lmdb.InvalidStateError("Writer request returned neither transaction nor error")
-            finish(False, e)
-
         if tid_state is not None:
+            tid = tid_state
             if db is not None and dbuf is not None:
-                db.request_write(lambda error, txn: write_txn_ready(dbuf, error, txn))
+                def flushed(error: ?Exception) -> None:
+                    if error is not None:
+                        commit(tid, False)
+                        edit_config_finish(error)
+                    else:
+                        commit(tid, True)
+                        edit_config_finish("Ok")
+
+                dbuf.flush_to_db(db, flushed)
                 return
-            commit(tid_state, True)
+            commit(tid, True)
             edit_config_finish("Ok")
 
     # yield action
@@ -1031,7 +1063,7 @@ class _Container(_Node):
             return None
         return gdata.Container(res, ns=self.ns, module=self.module)
 
-    def bind_db(self, db: ?lmdb.Db) -> None:
+    def bind_db(self, db: ?swdb.Store) -> None:
         for node in self.elems.values():
             node.bind_db(db)
 
@@ -1289,7 +1321,7 @@ class _List(_Node):
             return None
         return gdata.List(self.key_names, res, ns=self.ns, module=self.module)
 
-    def bind_db(self, db: ?lmdb.Db) -> None:
+    def bind_db(self, db: ?swdb.Store) -> None:
         self.liststate.bind_db(db)
 
     def restore(self, path_segments: list[str], attr: str, qualifier: ?str, raw: bytes):
@@ -1318,7 +1350,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
     var provisional = set()
     var db = None
 
-    def bind_db(db1: ?lmdb.Db) -> None:
+    def bind_db(db1: ?swdb.Store) -> None:
         db = db1
         for node in elems.values():
             node.bind_db(db1)
@@ -1652,7 +1684,7 @@ class _TransformBase(_Node):
     def get_data(self, filt: ?gdata.FNode=None):
         return self.transaction.get_data(filt)
 
-    def bind_db(self, db: ?lmdb.Db) -> None:
+    def bind_db(self, db: ?swdb.Store) -> None:
         self.transaction.bind_db(db)
 
     def restore(self, path_segments: list[str], attr: str, qualifier: ?str, raw: bytes) -> None:
@@ -1686,7 +1718,7 @@ class _TransformTransactionBase(_Transaction):
     filter_fpath: gdata.FNode
 
     me: str
-    db: ?lmdb.Db
+    db: ?swdb.Store
 
     compute : proc(tid: str, merged: gdata.Node, linked: gdata.Node, out: ?Session) -> (gdata.Node, ?gdata.Node)
     clear : proc(tid: str, out: ?Session) -> None
@@ -1922,7 +1954,7 @@ class _TransformTransactionBase(_Transaction):
     mut def update_memory(self, newmem: ?gdata.Node):
         pass
 
-    def bind_db(self, db: ?lmdb.Db) -> None:
+    def bind_db(self, db: ?swdb.Store) -> None:
         self.db = db
 
     def restore(self, attr: str, qualifier: ?str, raw: bytes) -> None:
