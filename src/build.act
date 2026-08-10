@@ -224,7 +224,7 @@ class CompiledSysSpec(object):
         syssrc += "\ndevice_types: dict[str, swdev.DeviceType] = dict(\n"
         syssrc += "    list(generated_device_types.items()) + list(sw_device_types.device_types.items())\n"
         syssrc += ")"
-        syssrc += "\n\nSYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer)"
+        syssrc += "\n\nSYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer)\n"
         if _write_file_if_missing(fc, "{output_dir}/{self.name}/device_types.act", device_typesrc):
             print("+ App device_types.act created")
         else:
