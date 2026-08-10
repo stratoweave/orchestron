@@ -8,13 +8,10 @@ import std.xml as xml
 import logging
 import lmdb
 
-def expect[T](t: ?T, errmsg: str) -> T:
+def unwrap[T](t: ?T) -> T:
     if t is not None:
         return t
-    raise ValueError(errmsg)
-
-def unwrap[T](t: ?T) -> T:
-    return expect(t, "unwrap called on None")
+    raise ValueError("unwrap called on None")
 
 
 NS_stratoweave_device = "http://stratoweave.org/yang/stratoweave-device"
@@ -631,7 +628,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     var sub_owners: dict[str, LayerSubscriptionOwner] = {}
 
     def load_from_db(top_only=False):
-        db = expect(db_arg, "Missing db for TTT persistence restore in layer {name}")
+        db = db_arg!
         read_txn = db.begin_read()
         try:
             codec = swdb.read_key_codec(read_txn)
@@ -648,7 +645,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         cursor = read_txn.cursor()
         kv = cursor.seek_prefix(prefix)
         while kv is not None:
-            entry = expect(kv, "Missing expected LMDB cursor entry during restore")
+            entry = kv!
             if not entry.key.startswith(prefix):
                 break
             boundary = entry.key[len(prefix)] if len(entry.key) > len(prefix) else None
@@ -805,7 +802,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
 
     def _flush_dbuffer_then_commit():
         def finish(ok: bool, result: value) -> None:
-            commit(expect(tid_state, "Missing active TTT transaction during DB commit"), ok)
+            commit(tid_state!, ok)
             edit_config_finish(result)
 
         proc def write_txn_ready(dbuf: swdb.Buffer, error: ?Exception, txn: ?lmdb.WriteTransaction):
@@ -1026,7 +1023,7 @@ class _Container(_Node):
                     if data is not None:
                         res[tag] = data
         else:
-            res = {tag: expect(node.get_data(), "container child data") for tag, node in self.elems.items()}
+            res = {tag: node.get_data()! for tag, node in self.elems.items()}
         path = self.path
         if isinstance(path, PathKey):
             res.update(path.keyvals.items())
@@ -1228,7 +1225,7 @@ class _ContainerTransaction(_Transaction):
                     if data is not None:
                         res[tag] = data
         else:
-            res = {tag: expect(elem.get_data(), "container child data") for tag, elem in self.elems.items()}
+            res = {tag: elem.get_data()! for tag, elem in self.elems.items()}
         path = self.path
         if isinstance(path, PathKey):
             res.update(path.keyvals.items())
@@ -1926,7 +1923,7 @@ class _TransformTransactionBase(_Transaction):
 
     def restore(self, attr: str, qualifier: ?str, raw: bytes) -> None:
         if attr == swdb.ATTR_RUNNING:
-            src = expect(qualifier, "Missing persistence qualifier for transform running source at {_format_path(self.path)}")
+            src = qualifier!
             self.running[src] = swdb.decode_node_bytes(raw)
             return
         if attr == swdb.ATTR_OUTPUT:

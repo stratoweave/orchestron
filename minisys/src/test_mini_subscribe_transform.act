@@ -127,7 +127,7 @@ actor _test_rfs_subscribe_transform(t: testing.AsyncT):
         contact = _find_contact(out, "dev1")
         if phase == 0 and contact == telemetry_time_1:
             phase = 1
-            ms = gdata.expect(mock_server, "mock server")
+            ms = mock_server!
             ms.set_oper_ds(_telemetry(telemetry_time_2))
             print("Received first telemetry update with contact:", contact)
         elif phase == 1 and contact == telemetry_time_2:
@@ -158,7 +158,7 @@ actor _test_rfs_subscribe_transform(t: testing.AsyncT):
         msg = async dev.get_adapter()
         adapter = await msg
         if isinstance(adapter, swna.NetconfAdapter):
-            ms = gdata.expect(adapter.get_mock_server(), "Netconf mock server")
+            ms = adapter.get_mock_server()!
             mock_server = ms
             ms.set_oper_ds(_telemetry(telemetry_time_1))
             kick()
