@@ -8,6 +8,8 @@ import swyang as swyang
 import yang.transform_unions as transform_unions
 import yang.parser as yparser
 
+from device_schema import SchemaTreeTransform
+
 _SW_NS = "http://stratoweave.org/yang/stratoweave"
 _SW_EXCLUDE_EXT = [("dynstate", _SW_NS), ("memory", _SW_NS)]
 
@@ -65,7 +67,10 @@ class SysSpec(object):
         def _compile_dev_type(dev_type: DeviceType, idx: int) -> CompiledDeviceType:
             print("Compiling device type {dev_type.name} ({idx+1}/{num_dev_types})...", end='', flush=True)
             sw = time.Stopwatch()
-            r = CompiledDeviceType(yang.compile(dev_type.models, strict_quoting=False, allow_failure=allow_failure), dev_type.models, dev_type.name)
+            root = yang.compile(dev_type.models, strict_quoting=False, allow_failure=allow_failure)
+            for t in dev_type.transforms:
+                t.apply(root)
+            r = CompiledDeviceType(root, dev_type.models, dev_type.name, dev_type.transforms)
             print(" {sw.elapsed().to_float():.3f}s")
             return r
         compiled_layers = [_compile_layer(l, idx) for (idx, l) in enumerate(self.layers)]
@@ -180,8 +185,10 @@ class CompiledSysSpec(object):
         device_typesrc += "import stratoweave.device as swdev\n"
         device_typesrc += "\n\n"
         device_typesrc += "device_types: dict[str, swdev.DeviceType] = {{}}\n"
+        if any([len(dt.transforms) > 0 for dt in self.dev_types.values()]):
+            syssrc += "import stratoweave.device_schema as swds\n"
         for dev_type in self.dev_types.values():
-            print("Generating device type {dev_type.name}")
+            print("Generating device type {dev_type.name} ({len(dev_type.transforms)} schema transform(s))")
             modname = "{self.name}.devices.{dev_type.name}"
             # schema.prdaclass mutates the compiled tree when it strips
             # config-false nodes. Emit the oper view first so the subsequent
@@ -213,8 +220,12 @@ class CompiledSysSpec(object):
             adapter_type=swna.NetconfAdapter,
             src_dnode={dev_alias}.SRC_DNODE,
             oper_src_dnode={dev_oper_alias}.SRC_DNODE,
-        ),
 """
+            if len(dev_type.transforms) > 0:
+                tlines = "".join(["                swds.{t.prsrc(16)},\n" for t in dev_type.transforms])
+                syssrc_devtypes += "            schema_transforms=[\n{tlines}            ],\n"
+            syssrc_devtypes += "        ),\n"
+
         print("Generating app sysspec.act")
         syssrc += "\n{syssrc_getlayers}\n"
         syssrc += "\n{syssrc_schema_for_layer}\n"
@@ -342,10 +353,11 @@ class CompiledLayer(CompiledLayerBase):
         self.name = name
 
 class CompiledDeviceType(CompiledLayerBase):
-    def __init__(self, root: yschema.DRoot, src: list[str], name: str):
+    def __init__(self, root: yschema.DRoot, src: list[str], name: str, transforms: list[SchemaTreeTransform]=[]):
         self.root = root
         self.src = src
         self.name = name
+        self.transforms = transforms
 
 def apply_schema_transforms_to_dir(fc: file.FileCap, dir: str, transforms: list[SchemaTransformChain]=[]) -> None:
     """Apply schema transformations to YANG files in a directory.
@@ -379,12 +391,13 @@ def apply_schema_transforms_to_dir(fc: file.FileCap, dir: str, transforms: list[
             await async wf.write(yang_text.encode())
 
 class DeviceType(object):
-    def __init__(self, name: str, models: list[str]):
+    def __init__(self, name: str, models: list[str], transforms: list[SchemaTreeTransform]=[]):
         self.name = name
         self.models = models
+        self.transforms = transforms
 
     @staticmethod
-    def from_dir(fc: file.FileCap, name: str, dir: str) -> DeviceType:
+    def from_dir(fc: file.FileCap, name: str, dir: str, transforms: list[SchemaTreeTransform]=[]) -> DeviceType:
         """Create a DeviceType DTO from YANG models in a directory
 
         This method simply loads all .yang files from the specified directory
@@ -397,4 +410,4 @@ class DeviceType(object):
         sw = time.Stopwatch()
         models = [file.ReadFile(rfc, "{dir}/{f}").read().decode() for f in yang_files]
         print(" {sw.elapsed().to_float():.3f}s")
-        return DeviceType(name, models)
+        return DeviceType(name, models, transforms)

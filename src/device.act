@@ -16,7 +16,7 @@ from device_meta_config import \
     stratoweave_rfs__device_entry as DeviceMetaConfig, \
     stratoweave_rfs__device__credentials as Credentials
 
-from device_schema import DeviceSchema
+from device_schema import DeviceSchema, SchemaTreeTransform
 
 from adapters.adapter import \
     DeviceAdapter, NoAdapter, MockAdapter, MockRoot, \
@@ -38,10 +38,10 @@ class DeviceType(object):
 
     bundled_schema: DeviceSchema
 
-    def __init__(self, name: str, adapter_type, src_dnode, oper_src_dnode: ?yschema.DRoot=None):
+    def __init__(self, name: str, adapter_type, src_dnode, oper_src_dnode: ?yschema.DRoot=None, schema_transforms: list[SchemaTreeTransform]=[]):
         self.name = name
         self.adapter_type = adapter_type
-        self.bundled_schema = DeviceSchema(name, src_dnode, oper_src_dnode)
+        self.bundled_schema = DeviceSchema(name, src_dnode, oper_src_dnode, schema_transforms)
 
 actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnectCap=None, log_handler: logging.Handler):
     """Device Registry keeps track of all devices and hands out references to
@@ -103,20 +103,23 @@ actor DeviceRegistry(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPC
 actor SchemaRegistry():
     var store: dict[u64, yschema.DRoot] = {}
 
-    def _list_hash(l: list[str]) -> u64:
+    def _schema_hash(yang_src: list[str], transforms: list[SchemaTreeTransform]) -> u64:
         h = hasher()
-        for le in l:
+        for le in yang_src:
             h.update(le.encode())
+        for t in transforms:
+            t.hash(h)
         return h.finalize()
 
-    def add_schema(yang_src: list[str]) -> (hash: ?u64, error: ?Exception):
-        content_hash = _list_hash(yang_src)
+    def add_schema(yang_src: list[str], transforms: list[SchemaTreeTransform]=[]) -> (hash: ?u64, error: ?Exception):
+        content_hash = _schema_hash(yang_src, transforms)
         if content_hash not in store:
             try:
                 compiled_schema = yang.compile(yang_src, strict_quoting=False)
+                for t in transforms:
+                    t.apply(compiled_schema)
                 store[content_hash] = compiled_schema
             except Exception as e:
-                # Schema compilation failed, return error
                 return (hash=None, error=e)
         return (hash=content_hash, error=None)
 
