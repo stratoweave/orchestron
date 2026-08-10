@@ -804,46 +804,36 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
     var tid_state: ?str = None
 
     def _flush_dbuffer_then_commit():
-        # TODO: acton-lmdb should expose more finely granular exception types for
-        # writer contention so this path can use isinstance checks instead of
-        # matching the LMDBError message text.
-        def _is_write_txn_busy(e: Exception) -> bool:
-            return "Write transaction already active" in str(e)
+        def finish(ok: bool, result: value) -> None:
+            commit(expect(tid_state, "Missing active TTT transaction during DB commit"), ok)
+            edit_config_finish(result)
 
-        proc def _begin_write(tid: str, db: lmdb.Db) -> ?swdb.WriteTransaction:
-            try:
-                return swdb.WriteTransaction(db.begin_write())
-            except Exception as e:
-                # TODO: rather than retries, lmdb should offer an interface to
-                # get the write transaction with a callback when we get it
-                if _is_write_txn_busy(e):
-                    after swdb.WRITE_RETRY_DELAY: _flush_dbuffer_then_commit()
-                    return None
-                commit(tid, False)
-                edit_config_finish(e)
-                return None
-
-        proc def _flush_write_txn(tid: str, dbuf: swdb.Buffer, dbtr: swdb.WriteTransaction):
-            try:
-                await async dbuf.flush_to_db(dbtr)
-                swdb.write_metadata(dbtr)
-                await async dbtr.txn.commit()
-            except Exception as e:
-                try:
-                    await async dbtr.txn.abort()
-                except Exception:
-                    pass
-                commit(tid, False)
-                edit_config_finish(e)
+        proc def write_txn_ready(dbuf: swdb.Buffer, error: ?Exception, txn: ?lmdb.WriteTransaction):
+            if error is not None:
+                finish(False, error)
                 return
+            if txn is not None:
+                dbtr = swdb.WriteTransaction(txn)
+                try:
+                    await async dbuf.flush_to_db(dbtr)
+                    swdb.write_metadata(dbtr)
+                    await async dbtr.txn.commit()
+                except Exception as e:
+                    try:
+                        await async dbtr.txn.abort()
+                    except Exception:
+                        pass
+                    finish(False, e)
+                    return
+                finish(True, "Ok")
+                return
+            e = lmdb.InvalidStateError("Writer request returned neither transaction nor error")
+            finish(False, e)
 
         if tid_state is not None:
             if db is not None and dbuf is not None:
-                dbtr = _begin_write(tid_state, db)
-                if dbtr is not None:
-                    _flush_write_txn(tid_state, dbuf, dbtr)
-                else:
-                    return
+                db.request_write(lambda error, txn: write_txn_ready(dbuf, error, txn))
+                return
             commit(tid_state, True)
             edit_config_finish("Ok")
 
