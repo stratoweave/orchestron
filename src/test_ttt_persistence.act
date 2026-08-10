@@ -604,30 +604,29 @@ actor reject_map_full_without_committing_memory(t: testing.EnvT):
     db_path = fs.mktmpdir("test_ttt_map_full_")
     cap = file.WriteFileCap(fc)
     var db = lmdb.Db(cap, db_path, 256 * 1024)
-    var layer = ttt.Layer("struct", struct_root, None, db)
+    layer = ttt.Layer("struct", struct_root, None, db)
 
     def after_recovery(r: value) -> None:
         if not isinstance(r, str):
             raise AssertionError("Expected successful recovery completion after DB persist failure, got {r}")
         testing.assertEqual(layer.get(), struct_tree)
-        read_txn = db.begin_read()
-        testing.assertEqual(read_txn.get(swdb.META_KEY) is not None, True)
-        await async read_txn.commit()
+        await async db.close()
+        db = lmdb.Db(cap, db_path, 256 * 1024)
+        restored = ttt.Layer("struct", struct_root, None, db)
+        await async restored.load_from_db()
+        testing.assertEqual(restored.get(), struct_tree)
         await async db.close()
         await async fs.rmtree(db_path)
         await async fs.rmdir(db_path)
         t.success()
 
-    def after_failure_settled() -> None:
-        testing.assertEqual(layer.get(), empty_struct_tree)
-        layer.edit_config(struct_tree, None, after_recovery)
-
     def after_failure(r: value) -> None:
         testing.assertEqual(isinstance(r, lmdb.MapFullError), True)
+        testing.assertEqual(layer.get(), empty_struct_tree)
         read_txn = db.begin_read()
         testing.assertEqual(read_txn.cursor().seek_prefix(swdb.META_KEY), None)
         await async read_txn.commit()
-        after 0.01: after_failure_settled()
+        layer.edit_config(struct_tree, None, after_recovery)
 
     layer.edit_config(map_full_struct_tree, after_failure)
 
