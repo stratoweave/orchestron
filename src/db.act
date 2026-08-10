@@ -23,7 +23,6 @@ ATTR_DYNSTATE = "dynstate"
 ATTR_MEMORY = "memory"
 ATTR_OUTPUT = "output"
 ATTR_RUNNING = "running"
-WRITE_RETRY_DELAY = 0.001
 
 def expect[T](t: ?T, errmsg: str) -> T:
     if t is not None:
