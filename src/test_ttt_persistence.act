@@ -625,7 +625,7 @@ actor reject_db_persist_failure_without_committing_memory(t: testing.EnvT):
         layer.edit_config(struct_tree, None, after_recovery)
 
     def after_failure(r: value) -> None:
-        testing.assertEqual(isinstance(r, lmdb.LMDBKeySizeError), True)
+        testing.assertEqual(isinstance(r, lmdb.KeySizeError), True)
         read_txn = db.begin_read()
         testing.assertEqual(read_txn.get(swdb.META_KEY), None)
         await async read_txn.commit()
