@@ -127,13 +127,11 @@ overlap_expected_cfg = gdata.Container({
     q("extra"): gdata.Leaf(7)
 })
 
-oversized_list_key = "k" * 600
-
-oversized_struct_tree = gdata.Container({
+map_full_struct_tree = gdata.Container({
     q("items"): gdata.List([q("name")], [
         gdata.Container({
-            q("name"): gdata.Leaf(oversized_list_key),
-            q("value"): gdata.Leaf(1)
+            q("name"): gdata.Leaf("a"),
+            q("value"): gdata.Leaf("x" * (512 * 1024))
         })
     ])
 })
@@ -600,12 +598,12 @@ actor reject_restore_into_nonempty_tree(t: testing.EnvT):
     restored.edit_config(persist_cfg, after_initial_commit)
 
 
-actor reject_db_persist_failure_without_committing_memory(t: testing.EnvT):
+actor reject_map_full_without_committing_memory(t: testing.EnvT):
     fc = file.FileCap(t.env.cap)
     fs = file.FS(fc)
-    db_path = fs.mktmpdir("test_ttt_persist_fail_")
+    db_path = fs.mktmpdir("test_ttt_map_full_")
     cap = file.WriteFileCap(fc)
-    var db = lmdb.Db(cap, db_path)
+    var db = lmdb.Db(cap, db_path, 256 * 1024)
     var layer = ttt.Layer("struct", struct_root, None, db)
 
     def after_recovery(r: value) -> None:
@@ -625,13 +623,13 @@ actor reject_db_persist_failure_without_committing_memory(t: testing.EnvT):
         layer.edit_config(struct_tree, None, after_recovery)
 
     def after_failure(r: value) -> None:
-        testing.assertEqual(isinstance(r, lmdb.LMDBKeySizeError), True)
+        testing.assertEqual(isinstance(r, lmdb.MapFullError), True)
         read_txn = db.begin_read()
-        testing.assertEqual(read_txn.get(swdb.META_KEY), None)
+        testing.assertEqual(read_txn.cursor().seek_prefix(swdb.META_KEY), None)
         await async read_txn.commit()
         after 0.01: after_failure_settled()
 
-    layer.edit_config(oversized_struct_tree, after_failure)
+    layer.edit_config(map_full_struct_tree, after_failure)
 
 
 actor restore_transform_memory_round_trip(t: testing.EnvT):

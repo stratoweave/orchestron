@@ -3,8 +3,8 @@ fingerprint = 0xf1e1a54ca50c7652
 dependencies = {
     "lmdb": (
         repo_url="https://github.com/stratoweave/acton-lmdb",
-        url="https://github.com/stratoweave/acton-lmdb/archive/bad98443d45abed27c898114978116610d9b5af6.zip",
-        hash="N-V-__8AAMTaAABretZVTryDhoTumlwy3ekD-xmohzaqWwTH"
+        url="https://github.com/stratoweave/acton-lmdb/archive/05c9a1ae51360443150e002a9f7effac5a0be884.zip",
+        hash="N-V-__8AAJ8BAQBaDaW6N50DeQxT7GngYhvgGmTTKZX93ttB"
     ),
     "stratoweave": (
         path="../"

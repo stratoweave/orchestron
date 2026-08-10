@@ -12,6 +12,10 @@ import netconf_server as swnetconf
 import test_rig as swts
 
 
+# Reserve a 1 TiB virtual map; LMDB grows physical storage with its data.
+TTT_DB_MAP_SIZE = 1 << 40
+
+
 def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
     """Start a production StratoWeave application.
 
@@ -64,7 +68,7 @@ def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
     top_schema = sysspec.schema_for_layer(0)
     db_path = args.db_path
     if db_path is not None:
-        db = lmdb.Db(file.WriteFileCap(fcap), db_path)
+        db = lmdb.Db(file.WriteFileCap(fcap), db_path, TTT_DB_MAP_SIZE)
     else:
         db = None
 
