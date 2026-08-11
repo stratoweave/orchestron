@@ -878,18 +878,12 @@ class netinfra__netinfra__router_entry(yadata.MNode):
         return netinfra__netinfra__router_entry.from_gdata(self.to_gdata())
 
 _breaker5: None = None
-class netinfra__netinfra__router(yadata.MList[netinfra__netinfra__router_entry]):
+class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__router_entry]):
     mut def __init__(self, elements: list[netinfra__netinfra__router_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?netinfra__netinfra__router_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, id: ?u64=None, type: ?str=None, mock: ?bool=None) -> netinfra__netinfra__router_entry:
-        e = self.get(name)
+    mut def create(self, key: str, id: ?u64=None, type: ?str=None, mock: ?bool=None) -> netinfra__netinfra__router_entry:
+        e = self.get(key)
         if e is not None:
             if id is not None:
                 e.id = id
@@ -898,6 +892,7 @@ class netinfra__netinfra__router(yadata.MList[netinfra__netinfra__router_entry])
             if mock is not None:
                 e.mock = mock
             return e
+        name = key
         res = netinfra__netinfra__router_entry(name=name, id=id, type=type, mock=mock)
         self.elements.append(res)
         return res
@@ -918,27 +913,6 @@ class netinfra__netinfra__router(yadata.MList[netinfra__netinfra__router_entry])
                 copied_elements.append(ce)
         return netinfra__netinfra__router(elements=copied_elements)
 
-
-extension netinfra__netinfra__router(Indexed[str, netinfra__netinfra__router_entry]):
-    def __getitem__(self, k: str) -> netinfra__netinfra__router_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: netinfra__netinfra__router_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker6: None = None
 class netinfra__netinfra(yadata.MNode):
@@ -998,20 +972,12 @@ class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
         return l3vpn__l3vpn__endpoint_entry.from_gdata(self.to_gdata())
 
 _breaker8: None = None
-class l3vpn__l3vpn__endpoint(yadata.MList[l3vpn__l3vpn__endpoint_entry]):
+class l3vpn__l3vpn__endpoint(yadata.MKeyedList[(device: str, interface_name: str), l3vpn__l3vpn__endpoint_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn__endpoint_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: (e.device, e.interface_name), elements)
 
-    pure def get(self, device: str, interface_name: str) -> ?l3vpn__l3vpn__endpoint_entry:
-        for e in self:
-            if e.device != device:
-                continue
-            if e.interface_name != interface_name:
-                continue
-            return e
-
-    mut def create(self, device: str, interface_name: str, ipv4_address: ?str=None, prefix_length: ?u64=None, mtu: ?u64=None, vlan_id: ?u64=None, enabled: ?bool=None, site_code: ?str=None, description: ?str=None) -> l3vpn__l3vpn__endpoint_entry:
-        e = self.get(device, interface_name)
+    mut def create(self, key: (device: str, interface_name: str), ipv4_address: ?str=None, prefix_length: ?u64=None, mtu: ?u64=None, vlan_id: ?u64=None, enabled: ?bool=None, site_code: ?str=None, description: ?str=None) -> l3vpn__l3vpn__endpoint_entry:
+        e = self.get(key)
         if e is not None:
             if ipv4_address is not None:
                 e.ipv4_address = ipv4_address
@@ -1028,6 +994,7 @@ class l3vpn__l3vpn__endpoint(yadata.MList[l3vpn__l3vpn__endpoint_entry]):
             if description is not None:
                 e.description = description
             return e
+        (device=device, interface_name=interface_name) = key
         res = l3vpn__l3vpn__endpoint_entry(device=device, interface_name=interface_name, ipv4_address=ipv4_address, prefix_length=prefix_length, mtu=mtu, vlan_id=vlan_id, enabled=enabled, site_code=site_code, description=description)
         self.elements.append(res)
         return res
@@ -1080,18 +1047,12 @@ class l3vpn__l3vpn_entry(yadata.MNode):
         return l3vpn__l3vpn_entry.from_gdata(self.to_gdata())
 
 _breaker10: None = None
-class l3vpn__l3vpn(yadata.MList[l3vpn__l3vpn_entry]):
+class l3vpn__l3vpn(yadata.MKeyedList[str, l3vpn__l3vpn_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?l3vpn__l3vpn_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, customer_name: ?str=None, vpn_id: ?u64=None, service_mtu: ?u64=None, enabled: ?bool=None, description: ?str=None) -> l3vpn__l3vpn_entry:
-        e = self.get(name)
+    mut def create(self, key: str, customer_name: ?str=None, vpn_id: ?u64=None, service_mtu: ?u64=None, enabled: ?bool=None, description: ?str=None) -> l3vpn__l3vpn_entry:
+        e = self.get(key)
         if e is not None:
             if customer_name is not None:
                 e.customer_name = customer_name
@@ -1104,6 +1065,7 @@ class l3vpn__l3vpn(yadata.MList[l3vpn__l3vpn_entry]):
             if description is not None:
                 e.description = description
             return e
+        name = key
         res = l3vpn__l3vpn_entry(name=name, customer_name=customer_name, vpn_id=vpn_id, service_mtu=service_mtu, enabled=enabled, description=description)
         self.elements.append(res)
         return res
@@ -1124,27 +1086,6 @@ class l3vpn__l3vpn(yadata.MList[l3vpn__l3vpn_entry]):
                 copied_elements.append(ce)
         return l3vpn__l3vpn(elements=copied_elements)
 
-
-extension l3vpn__l3vpn(Indexed[str, l3vpn__l3vpn_entry]):
-    def __getitem__(self, k: str) -> l3vpn__l3vpn_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: l3vpn__l3vpn_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker11: None = None
 class root(yadata.MNode):

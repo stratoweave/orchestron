@@ -162,22 +162,17 @@ class stratoweave_device__devices__device_entry(yadata.MNode):
         return stratoweave_device__devices__device_entry.from_gdata(self.to_gdata())
 
 _breaker2: None = None
-class stratoweave_device__devices__device(yadata.MList[stratoweave_device__devices__device_entry]):
+class stratoweave_device__devices__device(yadata.MKeyedList[str, stratoweave_device__devices__device_entry]):
     mut def __init__(self, elements: list[stratoweave_device__devices__device_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?stratoweave_device__devices__device_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, modset_id: ?str=None) -> stratoweave_device__devices__device_entry:
-        e = self.get(name)
+    mut def create(self, key: str, modset_id: ?str=None) -> stratoweave_device__devices__device_entry:
+        e = self.get(key)
         if e is not None:
             if modset_id is not None:
                 e.modset_id = modset_id
             return e
+        name = key
         res = stratoweave_device__devices__device_entry(name=name, modset_id=modset_id)
         self.elements.append(res)
         return res
@@ -198,27 +193,6 @@ class stratoweave_device__devices__device(yadata.MList[stratoweave_device__devic
                 copied_elements.append(ce)
         return stratoweave_device__devices__device(elements=copied_elements)
 
-
-extension stratoweave_device__devices__device(Indexed[str, stratoweave_device__devices__device_entry]):
-    def __getitem__(self, k: str) -> stratoweave_device__devices__device_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: stratoweave_device__devices__device_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker3: None = None
 class stratoweave_device__devices(yadata.MNode):

@@ -16,7 +16,7 @@ def discover(devices: dict[str, gdata.Node]) -> gdata.Node:
         hostname = dev.system.hostname
         if hostname is None:
             raise ValueError(f"No system/hostname in input for device {name}")
-        router = cfs_root.netinfra.router.create(name=hostname!, id=u64(idx+1), type="ietf")
+        router = cfs_root.netinfra.router.create(hostname!, id=u64(idx+1), type="ietf")
         router.mock = True
     return cfs_root.to_gdata()
 

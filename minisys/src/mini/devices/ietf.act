@@ -336,20 +336,15 @@ class ietf_netconf_acm__nacm__groups__group_entry(yadata.MNode):
         return ietf_netconf_acm__nacm__groups__group_entry.from_gdata(self.to_gdata())
 
 _breaker2: None = None
-class ietf_netconf_acm__nacm__groups__group(yadata.MList[ietf_netconf_acm__nacm__groups__group_entry]):
+class ietf_netconf_acm__nacm__groups__group(yadata.MKeyedList[str, ietf_netconf_acm__nacm__groups__group_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__groups__group_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_netconf_acm__nacm__groups__group_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str) -> ietf_netconf_acm__nacm__groups__group_entry:
-        e = self.get(name)
+    mut def create(self, key: str) -> ietf_netconf_acm__nacm__groups__group_entry:
+        e = self.get(key)
         if e is not None:
             return e
+        name = key
         res = ietf_netconf_acm__nacm__groups__group_entry(name=name)
         self.elements.append(res)
         return res
@@ -370,27 +365,6 @@ class ietf_netconf_acm__nacm__groups__group(yadata.MList[ietf_netconf_acm__nacm_
                 copied_elements.append(ce)
         return ietf_netconf_acm__nacm__groups__group(elements=copied_elements)
 
-
-extension ietf_netconf_acm__nacm__groups__group(Indexed[str, ietf_netconf_acm__nacm__groups__group_entry]):
-    def __getitem__(self, k: str) -> ietf_netconf_acm__nacm__groups__group_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_netconf_acm__nacm__groups__group_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker3: None = None
 class ietf_netconf_acm__nacm__groups(yadata.MNode):
@@ -446,18 +420,12 @@ class ietf_netconf_acm__nacm__rule_list__rule_entry(yadata.MNode):
         return ietf_netconf_acm__nacm__rule_list__rule_entry.from_gdata(self.to_gdata())
 
 _breaker5: None = None
-class ietf_netconf_acm__nacm__rule_list__rule(yadata.MList[ietf_netconf_acm__nacm__rule_list__rule_entry]):
+class ietf_netconf_acm__nacm__rule_list__rule(yadata.MKeyedList[str, ietf_netconf_acm__nacm__rule_list__rule_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__rule_list__rule_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_netconf_acm__nacm__rule_list__rule_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, module_name: ?str=None, rpc_name: ?str=None, notification_name: ?str=None, path: ?str=None, access_operations: ?value=None, action_: ?str=None, comment: ?str=None) -> ietf_netconf_acm__nacm__rule_list__rule_entry:
-        e = self.get(name)
+    mut def create(self, key: str, module_name: ?str=None, rpc_name: ?str=None, notification_name: ?str=None, path: ?str=None, access_operations: ?value=None, action_: ?str=None, comment: ?str=None) -> ietf_netconf_acm__nacm__rule_list__rule_entry:
+        e = self.get(key)
         if e is not None:
             if module_name is not None:
                 e.module_name = module_name
@@ -474,6 +442,7 @@ class ietf_netconf_acm__nacm__rule_list__rule(yadata.MList[ietf_netconf_acm__nac
             if comment is not None:
                 e.comment = comment
             return e
+        name = key
         res = ietf_netconf_acm__nacm__rule_list__rule_entry(name=name, module_name=module_name, rpc_name=rpc_name, notification_name=notification_name, path=path, access_operations=access_operations, action_=action_, comment=comment)
         self.elements.append(res)
         return res
@@ -494,27 +463,6 @@ class ietf_netconf_acm__nacm__rule_list__rule(yadata.MList[ietf_netconf_acm__nac
                 copied_elements.append(ce)
         return ietf_netconf_acm__nacm__rule_list__rule(elements=copied_elements)
 
-
-extension ietf_netconf_acm__nacm__rule_list__rule(Indexed[str, ietf_netconf_acm__nacm__rule_list__rule_entry]):
-    def __getitem__(self, k: str) -> ietf_netconf_acm__nacm__rule_list__rule_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_netconf_acm__nacm__rule_list__rule_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker6: None = None
 class ietf_netconf_acm__nacm__rule_list_entry(yadata.MNode):
@@ -539,20 +487,15 @@ class ietf_netconf_acm__nacm__rule_list_entry(yadata.MNode):
         return ietf_netconf_acm__nacm__rule_list_entry.from_gdata(self.to_gdata())
 
 _breaker7: None = None
-class ietf_netconf_acm__nacm__rule_list(yadata.MList[ietf_netconf_acm__nacm__rule_list_entry]):
+class ietf_netconf_acm__nacm__rule_list(yadata.MKeyedList[str, ietf_netconf_acm__nacm__rule_list_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__rule_list_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_netconf_acm__nacm__rule_list_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str) -> ietf_netconf_acm__nacm__rule_list_entry:
-        e = self.get(name)
+    mut def create(self, key: str) -> ietf_netconf_acm__nacm__rule_list_entry:
+        e = self.get(key)
         if e is not None:
             return e
+        name = key
         res = ietf_netconf_acm__nacm__rule_list_entry(name=name)
         self.elements.append(res)
         return res
@@ -573,27 +516,6 @@ class ietf_netconf_acm__nacm__rule_list(yadata.MList[ietf_netconf_acm__nacm__rul
                 copied_elements.append(ce)
         return ietf_netconf_acm__nacm__rule_list(elements=copied_elements)
 
-
-extension ietf_netconf_acm__nacm__rule_list(Indexed[str, ietf_netconf_acm__nacm__rule_list_entry]):
-    def __getitem__(self, k: str) -> ietf_netconf_acm__nacm__rule_list_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_netconf_acm__nacm__rule_list_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker8: None = None
 class ietf_netconf_acm__nacm(yadata.MNode):
@@ -701,18 +623,12 @@ class ietf_system__system__ntp__server_entry(yadata.MNode):
         return ietf_system__system__ntp__server_entry.from_gdata(self.to_gdata())
 
 _breaker12: None = None
-class ietf_system__system__ntp__server(yadata.MList[ietf_system__system__ntp__server_entry]):
+class ietf_system__system__ntp__server(yadata.MKeyedList[str, ietf_system__system__ntp__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__ntp__server_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_system__system__ntp__server_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, association_type: ?str=None, iburst: ?bool=None, prefer: ?bool=None) -> ietf_system__system__ntp__server_entry:
-        e = self.get(name)
+    mut def create(self, key: str, association_type: ?str=None, iburst: ?bool=None, prefer: ?bool=None) -> ietf_system__system__ntp__server_entry:
+        e = self.get(key)
         if e is not None:
             if association_type is not None:
                 e.association_type = association_type
@@ -721,6 +637,7 @@ class ietf_system__system__ntp__server(yadata.MList[ietf_system__system__ntp__se
             if prefer is not None:
                 e.prefer = prefer
             return e
+        name = key
         res = ietf_system__system__ntp__server_entry(name=name, association_type=association_type, iburst=iburst, prefer=prefer)
         self.elements.append(res)
         return res
@@ -741,27 +658,6 @@ class ietf_system__system__ntp__server(yadata.MList[ietf_system__system__ntp__se
                 copied_elements.append(ce)
         return ietf_system__system__ntp__server(elements=copied_elements)
 
-
-extension ietf_system__system__ntp__server(Indexed[str, ietf_system__system__ntp__server_entry]):
-    def __getitem__(self, k: str) -> ietf_system__system__ntp__server_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_system__system__ntp__server_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker13: None = None
 class ietf_system__system__ntp(yadata.MNode):
@@ -833,20 +729,15 @@ class ietf_system__system__dns_resolver__server_entry(yadata.MNode):
         return ietf_system__system__dns_resolver__server_entry.from_gdata(self.to_gdata())
 
 _breaker16: None = None
-class ietf_system__system__dns_resolver__server(yadata.MList[ietf_system__system__dns_resolver__server_entry]):
+class ietf_system__system__dns_resolver__server(yadata.MKeyedList[str, ietf_system__system__dns_resolver__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__dns_resolver__server_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_system__system__dns_resolver__server_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str) -> ietf_system__system__dns_resolver__server_entry:
-        e = self.get(name)
+    mut def create(self, key: str) -> ietf_system__system__dns_resolver__server_entry:
+        e = self.get(key)
         if e is not None:
             return e
+        name = key
         res = ietf_system__system__dns_resolver__server_entry(name=name)
         self.elements.append(res)
         return res
@@ -867,27 +758,6 @@ class ietf_system__system__dns_resolver__server(yadata.MList[ietf_system__system
                 copied_elements.append(ce)
         return ietf_system__system__dns_resolver__server(elements=copied_elements)
 
-
-extension ietf_system__system__dns_resolver__server(Indexed[str, ietf_system__system__dns_resolver__server_entry]):
-    def __getitem__(self, k: str) -> ietf_system__system__dns_resolver__server_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_system__system__dns_resolver__server_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker17: None = None
 class ietf_system__system__dns_resolver__options(yadata.MNode):
@@ -985,22 +855,17 @@ class ietf_system__system__radius__server_entry(yadata.MNode):
         return ietf_system__system__radius__server_entry.from_gdata(self.to_gdata())
 
 _breaker21: None = None
-class ietf_system__system__radius__server(yadata.MList[ietf_system__system__radius__server_entry]):
+class ietf_system__system__radius__server(yadata.MKeyedList[str, ietf_system__system__radius__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__radius__server_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_system__system__radius__server_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, authentication_type: ?Identityref=None) -> ietf_system__system__radius__server_entry:
-        e = self.get(name)
+    mut def create(self, key: str, authentication_type: ?Identityref=None) -> ietf_system__system__radius__server_entry:
+        e = self.get(key)
         if e is not None:
             if authentication_type is not None:
                 e.authentication_type = authentication_type
             return e
+        name = key
         res = ietf_system__system__radius__server_entry(name=name, authentication_type=authentication_type)
         self.elements.append(res)
         return res
@@ -1021,27 +886,6 @@ class ietf_system__system__radius__server(yadata.MList[ietf_system__system__radi
                 copied_elements.append(ce)
         return ietf_system__system__radius__server(elements=copied_elements)
 
-
-extension ietf_system__system__radius__server(Indexed[str, ietf_system__system__radius__server_entry]):
-    def __getitem__(self, k: str) -> ietf_system__system__radius__server_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_system__system__radius__server_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker22: None = None
 class ietf_system__system__radius__options(yadata.MNode):
@@ -1112,24 +956,19 @@ class ietf_system__system__authentication__user__authorized_key_entry(yadata.MNo
         return ietf_system__system__authentication__user__authorized_key_entry.from_gdata(self.to_gdata())
 
 _breaker25: None = None
-class ietf_system__system__authentication__user__authorized_key(yadata.MList[ietf_system__system__authentication__user__authorized_key_entry]):
+class ietf_system__system__authentication__user__authorized_key(yadata.MKeyedList[str, ietf_system__system__authentication__user__authorized_key_entry]):
     mut def __init__(self, elements: list[ietf_system__system__authentication__user__authorized_key_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_system__system__authentication__user__authorized_key_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, algorithm: ?str=None, key_data: ?bytes=None) -> ietf_system__system__authentication__user__authorized_key_entry:
-        e = self.get(name)
+    mut def create(self, key: str, algorithm: ?str=None, key_data: ?bytes=None) -> ietf_system__system__authentication__user__authorized_key_entry:
+        e = self.get(key)
         if e is not None:
             if algorithm is not None:
                 e.algorithm = algorithm
             if key_data is not None:
                 e.key_data = key_data
             return e
+        name = key
         res = ietf_system__system__authentication__user__authorized_key_entry(name=name, algorithm=algorithm, key_data=key_data)
         self.elements.append(res)
         return res
@@ -1150,27 +989,6 @@ class ietf_system__system__authentication__user__authorized_key(yadata.MList[iet
                 copied_elements.append(ce)
         return ietf_system__system__authentication__user__authorized_key(elements=copied_elements)
 
-
-extension ietf_system__system__authentication__user__authorized_key(Indexed[str, ietf_system__system__authentication__user__authorized_key_entry]):
-    def __getitem__(self, k: str) -> ietf_system__system__authentication__user__authorized_key_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_system__system__authentication__user__authorized_key_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker26: None = None
 class ietf_system__system__authentication__user_entry(yadata.MNode):
@@ -1195,22 +1013,17 @@ class ietf_system__system__authentication__user_entry(yadata.MNode):
         return ietf_system__system__authentication__user_entry.from_gdata(self.to_gdata())
 
 _breaker27: None = None
-class ietf_system__system__authentication__user(yadata.MList[ietf_system__system__authentication__user_entry]):
+class ietf_system__system__authentication__user(yadata.MKeyedList[str, ietf_system__system__authentication__user_entry]):
     mut def __init__(self, elements: list[ietf_system__system__authentication__user_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_system__system__authentication__user_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, password: ?str=None) -> ietf_system__system__authentication__user_entry:
-        e = self.get(name)
+    mut def create(self, key: str, password: ?str=None) -> ietf_system__system__authentication__user_entry:
+        e = self.get(key)
         if e is not None:
             if password is not None:
                 e.password = password
             return e
+        name = key
         res = ietf_system__system__authentication__user_entry(name=name, password=password)
         self.elements.append(res)
         return res
@@ -1231,27 +1044,6 @@ class ietf_system__system__authentication__user(yadata.MList[ietf_system__system
                 copied_elements.append(ce)
         return ietf_system__system__authentication__user(elements=copied_elements)
 
-
-extension ietf_system__system__authentication__user(Indexed[str, ietf_system__system__authentication__user_entry]):
-    def __getitem__(self, k: str) -> ietf_system__system__authentication__user_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_system__system__authentication__user_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker28: None = None
 class ietf_system__system__authentication(yadata.MNode):
@@ -1344,24 +1136,19 @@ class ietf_interfaces__interfaces__interface__ipv4__address_entry(yadata.MNode):
         return ietf_interfaces__interfaces__interface__ipv4__address_entry.from_gdata(self.to_gdata())
 
 _breaker31: None = None
-class ietf_interfaces__interfaces__interface__ipv4__address(yadata.MList[ietf_interfaces__interfaces__interface__ipv4__address_entry]):
+class ietf_interfaces__interfaces__interface__ipv4__address(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv4__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv4__address_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
 
-    pure def get(self, ip: str) -> ?ietf_interfaces__interfaces__interface__ipv4__address_entry:
-        for e in self:
-            if e.ip != ip:
-                continue
-            return e
-
-    mut def create(self, ip: str, prefix_length: ?u64=None, netmask: ?str=None) -> ietf_interfaces__interfaces__interface__ipv4__address_entry:
-        e = self.get(ip)
+    mut def create(self, key: str, prefix_length: ?u64=None, netmask: ?str=None) -> ietf_interfaces__interfaces__interface__ipv4__address_entry:
+        e = self.get(key)
         if e is not None:
             if prefix_length is not None:
                 e.prefix_length = prefix_length
             if netmask is not None:
                 e.netmask = netmask
             return e
+        ip = key
         res = ietf_interfaces__interfaces__interface__ipv4__address_entry(ip=ip, prefix_length=prefix_length, netmask=netmask)
         self.elements.append(res)
         return res
@@ -1382,27 +1169,6 @@ class ietf_interfaces__interfaces__interface__ipv4__address(yadata.MList[ietf_in
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv4__address(elements=copied_elements)
 
-
-extension ietf_interfaces__interfaces__interface__ipv4__address(Indexed[str, ietf_interfaces__interfaces__interface__ipv4__address_entry]):
-    def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv4__address_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_interfaces__interfaces__interface__ipv4__address_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker32: None = None
 class ietf_interfaces__interfaces__interface__ipv4__neighbor_entry(yadata.MNode):
@@ -1425,22 +1191,17 @@ class ietf_interfaces__interfaces__interface__ipv4__neighbor_entry(yadata.MNode)
         return ietf_interfaces__interfaces__interface__ipv4__neighbor_entry.from_gdata(self.to_gdata())
 
 _breaker33: None = None
-class ietf_interfaces__interfaces__interface__ipv4__neighbor(yadata.MList[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]):
+class ietf_interfaces__interfaces__interface__ipv4__neighbor(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
 
-    pure def get(self, ip: str) -> ?ietf_interfaces__interfaces__interface__ipv4__neighbor_entry:
-        for e in self:
-            if e.ip != ip:
-                continue
-            return e
-
-    mut def create(self, ip: str, link_layer_address: ?str=None) -> ietf_interfaces__interfaces__interface__ipv4__neighbor_entry:
-        e = self.get(ip)
+    mut def create(self, key: str, link_layer_address: ?str=None) -> ietf_interfaces__interfaces__interface__ipv4__neighbor_entry:
+        e = self.get(key)
         if e is not None:
             if link_layer_address is not None:
                 e.link_layer_address = link_layer_address
             return e
+        ip = key
         res = ietf_interfaces__interfaces__interface__ipv4__neighbor_entry(ip=ip, link_layer_address=link_layer_address)
         self.elements.append(res)
         return res
@@ -1461,27 +1222,6 @@ class ietf_interfaces__interfaces__interface__ipv4__neighbor(yadata.MList[ietf_i
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv4__neighbor(elements=copied_elements)
 
-
-extension ietf_interfaces__interfaces__interface__ipv4__neighbor(Indexed[str, ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]):
-    def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv4__neighbor_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_interfaces__interfaces__interface__ipv4__neighbor_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker34: None = None
 class ietf_interfaces__interfaces__interface__ipv4(yadata.MNode):
@@ -1536,22 +1276,17 @@ class ietf_interfaces__interfaces__interface__ipv6__address_entry(yadata.MNode):
         return ietf_interfaces__interfaces__interface__ipv6__address_entry.from_gdata(self.to_gdata())
 
 _breaker36: None = None
-class ietf_interfaces__interfaces__interface__ipv6__address(yadata.MList[ietf_interfaces__interfaces__interface__ipv6__address_entry]):
+class ietf_interfaces__interfaces__interface__ipv6__address(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv6__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv6__address_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
 
-    pure def get(self, ip: str) -> ?ietf_interfaces__interfaces__interface__ipv6__address_entry:
-        for e in self:
-            if e.ip != ip:
-                continue
-            return e
-
-    mut def create(self, ip: str, prefix_length: ?u64=None) -> ietf_interfaces__interfaces__interface__ipv6__address_entry:
-        e = self.get(ip)
+    mut def create(self, key: str, prefix_length: ?u64=None) -> ietf_interfaces__interfaces__interface__ipv6__address_entry:
+        e = self.get(key)
         if e is not None:
             if prefix_length is not None:
                 e.prefix_length = prefix_length
             return e
+        ip = key
         res = ietf_interfaces__interfaces__interface__ipv6__address_entry(ip=ip, prefix_length=prefix_length)
         self.elements.append(res)
         return res
@@ -1572,27 +1307,6 @@ class ietf_interfaces__interfaces__interface__ipv6__address(yadata.MList[ietf_in
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv6__address(elements=copied_elements)
 
-
-extension ietf_interfaces__interfaces__interface__ipv6__address(Indexed[str, ietf_interfaces__interfaces__interface__ipv6__address_entry]):
-    def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv6__address_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_interfaces__interfaces__interface__ipv6__address_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker37: None = None
 class ietf_interfaces__interfaces__interface__ipv6__neighbor_entry(yadata.MNode):
@@ -1615,22 +1329,17 @@ class ietf_interfaces__interfaces__interface__ipv6__neighbor_entry(yadata.MNode)
         return ietf_interfaces__interfaces__interface__ipv6__neighbor_entry.from_gdata(self.to_gdata())
 
 _breaker38: None = None
-class ietf_interfaces__interfaces__interface__ipv6__neighbor(yadata.MList[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]):
+class ietf_interfaces__interfaces__interface__ipv6__neighbor(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
 
-    pure def get(self, ip: str) -> ?ietf_interfaces__interfaces__interface__ipv6__neighbor_entry:
-        for e in self:
-            if e.ip != ip:
-                continue
-            return e
-
-    mut def create(self, ip: str, link_layer_address: ?str=None) -> ietf_interfaces__interfaces__interface__ipv6__neighbor_entry:
-        e = self.get(ip)
+    mut def create(self, key: str, link_layer_address: ?str=None) -> ietf_interfaces__interfaces__interface__ipv6__neighbor_entry:
+        e = self.get(key)
         if e is not None:
             if link_layer_address is not None:
                 e.link_layer_address = link_layer_address
             return e
+        ip = key
         res = ietf_interfaces__interfaces__interface__ipv6__neighbor_entry(ip=ip, link_layer_address=link_layer_address)
         self.elements.append(res)
         return res
@@ -1651,27 +1360,6 @@ class ietf_interfaces__interfaces__interface__ipv6__neighbor(yadata.MList[ietf_i
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface__ipv6__neighbor(elements=copied_elements)
 
-
-extension ietf_interfaces__interfaces__interface__ipv6__neighbor(Indexed[str, ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]):
-    def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface__ipv6__neighbor_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_interfaces__interfaces__interface__ipv6__neighbor_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.ip == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker39: None = None
 class ietf_interfaces__interfaces__interface__ipv6__autoconf(yadata.MNode):
@@ -1797,18 +1485,12 @@ class ietf_interfaces__interfaces__interface_entry(yadata.MNode):
         return ietf_interfaces__interfaces__interface_entry.from_gdata(self.to_gdata())
 
 _breaker42: None = None
-class ietf_interfaces__interfaces__interface(yadata.MList[ietf_interfaces__interfaces__interface_entry]):
+class ietf_interfaces__interfaces__interface(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_interfaces__interfaces__interface_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, description: ?str=None, type: ?Identityref=None, enabled: ?bool=None, link_up_down_trap_enable: ?str=None) -> ietf_interfaces__interfaces__interface_entry:
-        e = self.get(name)
+    mut def create(self, key: str, description: ?str=None, type: ?Identityref=None, enabled: ?bool=None, link_up_down_trap_enable: ?str=None) -> ietf_interfaces__interfaces__interface_entry:
+        e = self.get(key)
         if e is not None:
             if description is not None:
                 e.description = description
@@ -1819,6 +1501,7 @@ class ietf_interfaces__interfaces__interface(yadata.MList[ietf_interfaces__inter
             if link_up_down_trap_enable is not None:
                 e.link_up_down_trap_enable = link_up_down_trap_enable
             return e
+        name = key
         res = ietf_interfaces__interfaces__interface_entry(name=name, description=description, type=type, enabled=enabled, link_up_down_trap_enable=link_up_down_trap_enable)
         self.elements.append(res)
         return res
@@ -1839,27 +1522,6 @@ class ietf_interfaces__interfaces__interface(yadata.MList[ietf_interfaces__inter
                 copied_elements.append(ce)
         return ietf_interfaces__interfaces__interface(elements=copied_elements)
 
-
-extension ietf_interfaces__interfaces__interface(Indexed[str, ietf_interfaces__interfaces__interface_entry]):
-    def __getitem__(self, k: str) -> ietf_interfaces__interfaces__interface_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_interfaces__interfaces__interface_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker43: None = None
 class ietf_interfaces__interfaces(yadata.MNode):

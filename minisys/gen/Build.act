@@ -6,8 +6,8 @@ dependencies = {
     ),
     "yang": (
         repo_url="https://github.com/stratoweave/acton-yang.git",
-        url="https://github.com/stratoweave/acton-yang/archive/6bd26521cd3cd2664eb66b90c14dba18e17db856.zip",
-        hash="N-V-__8AAI4cJwByJO3YK_rs17D_K2hXVKcK7UBL2ikUiuUy"
+        url="https://github.com/stratoweave/acton-yang/archive/d71016a3eb2b3a344287bdceaf424ea02e0f1d48.zip",
+        hash="N-V-__8AAGvNJgAzbhqqVATLR5TyP1w1fvW7gw68In9IbpEZ"
     )
 }
 zig_dependencies = {}

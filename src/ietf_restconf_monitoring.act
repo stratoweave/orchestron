@@ -1476,21 +1476,16 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(ya
         return ietf_restconf_monitoring__restconf_state__streams__stream__access_entry.from_gdata(self.to_gdata())
 
 _breaker3: None = None
-class ietf_restconf_monitoring__restconf_state__streams__stream__access(yadata.MList[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
+class ietf_restconf_monitoring__restconf_state__streams__stream__access(yadata.MKeyedList[str, ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
     mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.encoding, elements)
 
-    pure def get(self, encoding: str) -> ?ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
-        for e in self:
-            if e.encoding != encoding:
-                continue
-            return e
-
-    mut def create(self, encoding: str, location: str) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
-        e = self.get(encoding)
+    mut def create(self, key: str, location: str) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
+        e = self.get(key)
         if e is not None:
             e.location = location
             return e
+        encoding = key
         res = ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(encoding=encoding, location=location)
         self.elements.append(res)
         return res
@@ -1511,27 +1506,6 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access(yadata.M
                 copied_elements.append(ce)
         return ietf_restconf_monitoring__restconf_state__streams__stream__access(elements=copied_elements)
 
-
-extension ietf_restconf_monitoring__restconf_state__streams__stream__access(Indexed[str, ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
-    def __getitem__(self, k: str) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_restconf_monitoring__restconf_state__streams__stream__access_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.encoding == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.encoding == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker4: None = None
 class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yadata.MNode):
@@ -1560,18 +1534,12 @@ class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yadata.MNo
         return ietf_restconf_monitoring__restconf_state__streams__stream_entry.from_gdata(self.to_gdata())
 
 _breaker5: None = None
-class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MList[ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
+class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MKeyedList[str, ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
     mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]) -> None:
-        self.elements = elements
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
-    pure def get(self, name: str) -> ?ietf_restconf_monitoring__restconf_state__streams__stream_entry:
-        for e in self:
-            if e.name != name:
-                continue
-            return e
-
-    mut def create(self, name: str, description: ?str=None, replay_support: ?bool=None, replay_log_creation_time: ?str=None) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
-        e = self.get(name)
+    mut def create(self, key: str, description: ?str=None, replay_support: ?bool=None, replay_log_creation_time: ?str=None) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
+        e = self.get(key)
         if e is not None:
             if description is not None:
                 e.description = description
@@ -1580,6 +1548,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MList[iet
             if replay_log_creation_time is not None:
                 e.replay_log_creation_time = replay_log_creation_time
             return e
+        name = key
         res = ietf_restconf_monitoring__restconf_state__streams__stream_entry(name=name, description=description, replay_support=replay_support, replay_log_creation_time=replay_log_creation_time)
         self.elements.append(res)
         return res
@@ -1600,27 +1569,6 @@ class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MList[iet
                 copied_elements.append(ce)
         return ietf_restconf_monitoring__restconf_state__streams__stream(elements=copied_elements)
 
-
-extension ietf_restconf_monitoring__restconf_state__streams__stream(Indexed[str, ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
-    def __getitem__(self, k: str) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
-        e = self.get(k)
-        if e is not None:
-            return e
-        raise KeyError(k)
-
-    mut def __setitem__(self, k: str, n: ietf_restconf_monitoring__restconf_state__streams__stream_entry) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                self.elements[i] = n
-                return
-        self.elements.append(n)
-
-    mut def __delitem__(self, k: str) -> None:
-        for i, e in enumerate(self.elements):
-            if e.name == k:
-                del self.elements[i]
-                return
-        raise KeyError(k)
 
 _breaker6: None = None
 class ietf_restconf_monitoring__restconf_state__streams(yadata.MNode):
