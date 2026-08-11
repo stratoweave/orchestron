@@ -1,0 +1,83 @@
+import testing
+
+import yang
+import yang.schema as yschema
+
+import device as swdev
+import device_schema as swds
+
+
+BASE_YANG = r"""module base {
+  yang-version 1.1;
+  namespace "urn:base";
+  prefix base;
+  container system {
+    leaf hostname { type string; }
+    leaf location { type string; }
+  }
+  list interface {
+    key name;
+    leaf name { type string; }
+    leaf description { type string; }
+    leaf mtu { type uint16; }
+  }
+  list route {
+    key prefix;
+    ordered-by user;
+    leaf prefix { type string; }
+  }
+}"""
+
+# A module the bundled device type does not know about
+EXTRA_YANG = r"""module extra {
+  yang-version 1.1;
+  namespace "urn:extra";
+  prefix extra;
+  container telemetry {
+    leaf enabled { type boolean; }
+  }
+}"""
+
+# The nodes the application actually models
+KEEP_PATHS = [
+    "/base:system/hostname",
+    "/base:interface/name",
+    "/base:interface/description",
+]
+
+
+def _src(schema: yschema.DRoot) -> str:
+    # Only print DRoot children to avoid mismatch in module_metadata (runtime
+    # fetched schema includes an extra module).
+    return "\n".join([c.prsrc() for c in schema.children])
+
+
+def _fetched_src(registry: swdev.SchemaRegistry, res: (hash: ?u64, error: ?Exception)) -> str:
+    return _src(registry.get_schema(res.hash)!)
+
+
+def _test_runtime_schema_matches_bundled():
+    """After replaying transforms, the runtime-fetched schema is shaped like the bundled one
+    """
+    root = yang.compile([BASE_YANG])
+    swds.filter_schema(KEEP_PATHS).apply(root)
+    bundled = _src(root)
+
+    registry = swdev.SchemaRegistry()
+    transformed = registry.add_schema([BASE_YANG, EXTRA_YANG], [swds.filter_schema(KEEP_PATHS)])
+    untransformed = registry.add_schema([BASE_YANG, EXTRA_YANG])
+
+    testing.assertEqual(bundled, _fetched_src(registry, transformed), "transformed runtime schema matches the bundled tree")
+    testing.assertNotEqual(bundled, _fetched_src(registry, untransformed), "untransformed runtime schema is a larger tree")
+
+
+def _test_schema_cache_separation():
+    """Device types sharing sources but not transforms get separate cache entries"""
+    registry = swdev.SchemaRegistry()
+    pruned = registry.add_schema([BASE_YANG], [swds.filter_schema(KEEP_PATHS)])
+    full = registry.add_schema([BASE_YANG])
+
+    testing.assertNotEqual(pruned.hash, full.hash, "transforms are part of the cache key")
+    testing.assertNotEqual(_fetched_src(registry, pruned), _fetched_src(registry, full),
+                           "each entry holds its own differently shaped tree")
+

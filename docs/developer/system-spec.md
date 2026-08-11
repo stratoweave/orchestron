@@ -5,11 +5,7 @@ layers the system has, their order, and what the schemas is for each layer.
 
 The system specification definition for SORESPO looks as follows:
 ```acton title="spec/src/sorespo_gen.act"
-spec = stratoweave.build.SysSpec("sorespo", [
-    cfs_layer,
-    inter_layer,
-    rfs_layer,
-], [
+spec = stratoweave.build.SysSpec("sorespo", [cfs_layer, inter_layer, rfs_layer], [
     stratoweave.build.DeviceType.from_dir(fc, "CiscoIosXr_25_3_1", "yang/CiscoIosXr_25_3_1"),
     stratoweave.build.DeviceType.from_dir(fc, "JuniperCRPD_24_4R1_9", "yang/JuniperCRPD_24_4R1_9"),
     stratoweave.build.DeviceType.from_dir(fc, "NokiaSRLinux_25_3_2", "yang/NokiaSRLinux_25_3_2"),
@@ -28,7 +24,7 @@ The `#!acton SysSpec` takes 3 arguments:
 * The system name
 * A list of [transform layers](#transform-layers) in the system, in descending order of abstraction
     * A StratoWeave system must have at least one layer, but can have
-    as many as are needed to cleanly separate different levels of abstraction 
+    as many as are needed to cleanly separate different levels of abstraction
     in the transform stack.
     * The top-most layer is the **customer-facing service (CFS)** layer, which
     defines the schema that users will interact with over the northbound APIs
@@ -78,34 +74,61 @@ StratoWeave is designed to support various device types but at present,
 SORESPO only contains NETCONF/YANG-based device types. Each YANG-based device
 type is built from a directory of YANG models.
 
-### Schema pruning
+### Schema transforms
 Router vendors have made great efforts to model their entire devices with YANG,
 every knob and feature is configurable and observable through YANG. As a result,
 the full set of YANG models for some of these operating systems are several
 hundred megabytes and include tens of thousands of nodes. To have access to
 completely typed device models, StratoWeave transpiles the YANG to Acton types.
 
-At present, this means that the full device models are too large to transpile 
+At present, this means that the full device models are too large to transpile
 and subsequently compile in a reasonable time. The current recommendation for
 developers is to prune the device models down to a manageable size by only
 including the YANG nodes that you require for configuration and telemetry in
 your use cases.
 
-In SORESPO, all three device types have been pruned in this way.
+Pruning is only one of the schema transforms that can be applied to the device
+schema, but it is arguably the most common. Transforms are listed on the device
+type and applied to the compiled schema tree in the order given.
+
 ```acton title="spec/src/sorespo_gen.act"
+import stratoweave.device_schema as swds
+
+spec = stratoweave.build.SysSpec("sorespo", [cfs_layer, inter_layer, rfs_layer], [
+    stratoweave.build.DeviceType.from_dir(fc, "CiscoIosXr_25_3_1", "yang/CiscoIosXr_25_3_1",
+        transforms=[
+            swds.filter_schema(xr_paths),
+        ]),
+    stratoweave.build.DeviceType.from_dir(fc, "JuniperCRPD_24_4R1_9", "yang/JuniperCRPD_24_4R1_9",
+        transforms=[
+            swds.filter_schema(crpd_paths),
+            swds.remove_list_user_order(crpd_order_paths),
+        ]),
+    stratoweave.build.DeviceType.from_dir(fc, "NokiaSRLinux_25_3_2", "yang/NokiaSRLinux_25_3_2",
+        transforms=[
+            swds.filter_schema(srl_paths),
+        ]),
+])
 compiled_spec = spec.compile(broken_leafrefs)
-transform_list_order(transform_filter_crpd(compiled_spec.dev_types["JuniperCRPD_24_4R1_9"]))
-transform_filter_srl(compiled_spec.dev_types["NokiaSRLinux_25_3_2"])
-transform_filter_xr(compiled_spec.dev_types["CiscoIosXr_25_3_1"])
 compiled_spec.gen_app(fc, "../src/")
 ```
 
-These filter functions each contain a list of YANG paths that should be
-retained.
+The available transforms come from `stratoweave.device_schema`:
+
+* `filter_schema(paths)` prunes the tree down to the listed YANG paths. A node
+  is kept when its path is listed or when it is an ancestor of a listed path,
+  so list keys have to be listed explicitly.
+* `remove_list_user_order(paths)` rewrites `ordered-by user` (leaf-)lists to
+  `ordered-by system`. JUNOS uses `ordered-by user` in many places where the
+  order has no effect on the applied configuration, which otherwise shows up as
+  spurious reordering whenever a transform writes the elements in a different
+  order.
+
+In SORESPO, all three device types are pruned this way, each with a list of the
+YANG paths to retain.
 ```acton title="spec/src/sorespo_gen.act"
-def transform_filter_xr(dt):
-    # Keep only the XR nodes that sorespo actively uses.
-    paths = [
+# Keep only the XR nodes that sorespo actively uses.
+xr_paths = [
 "/um-hostname-cfg:hostname",
 "/um-hostname-cfg:hostname/system-network-name",
 "/um-interface-cfg:interfaces",
@@ -124,7 +147,7 @@ def transform_filter_xr(dt):
     the Acton compiler, and support for shipping binary type libraries that
     can be imported directly without needing to compile the device types
     locally.
-    
+
     The goal of these improvements is to allow for the use of full device
     models without pruning, while still maintaining a fast development
     workflow.
@@ -203,7 +226,7 @@ a northbound NETCONF client downloads the YANG schemas from the system.
 
 ## Defining TMF Service/Resource mappings
 StratoWeave implements the YANG to TM Forum mapping defined in
-[draft-lambrechts-onsen-yang-tmf-mapping-00](https://datatracker.ietf.org/doc/html/draft-lambrechts-onsen-yang-tmf-mapping-00). 
+[draft-lambrechts-onsen-yang-tmf-mapping-00](https://datatracker.ietf.org/doc/html/draft-lambrechts-onsen-yang-tmf-mapping-00).
 To annotate your YANG models with TMF mapping instructions,
 import the `ietf-yang-tmf-map` module from the StratoWeave YANG extensions
 and use the `tmf:cfs-service` annotation to indicate which CFS service

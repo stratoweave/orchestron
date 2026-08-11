@@ -1,4 +1,48 @@
 import yang.schema as yschema
+import yang.transform_filter_schema as ytfs
+import yang.transform_list_order as ytlo
+
+
+class SchemaTreeTransform(object):
+    name: str
+    paths: list[str]
+    @property
+    fn: mut(yschema.DNode, list[str]) -> None
+
+    def __init__(self, name: str, fn, paths: list[str]=[]):
+        self.name = name
+        self.fn = fn
+        self.paths = paths
+
+    mut def apply(self, root: yschema.DRoot) -> None:
+        self.fn(root, self.paths)
+
+    def prsrc(self, indent: int=0) -> str:
+        if len(self.paths) == 0:
+            return "{self.name}()"
+        pad = " " * indent
+        plines = "".join(["{pad}    {repr(p)},\n" for p in self.paths])
+        return "{self.name}([\n{plines}{pad}])"
+
+
+extension SchemaTreeTransform(Hashable):
+    def __eq__(self, other: SchemaTreeTransform) -> bool:
+        return self.name == other.name and self.paths == other.paths
+
+    def hash(self, h: hasher) -> None:
+        h.update(self.name.encode())
+        for p in self.paths:
+            h.update(p.encode())
+
+
+# Wrap the yang.* transform functions in an object that carries the factory
+# function name so that we only have to import this (stratoweave.device_schema)
+# module in the generated sysspec.act
+def filter_schema(paths: list[str]) -> SchemaTreeTransform:
+    return SchemaTreeTransform("filter_schema", ytfs.filter_schema, paths)
+
+def remove_list_user_order(paths: list[str]=[]) -> SchemaTreeTransform:
+    return SchemaTreeTransform("remove_list_user_order", ytlo.remove_list_user_order, paths)
 
 
 class DeviceSchema(object):
@@ -6,11 +50,13 @@ class DeviceSchema(object):
 
     src_dnode: yschema.DRoot
     oper_src_dnode: yschema.DRoot
+    transforms: list[SchemaTreeTransform]
 
-    def __init__(self, name, src_dnode, oper_src_dnode: ?yschema.DRoot=None):
+    def __init__(self, name, src_dnode, oper_src_dnode: ?yschema.DRoot=None, transforms: list[SchemaTreeTransform]=[]):
         self.name = name
         self.src_dnode = src_dnode
         self.oper_src_dnode = oper_src_dnode if oper_src_dnode is not None else src_dnode
+        self.transforms = transforms
 
     @staticmethod
     def mock():

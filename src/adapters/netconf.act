@@ -806,9 +806,9 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             else:
                 _log.debug("Device._on_connect: finished downloading schemas", {"duration": sw.elapsed().to_float()})
                 sw.reset()
-                result = schema_registry.add_schema(schemas)
+                result = schema_registry.add_schema(schemas, bundled_schema.transforms)
                 if result.error is not None:
-                    _log.error("Device._on_connect: failed to compile schemas", {"error": str(result.error)})
+                    _log.error("Device._on_connect: failed to build device schema", {"error": str(result.error)})
                     finish_connect(schema_modset)
                 else:
                     schema_hash = result.hash
