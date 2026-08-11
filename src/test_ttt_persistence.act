@@ -139,6 +139,20 @@ struct_root = ttt.Container({
     )
 })
 
+direct_list_tree = gdata.List([q("name")], [
+    gdata.Container({
+        q("name"): gdata.Leaf("a"),
+        q("value"): gdata.Leaf(1)
+    }),
+    gdata.Container({
+        q("name"): gdata.Leaf("b"),
+        q("value"): gdata.Leaf(2)
+    })
+])
+
+def direct_list_root() -> proc(ttt.Path, ?ttt.Layer) -> ttt.Node:
+    return ttt.List(ttt.Transform(ttt.PassThrough), [q("name")])
+
 struct_keys_tree = gdata.Container({
     q("items"): gdata.List([q("name")], [
         gdata.Container({
@@ -294,9 +308,9 @@ actor db_key_codec_escapes_reserved_bytes(t: testing.AsyncT):
     path = [escaped_layer_name, "node" + db_attribute_char + "attr", escaped_list_key]
     key = swdb.to_attr_key(path, escaped_attr, escaped_src)
     parsed = swdb.parse_attr_key(key)
-    testing.assertEqual(parsed.0, path)
-    testing.assertEqual(parsed.1, escaped_attr)
-    testing.assertEqual(parsed.2!, escaped_src)
+    testing.assertEqual(parsed.path, path)
+    testing.assertEqual(parsed.attr, escaped_attr)
+    testing.assertEqual(parsed.qualifier!, escaped_src)
     testing.assertEqual(key.find(swdb.ESCAPE) != -1, True)
     t.success()
 
@@ -305,9 +319,9 @@ actor db_key_codec_round_trips_qualified_segments(t: testing.AsyncT):
     path = ["qualified", qa_shift("branch"), "list-key", qb_shift("value")]
     key = swdb.to_attr_key(path, swdb.ATTR_RUNNING, "_", codec)
     parsed = swdb.parse_attr_key(key, codec)
-    testing.assertEqual(parsed.0, ["qualified", swdb.qualified_name(qa_shift("branch")), "list-key", swdb.qualified_name(qb_shift("value"))])
-    testing.assertEqual(parsed.1, swdb.ATTR_RUNNING)
-    testing.assertEqual(parsed.2!, "_")
+    testing.assertEqual(parsed.path, ["qualified", swdb.qualified_name(qa_shift("branch")), "list-key", swdb.qualified_name(qb_shift("value"))])
+    testing.assertEqual(parsed.attr, swdb.ATTR_RUNNING)
+    testing.assertEqual(parsed.qualifier!, "_")
     t.success()
 
 
@@ -394,7 +408,7 @@ def write_structural_list_element(write_txn: lmdb.WriteTransaction, codec: swdb.
     key_leaves = gdata.Container({
         key_id: gdata.Leaf(element_key)
     })
-    write_txn.put(swdb.to_attr_key(element_path, swdb.ATTR_KEYS, None, codec), key_leaves.to_json_str(pretty=False).encode())
+    write_txn.put(swdb.to_attr_key([layer_name, list_id], swdb.ATTR_KEYS, element_key, codec), key_leaves.to_json_str(pretty=False).encode())
     write_txn.put(swdb.to_attr_key(element_path + [value_id], swdb.ATTR_OUTPUT, None, codec), value_node.to_json_str(pretty=False).encode())
     write_txn.put(swdb.to_attr_key(element_path + [value_id], swdb.ATTR_RUNNING, "_", codec), value_node.to_json_str(pretty=False).encode())
 
@@ -807,7 +821,7 @@ actor restore_structural_list_round_trip(t: testing.EnvT):
 
 actor restore_survives_forced_recompute(t: testing.EnvT):
     # A forced recompute (as StartupBootstrap runs after every restore) must
-    # preserve each list element's #keys index record. Regression: db_ops used
+    # preserve each list element's keys index record. Regression: db_ops used
     # to delete every element's record when the refresh recomputed no leaves,
     # so the next restore lost the list.
     fc = file.FileCap(t.env.cap)
@@ -847,6 +861,32 @@ actor restore_survives_forced_recompute(t: testing.EnvT):
         restored.load_from_db(restored_then_recompute)
 
     restored.edit_config(struct_tree, after_initial_commit)
+
+
+actor restore_direct_list_transform_round_trip(t: testing.EnvT):
+    fc = file.FileCap(t.env.cap)
+    fs = file.FS(fc)
+    db_path = fs.mktmpdir("test_ttt_restore_direct_list_")
+    cap = file.WriteFileCap(fc)
+    var db = swdb.LmdbStore(cap, db_path)
+    var restored = ttt.Layer("direct", direct_list_root(), None, db)
+
+    def after_restore(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        testing.assertEqual(restored.get(), direct_list_tree)
+        await async db.db.close()
+        await async fs.rmtree(db_path)
+        await async fs.rmdir(db_path)
+        t.success()
+
+    def after_initial_commit(_r: value) -> None:
+        await async db.db.close()
+        db = swdb.LmdbStore(cap, db_path)
+        restored = ttt.Layer("direct", direct_list_root(), None, db)
+        restored.load_from_db(after_restore)
+
+    restored.edit_config(direct_list_tree, after_initial_commit)
 
 
 actor restore_structural_list_delete_round_trip(t: testing.EnvT):

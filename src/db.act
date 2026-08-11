@@ -23,9 +23,13 @@ ESCAPED_PATH_SEPARATOR = b"p"
 ESCAPED_ATTRIBUTE_SEPARATOR = b"a"
 ESCAPED_QUALIFIER_SEPARATOR = b"q"
 
-# We need ATTR_KEYS to appear before all other attributes of a path when the
-# db iterates over its keys. Prefix with '#' (ASCII 35) to ensure this.
-ATTR_KEYS = "#keys"
+# A list stores its element keys in the keys attribute on the list's own
+# path, one entry per element with the element key as qualifier: a list l1
+# with elements foo and bar has l1@keys[foo] and l1@keys[bar], each holding
+# only that element's key leaves. The rest of an element is stored below
+# the list, under l1/foo and l1/bar. Restore reads the keys entries to
+# create the elements, which then read their own subtrees.
+ATTR_KEYS = "keys"
 ATTR_DYNSTATE = "dynstate"
 ATTR_MEMORY = "memory"
 ATTR_OUTPUT = "output"
@@ -36,21 +40,26 @@ class Scan(object):
 
     `next` reads one record and reports it through its callback; a `None`
     record means end of range. At most one `next` callback is outstanding per
-    scan. `close` releases the scan; callers close every scan, including scans
-    abandoned after an error.
+    scan. `seek_ge` moves the scan so that the next read returns the first
+    record whose key is at least the given key. `close` releases the scan;
+    callers close every scan, including scans abandoned after an error.
     """
 
     @property
     next: proc(action(?(key: bytes, value: bytes), ?Exception) -> None) -> None
+    @property
+    seek_ge: proc(bytes) -> None
     @property
     close: proc(action(?Exception) -> None) -> None
 
     def __init__(
         self,
         next: proc(action(?(key: bytes, value: bytes), ?Exception) -> None) -> None,
+        seek_ge: proc(bytes) -> None,
         close: proc(action(?Exception) -> None) -> None
     ):
         self.next = next
+        self.seek_ge = seek_ge
         self.close = close
 
 
@@ -129,7 +138,7 @@ actor LmdbScan(db: lmdb.Db, start: bytes, end: ?bytes):
 
     txn = db.begin_read()
     cursor = txn.cursor()
-    var started = False
+    var seek_to: ?bytes = start
     var released = False
 
     def release() -> None:
@@ -142,11 +151,12 @@ actor LmdbScan(db: lmdb.Db, start: bytes, end: ?bytes):
             done(None, None)
             return
         try:
-            if started:
-                record = cursor.next()
+            target = seek_to
+            seek_to = None
+            if target is not None:
+                record = cursor.seek(target)
             else:
-                started = True
-                record = cursor.seek(start)
+                record = cursor.next()
 
             if record is None or (end is not None and record!.key >= end):
                 release()
@@ -159,6 +169,10 @@ actor LmdbScan(db: lmdb.Db, start: bytes, end: ?bytes):
             except Exception:
                 pass
             done(None, e)
+
+    def seek_ge(key: bytes) -> None:
+        if not released:
+            seek_to = key if key >= start else start
 
     def close(done: action(?Exception) -> None) -> None:
         try:
@@ -189,7 +203,7 @@ class LmdbStore(Store):
 
     def scan(self, start: bytes, end: ?bytes=None) -> Scan:
         scan = LmdbScan(self.db, start, end)
-        return Scan(scan.next, scan.close)
+        return Scan(scan.next, scan.seek_ge, scan.close)
 
     proc def write(
         self,
@@ -205,6 +219,57 @@ class LmdbStore(Store):
         except Exception as e:
             done(e)
 
+
+actor RangeReader(
+    store: Store,
+    start: bytes,
+    end: ?bytes,
+    each: action((key: bytes, value: bytes), action(?Exception) -> None) -> None,
+    done: action(?Exception) -> None
+):
+    """Read a store range one record at a time.
+
+    Each record is delivered to the consumer through the `each` callback.
+    Along with the record, `each` receives a second callback, `proceed`;
+    the consumer calls it when it is ready for the next record, or with an
+    error to stop the read. `skip_to` makes the next read continue from the
+    given key. When the range is exhausted or the read has stopped, the
+    scan is closed and `done` is called with the outcome.
+    """
+
+    scan = store.scan(start, end)
+    var result_error: ?Exception = None
+    var finished = False
+
+    def skip_to(key: bytes) -> None:
+        scan.seek_ge(key)
+
+    def closed(error: ?Exception) -> None:
+        done(result_error if result_error is not None else error)
+
+    def finish(error: ?Exception) -> None:
+        if finished:
+            return
+        finished = True
+        result_error = error
+        scan.close(closed)
+
+    def proceed(error: ?Exception) -> None:
+        if error is not None:
+            finish(error)
+        else:
+            scan.next(got_record)
+
+    def got_record(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            finish(error)
+            return
+        if record is None:
+            finish(None)
+            return
+        each(record!, proceed)
+
+    scan.next(got_record)
 
 # Qualified path segments are encoded as:
 #   namespace-id byte + encoded local name
@@ -416,6 +481,30 @@ def to_attr_key(path: list[value], attr: str, qualifier: ?str=None, codec: ?KeyC
         key += QUALIFIER_SEPARATOR + _encode_text(qualifier)
     return key
 
+
+def next_prefix(raw: bytes) -> ?bytes:
+    """Return the first key after every key that starts with raw, e.g.
+    b"ab" -> b"ac"; None if there is none (raw is empty or all 0xff)."""
+    i = len(raw) - 1
+    while i >= 0:
+        if raw[i] < 0xff:
+            return raw[:i] + bytes([raw[i] + 1])
+        i -= 1
+    return None
+
+
+def attrs_range(path: list[value], codec: ?KeyCodec=None) -> (start: bytes, end: ?bytes):
+    """Return the range containing only attributes stored on path itself."""
+    start = to_key(path, codec) + ATTRIBUTE_SEPARATOR
+    return (start=start, end=next_prefix(start))
+
+
+def children_range(path: list[value], codec: ?KeyCodec=None) -> (start: bytes, end: ?bytes):
+    """Return the range containing every descendant below path."""
+    start = to_key(path, codec) + PATH_SEPARATOR
+    return (start=start, end=next_prefix(start))
+
+
 def _canonical_namespaces(namespaces: list[str]) -> list[str]:
     seen = set()
     res = []
@@ -593,27 +682,46 @@ def _parse_attr_key_bytes(key: bytes) -> (list[bytes], bytes, ?bytes):
         return path, attr_bytes, None
     return path, attr_bytes[:qual_pos], attr_bytes[qual_pos + len(QUALIFIER_SEPARATOR):]
 
-def parse_attr_key(key: bytes, codec: ?KeyCodec=None) -> (list[str], str, ?str):
+def _decode_segment_bytes(raw: bytes, codec: KeyCodec) -> str:
+    decoded_id = codec.decode_id(raw)
+    if decoded_id is not None:
+        return qualified_name(decoded_id)
+    if len(raw) == 0 or raw[0] != PLAIN_SEGMENT_ID[0]:
+        raise ValueError("Missing plain-string segment namespace id byte in TTT persistence key")
+    return _decode_text(raw[1:])
+
+
+def child_from_key(path: list[value], key: bytes, codec: KeyCodec) -> (name: str, next_key: bytes):
+    """Given the path to a parent node and a key stored somewhere below it,
+    find the child that the key belongs to.
+
+    Returns the child's name and the first key after the child's whole
+    subtree, so a reader can skip past it. For parent ttt/netinfra and key
+    ttt/netinfra/router/r1@output the child is "router" and next_key is
+    the first key after ttt/netinfra/router/..."""
+    path_bytes, _, _ = _parse_attr_key_bytes(key)
+    parent_bytes = [_encode_segment(segment, codec) for segment in path]
+    if len(path_bytes) <= len(parent_bytes) or path_bytes[:len(parent_bytes)] != parent_bytes:
+        raise ValueError("Persistence key is outside expected parent path: {key}")
+    child_bytes = path_bytes[len(parent_bytes)]
+    child_prefix = to_key(path, codec) + PATH_SEPARATOR + child_bytes
+    return (name=_decode_segment_bytes(child_bytes, codec), next_key=next_prefix(child_prefix + PATH_SEPARATOR)!)
+
+
+def parse_attr_key(key: bytes, codec: ?KeyCodec=None) -> (path: list[str], attr: str, qualifier: ?str):
     path_bytes, attr_bytes, qualifier_bytes = _parse_attr_key_bytes(key)
     codec1 = codec if codec is not None else KeyCodec([])
-    path = []
-    for segment_bytes in path_bytes:
-        decoded_id = codec1.decode_id(segment_bytes)
-        if decoded_id is not None:
-            path.append(qualified_name(decoded_id))
-        else:
-            if len(segment_bytes) == 0 or segment_bytes[0] != PLAIN_SEGMENT_ID[0]:
-                raise ValueError("Missing plain-string segment namespace id byte in TTT persistence key")
-            path.append(_decode_text(segment_bytes[1:]))
+    path = [_decode_segment_bytes(segment_bytes, codec1) for segment_bytes in path_bytes]
     if qualifier_bytes is None:
-        return path, _decode_text(attr_bytes), None
-    return path, _decode_text(attr_bytes), _decode_text(qualifier_bytes!)
+        return (path=path, attr=_decode_text(attr_bytes), qualifier=None)
+    return (path=path, attr=_decode_text(attr_bytes), qualifier=_decode_text(qualifier_bytes!))
 
 def format_key_debug(key: bytes, codec: ?KeyCodec=None) -> str:
     if key == META_KEY:
         return "ttt"
-    path, attr, qualifier = parse_attr_key(key, codec)
-    rendered = "ttt/" + "/".join([_format_text_debug(segment) for segment in path]) + "@" + _format_text_debug(attr)
+    parsed = parse_attr_key(key, codec)
+    rendered = "ttt/" + "/".join([_format_text_debug(segment) for segment in parsed.path]) + "@" + _format_text_debug(parsed.attr)
+    qualifier = parsed.qualifier
     if qualifier is not None:
         return rendered + "[" + _format_text_debug(qualifier) + "]"
     return rendered

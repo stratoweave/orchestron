@@ -2,9 +2,13 @@ ttt
 
 {"version":1,"namespaces":["urn:test:persistence"]}
 
-ttt/struct/items#urn:test:persistence/a@#keys
+ttt/struct/items#urn:test:persistence@keys[a]
 
 {"type":"Container","children":[{"id":{"q":"urn:test:persistence","name":"name"},"node":{"type":"Leaf","value":{"type":"str","value":"a"}}}]}
+
+ttt/struct/items#urn:test:persistence@keys[b]
+
+{"type":"Container","children":[{"id":{"q":"urn:test:persistence","name":"name"},"node":{"type":"Leaf","value":{"type":"str","value":"b"}}}]}
 
 ttt/struct/items#urn:test:persistence/a/value#urn:test:persistence@output
 
@@ -13,10 +17,6 @@ ttt/struct/items#urn:test:persistence/a/value#urn:test:persistence@output
 ttt/struct/items#urn:test:persistence/a/value#urn:test:persistence@running[_]
 
 {"type":"Leaf","value":{"type":"int","value":1}}
-
-ttt/struct/items#urn:test:persistence/b@#keys
-
-{"type":"Container","children":[{"id":{"q":"urn:test:persistence","name":"name"},"node":{"type":"Leaf","value":{"type":"str","value":"b"}}}]}
 
 ttt/struct/items#urn:test:persistence/b/value#urn:test:persistence@output
 
