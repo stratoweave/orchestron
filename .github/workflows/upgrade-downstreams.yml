@@ -1,0 +1,96 @@
+name: Upgrade downstream dependencies
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upgrade-downstream-dependencies
+  cancel-in-progress: true
+
+jobs:
+  upgrade:
+    name: Upgrade ${{ matrix.repository }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repository:
+          - stratoweave/sorespo
+          - stratoweave/netclics
+          - stratoweave/orchino
+    env:
+      DOWNSTREAM_TOKEN: ${{ secrets.STRATOWEAVE_DOWNSTREAM_TOKEN }}
+
+    steps:
+      - name: Check downstream token
+        if: env.DOWNSTREAM_TOKEN == ''
+        run: |
+          echo "Missing secret STRATOWEAVE_DOWNSTREAM_TOKEN"
+          echo "Create a fine-grained token with Contents and Pull requests write access to the downstream repositories."
+          exit 1
+
+      - uses: actonlang/setup-acton@v1
+        if: env.DOWNSTREAM_TOKEN != ''
+        with:
+          channel: tip
+
+      - name: Check out downstream repository
+        if: env.DOWNSTREAM_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository }}
+          ref: main
+          token: ${{ env.DOWNSTREAM_TOKEN }}
+          path: downstream
+
+      - name: Upgrade dependencies
+        if: env.DOWNSTREAM_TOKEN != ''
+        working-directory: downstream
+        env:
+          GITHUB_TOKEN: ${{ env.DOWNSTREAM_TOKEN }}
+        run: |
+          manifests=0
+          expected_url="https://github.com/stratoweave/stratoweave/archive/${GITHUB_SHA}.zip"
+          while IFS= read -r manifest; do
+            if grep -Eq 'repo_url[[:space:]]*=[[:space:]]*"https://github\.com/stratoweave/stratoweave(\.git)?"' "$manifest"; then
+              manifests=$((manifests + 1))
+              (
+                cd "$(dirname "$manifest")"
+                acton pkg upgrade
+              )
+              if ! grep -Fq "$expected_url" "$manifest"; then
+                echo "$manifest did not update to $expected_url"
+                exit 1
+              fi
+            fi
+          done < <(git ls-files '*Build.act')
+
+          if (( manifests == 0 )); then
+            echo "No Build.act dependency on stratoweave found"
+            exit 1
+          fi
+
+      - name: Create upgrade pull request
+        if: env.DOWNSTREAM_TOKEN != ''
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ env.DOWNSTREAM_TOKEN }}
+          path: downstream
+          base: main
+          branch: automation/upgrade-stratoweave
+          delete-branch: true
+          commit-message: Upgrade stratoweave dependency
+          title: Upgrade stratoweave dependency
+          body: |
+            Refreshes Acton package pins after stratoweave/stratoweave@${{ github.sha }} landed on main.
+
+            This pull request is updated in place when newer stratoweave changes land.
+          add-paths: |
+            Build.act
+            **/Build.act
