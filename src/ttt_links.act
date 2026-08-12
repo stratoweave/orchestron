@@ -120,7 +120,7 @@ def _collect_links(sn: schema.DNode, root: schema.DRoot, path_from_transform: li
                 link: ?Link = None
                 if isinstance(sn, schema.DLeaf):
                     # Leafref link: resolve from the leaf's compiled type
-                    leaf_type = sn.type_
+                    leaf_type = sn.type
                     if isinstance(leaf_type, schema.DTypeLeafref):
                         filter_path = xpath_to_spath(root, leaf_type.path, sn.module)
                         linked_input_path = _find_linked_transform(filter_path)
