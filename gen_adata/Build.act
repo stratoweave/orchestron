@@ -3,8 +3,8 @@ fingerprint = 0x7d1c1e932a731ef0
 dependencies = {
     "yang": (
         repo_url="https://github.com/stratoweave/acton-yang.git",
-        url="https://github.com/stratoweave/acton-yang/archive/d71016a3eb2b3a344287bdceaf424ea02e0f1d48.zip",
-        hash="N-V-__8AAGvNJgAzbhqqVATLR5TyP1w1fvW7gw68In9IbpEZ"
+        url="https://github.com/stratoweave/acton-yang/archive/d8d20ea812c7d75843dc44aa05ad97225df70df8.zip",
+        hash="N-V-__8AABj8JgD2jjfBCV3uHrzeIxH6lg9eMMK6yk372ykG"
     )
 }
 zig_dependencies = {}

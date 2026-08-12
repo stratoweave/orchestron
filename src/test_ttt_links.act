@@ -211,7 +211,7 @@ def _test_resolve_schema_path_leafref():
     sna_inner = _as_inner(sna_list_node)
     vpn_attachment = _as_inner(_find_child(sna_inner, "vpn-attachment"))
     vpn_id_source = _as_leaf(_find_child(vpn_attachment, "vpn-id"))
-    leafref_type = vpn_id_source.type_
+    leafref_type = vpn_id_source.type
     if isinstance(leafref_type, schema.DTypeLeafref):
         resolved = ttt_links.xpath_to_spath(y, leafref_type.path, vpn_id_source.module)
         testing.assertEqual(schema.get_path(resolved), "l3vpn-svc/vpn-services/vpn-service/vpn-id")

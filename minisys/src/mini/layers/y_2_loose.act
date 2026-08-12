@@ -22,8 +22,8 @@ SRC_DNODE_CHILD_0: DContainer = DContainer(module='stratoweave-device', namespac
     DList(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
             DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='device-config', arg=None, exts=[])
         ], children=[
-        DLeaf(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='name', config=True, mandatory=False, type_=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='modset_id', config=True, mandatory=False, type_=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+        DLeaf(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='modset_id', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
     ])
 ])
 
