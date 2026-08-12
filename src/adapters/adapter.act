@@ -314,7 +314,7 @@ class NoAdapter(DeviceAdapter):
         pass
 
     def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
-        pass
+        cb(None, NotConnectedError())
 
     def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         cb(None, NotConnectedError())

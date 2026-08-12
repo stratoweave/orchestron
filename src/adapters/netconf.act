@@ -1523,6 +1523,8 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         _log.debug("Device.rpc_xml", {"xml_rpc": xml_rpc})
         if client is not None:
             client.rpc(xml_rpc, rpc_reply)
+        else:
+            cb(None, NotConnectedError())
 
     def _build_subtree_filter(filt: ygdata.FNode) -> xml.Node:
         return xml.Node("filter", attributes=[("type", "subtree")], children=filt.to_filter_xml(deterministic=True))
