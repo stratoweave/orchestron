@@ -19,7 +19,7 @@ class GlobalSettings(base.GlobalSettings):
 
 actor RouterTransform(path: ttt.Path, update_dynstate: proc(?y_0.netinfra__netinfra__router__dynstate)->None, update_oper: proc(?y0_oper.netinfra__netinfra__router_entry)->None, lower_tree_provider: ?ygdata.TreeProvider):
     oper = base.Router.new_state(path)
-    _subs = ygdata.SubscriptionManager(ttt.expect(lower_tree_provider, "Missing lower tree provider for CFS router telemetry"), str(path))
+    _subs = ygdata.SubscriptionManager(lower_tree_provider!, str(path))
 
     def on_rfs_state(root: ?y1_oper.root, err: ?Exception, router_name: str):
         if err is not None:

@@ -584,7 +584,7 @@ actor _test_subscription_manager_declare(t: testing.EnvT):
 
         if phase == 1 and dt == mock_current_datetime_1 and not has_boot:
             phase = 2
-            ygdata.expect(mock_server, "mock server").set_oper_ds(_mock_oper_ds(mock_current_datetime_2, mock_boot_datetime))
+            mock_server!.set_oper_ds(_mock_oper_ds(mock_current_datetime_2, mock_boot_datetime))
             return
 
         if phase == 2 and dt == mock_current_datetime_2 and not has_boot:
@@ -593,20 +593,20 @@ actor _test_subscription_manager_declare(t: testing.EnvT):
 
     def declare_both():
         want = {
-            ygdata.expect(dst, "subscription destination").deliver({
+            dst!.deliver({
                 ygdata.SubscriptionSpec(_current_datetime_filter(), period=0.05),
                 ygdata.SubscriptionSpec(_boot_datetime_filter(), period=0.05),
             })
         }
-        ygdata.expect(subs, "subscription manager").declare(want)
+        subs!.declare(want)
 
     def declare_current_only():
         want = {
-            ygdata.expect(dst, "subscription destination").deliver({
+            dst!.deliver({
                 ygdata.SubscriptionSpec(_current_datetime_filter(), period=0.05)
             })
         }
-        ygdata.expect(subs, "subscription manager").declare(want)
+        subs!.declare(want)
 
     def start():
         adapter = dev.get_adapter()
@@ -615,7 +615,7 @@ actor _test_subscription_manager_declare(t: testing.EnvT):
             if ms0 is None:
                 fail("Expected NetconfMockServer from NetconfAdapter")
                 return
-            ms = ygdata.expect(ms0, "mock server")
+            ms = ms0!
             mock_server = ms
             ms.set_oper_ds(_mock_oper_ds(mock_current_datetime_1, mock_boot_datetime))
             dst = ygdata.Dst(on_update)
@@ -687,11 +687,11 @@ actor _test_subscription_manager_idempotent(t: testing.EnvT):
 
     def declare_current_only():
         want = {
-            ygdata.expect(dst, "subscription destination").deliver({
+            dst!.deliver({
                 ygdata.SubscriptionSpec(_current_datetime_filter(), period=0.05)
             })
         }
-        ygdata.expect(subs, "subscription manager").declare(want)
+        subs!.declare(want)
 
     def start():
         adapter = dev.get_adapter()
@@ -700,7 +700,7 @@ actor _test_subscription_manager_idempotent(t: testing.EnvT):
             if ms0 is None:
                 fail("Expected NetconfMockServer from NetconfAdapter")
                 return
-            ms = ygdata.expect(ms0, "mock server")
+            ms = ms0!
             ms.set_oper_ds(_mock_oper_ds(mock_current_datetime, mock_boot_datetime))
             dst = ygdata.Dst(on_update)
             subs = ygdata.SubscriptionManager(dev.tree_provider(), "test-subscription-manager-idempotent")

@@ -33,11 +33,6 @@ def qold_removed(n: str) -> gdata.Id:
 def qlive_removed(n: str) -> gdata.Id:
     return gdata.Id(REMOVED_NS_LIVE, n)
 
-def expect[T](t: ?T, errmsg: str) -> T:
-    if t is not None:
-        return t
-    raise ValueError(errmsg)
-
 def is_ttt_db_key(key: bytes) -> bool:
     return key == swdb.META_KEY or key.startswith(swdb.META_KEY + swdb.PATH_SEPARATOR)
 
@@ -47,7 +42,7 @@ def ttt_db_snapshot(read_txn: lmdb.ReadTransaction) -> str:
     lines = []
     kv = cursor.seek_prefix(b"ttt")
     while kv is not None:
-        entry = expect(kv, "Missing expected LMDB cursor entry")
+        entry = kv!
         if not is_ttt_db_key(entry.key):
             break
         lines.append(swdb.format_key_debug(entry.key, codec))
@@ -302,7 +297,7 @@ actor db_key_codec_escapes_reserved_bytes(t: testing.AsyncT):
     parsed = swdb.parse_attr_key(key)
     testing.assertEqual(parsed.0, path)
     testing.assertEqual(parsed.1, escaped_attr)
-    testing.assertEqual(expect(parsed.2, "Missing escaped qualifier"), escaped_src)
+    testing.assertEqual(parsed.2!, escaped_src)
     testing.assertEqual(key.find(swdb.ESCAPE) != -1, True)
     t.success()
 
@@ -313,7 +308,7 @@ actor db_key_codec_round_trips_qualified_segments(t: testing.AsyncT):
     parsed = swdb.parse_attr_key(key, codec)
     testing.assertEqual(parsed.0, ["qualified", swdb.qualified_name(qa_shift("branch")), "list-key", swdb.qualified_name(qb_shift("value"))])
     testing.assertEqual(parsed.1, swdb.ATTR_RUNNING)
-    testing.assertEqual(expect(parsed.2, "Missing expected running source"), "_")
+    testing.assertEqual(parsed.2!, "_")
     t.success()
 
 actor TransformWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: lmdb.Db, layer: ttt.Layer):
@@ -448,8 +443,8 @@ actor dbuffer_refreshes_on_lock_reconfigure(t: testing.EnvT):
         read_txn = db.begin_read()
         running_raw = read_txn.get(swdb.to_attr_key(["single"], swdb.ATTR_RUNNING, "_"))
         output_raw = read_txn.get(swdb.to_attr_key(["single"], swdb.ATTR_OUTPUT))
-        testing.assertEqual(expect(running_raw, "Missing buffered running record").decode(), overlap_expected_cfg.to_json_str(pretty=False))
-        testing.assertEqual(expect(output_raw, "Missing buffered output record").decode(), overlap_expected_cfg.to_json_str(pretty=False))
+        testing.assertEqual(running_raw!.decode(), overlap_expected_cfg.to_json_str(pretty=False))
+        testing.assertEqual(output_raw!.decode(), overlap_expected_cfg.to_json_str(pretty=False))
         await async read_txn.commit()
 
         tr.commit("1", True)
@@ -515,7 +510,7 @@ actor persist_transform_state_snapshot(t: testing.EnvT):
 
     def rootgen(path, lower):
         root = ttt.Transform(PersistDynstateTransform)(path, lower)
-        return expect(root, "Missing captured stateful transform root")
+        return root!
 
     def after_recompute(r: value) -> None:
         if not (isinstance(r, str) and r == "Ok"):
@@ -525,7 +520,7 @@ actor persist_transform_state_snapshot(t: testing.EnvT):
     def after_initial_commit(r: value) -> None:
         if not isinstance(r, str):
             raise AssertionError("Expected successful initial stateful completion, got {r}")
-        root1 = expect(root, "Missing captured stateful transform root")
+        root1 = root!
         root1.newtrans().restore(swdb.ATTR_DYNSTATE, None, gdata.Leaf(41).to_json_str(pretty=False).encode())
         ttt.Session("persist_stateful", root1, None, db).recompute(after_recompute)
 
@@ -672,7 +667,7 @@ actor restore_transform_dynstate_round_trip(t: testing.EnvT):
 
     def rootgen(path, lower):
         root = ttt.Transform(PersistDynstateTransform)(path, lower)
-        return expect(root, "Missing captured stateful transform root")
+        return root!
 
     def after_recommit(r: value) -> None:
         if not isinstance(r, str):
@@ -696,7 +691,7 @@ actor restore_transform_dynstate_round_trip(t: testing.EnvT):
     def after_initial_commit(r: value) -> None:
         if not isinstance(r, str):
             raise AssertionError("Expected successful initial dynstate completion, got {r}")
-        root1 = expect(root, "Missing captured stateful transform root")
+        root1 = root!
         root1.newtrans().restore(swdb.ATTR_DYNSTATE, None, gdata.Leaf(41).to_json_str(pretty=False).encode())
         ttt.Session("restore_stateful", root1, None, db).recompute(after_seed_recompute)
 

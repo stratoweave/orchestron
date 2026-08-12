@@ -188,7 +188,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
             state_classes.append(input_class)
             transform_actor_fq = transform.fqname + "Transform"
             transform_actor_ctor = transform.name + "TransformCtor"
-            transform_actor_handle = "ttt.expect(params.dev, \"Missing expected DeviceMgr param to {transform_actor_fq}.\")" if ext.name == "rfs-transform" else "params.lower_tree_provider"
+            transform_actor_handle = "params.dev!" if ext.name == "rfs-transform" else "params.lower_tree_provider"
             memory_conv = ", {memory_class}.from_gdata(m) if m is not None else None" if memory_class is not None else ""
 
             wrappers = ""

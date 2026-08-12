@@ -24,11 +24,6 @@ ATTR_MEMORY = "memory"
 ATTR_OUTPUT = "output"
 ATTR_RUNNING = "running"
 
-def expect[T](t: ?T, errmsg: str) -> T:
-    if t is not None:
-        return t
-    raise ValueError(errmsg)
-
 # Qualified path segments are encoded as:
 #   namespace-id byte + encoded local name
 # Plain string path segments use namespace-id byte 0. Qualified segments use a
@@ -80,7 +75,7 @@ class KeyCodec(object):
             self.namespace_indexes[namespace] = index1
             self.namespaces.append(namespace)
             return _namespace_byte(index1)
-        return _namespace_byte(expect(index, "Missing expected namespace index for {namespace}"))
+        return _namespace_byte(index!)
 
     def decode_id(self, raw: bytes) -> ?gdata.Id:
         if len(raw) == 0 or raw[0] == PLAIN_SEGMENT_ID[0]:
@@ -134,7 +129,7 @@ def del_op(path: list[value], attr: str, qualifier: ?str=None) -> BufferOp:
 
 def opt_ops(path: list[value], attr: str, node: ?gdata.Node, qualifier: ?str=None) -> list[BufferOp]:
     if node is not None:
-        return [put_op(path, attr, expect(node, "Missing expected node for DB buffer op"), qualifier)]
+        return [put_op(path, attr, node, qualifier)]
     return [del_op(path, attr, qualifier)]
 
 actor Buffer():
@@ -216,9 +211,9 @@ def _encode_segment(segment: value, codec: ?KeyCodec=None) -> bytes:
     if isinstance(segment, str):
         return PLAIN_SEGMENT_ID + _encode_text(segment)
     if isinstance(segment, gdata.Id):
-        if codec is None:
-            raise ValueError("Missing DB key codec for qualified persistence path segment {segment}")
-        return expect(codec, "Missing DB key codec for persistence path encoding").get_nsid_prefix(segment.q) + _encode_text(segment.name)
+        if codec is not None:
+            return codec.get_nsid_prefix(segment.q) + _encode_text(segment.name)
+        raise ValueError("Missing DB key codec for qualified persistence path segment {segment}")
     raise ValueError("Unsupported path component in persistence key: {type(segment)}")
 
 def to_key(path: list[value], codec: ?KeyCodec=None) -> bytes:
@@ -381,7 +376,7 @@ def _decode_namespaces(record: dict[str, ?value]) -> list[str]:
 def _key_codec_from_raw(raw: ?bytes) -> KeyCodec:
     if raw is None:
         return KeyCodec([])
-    record = _decode_record(expect(raw, "Missing persistence metadata bytes"))
+    record = _decode_record(raw!)
     version = record.get("version")
     if isinstance(version, int):
         if version != VERSION:
@@ -420,14 +415,14 @@ def parse_attr_key(key: bytes, codec: ?KeyCodec=None) -> (list[str], str, ?str):
     for segment_bytes in path_bytes:
         decoded_id = codec1.decode_id(segment_bytes)
         if decoded_id is not None:
-            path.append(qualified_name(expect(decoded_id, "Missing decoded Id persistence path segment")))
+            path.append(qualified_name(decoded_id))
         else:
             if len(segment_bytes) == 0 or segment_bytes[0] != PLAIN_SEGMENT_ID[0]:
                 raise ValueError("Missing plain-string segment namespace id byte in TTT persistence key")
             path.append(_decode_text(segment_bytes[1:]))
     if qualifier_bytes is None:
         return path, _decode_text(attr_bytes), None
-    return path, _decode_text(attr_bytes), _decode_text(expect(qualifier_bytes, "Missing persistence qualifier bytes"))
+    return path, _decode_text(attr_bytes), _decode_text(qualifier_bytes!)
 
 def format_key_debug(key: bytes, codec: ?KeyCodec=None) -> str:
     if key == META_KEY:

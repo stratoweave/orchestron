@@ -1749,8 +1749,9 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             _sub_schedule_next(spec)
 
         filt_xml = None
-        if st.spec.filt is not None:
-            filt_xml = _build_subtree_filter(ygdata.expect(st.spec.filt, "subscription filter"))
+        filt = st.spec.filt
+        if filt is not None:
+            filt_xml = _build_subtree_filter(filt)
         if client is not None:
             client.get(on_get, filt_xml)
         else:

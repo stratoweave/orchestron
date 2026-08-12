@@ -29,11 +29,6 @@ def _sanitize_ident(name: str) -> str:
         res = "dev_" + res
     return res
 
-def expect[T](a: ?T, msg: str) -> T:
-    if a is not None:
-        return a
-    raise ValueError(msg)
-
 def device_config_adata_snapshot(dev_registry: swdev.DeviceRegistry, dev_types: ?dict[str, swdev.DeviceType]=None) -> str:
     names = sorted([n for n in dev_registry.list()])
     parts = []
@@ -42,7 +37,7 @@ def device_config_adata_snapshot(dev_registry: swdev.DeviceRegistry, dev_types: 
         conf_opt = dev.get_running_conf()
         if conf_opt is None:
             conf_opt = dev.get_target_conf()
-        conf = expect(conf_opt, f"Missing device config for {name}")
+        conf = conf_opt!
 
         schema_opt = dev.get_fetched_schema()
         if schema_opt is None and dev_types is not None:
@@ -58,7 +53,7 @@ def device_config_adata_snapshot(dev_registry: swdev.DeviceRegistry, dev_types: 
                     schema_opt = dev_type.bundled_schema.src_dnode
         if schema_opt is None:
             schema_opt = dev.get_bundled_schema().src_dnode
-        schema = expect(schema_opt, f"Missing schema for {name}")
+        schema = schema_opt!
 
         self_name = _sanitize_ident(name)
         adata = ydata.pradata(schema, conf, self_name=self_name, loose=True)
