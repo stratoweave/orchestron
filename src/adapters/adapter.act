@@ -65,6 +65,13 @@ class TxidMismatchError(TransientError):
     """The device's txid doesn't match the expected txid, configuration drift detected
     """
 
+class RpcError(PermanentError):
+    """The device rejected an RPC with one or more rpc-error replies
+
+    Retrying the same RPC typically does not help; the message carries the
+    device's rpc-error summary.
+    """
+
 class ConfigError(PermanentError):
     """Configuration error, i.e. the device rejected the configuration
 
