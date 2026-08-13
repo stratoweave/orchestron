@@ -17,6 +17,13 @@ class GlobalSettings(base.GlobalSettings):
         o = base.o_root()
         return o
 
+
+class PContainer(base.PContainer):
+    def transform(self, i):
+        o = base.o_root()
+        return o
+
+
 actor RouterTransform(path: ttt.Path, update_dynstate: proc(?y_0.netinfra__netinfra__router__dynstate)->None, update_oper: proc(?y0_oper.netinfra__netinfra__router_entry)->None, lower_tree_provider: ?ygdata.TreeProvider):
     oper = base.Router.new_state(path)
     _subs = ygdata.SubscriptionManager(lower_tree_provider!, str(path))
@@ -28,7 +35,7 @@ actor RouterTransform(path: ttt.Path, update_dynstate: proc(?y_0.netinfra__netin
 
         r = root!.rfs.get(router_name)
         if r is not None:
-            oper.state.current_datetime = r.base_config.state.current_datetime
+            oper.state.current_datetime = r.base_config?.state.current_datetime
         update_oper(oper)
 
     def subscribe(router_name: str):

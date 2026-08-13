@@ -110,6 +110,9 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
         if is_list:
             input_class += "_entry"
         input_classes.append(input_class)
+        # Force unwrap P-container transform point (from_gdata returns ?T). TTT
+        # only calls transform_wrapper when its input subtree exists so this will always unwrap.
+        bang = "!" if isinstance(sn, schema.DContainer) and sn.presence else ""
         memory_class = None
         dynstate_class = None
         for child in sn.children:
@@ -167,7 +170,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
     @staticmethod
     def new_state(path: ttt.Path):
         \"\"\"Create modeled operational state for this transform path\"\"\"
-        return {input_class}__oper.from_gdata(ttt.path_key_data(path))
+        return {input_class}__oper.from_gdata(ttt.path_key_data(path)){bang}
 """
         if dynstate_class is not None:
             wrapper_extra_params += ", modeled_dynstate"
@@ -209,7 +212,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
             actor_args_s = ", ".join(actor_args)
             act_defs.append("""def {transform_actor_ctor}(params: ttt.TransformActorParams) -> ?proc(ygdata.Node, ?ygdata.Node) -> None:
 {wrappers}    act = {transform_actor_fq}({actor_args_s})
-    return proc lambda c, m: act.on_conf({input_class}.from_gdata(c){memory_conv})
+    return proc lambda c, m: act.on_conf({input_class}.from_gdata(c){bang}{memory_conv})
 """)
         else:
             transform_actor_ctor = "None"
@@ -236,7 +239,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
         \"\"\"Wrap the user provided transform method to convert from gdata to
         modeled input and back to gdata
         \"\"\"
-        modeled_input = {input_class}.from_gdata(i){wrapper_extra_models}
+        modeled_input = {input_class}.from_gdata(i){bang}{wrapper_extra_models}
         {wrapper_return}
 
     mut def transform_xml(self, i: xml.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
@@ -244,7 +247,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
         modeled input and return gdata
         \"\"\"
         gdata_input = yxml.from_xml(SRC_DNODE, i, loose=False, root_path={deserializer})
-        modeled_input = {input_class}.from_gdata(gdata_input){wrapper_extra_models}
+        modeled_input = {input_class}.from_gdata(gdata_input){bang}{wrapper_extra_models}
         {wrapper_return}
 """)
             if isinstance(sn, schema.DList):
@@ -261,7 +264,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
         \"\"\"Wrap the user provided transform method to convert from gdata to
         modeled input and back to gdata
         \"\"\"
-        modeled_input = {input_class}.from_gdata(i){wrapper_extra_models}
+        modeled_input = {input_class}.from_gdata(i){bang}{wrapper_extra_models}
         {wrapper_return}
 
     mut def transform_xml(self, i: xml.Node, device_info: ttt.DeviceInfo, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
@@ -269,7 +272,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
         modeled input and return gdata
         \"\"\"
         gdata_input = yxml.from_xml(SRC_DNODE, i, loose=True, root_path={deserializer})
-        modeled_input = {input_class}.from_gdata(gdata_input){wrapper_extra_models}
+        modeled_input = {input_class}.from_gdata(gdata_input){bang}{wrapper_extra_models}
         {wrapper_return}
 """)
             if isinstance(sn, schema.DList):

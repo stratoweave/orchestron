@@ -12,6 +12,7 @@ import yang.xml as yxml
 from respnet.layers.y_1 import stratoweave_rfs__rfs__backbone_interface_entry
 from respnet.layers.y_1 import stratoweave_rfs__rfs__backbone_interface__dynstate
 from respnet.layers.y_1 import stratoweave_rfs__rfs__backbone_interface__memory
+from respnet.layers.y_1 import stratoweave_rfs__rfs__some_config
 from respnet.layers.y_1 import SRC_DNODE
 from  import root as output_root
 
@@ -54,3 +55,28 @@ class BBInterface(ttt.RFSFunction):
 
         output, new_memory = self.transform(modeled_input, device_info, modeled_memory, modeled_dynstate)
         return output.to_gdata(), new_memory.to_gdata() if new_memory is not None else None
+
+class SomeConfig(ttt.RFSFunction):
+    transform: mut(stratoweave_rfs__rfs__some_config, ttt.DeviceInfo) -> yadata.MNode
+
+    @staticmethod
+    def input_type():
+        """Return the modeled input type for this transform"""
+        return stratoweave_rfs__rfs__some_config
+
+    mut def transform_wrapper(self, i: ygdata.Node, device_info: ttt.DeviceInfo, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from gdata to
+        modeled input and back to gdata
+        """
+        modeled_input = stratoweave_rfs__rfs__some_config.from_gdata(i)!
+
+        return self.transform(modeled_input, device_info).to_gdata(), None
+
+    mut def transform_xml(self, i: xml.Node, device_info: ttt.DeviceInfo, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from XML to
+        modeled input and return gdata
+        """
+        gdata_input = yxml.from_xml(SRC_DNODE, i, loose=True, root_path=['stratoweave-rfs:rfs', 'foo:some-config'])
+        modeled_input = stratoweave_rfs__rfs__some_config.from_gdata(gdata_input)!
+
+        return self.transform(modeled_input, device_info).to_gdata(), None
