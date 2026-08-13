@@ -281,3 +281,62 @@ actor _test_redundant_config(t: testing.AsyncT):
         t.success()
 
     sess.edit_config(cfg5, cont)
+
+########################
+
+# A transform's link demands are declared with build_links; the subscriber
+# reads the publisher's state through the `linked` argument. PeerReader
+# publishes what it saw: if the link never delivered, there is no peer value
+# to output.
+class PeerReader(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        peer = 0
+        if isinstance(linked, gdata.Container) and q("pub") in linked.children:
+            pubtree = linked.children[q("pub")]
+            if isinstance(pubtree, gdata.Container):
+                peer = pubtree.get_int(q("v"))
+        return gdata.Container({q("got"): gdata.Leaf(peer)}), None
+
+def _peer_links(conf: gdata.Node) -> list[ttt.TaggedPath]:
+    return [ttt.TaggedPath("peer", gdata.FNode(q("pub")))]
+
+# A layer's transforms must run to COMPLETION — including linkage — before
+# the next layer down is evaluated. A transform with outstanding link
+# requests does not compute at all (configure skips compute while requests
+# are pending), so its output only exists once the layer's linkage loop has
+# delivered the linked data and re-entered it. If the layer applies its
+# output to the lower layer before that, the lower layer evaluates a
+# fabricated intermediate state that its upper layer never emitted.
+#
+# The minimal case: the middle layer holds a publisher (pub) and a
+# subscriber (sub) linked to it. The top layer just passes config through —
+# it exists so the linked pair sits BELOW the session's entry layer,
+# exercising linkage on a layer that only apply() can settle.
+actor lower_layer_linkage(t: testing.AsyncT):
+    stack = ttt.Layer("top", ttt.Transform(ttt.PassThrough),
+            ttt.Layer("low", ttt.Container({
+                q("pub"): ttt.Transform(ttt.PassThrough),
+                q("sub"): ttt.Transform(PeerReader, None, _peer_links)
+            }), ttt.Sink()))
+
+    sess = stack.newsession()
+
+    cfg = gdata.Container({
+        q("pub"): gdata.Container({q("v"): gdata.Leaf(1)}),
+        q("sub"): gdata.Container({q("w"): gdata.Leaf(2)})
+    })
+
+    # pub passes its config through; sub outputs the peer value the link
+    # delivered. The sink merges both transforms' outputs.
+    expected = gdata.Container({
+        q("v"): gdata.Leaf(1),
+        q("got"): gdata.Leaf(1)
+    })
+
+    def cont1(_r: value):
+        r = sess.below().below().get()
+        if r != expected:
+            testing.assertEqual(r.prsrc(), expected.prsrc())
+        t.success()
+
+    sess.edit_config(cfg, cont1)
