@@ -579,3 +579,38 @@ actor spurious_config(t: testing.AsyncT):
 
 
 ########################
+
+# A transaction can configure the same node several times before locking:
+# late transform output — resolved links, a rebase under lock after a
+# competing commit — makes the Session re-apply, so a container configured
+# by source A earlier in the transaction can see a later reconfigure arrive
+# with nothing for it: an empty diff, without force.
+# _ListTransaction.configure calls this a refresh: every element already
+# configured in the transaction but not mentioned by the current diff gets
+# configure(tid, {}).
+#
+# The refresh answer matters because the list treats empty=True as "this
+# element's configuration is gone": at commit it deletes the element and
+# stages a delete of its on-disk index record. So an empty refresh must
+# report the emptiness the transaction has accumulated so far.
+actor empty_refresh(t: testing.AsyncT):
+    container = ttt.Container({
+        q('left'): ttt.Transform(ttt.PassThrough)
+    })(ttt.PathRoot("0:"), None)
+    t1 = container.newtrans()
+
+    r1 = t1.configure("1", {'srcA': gdata.Container({q('left'): gdata.Leaf(1)})}, None)
+    testing.assertEqual(r1.empty, False, "configured container must not be empty")
+
+    # A later reconfigure has nothing for this container. Its configuration
+    # is still what the earlier configure made it: non-empty.
+    r2 = t1.configure("1", {}, None)
+    testing.assertEqual(r2.empty, False, "empty refresh must report the accumulated state")
+
+    # The mirror case: srcA explicitly clears its config. A refresh must now
+    # keep reporting empty=True — the configuration really is gone.
+    r3 = t1.configure("1", {'srcA': gdata.Absent({})}, None)
+    testing.assertEqual(r3.empty, True, "explicitly cleared container must be empty")
+    r4 = t1.configure("1", {}, None)
+    testing.assertEqual(r4.empty, True, "empty refresh must report accumulated emptiness too")
+    t.success()
