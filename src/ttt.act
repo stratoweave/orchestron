@@ -841,11 +841,6 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         configure(tid, {'_': diff})
         res = apply(tid, force)
         #print('   #', tid, '(Layer)', name, 'EDIT_CONFIG', 'PREP RESULT', res, err=True)
-        while res.requests or res.updates:
-            #print('----', tid, '(Layer)', name, 'LINKAGE', len(res.requests), len(res.updates), err=True)
-            #for r in res.requests: print('    ', r, err=True)
-            #for u in res.updates: print('    ', u, err=True)
-            res = root.linkage(tid, res.requests, res.updates, lower, dbuf)
         if not res.errors:
             done_cont = done
             comp_cont = complete
@@ -889,6 +884,11 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?lmdb.Db, dbuf_
         buf = {}
         #print('   #', tid, '(Layer)', name, 'APPLY\n' + per_src(diff), err=True)
         res = root.configure(tid, diff, lower, force, dbuf)
+        while res.requests or res.updates:
+            #print('----', tid, '(Layer)', name, 'LINKAGE', len(res.requests), len(res.updates), err=True)
+            #for r in res.requests: print('    ', r, err=True)
+            #for u in res.updates: print('    ', u, err=True)
+            res = root.linkage(tid, res.requests, res.updates, lower, dbuf)
         #print('   #', tid, '(Layer)', name, 'APPLY RESULT', res, err=True)
         if not res.errors and lower is not None:
             lowres = lower.apply(tid, force=False)
