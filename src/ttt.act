@@ -1194,7 +1194,18 @@ class _ContainerTransaction(_Transaction):
         for k in set(diff_by_child.keys()) - set(self.elems.keys()) - set([WILDID]):
             del diff_by_child[k]
 
-        if len(diff_by_child) == 0 and force:
+        if len(diff_by_child) == 0:
+            if not force:
+                # An empty diff without force is a refresh: nothing changes
+                # for any child, so the answer comes from the results
+                # accumulated so far. The normal path below only sees the
+                # children named in the diff - here none - so it would report
+                # even a fully configured container as empty, and a list
+                # deletes elements that report empty.
+                empty = True
+                for r in self.accum.values():
+                    empty = empty and r.empty
+                return CfgResult(empty, [], [], [])
             for k in self.elems.keys():
                 diff_by_child[k] = {}
         elif WILDID in diff_by_child:
