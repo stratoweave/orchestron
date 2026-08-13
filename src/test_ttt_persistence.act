@@ -725,6 +725,44 @@ actor restore_structural_list_round_trip(t: testing.EnvT):
     restored.edit_config(struct_tree, after_initial_commit)
 
 
+actor restore_survives_forced_recompute(t: testing.EnvT):
+    # A forced recompute (as StartupBootstrap runs after every restore) must
+    # preserve each list element's #keys index record. Regression: db_ops used
+    # to delete every element's record when the refresh recomputed no leaves,
+    # so the next restore lost the list.
+    fc = file.FileCap(t.env.cap)
+    fs = file.FS(fc)
+    db_path = fs.mktmpdir("test_ttt_recompute_survive_")
+    cap = file.WriteFileCap(fc)
+    var db = lmdb.Db(cap, db_path)
+    var restored = ttt.Layer("struct", struct_root, None, db)
+
+    def after_second_restore() -> None:
+        testing.assertEqual(restored.get(), struct_tree)
+        await async db.close()
+        await async fs.rmtree(db_path)
+        await async fs.rmdir(db_path)
+        t.success()
+
+    def after_recompute(result: value) -> None:
+        if isinstance(result, Exception):
+            raise result
+        await async db.close()
+        db = lmdb.Db(cap, db_path)
+        restored = ttt.Layer("struct", struct_root, None, db)
+        await async restored.load_from_db()
+        after_second_restore()
+
+    def after_initial_commit(_r: value) -> None:
+        await async db.close()
+        db = lmdb.Db(cap, db_path)
+        restored = ttt.Layer("struct", struct_root, None, db)
+        await async restored.load_from_db()
+        restored.newsession().recompute(after_recompute, force=True)
+
+    restored.edit_config(struct_tree, after_initial_commit)
+
+
 actor restore_structural_list_delete_round_trip(t: testing.EnvT):
     fc = file.FileCap(t.env.cap)
     fs = file.FS(fc)

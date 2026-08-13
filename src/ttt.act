@@ -1447,15 +1447,19 @@ class _ListTransaction(_Transaction):
         return res
 
     def db_ops(self, leaves_by_key) -> list[swdb.BufferOp]:
-
-        def op(key, res):
+        # A list element's key leaves are immutable for its lifetime, so its
+        # #keys record is written once at creation and deleted at removal.
+        # A configure that only refreshes an existing element (force recompute,
+        # wildcard) recomputes no leaves for it; emitting no op leaves the
+        # existing record intact rather than deleting the element's index entry.
+        ops = []
+        for key, res in self.accum.items():
             path = _db_path(self.path) + [key]
-            if not res.errors and not res.empty and key in leaves_by_key:
-                return swdb.put_op(path, swdb.ATTR_KEYS, gdata.Container(leaves_by_key[key]))
-            else:
-                return swdb.del_op(path, swdb.ATTR_KEYS)
-
-        return [ op(key,res) for key, res in self.accum.items() ]
+            if res.empty:
+                ops.append(swdb.del_op(path, swdb.ATTR_KEYS))
+            elif not res.errors and key in leaves_by_key:
+                ops.append(swdb.put_op(path, swdb.ATTR_KEYS, gdata.Container(leaves_by_key[key])))
+        return ops
 
     def _analyze(self, results: dict[str,CfgResult]):
         self.accum.update(results.items())
