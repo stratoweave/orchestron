@@ -140,6 +140,23 @@ class LinkUpdate():
                "\n            config=" + self.config.prsrc() + ")"
 
 class CfgResult():
+    """Result of one transaction operation (configure/linkage/lock) on a subtree.
+
+    empty means committing the transaction would leave this subtree with no
+    configuration. A transform is empty when the transaction's changes so
+    far, applied on top of its running config, leave nothing; a container or
+    list is empty when all of its children are. Lists act on the flag at
+    commit: an element whose result is empty is deleted, together with its
+    on-disk index record. (The nodes' is_empty() is different: it reports
+    the state a node already holds.)
+
+    requests are emitted by transforms that want to read another transform's
+    state, and updates carry that state from publisher to subscriber; the
+    linkage loop routes both until none remain.
+
+    errors collects transform failures. A transaction with errors is aborted
+    rather than committed.
+    """
     empty: bool
     requests: list[LinkRequest]
     updates: list[LinkUpdate]
