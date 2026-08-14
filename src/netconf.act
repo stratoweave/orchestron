@@ -80,6 +80,17 @@ class NetconfError(Exception):
         return "{self._name()}({repr(self.error_message)}, {repr(self.rpc_error)})"
 
 
+class MalformedRpcError(NetconfError):
+    pass
+
+
+def required_text(child: xml.Node, field: str) -> str:
+    text = child.text
+    if text is not None:
+        return text
+    raise MalformedRpcError("rpc-error missing expected {field}", None)
+
+
 class RpcError(object):
     # RFC 6241 rpc-error fields
     error_type: str         # transport/rpc/protocol/application
@@ -105,11 +116,11 @@ class RpcError(object):
         # Parse the XML into well-known attributes
         for child in xml_node.children:
             if child.tag == "error-type":
-                self.error_type = child.text!
+                self.error_type = required_text(child, "error-type")
             elif child.tag == "error-tag":
-                self.error_tag = child.text!
+                self.error_tag = required_text(child, "error-tag")
             elif child.tag == "error-severity":
-                self.error_severity = child.text!
+                self.error_severity = required_text(child, "error-severity")
             elif child.tag == "error-app-tag":
                 self.error_app_tag = child.text
             elif child.tag == "error-path":
