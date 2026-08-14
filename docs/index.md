@@ -1,6 +1,6 @@
 ---
 template: redirect.html
-location: get-started/
+location: introduction/
 ---
 
 # Documentation

@@ -9,7 +9,7 @@ Copyright &copy; 2026 StratoWeave Project &copy; 2026 The Linux Foundation&trade
 """
 
 nav = [
-  { "Get started" = [
+  { "Introduction" = [
         "introduction/index.md",
     ]},
   { "Developer" = [
