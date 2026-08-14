@@ -1,12 +1,6 @@
 import std.xml as xml
 from netconf.fixups.base import Fixup
 
-def unwrap[T](a: ?T, msg: ?str=None) -> T:
-    if a is not None:
-        return a
-    errmsg = msg if msg is not None else "Expected non-None value"
-    raise ValueError(errmsg)
-
 
 # Prototype for xml navigation TODO: Upstream to xml module!?
 protocol XmlNav:
