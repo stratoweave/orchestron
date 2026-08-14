@@ -1909,7 +1909,7 @@ class _TransformTransactionBase(_Transaction):
     pending: list[(Transaction, str, ?Session, action(CfgResult)->None, ?swdb.Buffer)]
 
     linked: gdata.Node                                          # Active linked cfg tree per link tag
-    candidate_linked: dict[str, gdata.Node]                     # As above, per ongoing transaction
+    candidate_link_updates: dict[str, list[LinkUpdate]]         # Link updates received, per ongoing transaction
     subscriptions: list[TaggedPath]                             # Active linked data publishers (with tag)
     candidate_subscriptions: dict[str, list[TaggedPath]]        # As above, per ongoing transaction
     subscribers: list[TaggedPath]                               # Active linked data subscribers (with tag)
@@ -1937,7 +1937,7 @@ class _TransformTransactionBase(_Transaction):
         self.locker = None
         self.pending = []
         self.linked = gdata.Container()
-        self.candidate_linked = {}
+        self.candidate_link_updates = {}
         self.subscriptions = []
         self.candidate_subscriptions = {}
         self.subscribers = []
@@ -1981,7 +1981,7 @@ class _TransformTransactionBase(_Transaction):
                 req = self.link_requests(tid, merged)
                 upd = self.link_updates(tid, merged)
                 if not req:
-                    linked = self.candidate_linked.get_def(tid, self.linked)
+                    linked = self.linked_for(tid)
                     outmem = self.compute(tid, merged, linked, out)
                     self.essays[tid] = outmem
                     newout = outmem.0
@@ -1998,7 +1998,6 @@ class _TransformTransactionBase(_Transaction):
         req = []
         build_links = self.build_links
         if build_links is not None:
-            cand_linked = self.candidate_linked.get_def(tid, self.linked)
             cand_subs = self.candidate_subscriptions.get_def(tid, self.subscriptions)
             latest_subs = build_links(merged)
             for s in latest_subs:
@@ -2007,11 +2006,29 @@ class _TransformTransactionBase(_Transaction):
             for s in cand_subs:
                 if s not in latest_subs:
                     req.append(LinkRequest(s.tag, s.path, self.route_fpath, False))
-                    cand_linked = prune(cand_linked, s.path)
             self.candidate_subscriptions[tid] = latest_subs
-            self.candidate_linked[tid] = cand_linked
         #print('####', tid, '(Transform)', _format_path(self.path), 'link_requests:', len(req), err=True)
         return req
+
+    # The linked tree a transaction computes with is derived on use from the
+    # committed base: subscriptions dropped by the transaction are pruned, and
+    # the updates it has received are applied on top, each one replacing the
+    # publisher's subtree since a publisher resends its full state on every
+    # change. Updates from publishers outside the transaction's subscription
+    # view are ignored. Deriving late rather than snapshotting keeps a
+    # transaction correct when a concurrent commit replaces the committed base
+    # after updates were received: the lock-time re-configure then recomputes
+    # against the new base with the received updates still in effect.
+    def linked_for(self, tid):
+        subscriptions = self.candidate_subscriptions.get_def(tid, self.subscriptions)
+        linked = self.linked
+        for s in self.subscriptions:
+            if s not in subscriptions:
+                linked = prune(linked, s.path)
+        for u in self.candidate_link_updates.get_def(tid, []):
+            if TaggedPath(u.tag, u.publisher) in subscriptions:
+                linked = gdata.merge(prune(linked, u.publisher), u.config)
+        return linked
 
     def link_updates(self, tid, merged):
         cand_subscribers = self.candidate_subscribers.get_def(tid, self.subscribers)
@@ -2055,15 +2072,8 @@ class _TransformTransactionBase(_Transaction):
                 return CfgOk(empty = not self.running, updates=upd)
         ###
         if updates:
-            linked = self.candidate_linked.get_def(tid, self.linked)
-            subscriptions = self.candidate_subscriptions.get_def(tid, self.subscriptions)
-            for u in updates:
-                if TaggedPath(u.tag, u.publisher) in subscriptions:
-                    # The publisher resends its full state on every change, so
-                    # prune the existing config subtree at its path and merge the new one
-                    linked = gdata.merge(prune(linked, u.publisher), u.config)
-            self.candidate_linked[tid] = linked
-        return self.configure(tid, {}, out, dbuf)
+            self.candidate_link_updates[tid] = self.candidate_link_updates.get_def(tid, []) + updates
+        return self.configure(tid, {}, out, True, dbuf)
 
     # yield action
     def lock(self, actself, tid, out: ?Session, done, dbuf: ?swdb.Buffer=None):          # yield await
@@ -2123,7 +2133,8 @@ class _TransformTransactionBase(_Transaction):
         self.diffs.pop_def(tid, {})
         candidate = self.candidates.pop_def(tid, {})
         essay = self.essays.pop_def(tid, (None, None))
-        linked = self.candidate_linked.pop_def(tid, self.linked)
+        linked = self.linked_for(tid)
+        self.candidate_link_updates.pop_def(tid, [])
         subscriptions = self.candidate_subscriptions.pop_def(tid, self.subscriptions)
         subscribers = self.candidate_subscribers.pop_def(tid, self.subscribers)
         if tid == self.locker:
