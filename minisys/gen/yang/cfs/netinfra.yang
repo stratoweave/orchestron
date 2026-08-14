@@ -58,4 +58,9 @@ module netinfra {
     }
 
   }
+  // This transform does nothing, just used for testing transform point in P-container
+  container p-container {
+    presence maybe;
+    sw:transform mini.cfs.PContainer;
+  }
 }

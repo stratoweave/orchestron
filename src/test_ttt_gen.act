@@ -123,6 +123,10 @@ ys_rfs = r"""module foo {
         }
       }
     }
+    container some-config {
+      presence "maybe";
+      sw:rfs-transform respnet.rfs.SomeConfig;
+    }
   }
 }
 """

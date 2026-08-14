@@ -12,6 +12,7 @@ import yang.xml as yxml
 from mini.layers.y_0 import netinfra__netinfra__global_settings
 from mini.layers.y_0 import netinfra__netinfra__router_entry
 from mini.layers.y_0 import netinfra__netinfra__router__dynstate
+from mini.layers.y_0 import netinfra__p_container
 from mini.layers.y_0 import l3vpn__l3vpn_entry
 from mini.layers.y_0_oper import netinfra__netinfra__router_entry as netinfra__netinfra__router_entry__oper
 from mini.layers.y_0 import SRC_DNODE
@@ -87,6 +88,31 @@ class Router(ttt.TransformFunction):
         modeled_dynstate = netinfra__netinfra__router__dynstate.from_gdata(dynstate) if dynstate is not None else None
 
         return self.transform(modeled_input, linked, modeled_dynstate).to_gdata(), None
+
+class PContainer(ttt.TransformFunction):
+    transform: mut(netinfra__p_container) -> yadata.MNode
+
+    @staticmethod
+    def input_type():
+        """Return the modeled input type for this transform"""
+        return netinfra__p_container
+
+    mut def transform_wrapper(self, i: ygdata.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from gdata to
+        modeled input and back to gdata
+        """
+        modeled_input = netinfra__p_container.from_gdata(i)!
+
+        return self.transform(modeled_input).to_gdata(), None
+
+    mut def transform_xml(self, i: xml.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from XML to
+        modeled input and return gdata
+        """
+        gdata_input = yxml.from_xml(SRC_DNODE, i, loose=False, root_path=['netinfra:p-container'])
+        modeled_input = netinfra__p_container.from_gdata(gdata_input)!
+
+        return self.transform(modeled_input).to_gdata(), None
 
 class L3vpn(ttt.TransformFunction):
     transform: mut(l3vpn__l3vpn_entry, linked: ygdata.Node) -> yadata.MNode

@@ -44,7 +44,11 @@ SRC_DNODE_CHILD_0: DContainer = DContainer(module='netinfra', namespace='http://
     ])
 ])
 
-SRC_DNODE_CHILD_1: DList = DList(module='l3vpn', namespace='http://example.com/l3vpn', prefix='l3vpn', name='l3vpn', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+SRC_DNODE_CHILD_1: DContainer = DContainer(module='netinfra', namespace='http://example.com/netinfra', prefix='netinfra', name='p-container', config=True, presence=True, exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.PContainer', exts=[])
+    ])
+
+SRC_DNODE_CHILD_2: DList = DList(module='l3vpn', namespace='http://example.com/l3vpn', prefix='l3vpn', name='l3vpn', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='mini.cfs.L3vpn', exts=[]),
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='global', exts=[DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='path', arg='/netinfra:netinfra/netinfra:global-settings', exts=[])])
     ], children=[
@@ -73,7 +77,7 @@ SRC_DNODE_CHILD_1: DList = DList(module='l3vpn', namespace='http://example.com/l
 ])
 
 SRC_DNODE: DRoot = DRoot(
-    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_1],
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2],
     identities=[],
     rpcs=[],
     module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://example.com/netinfra':('netinfra', '2019-01-01'), 'http://example.com/l3vpn':('l3vpn', '2019-01-01')},
@@ -246,6 +250,11 @@ SRC_YANG_1: str = r"""module netinfra {
       }
     }
 
+  }
+  // This transform does nothing, just used for testing transform point in P-container
+  container p-container {
+    presence maybe;
+    sw:transform mini.cfs.PContainer;
   }
 }
 """
@@ -938,6 +947,29 @@ class netinfra__netinfra(yadata.MNode):
 
 
 _breaker7: None = None
+class netinfra__p_container(yadata.MNode):
+
+    mut def __init__(self) -> None:
+        pass
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['netinfra:p-container'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> ?netinfra__p_container:
+        if n is not None:
+            return netinfra__p_container()
+        return None
+
+    mut def copy(self) -> netinfra__p_container:
+        """Create a deep copy of this adata object"""
+        ad = netinfra__p_container.from_gdata(self.to_gdata())
+        if ad is not None:
+            return ad
+        raise Exception('Unreachable in netinfra__p_container.copy()')
+
+
+_breaker8: None = None
 class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
     device: str
     interface_name: str
@@ -971,7 +1003,7 @@ class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return l3vpn__l3vpn__endpoint_entry.from_gdata(self.to_gdata())
 
-_breaker8: None = None
+_breaker9: None = None
 class l3vpn__l3vpn__endpoint(yadata.MKeyedList[(device: str, interface_name: str), l3vpn__l3vpn__endpoint_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn__endpoint_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e: (e.device, e.interface_name), elements)
@@ -1016,7 +1048,7 @@ class l3vpn__l3vpn__endpoint(yadata.MKeyedList[(device: str, interface_name: str
         return l3vpn__l3vpn__endpoint(elements=copied_elements)
 
 
-_breaker9: None = None
+_breaker10: None = None
 class l3vpn__l3vpn_entry(yadata.MNode):
     name: str
     customer_name: ?str
@@ -1046,7 +1078,7 @@ class l3vpn__l3vpn_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return l3vpn__l3vpn_entry.from_gdata(self.to_gdata())
 
-_breaker10: None = None
+_breaker11: None = None
 class l3vpn__l3vpn(yadata.MKeyedList[str, l3vpn__l3vpn_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
@@ -1087,14 +1119,24 @@ class l3vpn__l3vpn(yadata.MKeyedList[str, l3vpn__l3vpn_entry]):
         return l3vpn__l3vpn(elements=copied_elements)
 
 
-_breaker11: None = None
+_breaker12: None = None
 class root(yadata.MNode):
     netinfra: netinfra__netinfra
+    p_container: ?netinfra__p_container
     l3vpn: l3vpn__l3vpn
 
-    mut def __init__(self, netinfra: ?netinfra__netinfra=None, l3vpn: list[l3vpn__l3vpn_entry]=[]) -> None:
+    mut def __init__(self, netinfra: ?netinfra__netinfra=None, p_container: ?netinfra__p_container=None, l3vpn: list[l3vpn__l3vpn_entry]=[]) -> None:
         self.netinfra = netinfra if netinfra is not None else netinfra__netinfra()
+        self.p_container = p_container
         self.l3vpn = l3vpn__l3vpn(elements=l3vpn)
+
+    mut def create_p_container(self) -> netinfra__p_container:
+        existing = self.p_container
+        if existing is not None:
+            return existing
+        res = netinfra__p_container()
+        self.p_container = res
+        return res
 
     mut def to_gdata(self) -> ygdata.Node:
         return yadata.from_adata(SRC_DNODE, self, loose=True)
@@ -1102,7 +1144,7 @@ class root(yadata.MNode):
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> root:
         if n is not None:
-            return root(netinfra=netinfra__netinfra.from_gdata(n.get_opt_cnt(ygdata.Id(NS_netinfra, 'netinfra'))), l3vpn=l3vpn__l3vpn.from_gdata(n.get_opt_list(ygdata.Id(NS_l3vpn, 'l3vpn'))))
+            return root(netinfra=netinfra__netinfra.from_gdata(n.get_opt_cnt(ygdata.Id(NS_netinfra, 'netinfra'))), p_container=netinfra__p_container.from_gdata(n.get_opt_cnt(ygdata.Id(NS_netinfra, 'p-container'))), l3vpn=l3vpn__l3vpn.from_gdata(n.get_opt_list(ygdata.Id(NS_l3vpn, 'l3vpn'))))
         return root()
 
     mut def copy(self) -> root:
@@ -1115,7 +1157,7 @@ actor rpc_root(tp: ygdata.TreeProvider):
 
 
 
-_breaker12: None = None
+_breaker13: None = None
 class netinfra__netinfra__global_settings_subs(SubscriptionNode):
     asn: SubscriptionNode
 
@@ -1127,7 +1169,7 @@ class netinfra__netinfra__global_settings_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.asn]
         return direct
 
-_breaker13: None = None
+_breaker14: None = None
 class netinfra__netinfra__router__dynstate_subs(SubscriptionNode):
     current_datetime: SubscriptionNode
 
@@ -1139,7 +1181,7 @@ class netinfra__netinfra__router__dynstate_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.current_datetime]
         return direct
 
-_breaker14: None = None
+_breaker15: None = None
 class netinfra__netinfra__router__state_subs(SubscriptionNode):
     current_datetime: SubscriptionNode
 
@@ -1151,7 +1193,7 @@ class netinfra__netinfra__router__state_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.current_datetime]
         return direct
 
-_breaker15: None = None
+_breaker16: None = None
 class netinfra__netinfra__router_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     id: SubscriptionNode
@@ -1173,7 +1215,7 @@ class netinfra__netinfra__router_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.dynstate, self.state]
         return direct
 
-_breaker16: None = None
+_breaker17: None = None
 class netinfra__netinfra__router_subs(SubscriptionNode):
     name: SubscriptionNode
     id: SubscriptionNode
@@ -1201,7 +1243,7 @@ class netinfra__netinfra__router_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.id, self.type, self.mock, self.dynstate, self.state]
         return direct
 
-_breaker17: None = None
+_breaker18: None = None
 class netinfra__netinfra_subs(SubscriptionNode):
     global_settings: netinfra__netinfra__global_settings_subs
     router: netinfra__netinfra__router_subs
@@ -1215,7 +1257,17 @@ class netinfra__netinfra_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.global_settings, self.router]
         return direct
 
-_breaker18: None = None
+_breaker19: None = None
+class netinfra__p_container_subs(SubscriptionNode):
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = []
+        return direct
+
+_breaker20: None = None
 class l3vpn__l3vpn__endpoint_entry_subs(SubscriptionNode):
     device: SubscriptionNode
     interface_name: SubscriptionNode
@@ -1243,7 +1295,7 @@ class l3vpn__l3vpn__endpoint_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.device, self.interface_name, self.ipv4_address, self.prefix_length, self.mtu, self.vlan_id, self.enabled, self.site_code, self.description]
         return direct
 
-_breaker19: None = None
+_breaker21: None = None
 class l3vpn__l3vpn__endpoint_subs(SubscriptionNode):
     device: SubscriptionNode
     interface_name: SubscriptionNode
@@ -1278,7 +1330,7 @@ class l3vpn__l3vpn__endpoint_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.device, self.interface_name, self.ipv4_address, self.prefix_length, self.mtu, self.vlan_id, self.enabled, self.site_code, self.description]
         return direct
 
-_breaker20: None = None
+_breaker22: None = None
 class l3vpn__l3vpn_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     customer_name: SubscriptionNode
@@ -1302,7 +1354,7 @@ class l3vpn__l3vpn_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.customer_name, self.vpn_id, self.service_mtu, self.enabled, self.description, self.endpoint]
         return direct
 
-_breaker21: None = None
+_breaker23: None = None
 class l3vpn__l3vpn_subs(SubscriptionNode):
     name: SubscriptionNode
     customer_name: SubscriptionNode
@@ -1332,18 +1384,20 @@ class l3vpn__l3vpn_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.customer_name, self.vpn_id, self.service_mtu, self.enabled, self.description, self.endpoint]
         return direct
 
-_breaker22: None = None
+_breaker24: None = None
 class root_subs(SubscriptionNode):
     netinfra: netinfra__netinfra_subs
+    p_container: netinfra__p_container_subs
     l3vpn: l3vpn__l3vpn_subs
 
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
         SubscriptionNode.__init__(self, path)
         self.netinfra = netinfra__netinfra_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'netinfra'), parent=path))
+        self.p_container = netinfra__p_container_subs(SubscriptionPath(ygdata.Id(NS_netinfra, 'p-container'), parent=path))
         self.l3vpn = l3vpn__l3vpn_subs(SubscriptionPath(ygdata.Id(NS_l3vpn, 'l3vpn'), parent=path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.netinfra, self.l3vpn]
+        direct: list[SubscriptionNode] = [self.netinfra, self.p_container, self.l3vpn]
         return direct
 
 subs: root_subs = root_subs()
