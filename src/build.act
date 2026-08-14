@@ -100,14 +100,15 @@ class CompiledSysSpec(object):
         syssrc += "# DO NOT MODIFY THIS FILE!! This file is generated!\n"
         syssrc += "# WARNING WARNING WARNING WARNING WARNING\n\n"
         syssrc += "import logging\n"
-        syssrc += "import lmdb\n\n"
+        syssrc += "\n"
         syssrc += "import stratoweave.app as swapp\n"
+        syssrc += "import stratoweave.db as swdb\n"
         syssrc += "import stratoweave.device as swdev\n"
         syssrc += "import stratoweave.adapters.netconf as swna\n"
         syssrc += "import stratoweave.ttt as ttt\n"
         syssrc += "\n"
         syssrc += "import {self.name}.device_types as sw_device_types\n"
-        syssrc_getlayers = "def get_layers(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None, db: ?lmdb.Db=None):\n"
+        syssrc_getlayers = "def get_layers(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None, db: ?swdb.Store=None):\n"
         syssrc_schema_for_layer = "def schema_for_layer(layer):\n"
         for (idx, layer) in reversed(list(enumerate(self.layers))):
             print("Generating layer {idx}")

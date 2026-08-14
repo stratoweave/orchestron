@@ -1,4 +1,11 @@
+"""TTT persistence keys and byte-oriented storage.
+
+TTT stores encoded paths and attributes in an ordered key/value store. The
+store interface keeps backend transactions and cursors out of TTT.
+"""
+
 import yang.gdata as gdata
+import file
 import lmdb
 import json
 
@@ -23,6 +30,181 @@ ATTR_DYNSTATE = "dynstate"
 ATTR_MEMORY = "memory"
 ATTR_OUTPUT = "output"
 ATTR_RUNNING = "running"
+
+class Scan(object):
+    """Streaming range scan handle.
+
+    `next` reads one record and reports it through its callback; a `None`
+    record means end of range. At most one `next` callback is outstanding per
+    scan. `close` releases the scan; callers close every scan, including scans
+    abandoned after an error.
+    """
+
+    @property
+    next: proc(action(?(key: bytes, value: bytes), ?Exception) -> None) -> None
+    @property
+    close: proc(action(?Exception) -> None) -> None
+
+    def __init__(
+        self,
+        next: proc(action(?(key: bytes, value: bytes), ?Exception) -> None) -> None,
+        close: proc(action(?Exception) -> None) -> None
+    ):
+        self.next = next
+        self.close = close
+
+
+class Store(object):
+    """Ordered byte key/value storage used by TTT persistence.
+
+    Database operations report completion through callbacks so implementations
+    can use asynchronous network I/O. `scan(start, end)` streams records in
+    byte-key order from the half-open range `[start, end)`; `end=None` means
+    that the range has no upper bound. Writes atomically apply `(key, value)`
+    entries, where a `None` value deletes a key.
+
+    Exactly one process owns a store: TTT alone decides transaction outcomes
+    and its in-memory state is authoritative, so writes are unconditional and
+    the store is a durable mirror, never a coordination point. Should
+    distributed failover ever need to fence out competing writers,
+    conditional writes are the extension point to reintroduce.
+    """
+
+    get: proc(bytes, action(?bytes, ?Exception) -> None) -> None
+    scan: proc(bytes, ?bytes) -> Scan
+    write: proc(
+        list[(key: bytes, value: ?bytes)],
+        action(?Exception) -> None
+    ) -> None
+    close: proc(action(?Exception) -> None) -> None
+
+
+actor LmdbAdapter(db: lmdb.Db):
+    """Adapter actor for LMDB's callback-based write acquisition."""
+
+    def write(
+        writes: list[(key: bytes, value: ?bytes)],
+        done: action(?Exception) -> None
+    ) -> None:
+        def granted(error: ?Exception, txn: ?lmdb.WriteTransaction) -> None:
+            if error is not None:
+                done(error)
+                return
+            if txn is not None:
+                try:
+                    # Submit every operation before collecting results: the ops
+                    # raise their own errors and a failed transaction must not be
+                    # committed, so each result is awaited ahead of the commit.
+                    msgs = []
+                    for row in writes:
+                        val = row.value
+                        if val is not None:
+                            msgs.append(async txn.put(row.key, val))
+                        else:
+                            msgs.append(async txn.delete(row.key))
+                    for msg in msgs:
+                        await msg
+                    await async txn.commit()
+                    done(None)
+                except Exception as e:
+                    try:
+                        await async txn.abort()
+                    except Exception:
+                        pass
+                    done(e)
+            else:
+                done(lmdb.InvalidStateError("Writer request returned neither transaction nor error"))
+                return
+
+
+        db.request_write(granted)
+
+
+actor LmdbScan(db: lmdb.Db, start: bytes, end: ?bytes):
+    """Streaming range scan over one LMDB read transaction.
+
+    The read transaction opens with the scan and holds a stable view until
+    the scan reaches end of range, fails, or is closed.
+    """
+
+    txn = db.begin_read()
+    cursor = txn.cursor()
+    var started = False
+    var released = False
+
+    def release() -> None:
+        if not released:
+            released = True
+            await async txn.abort()
+
+    def next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
+        if released:
+            done(None, None)
+            return
+        try:
+            if started:
+                record = cursor.next()
+            else:
+                started = True
+                record = cursor.seek(start)
+
+            if record is None or (end is not None and record!.key >= end):
+                release()
+                done(None, None)
+                return
+            done(record, None)
+        except Exception as e:
+            try:
+                release()
+            except Exception:
+                pass
+            done(None, e)
+
+    def close(done: action(?Exception) -> None) -> None:
+        try:
+            release()
+            done(None)
+        except Exception as e:
+            done(e)
+
+
+class LmdbStore(Store):
+    """Store backed by one LMDB database."""
+
+    db: lmdb.Db
+    adapter: LmdbAdapter
+
+    def __init__(self, cap: file.WriteFileCap, path: str, map_size: ?int=None):
+        if map_size is not None:
+            self.db = lmdb.Db(cap, path, map_size)
+        else:
+            self.db = lmdb.Db(cap, path)
+        self.adapter = LmdbAdapter(self.db)
+
+    proc def get(self, key: bytes, done: action(?bytes, ?Exception) -> None) -> None:
+        try:
+            done(self.db.get(key), None)
+        except Exception as e:
+            done(None, e)
+
+    def scan(self, start: bytes, end: ?bytes=None) -> Scan:
+        scan = LmdbScan(self.db, start, end)
+        return Scan(scan.next, scan.close)
+
+    proc def write(
+        self,
+        writes: list[(key: bytes, value: ?bytes)],
+        done: action(?Exception) -> None
+    ) -> None:
+        self.adapter.write(writes, done)
+
+    proc def close(self, done: action(?Exception) -> None) -> None:
+        try:
+            self.db.close()
+            done(None)
+        except Exception as e:
+            done(e)
+
 
 # Qualified path segments are encoded as:
 #   namespace-id byte + encoded local name
@@ -87,14 +269,6 @@ class KeyCodec(object):
         if index >= len(self.namespaces):
             raise ValueError("Unknown namespace id byte 0x{_hex_byte(prefix)} in TTT persistence key")
         return gdata.Id(self.namespaces[index], _decode_text(raw[1:]))
-
-class WriteTransaction(object):
-    txn: lmdb.WriteTransaction
-    codec: KeyCodec
-
-    def __init__(self, txn: lmdb.WriteTransaction):
-        self.txn = txn
-        self.codec = _key_codec_from_raw(txn.get(META_KEY))
 
 class BufferOp(object):
     path: list[value]
@@ -161,21 +335,33 @@ actor Buffer():
             return
         ops_by_slot[slot] = ops
 
-    def flush_to_db(wtr: WriteTransaction) -> None:
-        put_msgs = []
-        delete_msgs = []
+    def flush_to_db(store: Store, done: action(?Exception) -> None) -> None:
+        """Write the buffered operations and updated metadata.
+
+        The single owning process is the only writer, so the metadata read
+        here is current and the write is unconditional.
+        """
+        ops = []
         for slot in sorted(ops_by_slot.keys()):
             for op in ops_by_slot[slot]:
-                key = to_attr_key(op.path, op.attr, op.qualifier, wtr.codec)
-                val = op.value
-                if val is not None:
-                    put_msgs.append(async wtr.txn.put(key, val))
-                else:
-                    delete_msgs.append(async wtr.txn.delete(key))
-        for msg in put_msgs:
-            await msg
-        for msg in delete_msgs:
-            await msg
+                ops.append(op)
+
+        def got_metadata(metadata: ?bytes, error: ?Exception) -> None:
+            if error is not None:
+                done(error)
+                return
+            try:
+                codec = _key_codec_from_raw(metadata)
+                writes = []
+                for op in ops:
+                    key = to_attr_key(op.path, op.attr, op.qualifier, codec)
+                    writes.append((key=key, value=op.value))
+                writes.append((key=META_KEY, value=_encode_metadata(codec)))
+                store.write(writes, done)
+            except Exception as e:
+                done(e)
+
+        store.get(META_KEY, got_metadata)
 
 def _encode_text(text: str) -> bytes:
     raw = text.encode()
@@ -241,9 +427,6 @@ def _canonical_namespaces(namespaces: list[str]) -> list[str]:
 
 def _encode_metadata(codec: KeyCodec) -> bytes:
     return json.encode({"version": VERSION, "namespaces": _canonical_namespaces(codec.namespaces)}, pretty=False).encode()
-
-proc def write_metadata(wtr: WriteTransaction) -> None:
-    wtr.txn.put(META_KEY, _encode_metadata(wtr.codec))
 
 def _decode_record(raw: bytes) -> dict[str, ?value]:
     decoded = json.decode(raw.decode())
@@ -384,8 +567,10 @@ def _key_codec_from_raw(raw: ?bytes) -> KeyCodec:
         return KeyCodec(_decode_namespaces(record))
     raise ValueError("Invalid TTT persistence metadata: missing integer version")
 
-def read_key_codec(txn: lmdb.ReadTransaction) -> KeyCodec:
-    return _key_codec_from_raw(txn.get(META_KEY))
+
+def decode_key_codec(raw: ?bytes) -> KeyCodec:
+    """Decode key codec metadata, using an empty namespace table when absent."""
+    return _key_codec_from_raw(raw)
 
 def _parse_attr_key_bytes(key: bytes) -> (list[bytes], bytes, ?bytes):
     prefix = META_KEY + PATH_SEPARATOR

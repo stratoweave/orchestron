@@ -1,9 +1,9 @@
 import argparse
 import file
 import logging
-import lmdb
 import std.xml as xml
 
+import db as swdb
 import device as swdev
 import ttt as ttt
 import yang.gdata as ygdata
@@ -15,7 +15,7 @@ class SysSpec(value):
     """Exportable wrapper for generated functions from sysspec.act"""
     device_types: dict[str, swdev.DeviceType]
     @property
-    get_layers: proc(swdev.DeviceRegistry, ?logging.Handler, ?lmdb.Db) -> ttt.Layer
+    get_layers: proc(swdev.DeviceRegistry, ?logging.Handler, ?swdb.Store) -> ttt.Layer
     @property
     schema_for_layer: proc(int) -> yschema.DRoot
 
@@ -149,6 +149,14 @@ actor StartupBootstrap(cfs: ttt.Layer, restore_from_db: bool, netconf_host_key_p
         log.info("Restored TTT state reconciled")
         start_runtime(_netconf_host_key)
 
+    def _restore_done(error: ?Exception) -> None:
+        if error is not None:
+            log.error("Error loading persisted TTT state", {"error": error})
+            exit(1)
+            return
+        log.info("Recomputing restored TTT state")
+        cfs.newsession().recompute(_recompute_done, force=True)
+
     def _run():
         # The NETCONF SSH layer wants host-key material, not a path, so read the
         # configured key file here (before launching the runtime) and forward it.
@@ -168,14 +176,6 @@ actor StartupBootstrap(cfs: ttt.Layer, restore_from_db: bool, netconf_host_key_p
             return
 
         log.info("Loading persisted TTT state")
-        try:
-            await async cfs.load_from_db()
-        except Exception as e:
-            log.error("Error loading persisted TTT state", {"error": e})
-            exit(1)
-            return
-
-        log.info("Recomputing restored TTT state")
-        cfs.newsession().recompute(_recompute_done, force=True)
+        cfs.load_from_db(_restore_done)
 
     after 0: _run()
