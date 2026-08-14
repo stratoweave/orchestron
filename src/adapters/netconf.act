@@ -31,6 +31,7 @@ from adapters.adapter import \
 MODULE_YANG_PUSH = "ietf-yang-push"
 MODULE_SUBSCRIBED_NOTIFICATIONS = "ietf-subscribed-notifications"
 MODULE_EVENT_NOTIFICATIONS = "ietf-event-notifications"
+MODULE_PREFIX_IOSXR = "Cisco-IOS-XR-"
 RUNTIME_SCHEMA_MODULE_SETS = ["no-openconfig"]
 
 # TODO: Delete this table and read module prefixes from the compiled YANG
@@ -63,72 +64,45 @@ def extract_txid(conf: ?xml.Node) -> ?str:
                     return attr_value
 
 
-def _supports_module(name: str, capabilities: list[str], modules: dict[str, ModCap]) -> bool:
-    # Servers advertise modules either as "<namespace>?module=..." URIs in
-    # <hello> (older style) or via ietf-yang-library, where the module list is in
-    # the discovered module set rather than the hello capabilities.
-    if name in modules:
-        return True
-    for cap in capabilities:
-        if "?module=" not in cap and "&module=" not in cap:
-            continue
-        if parse_cap(cap).name == name:
+def _is_iosxr(modules: dict[str, ModCap]) -> bool:
+    for name in modules.keys():
+        if name.startswith(MODULE_PREFIX_IOSXR):
             return True
     return False
 
 
-def _yang_push_event_notifs(capabilities: list[str], modules: dict[str, ModCap]) -> ?bool:
+def _yang_push_event_notifs(modules: dict[str, ModCap]) -> ?bool:
     """Return the YANG Push RPC dialect, or None when dynamic YANG Push is absent.
 
     False means the standard RFC 8639/8641 combination: ietf-yang-push over
     ietf-subscribed-notifications. True means IOS XE's non-standard
     ietf-yang-push over ietf-event-notifications shape.
     """
-    if not _supports_module(MODULE_YANG_PUSH, capabilities, modules):
+    if _is_iosxr(modules):
+        # TODO: IOS XRd advertises the YANG Push modules but it only works over UDP-Notif (WIP)
         return None
-    if _supports_module(MODULE_SUBSCRIBED_NOTIFICATIONS, capabilities, modules):
+    if MODULE_YANG_PUSH not in modules:
+        return None
+    if MODULE_SUBSCRIBED_NOTIFICATIONS in modules:
         return False
-    if _supports_module(MODULE_EVENT_NOTIFICATIONS, capabilities, modules):
+    if MODULE_EVENT_NOTIFICATIONS in modules:
         return True
     return None
 
 
-def _test_yang_push_dialect_standard_caps():
-    dialect = _yang_push_event_notifs([
-        "urn:ietf:params:xml:ns:yang:ietf-yang-push?module=ietf-yang-push",
-        "urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications?module=ietf-subscribed-notifications",
-        "urn:ietf:params:xml:ns:yang:ietf-event-notifications?module=ietf-event-notifications",
-    ], {})
-    testing.assertEqual(dialect is not None, True)
-    if dialect is not None:
-        testing.assertEqual(dialect, False)
-
-
-def _test_yang_push_dialect_event_notifs_caps():
-    dialect = _yang_push_event_notifs([
-        "urn:ietf:params:xml:ns:yang:ietf-yang-push?module=ietf-yang-push",
-        "urn:ietf:params:xml:ns:yang:ietf-event-notifications?module=ietf-event-notifications",
-    ], {})
-    testing.assertEqual(dialect is not None, True)
-    if dialect is not None:
-        testing.assertEqual(dialect, True)
-
-
-def _test_yang_push_dialect_requires_subscription_rpc():
-    dialect = _yang_push_event_notifs([
-        "urn:ietf:params:xml:ns:yang:ietf-yang-push?module=ietf-yang-push",
-    ], {})
-    testing.assertEqual(dialect is None, True)
-
-
-def _test_yang_push_dialect_yang_library_modules():
-    dialect = _yang_push_event_notifs([], {
-        MODULE_YANG_PUSH: ModCap(MODULE_YANG_PUSH, "urn:ietf:params:xml:ns:yang:ietf-yang-push"),
-        MODULE_EVENT_NOTIFICATIONS: ModCap(MODULE_EVENT_NOTIFICATIONS, "urn:ietf:params:xml:ns:yang:ietf-event-notifications"),
-    })
-    testing.assertEqual(dialect is not None, True)
-    if dialect is not None:
-        testing.assertEqual(dialect, True)
+def _test_yang_push_dialect():
+    # Advertised module names, and the dialect they resolve to. None means no
+    # dynamic YANG Push, so the device is driven by polling instead.
+    cases: list[(list[str], ?bool)] = [
+        ([MODULE_YANG_PUSH, MODULE_SUBSCRIBED_NOTIFICATIONS, MODULE_EVENT_NOTIFICATIONS], False),
+        ([MODULE_YANG_PUSH, MODULE_EVENT_NOTIFICATIONS], True),
+        ([MODULE_YANG_PUSH], None),
+        ([MODULE_YANG_PUSH, MODULE_SUBSCRIBED_NOTIFICATIONS, "Cisco-IOS-XR-um-hostname-cfg"], None),
+        ([MODULE_YANG_PUSH, MODULE_EVENT_NOTIFICATIONS, "Cisco-IOS-XE-native"], True),
+    ]
+    for names, want in cases:
+        modules = {name: ModCap(name, "") for name in names}
+        testing.assertEqual(_yang_push_event_notifs(modules), want, "modules: {names}")
 
 
 def _xpath_literal(v) -> ?str:
@@ -645,9 +619,9 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
     var subs: dict[ygdata.SubscriptionSpec, SharedSubscription] = {}
     var sub_owners: dict[str, SubscriptionOwner] = {}
 
-    # How we monitor this device, decided from its advertised capabilities at
-    # connect time (None until connected): yang-push when supported, else periodic
-    # <get> polling. _yp_event_notifs selects IOS XE's event-notifications
+    # How we monitor this device, decided from its advertised modules at connect
+    # time (None until connected): yang-push when usable, else periodic <get>
+    # polling. _yp_event_notifs selects IOS XE's event-notifications
     # RPC dialect; False is the standard subscribed-notifications dialect. When
     # using yang-push we establish device-side subscriptions and route their
     # push-update notifications back to the matching shared spec via these id maps;
@@ -713,10 +687,10 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         def finish_connect(new_modset: dict[str, ModCap], new_schema_hash: ?u64=None):
             modset = new_modset
             schema_hash = new_schema_hash
-            # Pick the monitoring method from the device's capabilities. A fresh
+            # Pick the monitoring method from the device's modules. A fresh
             # client session invalidates any prior device-side subscriptions, so
             # drop the stale id maps and (re-)establish for this connection.
-            yp_event_notifs = _yang_push_event_notifs(c.get_capabilities(), new_modset)
+            yp_event_notifs = _yang_push_event_notifs(new_modset)
             _yang_push = yp_event_notifs is not None
             _yp_event_notifs = False
             if yp_event_notifs is not None:
@@ -1381,9 +1355,9 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
     def subscription_status() -> SubscriptionStatus:
         # How subscriptions are realized against this device, decided from its
-        # capabilities at connect ("connecting" until then). yang-push is a native
-        # push (periodic, or on-change when any active sub asked for it); poll
-        # emulates periodic with client-side <get>.
+        # advertised modules at connect ("connecting" until then). yang-push is a
+        # native push (periodic, or on-change when any active sub asked for it);
+        # poll emulates periodic with client-side <get>.
         m = _yang_push
         if m is None:
             return SubscriptionStatus(SUBSCRIPTION_CONNECTING)
