@@ -96,7 +96,14 @@ actor RfsReconf(dev_registry: swdev.DeviceRegistry, cfs: ttt.Layer):
             break
         _rfs = _next
 
-    dev_registry.on_reconf(lambda dev: _rfs.edit_config(_rfs_for_device(dev), force=True))
+    def _reconf(dev: str):
+        # A reconf event may arrive after the device has been removed from
+        # the registry; re-injecting the rfs entry would resurrect state for
+        # a deleted device.
+        if dev_registry.get(dev) is not None:
+            _rfs.edit_config(_rfs_for_device(dev), force=True)
+
+    dev_registry.on_reconf(_reconf)
 
 
 actor StartupConfigApplier(config_files: list[str], exit_on_done: bool, top_schema: yschema.DRoot, cfs: ttt.Layer, exit: action(int) -> None, rfcap: file.ReadFileCap, log_handler: logging.Handler):

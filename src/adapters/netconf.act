@@ -613,6 +613,10 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
     var state: int = DISCONNECTED
 
+    # Set when the device has been removed from the system, see shutdown().
+    # A stopped driver must not reconnect or reschedule subscription work.
+    var stopped = False
+
     var modset: dict[str, ModCap] = {}
     var schema_hash = None
 
@@ -674,6 +678,15 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             return c is not cur
         return True
 
+    def _scheduled_restart(c: netconf.Client):
+        # Runs from `after` timers: by the time it fires the driver may have
+        # been shut down or the client replaced. Restarting then would reopen
+        # a connection that nothing manages.
+        if stopped or _is_stale(c):
+            _log.debug("Device._scheduled_restart: skipping restart of stale or stopped client")
+            return
+        c.restart()
+
     def _on_connect(c: netconf.Client, err):
         if _is_stale(c):
             _log.debug("Device._on_connect: ignoring callback from stale client")
@@ -713,7 +726,7 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                 if _supports_schema_discovery(c.get_capabilities()):
                     _log.error("Device._on_connect: schema discovery failed", {"error": str(error)})
                     modset = {}
-                    after 1: c.restart()
+                    after 1: _scheduled_restart(c)
                 else:
                     details = {"reason": "no schema discovery method advertised", "error": str(error)}
                     _log.warning("Device._on_connect: falling back to YANG module capabilities", details)
@@ -776,7 +789,7 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             if error is not None:
                 _log.error("Device._on_connect: error downloading schemas", {"error": str(error)})
                 modset = {}
-                after 1: c.restart()
+                after 1: _scheduled_restart(c)
             else:
                 _log.debug("Device._on_connect: finished downloading schemas", {"duration": sw.elapsed().to_float()})
                 sw.reset()
@@ -797,7 +810,7 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             modset = {}
             schema_hash = None
             if client is not None:
-                after 1: client.restart()
+                after 1: _scheduled_restart(c)
             return
         else:
             _log.info("Device._on_connect: connected to device")
@@ -873,6 +886,8 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         dmc = new_dmc
 
     def _connect(new_dmc):
+        if stopped:
+            return
         use_mock_server = system_mock or new_dmc.mock.enabled or len(new_dmc.mock.module.elements) > 0
 
         username = new_dmc.credentials.username
@@ -938,6 +953,31 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             _log.debug("Device.close: No client, nothing to close")
         if on_close is not None:
             on_close()
+
+    def shutdown(on_close: ?action() -> None=None):
+        """Permanently shut down the device driver
+
+        Used when the device is removed from the system. Unlike close(),
+        which is part of the reconnect cycle, shutdown() also cancels all
+        subscriptions and invalidates scheduled reconnect retries, so the
+        driver goes permanently quiet.
+        """
+        if stopped:
+            if on_close is not None:
+                on_close()
+            return
+        stopped = True
+        _log.info("Device.shutdown")
+        # Notify subscription owners once, then drop all subscription state.
+        # Pending _sub_start/_sub_tick timers die against the empty subs dict.
+        for owner_id in sub_owners.keys():
+            _owner_publish(owner_id, NotConnectedError("device removed"))
+        subs = {}
+        sub_owners = {}
+        yp_subid_spec = {}
+        yp_spec_subid = {}
+        yp_pending = set()
+        close(on_close)
 
     # TODO: Restart protocol
     def restart():
@@ -1752,6 +1792,9 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             subs[spec] = st
 
     def declare_subscriptions(owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
+        if stopped:
+            cb(None, NotConnectedError("device removed"))
+            return
         old_want = set()
         last_merged = None
         if owner_id in sub_owners:
@@ -1820,9 +1863,14 @@ class NetconfAdapter(DeviceAdapter):
         return self._driver.get_config()
 
     def close(self, on_close: ?action() -> None=None):
-        """Close the connection to the device
+        """Permanently close the connection to the device
+
+        Adapter close is used when the device is removed from the system or
+        the adapter is replaced, so shut the driver down for good: cancel
+        subscriptions and reconnect retries in addition to closing the
+        connection.
         """
-        self._driver.close(on_close)
+        self._driver.shutdown(on_close)
 
     def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
         return self._driver.rpc_xml(cb, xml_rpc)

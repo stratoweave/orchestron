@@ -34,7 +34,12 @@ def transpose_list(cfg_per_src: dict[str, gdata.Node]) -> dict[str, dict[str, gd
                 else:
                     cfg_per_key[key] = {src: le}
         elif isinstance(conf, gdata.Absent):
-            cfg_per_key[WILDKEY] = {src: conf}
+            # Several sources can retract in the same transaction: merge them
+            # instead of letting the last one overwrite the others.
+            if WILDKEY in cfg_per_key:
+                cfg_per_key[WILDKEY][src] = conf
+            else:
+                cfg_per_key[WILDKEY] = {src: conf}
         else:
             raise NotImplementedError("Cannot transpose configuration type {type(conf)} in transpose_list")
     return cfg_per_key
@@ -50,7 +55,12 @@ def transpose_container(cfg_per_src: dict[str, gdata.Node]) -> dict[gdata.Id, di
                 else:
                     cfg_per_key[key] = {src: subconf}
         elif isinstance(conf, gdata.Absent):
-            cfg_per_key[WILDID] = {src: conf}
+            # Several sources can retract in the same transaction: merge them
+            # instead of letting the last one overwrite the others.
+            if WILDID in cfg_per_key:
+                cfg_per_key[WILDID][src] = conf
+            else:
+                cfg_per_key[WILDID] = {src: conf}
         else:
             raise NotImplementedError("Cannot transpose configuration type {type(conf)} in transpose_container")
     return cfg_per_key
@@ -1177,7 +1187,11 @@ class _ContainerTransaction(_Transaction):
             tr.lock(tid, out, actself.lock_cont, dbuf)              # yield await
         except StopIteration:
             #print('   #', tid, '(Container)', _format_path(self.path), 'LOCK IMMEDIATELY DONE', err=True)
-            done(CfgOk())
+            # Nothing was configured under this node in this transaction, so
+            # the lock result must not veto emptiness: it lands in the parent's
+            # accum (replacing the configure-phase result) and list entry
+            # deletion at commit requires the entry result to remain empty.
+            done(CfgOk(empty=True))
 
     def lock_cont(self, actself, res):
         state = self.state
@@ -1414,6 +1428,7 @@ class _ListTransaction(_Transaction):
     key_names : list[gdata.Id]
     elems : dict[str, Transaction]
     accum : dict[str, CfgResult]
+    retracted : set[str]
     state : ?YieldState[str]
     reset: bool
     ns: ?str
@@ -1427,15 +1442,23 @@ class _ListTransaction(_Transaction):
         self.module = module
         self.elems = {}
         self.accum = {}
+        self.retracted = set()
         self.state = None
         self.reset = False
 
-    def configure(self, tid, diff, out: ?Session, force=False, dbuf: ?swdb.Buffer=None):
-        #print('####', tid, '(List)', _format_path(self.path), 'configure', actorid(), err=True)
+    def _maybe_reset(self):
+        # Commit defers the reset (for the benefit of wait_complete), so every
+        # transaction entry point must drop the previous transaction's state
+        # before reusing this object.
         if self.reset:
             self.elems = {}
             self.accum = {}
+            self.retracted = set()
             self.reset = False
+
+    def configure(self, tid, diff, out: ?Session, force=False, dbuf: ?swdb.Buffer=None):
+        #print('####', tid, '(List)', _format_path(self.path), 'configure', actorid(), err=True)
+        self._maybe_reset()
         diff_by_key = transpose_list(diff)
         leaves_by_key = {}
         if len(diff_by_key) == 0 and force:
@@ -1461,6 +1484,13 @@ class _ListTransaction(_Transaction):
             for key,node in self.liststate.acquire(tid, leaves_by_key).items():
                 if key not in self.elems:
                     self.elems[key] = node.newtrans()
+        # Track entries explicitly retracted in this transaction. Deletion at
+        # commit requires such a retraction: an entry whose result is merely
+        # empty (e.g. holding only its key leaves) must survive.
+        for key,subdiff in diff_by_key.items():
+            for node in subdiff.values():
+                if isinstance(node, gdata.Absent) or isinstance(node, gdata.Delete):
+                    self.retracted.add(key)
         msgs = {}
         for key,subdiff in diff_by_key.items():
             #print('   #', tid, '(List)', _format_path(self.path), 'CONFIGURE ELEMENT', key, err=True)
@@ -1510,12 +1540,8 @@ class _ListTransaction(_Transaction):
 
     def linkage(self, tid, requests, updates, out, dbuf):
         #print('####', tid, '(List)', _format_path(self.path), 'linkage', len(requests), len(updates), err=True)
-        # linkage can now be a transaction entry point, so like configure()
-        # it must clear the previous transaction stale state
-        if self.reset:
-            self.elems = {}
-            self.accum = {}
-            self.reset = False
+        # linkage can be a transaction entry point, just like configure()
+        self._maybe_reset()
 
         # linkage may target list entries committed by an earlier tx and not
         # configured in this one. Acquire those existing entries so we can
@@ -1555,7 +1581,13 @@ class _ListTransaction(_Transaction):
             tr.lock(tid, out, actself.lock_cont, dbuf)                  # yield await
         except StopIteration:
             #print('   #', tid, '(List)', _format_path(self.path), 'LOCK IMMEDIATELY DONE', err=True)
-            done(CfgOk())
+            # Nothing was configured in this list in this transaction, so the
+            # lock result must not veto emptiness: it lands in the parent's
+            # accum (replacing the configure-phase result) and list entry
+            # deletion at commit requires the entry result to remain empty.
+            # A deleted entry holding an empty nested list would otherwise be
+            # reported non-empty here and never removed.
+            done(CfgOk(empty=True))
 
     def lock_cont(self, actself, res):
         state = self.state
@@ -1583,7 +1615,7 @@ class _ListTransaction(_Transaction):
             tr.commit(tid, ok)
         deletes = set()
         for key,res in self.accum.items():
-            if res.empty:
+            if res.empty and key in self.retracted:
                 #print('   #', tid, '(List)', _format_path(self.path), 'DELETE ELEMENT', key, err=True)
                 deletes.add(key)
         self.liststate.release(tid, ok, deletes)
@@ -2161,6 +2193,7 @@ class _RFSTransaction(_TransformTransactionBase):
     function: RFSFunction
     devname: str
     dev: swdev.DeviceMgr
+    dev_registry: swdev.DeviceRegistry
     memory: ?gdata.Node
     dynstate: ?gdata.Node
     node: ?Node
@@ -2173,11 +2206,20 @@ class _RFSTransaction(_TransformTransactionBase):
         self.devname = devname_from_rfs_path(path)
         _TransformTransactionBase.__init__(self, path, None)
         self.function = function(log_handler)
+        self.dev_registry = dev_registry
         self.dev = dev_registry.get_or_create(self.devname)
         self.lower = lower
 
     def compute(self, tid, merged, linked, out):
         #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', actorid(), err=True)
+        # Re-resolve the DeviceMgr: a delete and re-create replaces the
+        # instance cached at construction. Only adopt a currently registered
+        # instance; never create one here, since this transform can recompute
+        # while its entry is being torn down and creating would resurrect the
+        # removed device in the registry.
+        dev = self.dev_registry.get(self.devname)
+        if dev is not None:
+            self.dev = dev
         dev_content = {
             gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname),
         }
@@ -2197,28 +2239,24 @@ class _RFSTransaction(_TransformTransactionBase):
             newoutmem = gdata.Container({}), None
 
         if out is not None:
-            embedded_res = self.embed(dev_content)
+            embedded_res = self.embed(gdata.Container(dev_content))
             out.configure(tid, {self.me: embedded_res})
         return newoutmem    # TODO: dynstate for RFS?
 
     def clear(self, tid, out):
-        output = self.output
-        if out is not None and output is not None:
-            diff = difference(output, gdata.Container())
-            if isinstance(diff, gdata.Container):
-                dev_content = {
-                    gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname),
-                    gdata.Id(NS_stratoweave_device, "config"): diff
-                }
-                embedded_diff: gdata.Node = self.embed(dev_content)
-                out.configure(tid, {self.me: embedded_diff})
+        if out is not None and (self.output is not None or len(self.running) > 0):
+            # Retract this transform's entire contribution to the device entry
+            # in the lower layer, as an Absent list element, so the per-source
+            # patch collapses to nothing. Retracting only the config subtree
+            # would re-assert the name leaf and leave modset_id behind, keeping
+            # the device entry alive after all its sources are gone.
+            retraction = self.embed(gdata.Absent({gdata.Id(NS_stratoweave_device, "name"): gdata.Leaf(self.devname)}))
+            out.configure(tid, {self.me: retraction})
 
-    def embed(self, dev_content):
+    def embed(self, elem: gdata.Node):
         return gdata.Container({
             gdata.Id(NS_stratoweave_device, "devices"): gdata.Container({
-                gdata.Id(NS_stratoweave_device, "device"): gdata.List([gdata.Id(NS_stratoweave_device, "name")], [
-                    gdata.Container(dev_content)
-                ])
+                gdata.Id(NS_stratoweave_device, "device"): gdata.List([gdata.Id(NS_stratoweave_device, "name")], [elem])
             })
         }, ns=NS_stratoweave_device, module="stratoweave-device")
 
@@ -2315,11 +2353,15 @@ def devname_from_device_path(path: Path):
 
 class _DeviceTransaction(_TransformTransactionBase):
     dev: swdev.DeviceMgr
+    devname: str
+    dev_registry: swdev.DeviceRegistry
     logger: logging.Logger
 
     def __init__(self, path, dev_registry: swdev.DeviceRegistry, log_handler):
         _TransformTransactionBase.__init__(self, path, None)
-        self.dev = dev_registry.get_or_create(devname_from_device_path(path))
+        self.devname = devname_from_device_path(path)
+        self.dev_registry = dev_registry
+        self.dev = dev_registry.get_or_create(self.devname)
         self.logger = logging.Logger(log_handler)
 
     def compute(self, tid, merged, linked, out):
@@ -2333,7 +2375,16 @@ class _DeviceTransaction(_TransformTransactionBase):
         config = self.output
         if config is not None:
             meta_config = DeviceMetaConfig.from_gdata(config)
+            # Re-resolve the DeviceMgr: a concurrent delete may have removed
+            # and stopped the instance cached at construction. The entry still
+            # exists, so the device must be (re-)managed under a fresh
+            # DeviceMgr rather than configured into the stopped one.
+            self.dev = self.dev_registry.get_or_create(self.devname)
             self.dev.set_dmc(meta_config)
+        else:
+            # The device meta-config entry was deleted: the device is no
+            # longer part of the system, so remove and stop its DeviceMgr.
+            self.dev_registry.remove(self.devname)
 
 
 ################# DeviceConfig #####################
@@ -2356,11 +2407,15 @@ def devname_from_deviceconfig_path(path: Path):
 
 class _DeviceConfigTransaction(_TransformTransactionBase):
     dev: swdev.DeviceMgr
+    devname: str
+    dev_registry: swdev.DeviceRegistry
     logger: logging.Logger
 
     def __init__(self, path, dev_registry: swdev.DeviceRegistry, log_handler):
         _TransformTransactionBase.__init__(self, path)
-        self.dev = dev_registry.get_or_create(devname_from_deviceconfig_path(path))
+        self.devname = devname_from_deviceconfig_path(path)
+        self.dev_registry = dev_registry
+        self.dev = dev_registry.get_or_create(self.devname)
         self.logger = logging.Logger(log_handler)
         self.cont = None
 
@@ -2374,6 +2429,18 @@ class _DeviceConfigTransaction(_TransformTransactionBase):
         #print('####', tid, '(DeviceConfig)', _format_path(self.path), 'finalize', actorid(), err=True)
         device = self.output
         if device is not None:
+            # Re-resolve the DeviceMgr: a delete and re-create replaces the
+            # instance cached at construction; configuring the stopped one
+            # would silently discard this entry's configuration. Only adopt a
+            # currently registered instance; never create one here, since this
+            # entry can outlive its device while a teardown is in flight, and
+            # creating would resurrect the removed device. With no registered
+            # device there is nowhere to push this configuration.
+            dev = self.dev_registry.get(self.devname)
+            if dev is not None:
+                self.dev = dev
+            else:
+                return
             if isinstance(device, gdata.Container):
                 config = device.children.get(gdata.Id(NS_stratoweave_device, "config"))
                 if config is not None:

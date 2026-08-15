@@ -246,6 +246,15 @@ class DeviceAdapter(object):
     def supports_mocking(self) -> bool:
         return False
 
+    ## Permanently shut the adapter down. Called when the device is removed
+    ## from the system or the adapter is replaced; the adapter is never used
+    ## again afterwards. Implementations must close their device connection
+    ## and cancel any reconnect and subscription machinery for good, then
+    ## call on_close. Adapters that hold no connection inherit this no-op.
+    def close(self, on_close: ?action() -> None=None):
+        if on_close is not None:
+            on_close()
+
     set_dmc: proc(new_dmc: DeviceMetaConfig) -> None
 
     ## Configure the device with the given configuration

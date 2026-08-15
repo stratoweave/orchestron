@@ -261,6 +261,52 @@ actor nested_delete(t: testing.AsyncT):
 
 ########################
 
+actor keyonly_entry(t: testing.AsyncT):
+    # A structural entry holding only its key leaves routes nothing to any
+    # embedded transform, so its result is empty. It must still survive
+    # commit; only an explicit retraction may delete it.
+    tlist = ttt.List(
+                ttt.Container({
+                    q("nested"): ttt.List(ttt.Transform(ttt.PassThrough), [q("iname")])
+                }), [q("name")]
+            ) (ttt.PathRoot("0:"), None)
+    t1 = tlist.newtrans()
+
+    keyonly = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("k1")
+        })
+    ])
+
+    exp = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("k1"),
+            q("nested"): gdata.List([q("iname")], [])
+        })
+    ])
+
+    def cont2(_r: value):
+        t1.commit("1", True)
+        out2 = t1.get()
+        testing.assertEqual(out2, gdata.List([q("name")], []))
+        t.success()
+
+    def cont1(_r: value):
+        t1.commit("1", True)
+        out1 = t1.get()
+        testing.assertEqual(out1, exp)
+        t1.configure("1", {"srcA": gdata.List([q("name")], [
+            gdata.Absent({
+                q("name"): gdata.Leaf("k1")
+            })
+        ])}, None)
+        t1.lock("1", None, cont2)
+
+    t1.configure("1", {"srcA": keyonly}, None)
+    t1.lock("1", None, cont1)
+
+########################
+
 list1a = gdata.List([q("name")], [
     gdata.Container({
         q("name"): gdata.Leaf("key1"),
