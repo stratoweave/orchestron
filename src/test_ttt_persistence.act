@@ -326,6 +326,7 @@ actor db_key_codec_round_trips_qualified_segments(t: testing.AsyncT):
 
 
 actor StoreCallbackFlow(t: testing.EnvT, fs: file.FS, db_path: str, store: swdb.Store):
+    var reader: ?swdb.Reader = None
     var scan: ?swdb.Scan = None
 
     def read_next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
@@ -338,10 +339,15 @@ actor StoreCallbackFlow(t: testing.EnvT, fs: file.FS, db_path: str, store: swdb.
         await async fs.rmdir(db_path)
         t.success()
 
-    def after_scan_close(error: ?Exception) -> None:
+    def after_reader_close(error: ?Exception) -> None:
         if error is not None:
             raise error
         store.close(after_store_close)
+
+    def after_scan_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        reader!.close(after_reader_close)
 
     def after_eof(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
         if error is not None:
@@ -369,7 +375,9 @@ actor StoreCallbackFlow(t: testing.EnvT, fs: file.FS, db_path: str, store: swdb.
         if error is not None:
             raise error
         testing.assertEqual(value, b"2")
-        scan = store.scan(b"a", b"c")
+        r = store.read()
+        reader = r
+        scan = r.scan(b"a", b"c")
         read_next(after_first)
 
     def after_write(error: ?Exception) -> None:
@@ -1172,3 +1180,178 @@ actor reject_persistence_version_mismatch(t: testing.EnvT):
         t.success()
 
     layer.load_from_db(after_restore)
+
+
+actor OpenScans():
+    """Counts scans open at the same time, and remembers the most."""
+    var open = 0
+    var most = 0
+
+    def opened() -> None:
+        open += 1
+        if open > most:
+            most = open
+
+    def closed() -> None:
+        open -= 1
+
+    def maximum() -> int:
+        return most
+
+
+actor SlowScan(
+    rows: list[(key: bytes, value: bytes)],
+    tracker: OpenScans,
+    start: bytes,
+    end: ?bytes
+):
+    """Scan over captured rows that answers each read a little later, so
+    restores overlap in time."""
+    var index = 0
+    var closed = False
+
+    def seek_ge(key: bytes) -> None:
+        target = key if key >= start else start
+        index = 0
+        while index < len(rows) and rows[index].key < target:
+            index += 1
+
+    def deliver(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
+        if closed or index >= len(rows):
+            done(None, None)
+            return
+        row = rows[index]
+        if end is not None and row.key >= end:
+            done(None, None)
+            return
+        index += 1
+        done((key=row.key, value=row.value), None)
+
+    def next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
+        after 0.001: deliver(done)
+
+    def close(done: action(?Exception) -> None) -> None:
+        if not closed:
+            closed = True
+            await async tracker.closed()
+        done(None)
+
+    seek_ge(start)
+    await async tracker.opened()
+
+
+class SlowReader(swdb.Reader):
+    rows: list[(key: bytes, value: bytes)]
+    tracker: OpenScans
+
+    def __init__(self, rows: list[(key: bytes, value: bytes)], tracker: OpenScans):
+        self.rows = rows
+        self.tracker = tracker
+
+    def scan(self, start: bytes, end: ?bytes) -> swdb.Scan:
+        scan = SlowScan(self.rows, self.tracker, start, end)
+        return swdb.Scan(scan.next, scan.seek_ge, scan.close)
+
+    def close(self, done: action(?Exception) -> None) -> None:
+        done(None)
+
+
+class SlowStore(swdb.Store):
+    """Read-only Store over captured rows with slow scans."""
+    rows: list[(key: bytes, value: bytes)]
+    tracker: OpenScans
+
+    def __init__(self, rows: list[(key: bytes, value: bytes)], tracker: OpenScans):
+        self.rows = rows
+        self.tracker = tracker
+
+    def get(self, key: bytes, done: action(?bytes, ?Exception) -> None) -> None:
+        for row in self.rows:
+            if row.key == key:
+                done(row.value, None)
+                return
+        done(None, None)
+
+    def read(self) -> swdb.Reader:
+        return SlowReader(self.rows, self.tracker)
+
+    def write(
+        self,
+        writes: list[(key: bytes, value: ?bytes)],
+        done: action(?Exception) -> None
+    ) -> None:
+        done(ValueError("Slow test store is read-only"))
+
+    def close(self, done: action(?Exception) -> None) -> None:
+        done(None)
+
+
+def persisted_rows(read_txn: lmdb.ReadTransaction) -> list[(key: bytes, value: bytes)]:
+    rows = []
+    cursor = read_txn.cursor()
+    record = cursor.seek(swdb.META_KEY)
+    while record is not None:
+        row = record!
+        if not is_ttt_db_key(row.key):
+            break
+        rows.append((key=row.key, value=row.value))
+        record = cursor.next()
+    return rows
+
+
+def nested_list_root() -> proc(ttt.Path, ?ttt.Layer) -> ttt.Node:
+    return ttt.List(ttt.Container({
+        q("inner"): ttt.List(ttt.Transform(ttt.PassThrough), [q("name")])
+    }), [q("name")])
+
+
+def nested_list_tree(outer: int, inner: int) -> gdata.List:
+    elems = []
+    for i in range(outer):
+        inner_elems = []
+        for j in range(inner):
+            inner_elems.append(gdata.Container({
+                q("name"): gdata.Leaf("i" + str(j)),
+                q("value"): gdata.Leaf(j)
+            }))
+        elems.append(gdata.Container({
+            q("name"): gdata.Leaf("o" + str(i)),
+            q("inner"): gdata.List([q("name")], inner_elems)
+        }))
+    return gdata.List([q("name")], elems)
+
+
+# Node restores of one layer load run in parallel, and no more than
+# RESTORE_FANOUT of them at a time - across the whole tree, not per parent.
+# The tree is a list of 12 elements each holding a list of 24, so with a
+# limit per parent the inner lists alone could have 12 * 24 restores open.
+actor restore_runs_bounded_across_the_tree(t: testing.EnvT):
+    fc = file.FileCap(t.env.cap)
+    fs = file.FS(fc)
+    db_path = fs.mktmpdir("test_ttt_restore_bounded_")
+    cap = file.WriteFileCap(fc)
+    expected = nested_list_tree(12, 24)
+    var db = swdb.LmdbStore(cap, db_path)
+    var restored = ttt.Layer("nested", nested_list_root(), None, db)
+    tracker = OpenScans()
+
+    def after_restore(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        testing.assertEqual(restored.get(), expected)
+        most = tracker.maximum()
+        testing.assertTrue(most > 1, "restores must overlap")
+        testing.assertTrue(most <= ttt.RESTORE_FANOUT, "restores must stay within RESTORE_FANOUT")
+        await async fs.rmtree(db_path)
+        await async fs.rmdir(db_path)
+        t.success()
+
+    def after_initial_commit(_r: value) -> None:
+        read_txn = db.db.begin_read()
+        rows = persisted_rows(read_txn)
+        await async read_txn.commit()
+        await async db.db.close()
+        restored = ttt.Layer("nested", nested_list_root(), None, SlowStore(rows, tracker))
+        restored.load_from_db(after_restore)
+
+    restored.edit_config(expected, after_initial_commit)

@@ -63,14 +63,27 @@ class Scan(object):
         self.close = close
 
 
+class Reader(object):
+    """One read session over a store, for a restore.
+
+    All scans of a restore are opened from one reader, so a backend can serve
+    them from a single read transaction or snapshot instead of one per scan.
+    `scan(start, end)` streams records in byte-key order from the half-open
+    range `[start, end)`; `end=None` means that the range has no upper bound.
+    `close` ends the session; every scan opened from it is closed too.
+    """
+
+    scan: proc(bytes, ?bytes) -> Scan
+    close: proc(action(?Exception) -> None) -> None
+
+
 class Store(object):
     """Ordered byte key/value storage used by TTT persistence.
 
     Database operations report completion through callbacks so implementations
-    can use asynchronous network I/O. `scan(start, end)` streams records in
-    byte-key order from the half-open range `[start, end)`; `end=None` means
-    that the range has no upper bound. Writes atomically apply `(key, value)`
-    entries, where a `None` value deletes a key.
+    can use asynchronous network I/O. `read()` opens a Reader for range scans.
+    Writes atomically apply `(key, value)` entries, where a `None` value
+    deletes a key.
 
     Exactly one process owns a store: TTT alone decides transaction outcomes
     and its in-memory state is authoritative, so writes are unconditional and
@@ -80,7 +93,7 @@ class Store(object):
     """
 
     get: proc(bytes, action(?bytes, ?Exception) -> None) -> None
-    scan: proc(bytes, ?bytes) -> Scan
+    read: proc() -> Reader
     write: proc(
         list[(key: bytes, value: ?bytes)],
         action(?Exception) -> None
@@ -129,14 +142,9 @@ actor LmdbAdapter(db: lmdb.Db):
         db.request_write(granted)
 
 
-actor LmdbScan(db: lmdb.Db, start: bytes, end: ?bytes):
-    """Streaming range scan over one LMDB read transaction.
+actor LmdbScan(txn: lmdb.ReadTransaction, start: bytes, end: ?bytes):
+    """Streaming range scan: one cursor in the reader's read transaction."""
 
-    The read transaction opens with the scan and holds a stable view until
-    the scan reaches end of range, fails, or is closed.
-    """
-
-    txn = db.begin_read()
     cursor = txn.cursor()
     var seek_to: ?bytes = start
     var released = False
@@ -144,7 +152,7 @@ actor LmdbScan(db: lmdb.Db, start: bytes, end: ?bytes):
     def release() -> None:
         if not released:
             released = True
-            await async txn.abort()
+            await async cursor.close()
 
     def next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
         if released:
@@ -182,6 +190,26 @@ actor LmdbScan(db: lmdb.Db, start: bytes, end: ?bytes):
             done(e)
 
 
+class LmdbReader(Reader):
+    """One LMDB read transaction serving every scan of a restore."""
+
+    txn: lmdb.ReadTransaction
+
+    def __init__(self, txn: lmdb.ReadTransaction):
+        self.txn = txn
+
+    def scan(self, start: bytes, end: ?bytes) -> Scan:
+        scan = LmdbScan(self.txn, start, end)
+        return Scan(scan.next, scan.seek_ge, scan.close)
+
+    proc def close(self, done: action(?Exception) -> None) -> None:
+        try:
+            await async self.txn.abort()
+            done(None)
+        except Exception as e:
+            done(e)
+
+
 class LmdbStore(Store):
     """Store backed by one LMDB database."""
 
@@ -201,9 +229,8 @@ class LmdbStore(Store):
         except Exception as e:
             done(None, e)
 
-    def scan(self, start: bytes, end: ?bytes=None) -> Scan:
-        scan = LmdbScan(self.db, start, end)
-        return Scan(scan.next, scan.seek_ge, scan.close)
+    proc def read(self) -> Reader:
+        return LmdbReader(self.db.begin_read())
 
     proc def write(
         self,
@@ -221,7 +248,7 @@ class LmdbStore(Store):
 
 
 actor RangeReader(
-    store: Store,
+    reader: Reader,
     start: bytes,
     end: ?bytes,
     each: action((key: bytes, value: bytes), action(?Exception) -> None) -> None,
@@ -237,7 +264,7 @@ actor RangeReader(
     scan is closed and `done` is called with the outcome.
     """
 
-    scan = store.scan(start, end)
+    scan = reader.scan(start, end)
     var result_error: ?Exception = None
     var finished = False
 
