@@ -326,6 +326,7 @@ actor db_key_codec_round_trips_qualified_segments(t: testing.AsyncT):
 
 
 actor StoreCallbackFlow(t: testing.EnvT, fs: file.FS, db_path: str, store: swdb.Store):
+    var reader: ?swdb.Reader = None
     var scan: ?swdb.Scan = None
 
     def read_next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
@@ -338,10 +339,15 @@ actor StoreCallbackFlow(t: testing.EnvT, fs: file.FS, db_path: str, store: swdb.
         await async fs.rmdir(db_path)
         t.success()
 
-    def after_scan_close(error: ?Exception) -> None:
+    def after_reader_close(error: ?Exception) -> None:
         if error is not None:
             raise error
         store.close(after_store_close)
+
+    def after_scan_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        reader!.close(after_reader_close)
 
     def after_eof(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
         if error is not None:
@@ -369,7 +375,9 @@ actor StoreCallbackFlow(t: testing.EnvT, fs: file.FS, db_path: str, store: swdb.
         if error is not None:
             raise error
         testing.assertEqual(value, b"2")
-        scan = store.scan(b"a", b"c")
+        r = store.read()
+        reader = r
+        scan = r.scan(b"a", b"c")
         read_next(after_first)
 
     def after_write(error: ?Exception) -> None:

@@ -520,9 +520,9 @@ actor Node(impl: _Node):
         """
         impl.bind_db(db)
 
-    def restore_from_db(store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+    def restore_from_db(reader: swdb.Reader, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
         """Restore persisted state rooted at this node's path."""
-        impl.restore_from_db(store, codec, done)
+        impl.restore_from_db(reader, codec, done)
 
     def is_empty():
         return impl.is_empty()
@@ -535,7 +535,7 @@ class _Node(object):
         return gdata.filter(self.get(), filt)
     def bind_db(self, db: ?swdb.Store) -> None:
         pass
-    restore_from_db: proc(swdb.Store, swdb.KeyCodec, action(?Exception) -> None) -> None
+    restore_from_db: proc(swdb.Reader, swdb.KeyCodec, action(?Exception) -> None) -> None
     def is_empty(self) -> bool:
         return True
 
@@ -630,6 +630,7 @@ actor LayerRestore(
     done: action(?Exception) -> None
 ):
     var finished = False
+    var reader: ?swdb.Reader = None
 
     def finish(error: ?Exception) -> None:
         if finished:
@@ -638,12 +639,20 @@ actor LayerRestore(
         done(error)
 
     def restored(error: ?Exception) -> None:
-        if error is not None:
-            finish(error)
-        elif not top_only and lower is not None:
-            lower.load_from_db(finish, False)
+        def closed(close_error: ?Exception) -> None:
+            if error is not None:
+                finish(error)
+            elif close_error is not None:
+                finish(close_error)
+            elif not top_only and lower is not None:
+                lower.load_from_db(finish, False)
+            else:
+                finish(None)
+        r = reader
+        if r is not None:
+            r.close(closed)
         else:
-            finish(None)
+            closed(None)
 
     def got_metadata(raw: ?bytes, error: ?Exception) -> None:
         if error is not None:
@@ -652,7 +661,10 @@ actor LayerRestore(
         try:
             if not root.is_empty():
                 raise ValueError("TTT restore requires an empty tree in layer {name}")
-            root.restore_from_db(store, swdb.decode_key_codec(raw), restored)
+            codec = swdb.decode_key_codec(raw)
+            r = store.read()
+            reader = r
+            root.restore_from_db(r, codec, restored)
         except Exception as e:
             finish(e)
 
@@ -988,7 +1000,7 @@ def Container(template={}, ns:?str=None, module:?str=None) -> proc(Path, ?Layer)
 actor ContainerRestore(
     path: Path,
     elems: dict[gdata.Id, Node],
-    store: swdb.Store,
+    reader: swdb.Reader,
     codec: swdb.KeyCodec,
     done: action(?Exception) -> None
 ):
@@ -1022,7 +1034,7 @@ actor ContainerRestore(
                     break
             if child_node is not None:
                 children!.skip_to(child.next_key)
-                child_node.restore_from_db(store, codec, proceed)
+                child_node.restore_from_db(reader, codec, proceed)
             else:
                 raise ValueError("Unable to route persisted child {child.name} at {_format_path(path)}")
         except Exception as e:
@@ -1034,14 +1046,14 @@ actor ContainerRestore(
             return
         try:
             child_range = swdb.children_range(db_path, codec)
-            children = swdb.RangeReader(store, child_range.start, child_range.end, each_child, done)
+            children = swdb.RangeReader(reader, child_range.start, child_range.end, each_child, done)
         except Exception as e:
             done(e)
 
     def start() -> None:
         try:
             attr_range = swdb.attrs_range(db_path, codec)
-            swdb.RangeReader(store, attr_range.start, attr_range.end, each_attr, attrs_done)
+            swdb.RangeReader(reader, attr_range.start, attr_range.end, each_attr, attrs_done)
         except Exception as e:
             done(e)
 
@@ -1092,8 +1104,8 @@ class _Container(_Node):
         for node in self.elems.values():
             node.bind_db(db)
 
-    def restore_from_db(self, store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
-        ContainerRestore(self.path, self.elems, store, codec, done)
+    def restore_from_db(self, reader: swdb.Reader, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        ContainerRestore(self.path, self.elems, reader, codec, done)
 
     def is_empty(self) -> bool:
         for node in self.elems.values():
@@ -1340,8 +1352,8 @@ class _List(_Node):
     def bind_db(self, db: ?swdb.Store) -> None:
         self.liststate.bind_db(db)
 
-    def restore_from_db(self, store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
-        self.liststate.restore_from_db(store, codec, done)
+    def restore_from_db(self, reader: swdb.Reader, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        self.liststate.restore_from_db(reader, codec, done)
 
     def is_empty(self) -> bool:
         return self.liststate.is_empty()
@@ -1350,7 +1362,7 @@ class _List(_Node):
 actor ListRestore(
     path: Path,
     liststate,
-    store: swdb.Store,
+    reader: swdb.Reader,
     codec: swdb.KeyCodec,
     done: action(?Exception) -> None
 ):
@@ -1380,8 +1392,8 @@ actor ListRestore(
                 leaves = swdb.decode_node_bytes(record.value)
                 if isinstance(leaves, gdata.Container):
                     restored.add(name)
-                    node = liststate.create_restored(name, leaves.children, store)
-                    node.restore_from_db(store, codec, proceed)
+                    node = liststate.create_restored(name, leaves.children)
+                    node.restore_from_db(reader, codec, proceed)
                 else:
                     raise ValueError("Persisted list key leaves must decode to Container at {_format_path(path)}[{name}]")
             else:
@@ -1406,14 +1418,14 @@ actor ListRestore(
             return
         try:
             element_range = swdb.children_range(db_path, codec)
-            elements = swdb.RangeReader(store, element_range.start, element_range.end, each_element_data, done)
+            elements = swdb.RangeReader(reader, element_range.start, element_range.end, each_element_data, done)
         except Exception as e:
             done(e)
 
     def start() -> None:
         try:
             entry_range = swdb.attrs_range(db_path, codec)
-            swdb.RangeReader(store, entry_range.start, entry_range.end, each_entry, entries_done)
+            swdb.RangeReader(reader, entry_range.start, entry_range.end, each_entry, entries_done)
         except Exception as e:
             done(e)
 
@@ -1478,12 +1490,12 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
     def is_empty() -> bool:
         return len(elems) == 0 and len(active) == 0 and len(provisional) == 0
 
-    def restore_from_db(store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
-        ListRestore(path, self, store, codec, done)
+    def restore_from_db(reader: swdb.Reader, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        ListRestore(path, self, reader, codec, done)
 
-    def create_restored(key: str, leaves: dict[gdata.Id, gdata.Node], store: swdb.Store) -> Node:
+    def create_restored(key: str, leaves: dict[gdata.Id, gdata.Node]) -> Node:
         node = template(PathKey(key, path, leaves), lower)
-        node.bind_db(store)
+        node.bind_db(db)
         elems[key] = node
         return node
 
@@ -1754,7 +1766,7 @@ def ListTransaction(path, liststate: ListState, key_names, ns, module):
 actor TransformRestore(
     path: Path,
     transaction: Transaction,
-    store: swdb.Store,
+    reader: swdb.Reader,
     codec: swdb.KeyCodec,
     done: action(?Exception) -> None
 ):
@@ -1789,14 +1801,14 @@ actor TransformRestore(
             return
         try:
             attr_range = swdb.attrs_range(db_path, codec)
-            swdb.RangeReader(store, attr_range.start, attr_range.end, each_attr, done)
+            swdb.RangeReader(reader, attr_range.start, attr_range.end, each_attr, done)
         except Exception as e:
             done(e)
 
     def start() -> None:
         try:
             child_range = swdb.children_range(db_path, codec)
-            swdb.RangeReader(store, child_range.start, child_range.end, each_child, children_done)
+            swdb.RangeReader(reader, child_range.start, child_range.end, each_child, children_done)
         except Exception as e:
             done(e)
 
@@ -1818,8 +1830,8 @@ class _TransformBase(_Node):
     def bind_db(self, db: ?swdb.Store) -> None:
         self.transaction.bind_db(db)
 
-    def restore_from_db(self, store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
-        TransformRestore(self.path, self.transaction, store, codec, done)
+    def restore_from_db(self, reader: swdb.Reader, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        TransformRestore(self.path, self.transaction, reader, codec, done)
 
     def is_empty(self) -> bool:
         return self.transaction.is_empty()
