@@ -476,6 +476,7 @@ def _db_path(path: Path) -> list[value]:
         par = [path.name]
     return par
 
+
 class YieldState[T(Hashable)](object):
     it: Iterator[T]
     key: T
@@ -519,9 +520,9 @@ actor Node(impl: _Node):
         """
         impl.bind_db(db)
 
-    def restore(path_segments: list[str], attr: str, qualifier: ?str, raw: bytes):
-        """Restore one DB record at this node or route it to the named child path."""
-        impl.restore(path_segments, attr, qualifier, raw)
+    def restore_from_db(store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        """Restore persisted state rooted at this node's path."""
+        impl.restore_from_db(store, codec, done)
 
     def is_empty():
         return impl.is_empty()
@@ -534,7 +535,7 @@ class _Node(object):
         return gdata.filter(self.get(), filt)
     def bind_db(self, db: ?swdb.Store) -> None:
         pass
-    restore: proc(list[str], str, ?str, bytes) -> None
+    restore_from_db: proc(swdb.Store, swdb.KeyCodec, action(?Exception) -> None) -> None
     def is_empty(self) -> bool:
         return True
 
@@ -628,58 +629,21 @@ actor LayerRestore(
     top_only: bool,
     done: action(?Exception) -> None
 ):
-    var codec = swdb.KeyCodec([])
-    var prefix = b""
-    var scan: ?swdb.Scan = None
-    var result_error: ?Exception = None
     var finished = False
-
-    def read_next() -> None:
-        scan!.next(got_record)
-
-    def closed(error: ?Exception) -> None:
-        final_error = result_error if result_error is not None else error
-        if final_error is not None:
-            done(final_error)
-        elif not top_only and lower is not None:
-            lower.load_from_db(done, False)
-        else:
-            done(None)
 
     def finish(error: ?Exception) -> None:
         if finished:
             return
         finished = True
-        result_error = error
-        if scan is not None:
-            scan.close(closed)
-        else:
-            closed(None)
+        done(error)
 
-    def got_record(kv: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+    def restored(error: ?Exception) -> None:
         if error is not None:
             finish(error)
-            return
-        if kv is None:
+        elif not top_only and lower is not None:
+            lower.load_from_db(finish, False)
+        else:
             finish(None)
-            return
-
-        try:
-            entry = kv!
-            if not entry.key.startswith(prefix):
-                finish(None)
-                return
-            boundary = entry.key[len(prefix)] if len(entry.key) > len(prefix) else None
-            if boundary != swdb.PATH_SEPARATOR[0] and boundary != swdb.ATTRIBUTE_SEPARATOR[0]:
-                finish(None)
-                return
-            path, attr, qualifier = swdb.parse_attr_key(entry.key, codec)
-            if len(path) == 0 or path[0] != name:
-                raise ValueError("Unexpected persistence path for layer {name}: {path}")
-            await async root.restore(path[1:], attr, qualifier, entry.value)
-            read_next()
-        except Exception as e:
-            finish(e)
 
     def got_metadata(raw: ?bytes, error: ?Exception) -> None:
         if error is not None:
@@ -688,10 +652,7 @@ actor LayerRestore(
         try:
             if not root.is_empty():
                 raise ValueError("TTT restore requires an empty tree in layer {name}")
-            codec = swdb.decode_key_codec(raw)
-            prefix = swdb.to_key([name], codec)
-            scan = store.scan(prefix, None)
-            read_next()
+            root.restore_from_db(store, swdb.decode_key_codec(raw), restored)
         except Exception as e:
             finish(e)
 
@@ -1023,6 +984,70 @@ class LayerTreeProvider(gdata.TreeProvider):
 def Container(template={}, ns:?str=None, module:?str=None) -> proc(Path, ?Layer)->Node:
     return lambda path, lower: Node(_Container(path, template, ns, module, lower))
 
+
+actor ContainerRestore(
+    path: Path,
+    elems: dict[gdata.Id, Node],
+    store: swdb.Store,
+    codec: swdb.KeyCodec,
+    done: action(?Exception) -> None
+):
+    """Restore a container.
+
+    A container has no attributes of its own, so an attribute record on its
+    path is an error. Its children live in the range below it. Reading that
+    range, the first record met belongs to some child; the child is started
+    and reads its own subtree from the store, and the reader skips past
+    that subtree to the first record of the next child. This repeats until
+    all children are restored.
+    """
+
+    db_path = _db_path(path)
+    var children: ?swdb.RangeReader = None
+
+    def each_attr(record: (key: bytes, value: bytes), proceed: action(?Exception) -> None) -> None:
+        try:
+            parsed = swdb.parse_attr_key(record.key, codec)
+            proceed(ValueError("Unexpected persisted container attribute {parsed.attr} at {_format_path(path)}"))
+        except Exception as e:
+            proceed(e)
+
+    def each_child(record: (key: bytes, value: bytes), proceed: action(?Exception) -> None) -> None:
+        try:
+            child = swdb.child_from_key(db_path, record.key, codec)
+            child_node = None
+            for key, node in elems.items():
+                if key.name == child.name or swdb.qualified_name(key) == child.name:
+                    child_node = node
+                    break
+            if child_node is not None:
+                children!.skip_to(child.next_key)
+                child_node.restore_from_db(store, codec, proceed)
+            else:
+                raise ValueError("Unable to route persisted child {child.name} at {_format_path(path)}")
+        except Exception as e:
+            proceed(e)
+
+    def attrs_done(error: ?Exception) -> None:
+        if error is not None:
+            done(error)
+            return
+        try:
+            child_range = swdb.children_range(db_path, codec)
+            children = swdb.RangeReader(store, child_range.start, child_range.end, each_child, done)
+        except Exception as e:
+            done(e)
+
+    def start() -> None:
+        try:
+            attr_range = swdb.attrs_range(db_path, codec)
+            swdb.RangeReader(store, attr_range.start, attr_range.end, each_attr, attrs_done)
+        except Exception as e:
+            done(e)
+
+    start()
+
+
 class _Container(_Node):
     elems: dict[gdata.Id, Node]
     ns: ?str
@@ -1067,17 +1092,8 @@ class _Container(_Node):
         for node in self.elems.values():
             node.bind_db(db)
 
-    def restore(self, path_segments: list[str], attr: str, qualifier: ?str, raw: bytes) -> None:
-        if len(path_segments) == 0:
-            raise ValueError("Unexpected persisted container attribute {attr} at {_format_path(self.path)}")
-
-        child_name = path_segments[0]
-        for key, node in self.elems.items():
-            if key.name == child_name or swdb.qualified_name(key) == child_name:
-                node.restore(path_segments[1:], attr, qualifier, raw)
-                return
-
-        raise ValueError("Unable to route persisted child {child_name} at {_format_path(self.path)}")
+    def restore_from_db(self, store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        ContainerRestore(self.path, self.elems, store, codec, done)
 
     def is_empty(self) -> bool:
         for node in self.elems.values():
@@ -1324,24 +1340,84 @@ class _List(_Node):
     def bind_db(self, db: ?swdb.Store) -> None:
         self.liststate.bind_db(db)
 
-    def restore(self, path_segments: list[str], attr: str, qualifier: ?str, raw: bytes):
-        if len(path_segments) == 0:
-            raise ValueError("Unexpected persisted list attribute {attr} at {_format_path(self.path)}")
-        key = path_segments[0]
-        if len(path_segments) == 1 and attr == swdb.ATTR_KEYS:
-            # Because of the lexicographic ordering among the different swdb.ATTR_*, liststate.recreate(key)
-            # is bound to be called before liststate.restore(key) for every key; thereby ensuring that
-            # element 'key' exists in liststate before its restoration is requested.
-            leaves = swdb.decode_node_bytes(raw)
-            if isinstance(leaves, gdata.Container):
-                self.liststate.recreate(key, leaves.children)
-            else:
-                raise ValueError("Persisted list key leaves must decode to Container at {_format_path(self.path)}[{key}]")
-        else:
-            self.liststate.restore(key, path_segments[1:], attr, qualifier, raw)
+    def restore_from_db(self, store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        self.liststate.restore_from_db(store, codec, done)
 
     def is_empty(self) -> bool:
         return self.liststate.is_empty()
+
+
+actor ListRestore(
+    path: Path,
+    liststate,
+    store: swdb.Store,
+    codec: swdb.KeyCodec,
+    done: action(?Exception) -> None
+):
+    """Restore a list.
+
+    A list stores its element keys in the keys attribute on its own path,
+    one entry per element with the element key as qualifier: a list l1
+    with elements foo and bar has l1@keys[foo] and l1@keys[bar]. The rest
+    of each element is stored below the list, under l1/foo and l1/bar.
+
+    The list first reads the keys entries and creates one element per
+    entry; each element then reads its own subtree from the store. The
+    list then walks the subtrees under l1/ to check that each has a keys
+    entry, skipping past each one; a subtree with no keys entry, such as
+    l1/baz without l1@keys[baz], is an error.
+    """
+
+    db_path = _db_path(path)
+    var elements: ?swdb.RangeReader = None
+    var restored = set()
+
+    def each_entry(record: (key: bytes, value: bytes), proceed: action(?Exception) -> None) -> None:
+        try:
+            parsed = swdb.parse_attr_key(record.key, codec)
+            name = parsed.qualifier
+            if parsed.attr == swdb.ATTR_KEYS and name is not None:
+                leaves = swdb.decode_node_bytes(record.value)
+                if isinstance(leaves, gdata.Container):
+                    restored.add(name)
+                    node = liststate.create_restored(name, leaves.children, store)
+                    node.restore_from_db(store, codec, proceed)
+                else:
+                    raise ValueError("Persisted list key leaves must decode to Container at {_format_path(path)}[{name}]")
+            else:
+                raise ValueError("Unexpected persisted list attribute {parsed.attr} at {_format_path(path)}")
+        except Exception as e:
+            proceed(e)
+
+    def each_element_data(record: (key: bytes, value: bytes), proceed: action(?Exception) -> None) -> None:
+        try:
+            child = swdb.child_from_key(db_path, record.key, codec)
+            if child.name in restored:
+                elements!.skip_to(child.next_key)
+                proceed(None)
+            else:
+                raise ValueError("Persisted data for unknown list element at {_format_path(path)}[{child.name}]")
+        except Exception as e:
+            proceed(e)
+
+    def entries_done(error: ?Exception) -> None:
+        if error is not None:
+            done(error)
+            return
+        try:
+            element_range = swdb.children_range(db_path, codec)
+            elements = swdb.RangeReader(store, element_range.start, element_range.end, each_element_data, done)
+        except Exception as e:
+            done(e)
+
+    def start() -> None:
+        try:
+            entry_range = swdb.attrs_range(db_path, codec)
+            swdb.RangeReader(store, entry_range.start, entry_range.end, each_entry, entries_done)
+        except Exception as e:
+            done(e)
+
+    start()
 
 
 actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?str, lower: ?Layer):
@@ -1402,11 +1478,14 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
     def is_empty() -> bool:
         return len(elems) == 0 and len(active) == 0 and len(provisional) == 0
 
-    def recreate(key, leaves):
-        elems[key] = template(PathKey(key, path, leaves), lower)
+    def restore_from_db(store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        ListRestore(path, self, store, codec, done)
 
-    def restore(key, path_segments, attr, qualifier, raw):
-        elems[key].restore(path_segments, attr, qualifier, raw)
+    def create_restored(key: str, leaves: dict[gdata.Id, gdata.Node], store: swdb.Store) -> Node:
+        node = template(PathKey(key, path, leaves), lower)
+        node.bind_db(store)
+        elems[key] = node
+        return node
 
 
 class _ListTransaction(_Transaction):
@@ -1480,17 +1559,17 @@ class _ListTransaction(_Transaction):
 
     def db_ops(self, leaves_by_key) -> list[swdb.BufferOp]:
         # A list element's key leaves are immutable for its lifetime, so its
-        # #keys record is written once at creation and deleted at removal.
-        # A configure that only refreshes an existing element (force recompute,
+        # keys record is written once at creation and deleted at removal. A
+        # configure that only refreshes an existing element (force recompute,
         # wildcard) recomputes no leaves for it; emitting no op leaves the
         # existing record intact rather than deleting the element's index entry.
         ops = []
         for key, res in self.accum.items():
-            path = _db_path(self.path) + [key]
+            path = _db_path(self.path)
             if res.empty:
-                ops.append(swdb.del_op(path, swdb.ATTR_KEYS))
+                ops.append(swdb.del_op(path, swdb.ATTR_KEYS, key))
             elif not res.errors and key in leaves_by_key:
-                ops.append(swdb.put_op(path, swdb.ATTR_KEYS, gdata.Container(leaves_by_key[key])))
+                ops.append(swdb.put_op(path, swdb.ATTR_KEYS, gdata.Container(leaves_by_key[key]), key))
         return ops
 
     def _analyze(self, results: dict[str,CfgResult]):
@@ -1672,6 +1751,58 @@ def ListTransaction(path, liststate: ListState, key_names, ns, module):
 
 ################# Transform #####################
 
+actor TransformRestore(
+    path: Path,
+    transaction: Transaction,
+    store: swdb.Store,
+    codec: swdb.KeyCodec,
+    done: action(?Exception) -> None
+):
+    """Restore a transform.
+
+    A transform has no children, so any subtree below its path is an
+    error. Its state is all in its attributes: running config per source,
+    output, memory and dynamic state. Each attribute record is applied to
+    the transform.
+    """
+
+    db_path = _db_path(path)
+
+    def each_child(record: (key: bytes, value: bytes), proceed: action(?Exception) -> None) -> None:
+        try:
+            child = swdb.child_from_key(db_path, record.key, codec)
+            proceed(ValueError("Unexpected persisted descendant under transform {_format_path(path)}: {child.name}"))
+        except Exception as e:
+            proceed(e)
+
+    def each_attr(record: (key: bytes, value: bytes), proceed: action(?Exception) -> None) -> None:
+        try:
+            parsed = swdb.parse_attr_key(record.key, codec)
+            await async transaction.restore(parsed.attr, parsed.qualifier, record.value)
+            proceed(None)
+        except Exception as e:
+            proceed(e)
+
+    def children_done(error: ?Exception) -> None:
+        if error is not None:
+            done(error)
+            return
+        try:
+            attr_range = swdb.attrs_range(db_path, codec)
+            swdb.RangeReader(store, attr_range.start, attr_range.end, each_attr, done)
+        except Exception as e:
+            done(e)
+
+    def start() -> None:
+        try:
+            child_range = swdb.children_range(db_path, codec)
+            swdb.RangeReader(store, child_range.start, child_range.end, each_child, children_done)
+        except Exception as e:
+            done(e)
+
+    start()
+
+
 class _TransformBase(_Node):
     transaction: Transaction
 
@@ -1687,10 +1818,8 @@ class _TransformBase(_Node):
     def bind_db(self, db: ?swdb.Store) -> None:
         self.transaction.bind_db(db)
 
-    def restore(self, path_segments: list[str], attr: str, qualifier: ?str, raw: bytes) -> None:
-        if len(path_segments) != 0:
-            raise ValueError("Unexpected persisted descendant under transform {_format_path(self.path)}: {path_segments}")
-        self.transaction.restore(attr, qualifier, raw)
+    def restore_from_db(self, store: swdb.Store, codec: swdb.KeyCodec, done: action(?Exception) -> None) -> None:
+        TransformRestore(self.path, self.transaction, store, codec, done)
 
     def is_empty(self) -> bool:
         return self.transaction.is_empty()

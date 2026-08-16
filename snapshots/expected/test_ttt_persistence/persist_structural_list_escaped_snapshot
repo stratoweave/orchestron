@@ -2,7 +2,7 @@ ttt
 
 {"version":1,"namespaces":["urn:test:persistence"]}
 
-ttt/struct\x1flayer/items#urn:test:persistence/a\x1fb\x1ec\x1dd\x1ce@#keys
+ttt/struct\x1flayer/items#urn:test:persistence@keys[a\x1fb\x1ec\x1dd\x1ce]
 
 {"type":"Container","children":[{"id":{"q":"urn:test:persistence","name":"name"},"node":{"type":"Leaf","value":{"type":"str","value":"a\u001Fb\u001Ec\u001Dd\u001Ce"}}}]}
 

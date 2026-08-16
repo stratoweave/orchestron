@@ -1,0 +1,44 @@
+import testing
+
+import db as swdb
+import yang.gdata as gdata
+
+
+TEST_NS = "urn:test:persistence"
+DB_PATH_CHAR = chr(31)
+
+
+def q(name: str) -> gdata.Id:
+    return gdata.Id(TEST_NS, name)
+
+
+actor ranges_bound_exact_attrs_and_descendants(t: testing.AsyncT):
+    codec = swdb.KeyCodec([TEST_NS])
+    path = ["root", q("items"), "a"]
+    attrs = swdb.attrs_range(path, codec)
+    children = swdb.children_range(path, codec)
+    attr_key = swdb.to_attr_key(path, swdb.ATTR_KEYS, None, codec)
+    child_key = swdb.to_attr_key(path + [q("value")], swdb.ATTR_OUTPUT, None, codec)
+    sibling_key = swdb.to_attr_key(["root", q("items"), "ab"], swdb.ATTR_KEYS, None, codec)
+
+    testing.assertTrue(attr_key >= attrs.start and attr_key < attrs.end!)
+    testing.assertTrue(child_key >= children.start and child_key < children.end!)
+    testing.assertFalse(sibling_key >= children.start and sibling_key < children.end!)
+    t.success()
+
+
+actor child_from_key_skips_only_one_subtree(t: testing.AsyncT):
+    codec = swdb.KeyCodec([TEST_NS])
+    parent = ["root", q("items")]
+    escaped_child = "a" + DB_PATH_CHAR + "suffix"
+    escaped_key = swdb.to_attr_key(parent + [escaped_child, q("value")], swdb.ATTR_OUTPUT, None, codec)
+    short_key = swdb.to_attr_key(parent + ["a"], swdb.ATTR_KEYS, None, codec)
+    longer_key = swdb.to_attr_key(parent + ["ab"], swdb.ATTR_KEYS, None, codec)
+
+    escaped = swdb.child_from_key(parent, escaped_key, codec)
+    short = swdb.child_from_key(parent, short_key, codec)
+    testing.assertEqual(escaped.name, escaped_child)
+    testing.assertTrue(escaped.next_key <= short_key)
+    testing.assertEqual(short.name, "a")
+    testing.assertTrue(short.next_key <= longer_key)
+    t.success()
