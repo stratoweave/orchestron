@@ -91,6 +91,4 @@ jobs:
             Refreshes Acton package pins after stratoweave/stratoweave@${{ github.sha }} landed on main.
 
             This pull request is updated in place when newer stratoweave changes land.
-          add-paths: |
-            Build.act
-            **/Build.act
+          add-paths: ':(glob)**/Build.act'
