@@ -37,8 +37,8 @@ ATTR_RUNNING = "running"
 def parse_store_spec(raw: str) -> (backend: str, target: str, port: ?int, prefix: bytes):
     """Parse the --db argument: a plain LMDB path or a database URL.
 
-    A plain path and lmdb://path both select LMDB. Other schemes select
-    other backends; each backend reads the parts it needs.
+    A plain path and lmdb://path both select LMDB; etcd://host:port/prefix
+    selects etcd, where the path is the key prefix of this store.
     """
     if "://" not in raw:
         if raw == "":
@@ -57,6 +57,16 @@ def parse_store_spec(raw: str) -> (backend: str, target: str, port: ?int, prefix
         if path == "":
             raise ValueError("LMDB URL is missing a path")
         return (backend="lmdb", target=path, port=None, prefix=b"")
+
+    if scheme == "etcd":
+        if parsed.host is None:
+            raise ValueError("Etcd URL is missing a host")
+        prefix = uri.unquote(uri.e_str(parsed.path)).encode()
+        if prefix == b"" or prefix == b"/":
+            raise ValueError("Etcd URL is missing a key prefix path, e.g. etcd://host:2379/stratoweave")
+        if not prefix.endswith(b"/"):
+            prefix += b"/"
+        return (backend="etcd", target=parsed.host!, port=parsed.port if parsed.port is not None else 2379, prefix=prefix)
 
     raise ValueError("Unsupported database URL scheme: {scheme}")
 

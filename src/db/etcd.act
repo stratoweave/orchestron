@@ -1,0 +1,397 @@
+"""etcd persistence store over the etcd v3 JSON gateway.
+
+Keys live under a prefix so several logical stores can share one
+cluster. Range scans are paged; a write batch is one etcd transaction.
+"""
+
+import base64
+import json
+import net
+
+import db as swdb
+import http
+
+
+ETCD_PAGE_SIZE = 64
+
+
+def b64(raw: bytes) -> str:
+    return base64.encode(raw).decode()
+
+
+def obj(data: ?value, context: str) -> dict[str, ?value]:
+    if isinstance(data, dict):
+        return data
+    raise ValueError("Etcd returned an invalid {context}")
+
+
+def lst(data: ?value, context: str) -> list[?value]:
+    if data is None:
+        return []
+    if isinstance(data, list):
+        return data
+    raise ValueError("Etcd returned an invalid {context}")
+
+
+def as_bytes(data: ?value, context: str, required: bool=False) -> bytes:
+    """Decode a base64 field; a missing field is empty unless required."""
+    if data is None and not required:
+        return b""
+    if isinstance(data, str):
+        return base64.decode(data.encode())
+    raise ValueError("Etcd returned an invalid {context}")
+
+
+def end_key(prefix: bytes, end: ?bytes) -> bytes:
+    if end is not None:
+        return prefix + end
+    # The prefix is never empty, so it always has a next key.
+    return swdb.next_prefix(prefix)!
+
+
+actor EtcdClient(cap: net.TCPConnectCap, host: str, port: int):
+    """Send etcd JSON requests over one pipelined HTTP connection.
+
+    Many requests can be in flight at once; answers come back in order.
+    If the connection fails, every request waiting for an answer fails
+    with the same error, as does every later request.
+    """
+
+    var pending: list[action(?value, ?Exception) -> None] = []
+    var sent = 0
+    var failure: ?Exception = None
+    var closed = False
+    var client: ?http.Client = None
+
+    def connected(_client: http.Client) -> None:
+        pass
+
+    def failed(_client: http.Client, message: str) -> None:
+        if failure is None:
+            failure = ValueError("Etcd connection failed: {message}")
+        callbacks = pending
+        pending = []
+        for callback in callbacks:
+            callback(None, failure)
+
+    def response(_client: http.Client, result: http.Response) -> None:
+        if len(pending) == 0:
+            return
+        callback = pending[0]
+        del pending[0]
+        if result.status < 200 or result.status >= 300:
+            callback(None, ValueError("Etcd request failed with HTTP {result.status}: {result.body.decode()}"))
+        else:
+            try:
+                callback(result.decode_json(), None)
+            except Exception as e:
+                callback(None, e)
+
+    client = http.Client(cap, host, connected, failed, scheme="http", port=port, log_handler=None)
+
+    def post(path: str, body: dict[str, ?value], done: action(?value, ?Exception) -> None) -> None:
+        if closed:
+            done(None, ValueError("Etcd store is closed"))
+            return
+        if failure is not None:
+            done(None, failure)
+            return
+        try:
+            encoded = json.encode(body, pretty=False).encode()
+            c = client
+            if c is not None:
+                pending.append(done)
+                sent += 1
+                c.post(path, encoded, response, {"Content-Type": "application/json"})
+        except Exception as e:
+            done(None, e)
+
+    def request_count() -> int:
+        """Number of requests sent so far, for measurements."""
+        return sent
+
+    def close(done: action(?Exception) -> None) -> None:
+        if closed:
+            done(None)
+            return
+        closed = True
+        callbacks = pending
+        pending = []
+        for callback in callbacks:
+            callback(None, ValueError("Etcd store closed with a request in flight"))
+        try:
+            c = client
+            if c is not None:
+                c.close()
+            done(None)
+        except Exception as e:
+            done(e)
+
+
+actor EtcdGet(
+    client: EtcdClient,
+    prefix: bytes,
+    key: bytes,
+    done: action(?bytes, ?Exception) -> None
+):
+    def received(data: ?value, error: ?Exception) -> None:
+        if error is not None:
+            done(None, error)
+            return
+        try:
+            result = obj(data, "range response")
+            rows = lst(result.get("kvs"), "range rows")
+            if len(rows) == 0:
+                done(None, None)
+                return
+            row = obj(rows[0], "range row")
+            done(as_bytes(row.get("value"), "range value"), None)
+        except Exception as e:
+            done(None, e)
+
+    client.post("/v3/kv/range", {
+        "key": b64(prefix + key),
+        "limit": "1"
+    }, received)
+
+
+actor EtcdScan(
+    client: EtcdClient,
+    prefix: bytes,
+    start: bytes,
+    end: ?bytes
+):
+    """Lazy etcd range scan, one page of ETCD_PAGE_SIZE rows at a time."""
+
+    start_key = prefix + start
+    range_end = end_key(prefix, end)
+    var position = start_key
+    var rows: list[(key: bytes, value: bytes)] = []
+    var row_index = 0
+    var more = True
+    var waiting: ?action(?(key: bytes, value: bytes), ?Exception) -> None = None
+    var request_serial = 0
+    var pending_serial: ?int = None
+    var closed = False
+
+    def finish(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        callback = waiting
+        waiting = None
+        if callback is not None:
+            callback(record, error)
+
+    def deliver() -> None:
+        if waiting is None:
+            return
+        if closed:
+            finish(None, None)
+            return
+        if row_index < len(rows):
+            record = rows[row_index]
+            row_index += 1
+            finish(record, None)
+            return
+        if position >= range_end:
+            closed = True
+            finish(None, None)
+            return
+        if not more:
+            closed = True
+            finish(None, None)
+            return
+        if pending_serial is None:
+            fetch_page()
+
+    def page_received(serial: int, data: ?value, error: ?Exception) -> None:
+        if pending_serial != serial:
+            return
+        pending_serial = None
+        if closed:
+            return
+        if error is not None:
+            closed = True
+            finish(None, error)
+            return
+        try:
+            result = obj(data, "range response")
+            page_rows = []
+            physical_last: ?bytes = None
+            for row_data in lst(result.get("kvs"), "range rows"):
+                row = obj(row_data, "range row")
+                physical_key = as_bytes(row.get("key"), "range key", required=True)
+                if not physical_key.startswith(prefix):
+                    raise ValueError("Etcd returned a key outside the store prefix")
+                if physical_key < position or physical_key >= range_end:
+                    raise ValueError("Etcd returned a key outside the requested range")
+                page_rows.append((
+                    key=physical_key[len(prefix):],
+                    value=as_bytes(row.get("value"), "range value")
+                ))
+                physical_last = physical_key
+
+            more_data = result.get("more")
+            if more_data is None:
+                more = False
+            elif isinstance(more_data, bool):
+                more = more_data
+            else:
+                raise ValueError("Etcd returned an invalid range continuation flag")
+            if more and physical_last is None:
+                raise ValueError("Etcd returned an empty range page with more data")
+            if physical_last is not None:
+                position = physical_last + b"\x00"
+            rows = page_rows
+            row_index = 0
+            deliver()
+        except Exception as e:
+            closed = True
+            finish(None, e)
+
+    def fetch_page() -> None:
+        request_serial += 1
+        serial = request_serial
+        pending_serial = serial
+
+        def received(data: ?value, error: ?Exception) -> None:
+            page_received(serial, data, error)
+
+        client.post("/v3/kv/range", {
+            "key": b64(position),
+            "range_end": b64(range_end),
+            "limit": str(ETCD_PAGE_SIZE),
+            "sort_order": "ASCEND",
+            "sort_target": "KEY"
+        }, received)
+
+    def next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
+        if waiting is not None:
+            done(None, ValueError("Etcd scan already has a next request in progress"))
+            return
+        waiting = done
+        deliver()
+
+    def seek_ge(key: bytes) -> None:
+        if closed:
+            return
+        target = prefix + (key if key >= start else start)
+        # The buffered page is sorted. A target within it is a local skip,
+        # and a target past it when no more pages exist is the end of the
+        # range; only a target past a page with more data needs a new page.
+        if pending_serial is None and len(rows) > 0:
+            last = prefix + rows[len(rows) - 1].key
+            if target <= last:
+                while row_index < len(rows) and prefix + rows[row_index].key < target:
+                    row_index += 1
+                deliver()
+                return
+            if not more:
+                position = target
+                rows = []
+                row_index = 0
+                deliver()
+                return
+        position = target
+        rows = []
+        row_index = 0
+        more = True
+        request_serial += 1
+        pending_serial = None
+        deliver()
+
+    def close(done: action(?Exception) -> None) -> None:
+        if not closed:
+            closed = True
+            request_serial += 1
+            pending_serial = None
+            rows = []
+            finish(None, None)
+        done(None)
+
+
+actor EtcdWrite(
+    client: EtcdClient,
+    prefix: bytes,
+    writes: list[(key: bytes, value: ?bytes)],
+    done: action(?Exception) -> None
+):
+    success = []
+    for row in writes:
+        val = row.value
+        if val is not None:
+            success.append({
+                "request_put": {
+                    "key": b64(prefix + row.key),
+                    "value": b64(val)
+                }
+            })
+        else:
+            success.append({
+                "request_delete_range": {
+                    "key": b64(prefix + row.key)
+                }
+            })
+
+    def received(data: ?value, error: ?Exception) -> None:
+        if error is not None:
+            done(error)
+            return
+        try:
+            result = obj(data, "transaction response")
+            succeeded = result.get("succeeded")
+            if isinstance(succeeded, bool) and succeeded:
+                done(None)
+            else:
+                done(ValueError("Etcd transaction was not applied"))
+        except Exception as e:
+            done(e)
+
+    client.post("/v3/kv/txn", {
+        "compare": [],
+        "success": success,
+        "failure": []
+    }, received)
+
+
+class EtcdReader(swdb.Reader):
+    """Reader over an etcd store; scans read the current state."""
+
+    client: EtcdClient
+    prefix: bytes
+
+    def __init__(self, client: EtcdClient, prefix: bytes):
+        self.client = client
+        self.prefix = prefix
+
+    def scan(self, start: bytes, end: ?bytes) -> swdb.Scan:
+        scan = EtcdScan(self.client, self.prefix, start, end)
+        return swdb.Scan(scan.next, scan.seek_ge, scan.close)
+
+    def close(self, done: action(?Exception) -> None) -> None:
+        done(None)
+
+
+class EtcdStore(swdb.Store):
+    """Store backed by an etcd v3 JSON endpoint."""
+
+    client: EtcdClient
+    prefix: bytes
+
+    def __init__(self, cap: net.TCPConnectCap, host: str, port: int=2379, prefix: bytes=b""):
+        self.client = EtcdClient(cap, host, port)
+        self.prefix = prefix + b"/" if len(prefix) > 0 and not prefix.endswith(b"/") else prefix
+
+    def get(self, key: bytes, done: action(?bytes, ?Exception) -> None) -> None:
+        EtcdGet(self.client, self.prefix, key, done)
+
+    def read(self) -> swdb.Reader:
+        return EtcdReader(self.client, self.prefix)
+
+    def write(
+        self,
+        writes: list[(key: bytes, value: ?bytes)],
+        done: action(?Exception) -> None
+    ) -> None:
+        EtcdWrite(self.client, self.prefix, writes, done)
+
+    def close(self, done: action(?Exception) -> None) -> None:
+        self.client.close(done)

@@ -6,6 +6,7 @@ import tmf.cfs
 
 import app as swapp
 import db as swdb
+import db.etcd as swetcd
 import db.lmdb as swlmdb
 import device as swdev
 import http_server as swhttp
@@ -67,16 +68,19 @@ def main(sysspec: swapp.SysSpec, env: Env, http: bool=True, netconf: bool=True):
 
     args = swapp.AppArgs.from_args(env.argv, env.exit)
     top_schema = sysspec.schema_for_layer(0)
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap)))
     db: ?swdb.Store = None
     db_spec = args.db_spec
     if db_spec is not None:
         spec = swdb.parse_store_spec(db_spec)
         if spec.backend == "lmdb":
             db = swlmdb.LmdbStore(file.WriteFileCap(fcap), spec.target, TTT_DB_MAP_SIZE)
+        elif spec.backend == "etcd":
+            db = swetcd.EtcdStore(connect_cap, spec.target, spec.port!, spec.prefix)
         else:
             raise ValueError("Database backend is not available: {spec.backend}")
 
-    dev_registry = swdev.DeviceRegistry(sysspec.device_types, net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))), logh_dev)
+    dev_registry = swdev.DeviceRegistry(sysspec.device_types, connect_cap, logh_dev)
     cfs = sysspec.get_layers(dev_registry, logh_ttt, db)
     swapp.RfsReconf(dev_registry, cfs)
 

@@ -1,0 +1,261 @@
+"""Etcd persistence integration tests.
+
+A TTT commit is one etcd transaction with an operation per changed
+record, and etcd's defaults (128 operations and 1.5 MB per transaction)
+hold about 20 list elements. Run etcd with those limits raised:
+
+    docker run --rm --name stratoweave-etcd-test \
+      -p 2379:2379 \
+      gcr.io/etcd-development/etcd:v3.6.11 \
+      /usr/local/bin/etcd \
+      --name s1 \
+      --data-dir /tmp/etcd-data \
+      --listen-client-urls http://0.0.0.0:2379 \
+      --advertise-client-urls http://0.0.0.0:2379 \
+      --listen-peer-urls http://0.0.0.0:2380 \
+      --initial-advertise-peer-urls http://0.0.0.0:2380 \
+      --initial-cluster s1=http://0.0.0.0:2380 \
+      --initial-cluster-state new \
+      --max-txn-ops 100000 \
+      --max-request-bytes 104857600 \
+      --quota-backend-bytes 8589934592 \
+      --auto-compaction-mode periodic \
+      --auto-compaction-retention 10m
+
+Run these tests with:
+
+    acton test --tag etcd --module test_ttt_persistence_etcd
+
+An application uses the same endpoint through:
+
+    --db etcd://127.0.0.1:2379/stratoweave
+"""
+
+import net
+import testing
+import time
+
+import db as swdb
+import db.etcd as swetcd
+import ttt
+import yang.gdata as gdata
+
+
+TEST_NS = "urn:test:persistence:etcd"
+
+
+def q(name: str) -> gdata.Id:
+    return gdata.Id(TEST_NS, name)
+
+
+def connect_cap(t: testing.EnvT) -> net.TCPConnectCap:
+    return net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+
+
+def test_prefix(kind: str) -> bytes:
+    now = time.time()
+    timestamp = str(now.second).encode() + b"-" + str(now.attosecond).encode()
+    return b"/stratoweave/tests/" + kind.encode() + b"-" + timestamp + b"-" + actorid().encode() + b"/"
+
+
+def padded_index(index: int) -> str:
+    suffix = str(index)
+    while len(suffix) < 3:
+        suffix = "0" + suffix
+    return suffix
+
+
+actor ClearStore(store: swdb.Store, done: action(?Exception) -> None):
+    scan = store.read().scan(b"", None)
+    var deletes: list[(key: bytes, value: ?bytes)] = []
+    var scan_error: ?Exception = None
+
+    def after_close(error: ?Exception) -> None:
+        if scan_error is not None:
+            done(scan_error)
+        elif error is not None:
+            done(error)
+        elif len(deletes) == 0:
+            done(None)
+        else:
+            store.write(deletes, done)
+
+    def received(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            scan_error = error
+            scan.close(after_close)
+        elif record is None:
+            scan.close(after_close)
+        else:
+            row = record!
+            deletes.append((key=row.key, value=None))
+            scan.next(received)
+
+    scan.next(received)
+
+
+actor etcd_store_uses_callback_ranges_and_transactions(t: testing.EnvT):
+    t.require("etcd")
+    prefix = test_prefix("store")
+    store = swetcd.EtcdStore(connect_cap(t), "127.0.0.1", 2379, prefix)
+    var scan: ?swdb.Scan = None
+
+    def after_store_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        t.success()
+
+    def after_cleanup(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.close(after_store_close)
+
+    def after_scan_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.write([
+            (key=b"a", value=None),
+            (key=b"b", value=None),
+            (key=b"c", value=None)
+        ], after_cleanup)
+
+    def after_eof(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        testing.assertEqual(record is None, True)
+        scan!.close(after_scan_close)
+
+    def after_seek(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        row = record!
+        testing.assertEqual(row.key, b"c")
+        testing.assertEqual(row.value, b"3")
+        scan!.seek_ge(b"z")
+        scan!.next(after_eof)
+
+    def after_first(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        row = record!
+        testing.assertEqual(row.key, b"a")
+        testing.assertEqual(row.value, b"1")
+        scan!.seek_ge(b"c")
+        scan!.next(after_seek)
+
+    def after_get(value: ?bytes, error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        testing.assertEqual(value, b"2")
+        scan1 = store.read().scan(b"a", b"d")
+        scan = scan1
+        scan1.next(after_first)
+
+    def after_write(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.get(b"b", after_get)
+
+    store.write([
+        (key=b"a", value=b"1"),
+        (key=b"b", value=b"2"),
+        (key=b"c", value=b"3")
+    ], after_write)
+
+
+actor etcd_scan_streams_across_pages(t: testing.EnvT):
+    t.require("etcd")
+    store = swetcd.EtcdStore(connect_cap(t), "127.0.0.1", 2379, test_prefix("pages"))
+    writes = []
+    deletes = []
+    for i in range(70):
+        key = ("k-" + padded_index(i)).encode()
+        writes.append((key=key, value=str(i).encode()))
+        deletes.append((key=key, value=None))
+
+    var scan: ?swdb.Scan = None
+    var index = 0
+
+    def after_store_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        t.success()
+
+    def after_cleanup(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.close(after_store_close)
+
+    def after_scan_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.write(deletes, after_cleanup)
+
+    def received(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        if record is None:
+            testing.assertEqual(index, 70)
+            scan!.close(after_scan_close)
+            return
+        row = record!
+        testing.assertEqual(row.key, ("k-" + padded_index(index)).encode())
+        testing.assertEqual(row.value, str(index).encode())
+        index += 1
+        scan!.next(received)
+
+    def after_write(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        scan1 = store.read().scan(b"k-", b"k.")
+        scan = scan1
+        scan1.next(received)
+
+    store.write(writes, after_write)
+
+
+def list_tree(size: int) -> gdata.List:
+    elements = []
+    for i in range(size):
+        suffix = padded_index(i)
+        elements.append(gdata.Container({
+            q("name"): gdata.Leaf("item-{suffix}"),
+            q("value"): gdata.Leaf(i)
+        }))
+    return gdata.List([q("name")], elements)
+
+
+def list_root() -> proc(ttt.Path, ?ttt.Layer) -> ttt.Node:
+    return ttt.List(ttt.Transform(ttt.PassThrough), [q("name")])
+
+
+actor ttt_round_trip_restores_from_etcd_ranges(t: testing.EnvT):
+    t.require("etcd")
+    prefix = test_prefix("restore")
+    store = swetcd.EtcdStore(connect_cap(t), "127.0.0.1", 2379, prefix)
+    expected = list_tree(24)
+    var restored = ttt.Layer("etcd", list_root(), None, store)
+
+    def after_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        t.success()
+
+    def after_cleanup(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.close(after_close)
+
+    def after_restore(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        testing.assertEqual(restored.get(), expected)
+        ClearStore(store, after_cleanup)
+
+    def after_commit(result: value) -> None:
+        if not (isinstance(result, str) and result == "Ok"):
+            raise AssertionError("Expected successful etcd persistence commit, got {result}")
+        restored = ttt.Layer("etcd", list_root(), None, store)
+        restored.load_from_db(after_restore)
+
+    restored.edit_config(expected, after_commit)

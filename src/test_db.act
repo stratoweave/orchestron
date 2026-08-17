@@ -57,7 +57,18 @@ actor database_paths_and_urls_parse(t: testing.AsyncT):
     testing.assertEqual(explicit.target, implicit.target)
     testing.assertEqual(absolute.target, "/tmp/state.db")
 
-    for bad in ["", "lmdb://", "foo://host/x", "lmdb://state.db?opt=1"]:
+    etcd = swdb.parse_store_spec("etcd://127.0.0.1:12379/stratoweave/test")
+    default_port = swdb.parse_store_spec("etcd://db.example/tenant")
+    testing.assertEqual(etcd.backend, "etcd")
+    testing.assertEqual(etcd.target, "127.0.0.1")
+    testing.assertEqual(etcd.port, 12379)
+    testing.assertEqual(etcd.prefix, b"/stratoweave/test/")
+    testing.assertEqual(default_port.port, 2379)
+    testing.assertEqual(default_port.prefix, b"/tenant/")
+
+    # An etcd store needs a key prefix: without one every key of the
+    # cluster would be ours.
+    for bad in ["", "lmdb://", "foo://host/x", "lmdb://state.db?opt=1", "etcd://db.example", "etcd://db.example/", "etcd://db.example:2379"]:
         try:
             swdb.parse_store_spec(bad)
         except ValueError:
