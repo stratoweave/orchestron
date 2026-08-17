@@ -152,7 +152,7 @@ actor _test_rfs_subscribe_transform(t: testing.AsyncT):
         if modset_id is None:
             after 0: kick()
             return
-        rfs.edit_config(_rfs_for_device("dev1"), on_config, None, True)
+        rfs.edit_config(_rfs_for_device("dev1"), on_config, None)
 
     def start():
         msg = async dev.get_adapter()
