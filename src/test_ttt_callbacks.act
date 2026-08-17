@@ -119,7 +119,7 @@ actor complete(t: testing.AsyncT):
 
     def reconf_cb(dev):
         cfg = rfs_for_device(dev)
-        stack.edit_config(cfg, force=True)
+        stack.edit_config(cfg)
         
     dev_registry.on_reconf(reconf_cb)
     

@@ -1124,7 +1124,7 @@ class CountingLinkedSubscriber(ttt.TransformFunction):
 # Subscribing must not re-run existing subscribers: when a transaction only
 # adds a new subscriber (a new link request), the publisher's state is
 # unchanged, so existing subscribers already hold the correct linked input
-# and must not be force-recomputed. Without targeted link updates the
+# and must not be recomputed. Without targeted link updates the
 # publisher answers every new link request by broadcasting its full state to
 # ALL subscribers, so creating subscriber N re-runs all N-1 existing
 # subscriber transforms; with one service created per transaction that makes
