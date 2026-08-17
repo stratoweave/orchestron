@@ -42,3 +42,26 @@ actor child_from_key_skips_only_one_subtree(t: testing.AsyncT):
     testing.assertEqual(short.name, "a")
     testing.assertTrue(short.next_key <= longer_key)
     t.success()
+
+
+actor database_paths_and_urls_parse(t: testing.AsyncT):
+    implicit = swdb.parse_store_spec("state.db")
+    explicit = swdb.parse_store_spec("lmdb://state.db")
+    absolute = swdb.parse_store_spec("lmdb:///tmp/state.db")
+
+    testing.assertEqual(implicit.backend, "lmdb")
+    testing.assertEqual(implicit.target, "state.db")
+    testing.assertNone(implicit.port)
+    testing.assertEqual(implicit.prefix, b"")
+    testing.assertEqual(explicit.backend, implicit.backend)
+    testing.assertEqual(explicit.target, implicit.target)
+    testing.assertEqual(absolute.target, "/tmp/state.db")
+
+    for bad in ["", "lmdb://", "foo://host/x", "lmdb://state.db?opt=1"]:
+        try:
+            swdb.parse_store_spec(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected " + bad + " to be rejected")
+    t.success()

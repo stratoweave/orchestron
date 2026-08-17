@@ -4,6 +4,7 @@ import json
 
 import lmdb
 import db as swdb
+import db.lmdb as swlmdb
 import ttt as ttt
 import yang.gdata as gdata
 
@@ -392,11 +393,11 @@ actor lmdb_store_uses_callback_scan_and_write(t: testing.EnvT):
     fc = file.FileCap(t.env.cap)
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_store_callbacks_")
-    store = swdb.LmdbStore(file.WriteFileCap(fc), db_path)
+    store = swlmdb.LmdbStore(file.WriteFileCap(fc), db_path)
     StoreCallbackFlow(t, fs, db_path, store)
 
 
-actor TransformWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swdb.LmdbStore, layer: ttt.Layer):
+actor TransformWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swlmdb.LmdbStore, layer: ttt.Layer):
     def after_commit_cb(_r: value) -> None:
         after_commit()
         return None
@@ -421,7 +422,7 @@ def write_structural_list_element(write_txn: lmdb.WriteTransaction, codec: swdb.
     write_txn.put(swdb.to_attr_key(element_path + [value_id], swdb.ATTR_RUNNING, "_", codec), value_node.to_json_str(pretty=False).encode())
 
 
-actor StructuralListWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swdb.LmdbStore, layer: ttt.Layer):
+actor StructuralListWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swlmdb.LmdbStore, layer: ttt.Layer):
     def after_commit_cb(_r: value) -> None:
         after_commit()
         return None
@@ -436,7 +437,7 @@ actor StructuralListWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: sw
         t.success(snapshot)
 
 
-actor StatefulTransformWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swdb.LmdbStore):
+actor StatefulTransformWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swlmdb.LmdbStore):
     var completed = False
 
     def after_settled() -> None:
@@ -452,7 +453,7 @@ actor StatefulTransformWriteFlow(t: testing.EnvT, fs: file.FS, db_path: str, db:
         t.success(snapshot)
 
 
-actor BusyWriterWaitFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swdb.LmdbStore, layer: ttt.Layer, held_txn: lmdb.WriteTransaction):
+actor BusyWriterWaitFlow(t: testing.EnvT, fs: file.FS, db_path: str, db: swlmdb.LmdbStore, layer: ttt.Layer, held_txn: lmdb.WriteTransaction):
     var released = False
 
     def release_writer() -> None:
@@ -479,7 +480,7 @@ actor persist_transform_record(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_persist_transform_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     layer: ttt.Layer = ttt.Layer("single", ttt.Transform(ttt.PassThrough), None, db)
     flow = TransformWriteFlow(t, fs, db_path, db, layer)
     layer.edit_config(persist_cfg, flow.after_commit_cb)
@@ -490,7 +491,7 @@ actor wait_for_busy_db_writer_then_commit(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_wait_busy_writer_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     held_txn = db.db.begin_write()
     layer: ttt.Layer = ttt.Layer("single", ttt.Transform(ttt.PassThrough), None, db)
     flow = BusyWriterWaitFlow(t, fs, db_path, db, layer, held_txn)
@@ -503,7 +504,7 @@ actor dbuffer_refreshes_on_lock_reconfigure(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_dbuffer_refresh_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     node: ttt.Node = ttt.Transform(ttt.PassThrough)(ttt.PathRoot("single:"), None)
     tr: ttt.Transaction = node.newtrans()
     seedbuf: swdb.Buffer = swdb.Buffer()
@@ -563,7 +564,7 @@ actor persist_structural_list_snapshot(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_persist_struct_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     layer: ttt.Layer = ttt.Layer("struct", struct_root, None, db)
     flow = StructuralListWriteFlow(t, fs, db_path, db, layer)
     layer.edit_config(struct_tree, flow.after_commit_cb)
@@ -574,7 +575,7 @@ actor persist_structural_list_escaped_snapshot(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_persist_struct_escaped_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     layer: ttt.Layer = ttt.Layer(escaped_layer_name, struct_root, None, db)
     flow = StructuralListWriteFlow(t, fs, db_path, db, layer)
     layer.edit_config(escaped_struct_tree, flow.after_commit_cb)
@@ -585,7 +586,7 @@ actor persist_transform_state_snapshot(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_persist_stateful_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     var root: ?ttt.Node = None
     flow = StatefulTransformWriteFlow(t, fs, db_path, db)
 
@@ -614,7 +615,7 @@ actor restore_transform_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_transform_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("single", ttt.Transform(ttt.PassThrough), None, db)
 
     def after_recommit(_r: value) -> None:
@@ -632,7 +633,7 @@ actor restore_transform_round_trip(t: testing.EnvT):
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("single", ttt.Transform(ttt.PassThrough), None, db)
         restored.load_from_db(after_restore)
 
@@ -644,7 +645,7 @@ actor reject_restore_into_nonempty_tree(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_nonempty_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("single", ttt.Transform(ttt.PassThrough), None, db)
 
     def cleanup_success() -> None:
@@ -671,7 +672,7 @@ actor reject_restore_into_nonempty_tree(t: testing.EnvT):
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("single", ttt.Transform(ttt.PassThrough), None, db)
         restored.load_from_db(after_first_load)
 
@@ -683,7 +684,7 @@ actor reject_map_full_without_committing_memory(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_map_full_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path, 256 * 1024)
+    var db = swlmdb.LmdbStore(cap, db_path, 256 * 1024)
     layer = ttt.Layer("struct", struct_root, None, db)
 
     def after_recovery(r: value) -> None:
@@ -691,7 +692,7 @@ actor reject_map_full_without_committing_memory(t: testing.EnvT):
             raise AssertionError("Expected successful recovery completion after DB persist failure, got {r}")
         testing.assertEqual(layer.get(), struct_tree)
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path, 256 * 1024)
+        db = swlmdb.LmdbStore(cap, db_path, 256 * 1024)
         restored = ttt.Layer("struct", struct_root, None, db)
 
         def after_restore(error: ?Exception) -> None:
@@ -721,7 +722,7 @@ actor restore_transform_memory_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_memory_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("memory", ttt.Transform(PersistMemoryTransform), None, db)
 
     def after_recommit(r: value) -> None:
@@ -743,7 +744,7 @@ actor restore_transform_memory_round_trip(t: testing.EnvT):
         if not (isinstance(r, str) and r == "Ok"):
             raise AssertionError("Expected successful initial commit for memory restore, got {r}")
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("memory", ttt.Transform(PersistMemoryTransform), None, db)
         restored.load_from_db(after_restore)
 
@@ -755,7 +756,7 @@ actor restore_transform_dynstate_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_dynstate_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var root: ?ttt.Node = None
     var restored = ttt.Layer("stateful", ttt.Transform(PersistDynstateTransform), None, db)
 
@@ -782,7 +783,7 @@ actor restore_transform_dynstate_round_trip(t: testing.EnvT):
         if not (isinstance(r, str) and r == "Ok"):
             raise AssertionError("Expected successful dynstate seed recompute, got {r}")
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("stateful", ttt.Transform(PersistDynstateTransform), None, db)
         restored.load_from_db(after_restore)
 
@@ -802,7 +803,7 @@ actor restore_structural_list_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_struct_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("struct", struct_root, None, db)
 
     def after_recommit(_r: value) -> None:
@@ -820,7 +821,7 @@ actor restore_structural_list_round_trip(t: testing.EnvT):
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("struct", struct_root, None, db)
         restored.load_from_db(after_restore)
 
@@ -836,7 +837,7 @@ actor restore_survives_forced_recompute(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_recompute_survive_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("struct", struct_root, None, db)
 
     def after_second_restore(error: ?Exception) -> None:
@@ -852,13 +853,13 @@ actor restore_survives_forced_recompute(t: testing.EnvT):
         if isinstance(result, Exception):
             raise result
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("struct", struct_root, None, db)
         restored.load_from_db(after_second_restore)
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("struct", struct_root, None, db)
 
         def restored_then_recompute(error: ?Exception) -> None:
@@ -876,7 +877,7 @@ actor restore_direct_list_transform_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_direct_list_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("direct", direct_list_root(), None, db)
 
     def after_restore(error: ?Exception) -> None:
@@ -890,7 +891,7 @@ actor restore_direct_list_transform_round_trip(t: testing.EnvT):
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("direct", direct_list_root(), None, db)
         restored.load_from_db(after_restore)
 
@@ -902,7 +903,7 @@ actor restore_structural_list_delete_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_struct_delete_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("struct", struct_root, None, db)
 
     def after_delete_restore(error: ?Exception) -> None:
@@ -922,7 +923,7 @@ actor restore_structural_list_delete_round_trip(t: testing.EnvT):
 
     def after_delete_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("struct", struct_root, None, db)
         restored.load_from_db(after_delete_restore)
 
@@ -940,7 +941,7 @@ actor restore_structural_list_delete_round_trip(t: testing.EnvT):
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer("struct", struct_root, None, db)
         restored.load_from_db(after_initial_restore)
 
@@ -952,7 +953,7 @@ actor restore_structural_list_escaped_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_struct_escaped_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer(escaped_layer_name, struct_root, None, db)
 
     def after_recommit(_r: value) -> None:
@@ -970,7 +971,7 @@ actor restore_structural_list_escaped_round_trip(t: testing.EnvT):
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored = ttt.Layer(escaped_layer_name, struct_root, None, db)
         restored.load_from_db(after_restore)
 
@@ -982,7 +983,7 @@ actor restore_layer_stack_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_layers_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored_lower = ttt.Layer("lower", ttt.Transform(ttt.PassThrough), None, db)
     var restored_top = ttt.Layer("upper", ttt.Transform(ttt.PassThrough), restored_lower, db)
 
@@ -998,7 +999,7 @@ actor restore_layer_stack_round_trip(t: testing.EnvT):
 
     def after_initial_commit(_r: value) -> None:
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         restored_lower = ttt.Layer("lower", ttt.Transform(ttt.PassThrough), None, db)
         restored_top = ttt.Layer("upper", ttt.Transform(ttt.PassThrough), restored_lower, db)
         restored_top.load_from_db(after_restore)
@@ -1011,7 +1012,7 @@ actor restore_exact_layer_name_prefix_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_exact_layer_prefix_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var foo_layer = ttt.Layer("foo", ttt.Transform(ttt.PassThrough), None, db)
     var foobar_layer = ttt.Layer("foobar", ttt.Transform(ttt.PassThrough), None, db)
 
@@ -1037,7 +1038,7 @@ actor restore_exact_layer_name_prefix_round_trip(t: testing.EnvT):
         if not isinstance(r, str):
             raise AssertionError("Expected successful foobar completion, got {r}")
         await async db.db.close()
-        db = swdb.LmdbStore(cap, db_path)
+        db = swlmdb.LmdbStore(cap, db_path)
         foo_layer = ttt.Layer("foo", ttt.Transform(ttt.PassThrough), None, db)
         foobar_layer = ttt.Layer("foobar", ttt.Transform(ttt.PassThrough), None, db)
         foo_layer.load_from_db(after_foo_restore)
@@ -1055,7 +1056,7 @@ actor restore_qualified_namespace_shift_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_ns_shift_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("shift", qualified_root, None, db)
 
     def write_transform_state(write_txn: lmdb.WriteTransaction, codec: swdb.KeyCodec, path: list[value], value: gdata.Node) -> None:
@@ -1094,7 +1095,7 @@ actor restore_removed_namespace_gap_round_trip(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_removed_ns_gap_")
     cap = file.WriteFileCap(fc)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("removed", removed_live_root, None, db)
 
     def after_recommit(_r: value) -> None:
@@ -1128,7 +1129,7 @@ actor reject_removed_namespace_with_persisted_list_data(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_removed_ns_data_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     write_txn = db.db.begin_write()
     codec = swdb.KeyCodec([REMOVED_NS_OLD, REMOVED_NS_LIVE])
     write_txn.put(swdb.META_KEY, json.encode({"version": swdb.VERSION, "namespaces": codec.namespaces}, pretty=False).encode())
@@ -1159,7 +1160,7 @@ actor reject_persistence_version_mismatch(t: testing.EnvT):
     fs = file.FS(fc)
     db_path = fs.mktmpdir("test_ttt_restore_bad_version_")
     cap = file.WriteFileCap(fc)
-    db = swdb.LmdbStore(cap, db_path)
+    db = swlmdb.LmdbStore(cap, db_path)
     write_txn = db.db.begin_write()
     write_txn.put(swdb.META_KEY, json.encode({"version": 0}, pretty=False).encode())
     await async write_txn.commit()
@@ -1331,7 +1332,7 @@ actor restore_runs_bounded_across_the_tree(t: testing.EnvT):
     db_path = fs.mktmpdir("test_ttt_restore_bounded_")
     cap = file.WriteFileCap(fc)
     expected = nested_list_tree(12, 24)
-    var db = swdb.LmdbStore(cap, db_path)
+    var db = swlmdb.LmdbStore(cap, db_path)
     var restored = ttt.Layer("nested", nested_list_root(), None, db)
     tracker = OpenScans()
 

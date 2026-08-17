@@ -27,7 +27,7 @@ class SysSpec(value):
 
 class AppArgs(value):
     config_files: list[str]
-    db_path: ?str
+    db_spec: ?str
     http_port: int
     netconf_port: int
     netconf_host_key_path: ?str
@@ -35,9 +35,9 @@ class AppArgs(value):
     netconf_password: str
     exit_on_done: bool
 
-    def __init__(self, config_files: list[str]=[], db_path: ?str=None, http_port: int=80, netconf_port: int=830, netconf_host_key_path: ?str=None, netconf_user: str="admin", netconf_password: str="admin", exit_on_done: bool=False):
+    def __init__(self, config_files: list[str]=[], db_spec: ?str=None, http_port: int=80, netconf_port: int=830, netconf_host_key_path: ?str=None, netconf_user: str="admin", netconf_password: str="admin", exit_on_done: bool=False):
         self.config_files = config_files
-        self.db_path = db_path
+        self.db_spec = db_spec
         self.http_port = http_port
         self.netconf_port = netconf_port
         self.netconf_host_key_path = netconf_host_key_path
@@ -50,7 +50,7 @@ class AppArgs(value):
     def from_args(argv: list[str], exit: action(int) -> None) -> AppArgs:
         p = argparse.Parser()
         p.add_arg("file", "Config XML file(s)", False, "+")
-        p.add_option("db", "str", default="", help="LMDB directory for TTT persistence")
+        p.add_option("db", "str", default="", help="TTT database: an LMDB path or a database URL")
         p.add_option("http-port", "int", default=80, help="HTTP listen port")
         p.add_option("netconf-port", "int", default=830, help="NETCONF SSH listen port")
         p.add_option("netconf-host-key", "str", default="", help="SSH host key file for NETCONF; ephemeral in-memory key if unset")
@@ -60,9 +60,9 @@ class AppArgs(value):
 
         try:
             args = p.parse(argv)
-            db_path = args.get_str("db")
+            db_spec = args.get_str("db")
             host_key = args.get_str("netconf-host-key")
-            return AppArgs(args.get_strlist("file"), db_path if db_path != "" else None, args.get_int("http-port"), args.get_int("netconf-port"), host_key if host_key != "" else None, args.get_str("netconf-user"), args.get_str("netconf-password"), args.get_bool("exit-on-done"))
+            return AppArgs(args.get_strlist("file"), db_spec if db_spec != "" else None, args.get_int("http-port"), args.get_int("netconf-port"), host_key if host_key != "" else None, args.get_str("netconf-user"), args.get_str("netconf-password"), args.get_bool("exit-on-done"))
         except argparse.PrintUsage as exc:
             print(exc.error_message)
             exit(0)

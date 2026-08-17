@@ -5,9 +5,8 @@ store interface keeps backend transactions and cursors out of TTT.
 """
 
 import yang.gdata as gdata
-import file
-import lmdb
 import json
+import uri
 
 VERSION = 1
 META_KEY = b"ttt"
@@ -34,6 +33,33 @@ ATTR_DYNSTATE = "dynstate"
 ATTR_MEMORY = "memory"
 ATTR_OUTPUT = "output"
 ATTR_RUNNING = "running"
+
+def parse_store_spec(raw: str) -> (backend: str, target: str, port: ?int, prefix: bytes):
+    """Parse the --db argument: a plain LMDB path or a database URL.
+
+    A plain path and lmdb://path both select LMDB. Other schemes select
+    other backends; each backend reads the parts it needs.
+    """
+    if "://" not in raw:
+        if raw == "":
+            raise ValueError("Database path must not be empty")
+        return (backend="lmdb", target=raw, port=None, prefix=b"")
+
+    parsed = uri.URI(raw)
+    if parsed.scheme is None:
+        raise ValueError("Database URL is missing a scheme")
+    scheme = parsed.scheme!.lower()
+    if parsed.query is not None or parsed.fragment is not None:
+        raise ValueError("Database URL must not contain a query or fragment")
+
+    if scheme == "lmdb":
+        path = uri.unquote(uri.e_str(parsed.authority) + uri.e_str(parsed.path))
+        if path == "":
+            raise ValueError("LMDB URL is missing a path")
+        return (backend="lmdb", target=path, port=None, prefix=b"")
+
+    raise ValueError("Unsupported database URL scheme: {scheme}")
+
 
 class Scan(object):
     """Streaming range scan handle.
@@ -99,152 +125,6 @@ class Store(object):
         action(?Exception) -> None
     ) -> None
     close: proc(action(?Exception) -> None) -> None
-
-
-actor LmdbAdapter(db: lmdb.Db):
-    """Adapter actor for LMDB's callback-based write acquisition."""
-
-    def write(
-        writes: list[(key: bytes, value: ?bytes)],
-        done: action(?Exception) -> None
-    ) -> None:
-        def granted(error: ?Exception, txn: ?lmdb.WriteTransaction) -> None:
-            if error is not None:
-                done(error)
-                return
-            if txn is not None:
-                try:
-                    # Submit every operation before collecting results: the ops
-                    # raise their own errors and a failed transaction must not be
-                    # committed, so each result is awaited ahead of the commit.
-                    msgs = []
-                    for row in writes:
-                        val = row.value
-                        if val is not None:
-                            msgs.append(async txn.put(row.key, val))
-                        else:
-                            msgs.append(async txn.delete(row.key))
-                    for msg in msgs:
-                        await msg
-                    await async txn.commit()
-                    done(None)
-                except Exception as e:
-                    try:
-                        await async txn.abort()
-                    except Exception:
-                        pass
-                    done(e)
-            else:
-                done(lmdb.InvalidStateError("Writer request returned neither transaction nor error"))
-                return
-
-
-        db.request_write(granted)
-
-
-actor LmdbScan(txn: lmdb.ReadTransaction, start: bytes, end: ?bytes):
-    """Streaming range scan: one cursor in the reader's read transaction."""
-
-    cursor = txn.cursor()
-    var seek_to: ?bytes = start
-    var released = False
-
-    def release() -> None:
-        if not released:
-            released = True
-            await async cursor.close()
-
-    def next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
-        if released:
-            done(None, None)
-            return
-        try:
-            target = seek_to
-            seek_to = None
-            if target is not None:
-                record = cursor.seek(target)
-            else:
-                record = cursor.next()
-
-            if record is None or (end is not None and record!.key >= end):
-                release()
-                done(None, None)
-                return
-            done(record, None)
-        except Exception as e:
-            try:
-                release()
-            except Exception:
-                pass
-            done(None, e)
-
-    def seek_ge(key: bytes) -> None:
-        if not released:
-            seek_to = key if key >= start else start
-
-    def close(done: action(?Exception) -> None) -> None:
-        try:
-            release()
-            done(None)
-        except Exception as e:
-            done(e)
-
-
-class LmdbReader(Reader):
-    """One LMDB read transaction serving every scan of a restore."""
-
-    txn: lmdb.ReadTransaction
-
-    def __init__(self, txn: lmdb.ReadTransaction):
-        self.txn = txn
-
-    def scan(self, start: bytes, end: ?bytes) -> Scan:
-        scan = LmdbScan(self.txn, start, end)
-        return Scan(scan.next, scan.seek_ge, scan.close)
-
-    proc def close(self, done: action(?Exception) -> None) -> None:
-        try:
-            await async self.txn.abort()
-            done(None)
-        except Exception as e:
-            done(e)
-
-
-class LmdbStore(Store):
-    """Store backed by one LMDB database."""
-
-    db: lmdb.Db
-    adapter: LmdbAdapter
-
-    def __init__(self, cap: file.WriteFileCap, path: str, map_size: ?int=None):
-        if map_size is not None:
-            self.db = lmdb.Db(cap, path, map_size)
-        else:
-            self.db = lmdb.Db(cap, path)
-        self.adapter = LmdbAdapter(self.db)
-
-    proc def get(self, key: bytes, done: action(?bytes, ?Exception) -> None) -> None:
-        try:
-            done(self.db.get(key), None)
-        except Exception as e:
-            done(None, e)
-
-    proc def read(self) -> Reader:
-        return LmdbReader(self.db.begin_read())
-
-    proc def write(
-        self,
-        writes: list[(key: bytes, value: ?bytes)],
-        done: action(?Exception) -> None
-    ) -> None:
-        self.adapter.write(writes, done)
-
-    proc def close(self, done: action(?Exception) -> None) -> None:
-        try:
-            self.db.close()
-            done(None)
-        except Exception as e:
-            done(e)
 
 
 actor RangeReader(
