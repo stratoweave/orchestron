@@ -544,15 +544,15 @@ actor dbuffer_refreshes_on_lock_reconfigure(t: testing.EnvT):
         if not is_cfg_ok(r):
             raise AssertionError("Expected successful seed lock, got {r}")
         tr.commit("0", True)
-        r1 = tr.configure("1", {"_": overlap_t1_diff}, None, False, t1buf)
+        r1 = tr.configure("1", {"_": overlap_t1_diff}, None, t1buf)
         if not is_cfg_ok(r1):
             raise AssertionError("Expected successful t1 configure, got {r1}")
-        r2 = tr.configure("2", {"_": overlap_t2_diff}, None, False, t2buf)
+        r2 = tr.configure("2", {"_": overlap_t2_diff}, None, t2buf)
         if not is_cfg_ok(r2):
             raise AssertionError("Expected successful t2 configure, got {r2}")
         tr.lock("2", None, after_t2_lock, t2buf)
 
-    r0 = tr.configure("0", {"_": overlap_base_cfg}, None, False, seedbuf)
+    r0 = tr.configure("0", {"_": overlap_base_cfg}, None, seedbuf)
     if not is_cfg_ok(r0):
         raise AssertionError("Expected successful seed configure, got {r0}")
     tr.lock("0", None, after_seed_lock, seedbuf)
@@ -864,7 +864,7 @@ actor restore_survives_forced_recompute(t: testing.EnvT):
         def restored_then_recompute(error: ?Exception) -> None:
             if error is not None:
                 raise error
-            restored.newsession().recompute(after_recompute, force=True)
+            restored.newsession().recompute(after_recompute)
 
         restored.load_from_db(restored_then_recompute)
 

@@ -96,7 +96,7 @@ actor RfsReconf(dev_registry: swdev.DeviceRegistry, cfs: ttt.Layer):
             break
         _rfs = _next
 
-    dev_registry.on_reconf(lambda dev: _rfs.edit_config(_rfs_for_device(dev), force=True))
+    dev_registry.on_reconf(lambda dev: _rfs.edit_config(_rfs_for_device(dev)))
 
 
 actor StartupConfigApplier(config_files: list[str], exit_on_done: bool, top_schema: yschema.DRoot, cfs: ttt.Layer, exit: action(int) -> None, rfcap: file.ReadFileCap, log_handler: logging.Handler):
@@ -155,7 +155,7 @@ actor StartupBootstrap(cfs: ttt.Layer, restore_from_db: bool, netconf_host_key_p
             exit(1)
             return
         log.info("Recomputing restored TTT state")
-        cfs.newsession().recompute(_recompute_done, force=True)
+        cfs.newsession().recompute(_recompute_done)
 
     def _run():
         # The NETCONF SSH layer wants host-key material, not a path, so read the

@@ -561,8 +561,8 @@ class _Node(object):
 
 
 actor Transaction(impl: _Transaction):
-    def configure(tid, diff, out, force=False, dbuf: ?swdb.Buffer=None):
-        return impl.configure(tid, diff, out, force, dbuf)
+    def configure(tid, diff, out, dbuf: ?swdb.Buffer=None):
+        return impl.configure(tid, diff, out, dbuf)
 
     def linkage(tid, requests, updates, out, dbuf: ?swdb.Buffer=None):
         return impl.linkage(tid, requests, updates, out, dbuf)
@@ -609,7 +609,7 @@ actor Transaction(impl: _Transaction):
 
 class _Transaction(object):
     path: Path
-    configure:  proc(tid: str, diff: dict[str,gdata.Node], out: ?Session, force: ?bool, dbuf: ?swdb.Buffer) -> CfgResult
+    configure:  proc(tid: str, diff: dict[str,gdata.Node], out: ?Session, dbuf: ?swdb.Buffer) -> CfgResult
     linkage: proc(tid: str, requests: list[LinkRequest], updates: list[LinkUpdate], out: ?Session, dbuf: ?swdb.Buffer) -> CfgResult
     # yield action
     lock : proc(actself: Transaction, tid: str, out: ?Session, done: action(CfgResult) -> None, dbuf: ?swdb.Buffer) -> None
@@ -752,8 +752,8 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     def below():
         return lower if lower is not None else self
 
-    def edit_config(diff, done=None, complete=None, force=False):
-        newsession().edit_config(diff, done, complete, force)
+    def edit_config(diff, done=None, complete=None):
+        newsession().edit_config(diff, done, complete)
 
     def get():
         return root.get()
@@ -902,11 +902,11 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, db
             edit_config_finish("Ok")
 
     # yield action
-    def edit_config(diff, done: ?action(value)->None=None, complete: ?action(value)->None=None, force=False):
+    def edit_config(diff, done: ?action(value)->None=None, complete: ?action(value)->None=None):
         tid = 'tr' + actorid()
         #print('####', tid, '(Layer)', name, 'edit_config', actorid(), err=True)
         configure(tid, {'_': diff})
-        res = apply(tid, force)
+        res = apply(tid)
         #print('   #', tid, '(Layer)', name, 'EDIT_CONFIG', 'PREP RESULT', res, err=True)
         if not res.errors:
             done_cont = done
@@ -945,12 +945,12 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, db
         #print('####', tid, '(Layer)', name, 'configure', list(diff_per_source.keys()), err=True)
         buf.update(diff_per_source.items())
 
-    def apply(tid, force=False):
+    def apply(tid):
         #print('####', tid, '(Layer)', name, 'apply', err=True)
         diff = buf
         buf = {}
         #print('   #', tid, '(Layer)', name, 'APPLY\n' + per_src(diff), err=True)
-        res = root.configure(tid, diff, lower, force, dbuf)
+        res = root.configure(tid, diff, lower, dbuf)
         while res.requests or res.updates:
             #print('----', tid, '(Layer)', name, 'LINKAGE', len(res.requests), len(res.updates), err=True)
             #for r in res.requests: print('    ', r, err=True)
@@ -958,7 +958,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, db
             res = root.linkage(tid, res.requests, res.updates, lower, dbuf)
         #print('   #', tid, '(Layer)', name, 'APPLY RESULT', res, err=True)
         if not res.errors and lower is not None:
-            lowres = lower.apply(tid, force=False)
+            lowres = lower.apply(tid)
             if lowres.errors:
                 res = CfgResult(res.empty, res.requests, res.updates, res.errors+lowres.errors)
         return res
@@ -968,7 +968,7 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, db
         #print('####', tid, '(Layer)', name, 'lock', err=True)
         if buf:                                         # An upper layer has re-configured
             #print('####', tid, '(Layer)', name, 'LOCK RE-APPLY', err=True)
-            res = apply(tid, force=False)
+            res = apply(tid)
             if res.errors:
                 if done is not None:
                     done(res)
@@ -1007,10 +1007,10 @@ actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, db
             else:
                 root.wait_complete(tid_state, lambda res: done((res.errors[0] if res.errors else "Ok") if isinstance(res, CfgResult) else res))
     
-    def recompute(done: ?action(value)->None=None, complete: ?action(value)->None=None, force=False):
+    def recompute(done: ?action(value)->None=None, complete: ?action(value)->None=None):
         tid = 'tr' + actorid()
         #print('####', tid, '(Layer)', name, 'recompute', actorid(), err=True)
-        res = apply(tid, force)
+        res = apply(tid)
         if not res.errors:
             done_cont = done
             comp_cont = complete
@@ -1201,8 +1201,8 @@ class _ContainerTransaction(_Transaction):
         self.elems = {key: node.newtrans() for key, node in contents.items()}
         self.module = module
 
-    def configure(self, tid, diff, out, force=False, dbuf: ?swdb.Buffer=None):
-        #print('####', tid, '(Container)', _format_path(self.path), 'configure force:', force, actorid(), err=True)
+    def configure(self, tid, diff, out, dbuf: ?swdb.Buffer=None):
+        #print('####', tid, '(Container)', _format_path(self.path), actorid(), err=True)
         diff_by_child = transpose_container(diff)
         # Extra nodes present in diff_by_child represent configuration that is
         # not any of our embedded transforms. These may be key leaf values, or
@@ -1212,17 +1212,6 @@ class _ContainerTransaction(_Transaction):
             del diff_by_child[k]
 
         if len(diff_by_child) == 0:
-            if not force:
-                # An empty diff without force is a refresh: nothing changes
-                # for any child, so the answer comes from the results
-                # accumulated so far. The normal path below only sees the
-                # children named in the diff - here none - so it would report
-                # even a fully configured container as empty, and a list
-                # deletes elements that report empty.
-                empty = True
-                for r in self.accum.values():
-                    empty = empty and r.empty
-                return CfgResult(empty, [], [], [])
             for k in self.elems.keys():
                 diff_by_child[k] = {}
         elif WILDID in diff_by_child:
@@ -1237,7 +1226,7 @@ class _ContainerTransaction(_Transaction):
         for child,subdiff in diff_by_child.items():
             if child in self.elems:
                 #print('   #', tid, '(Container)', _format_path(self.path), 'CONFIGURE CHILD', child, err=True)
-                msgs[child] = async self.elems[child].configure(tid, subdiff, out, force, dbuf)
+                msgs[child] = async self.elems[child].configure(tid, subdiff, out, dbuf)
         results = {}
         for child,msg in msgs.items():
             results[child] = await msg
@@ -1601,7 +1590,7 @@ class _ListTransaction(_Transaction):
         self.state = None
         self.reset = False
 
-    def configure(self, tid, diff, out: ?Session, force=False, dbuf: ?swdb.Buffer=None):
+    def configure(self, tid, diff, out: ?Session, dbuf: ?swdb.Buffer=None):
         #print('####', tid, '(List)', _format_path(self.path), 'configure', actorid(), err=True)
         if self.reset:
             self.elems = {}
@@ -1609,7 +1598,7 @@ class _ListTransaction(_Transaction):
             self.reset = False
         diff_by_key = transpose_list(diff)
         leaves_by_key = {}
-        if len(diff_by_key) == 0 and force:
+        if len(diff_by_key) == 0:
             for key,node in self.liststate.acquire(tid, None).items():
                 diff_by_key[key] = {}
                 if key not in self.elems:
@@ -1635,10 +1624,10 @@ class _ListTransaction(_Transaction):
         msgs = {}
         for key,subdiff in diff_by_key.items():
             #print('   #', tid, '(List)', _format_path(self.path), 'CONFIGURE ELEMENT', key, err=True)
-            msgs[key] = async self.elems[key].configure(tid, subdiff, out, force, dbuf)
+            msgs[key] = async self.elems[key].configure(tid, subdiff, out, dbuf)
         for key in self.accum.keys():
             if key not in diff_by_key:
-                msgs[key] = async self.elems[key].configure(tid, {}, out, force, dbuf)
+                msgs[key] = async self.elems[key].configure(tid, {}, out, dbuf)
         results = {}
         for key,msg in msgs.items():
             results[key] = await msg
@@ -1652,7 +1641,7 @@ class _ListTransaction(_Transaction):
     def db_ops(self, leaves_by_key) -> list[swdb.BufferOp]:
         # A list element's key leaves are immutable for its lifetime, so its
         # keys record is written once at creation and deleted at removal. A
-        # configure that only refreshes an existing element (force recompute,
+        # configure that only refreshes an existing element (recompute,
         # wildcard) recomputes no leaves for it; emitting no op leaves the
         # existing record intact rather than deleting the element's index entry.
         ops = []
@@ -1970,7 +1959,7 @@ class _TransformTransactionBase(_Transaction):
         self.me = ''  # Initialize first before any self reference
         self.me = '(src_' + str(self)[-10:-1] + ')'  # Now safe to use str(self)
 
-    def configure(self, tid, diff, out: ?Session, force=False, dbuf: ?swdb.Buffer=None):
+    def configure(self, tid, diff, out: ?Session, dbuf: ?swdb.Buffer=None):
         #print('####', tid, '(Transform)', _format_path(self.path), 'configure', actorid(), self.me, err=True)
 
         if tid not in self.diffs:
@@ -2060,7 +2049,7 @@ class _TransformTransactionBase(_Transaction):
                 # subscriber set changed, so its published state is unchanged
                 # and existing subscribers already hold it. Deliver the
                 # current state to the new subscribers only and skip the
-                # forced recompute. Without this, every link
+                # recompute. Without this, every link
                 # subscribe/unsubscribe (e.g. each service create or delete)
                 # fans a full state broadcast out to every subscriber, making
                 # such transactions cost O(existing subscribers) transform
@@ -2083,7 +2072,7 @@ class _TransformTransactionBase(_Transaction):
                     # prune the existing config subtree at its path and merge the new one
                     linked = gdata.merge(prune(linked, u.publisher), u.config)
             self.candidate_linked[tid] = linked
-        return self.configure(tid, {}, out, True, dbuf)
+        return self.configure(tid, {}, out, dbuf)
 
     # yield action
     def lock(self, actself, tid, out: ?Session, done, dbuf: ?swdb.Buffer=None):          # yield await
@@ -2100,7 +2089,7 @@ class _TransformTransactionBase(_Transaction):
         self.locker = tid
         if tid not in self.candidates:
             #print('   #', tid, '(Transform)', _format_path(self.path), 'LOCK - RE-CONFIGURING', err=True)
-            res = self.configure(tid, {}, out, False, dbuf)
+            res = self.configure(tid, {}, out, dbuf)
             done(res)
         else:
             #print('   #', tid, '(Transform)', _format_path(self.path), 'LOCKED', err=True)
