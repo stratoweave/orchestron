@@ -1,0 +1,39 @@
+"""Persistence benchmark over persistence_bench.Roundtrip.
+
+    acton test perf --record --module test_ttt_persistence_bench
+
+records each test's time and memory for later perf runs to compare
+against; --show-log prints the commit and restore rates.
+"""
+
+import file
+import testing
+
+import db as swdb
+import db.lmdb as swlmdb
+import persistence_bench as bench
+
+
+actor LmdbRoundtrip(t: testing.EnvT, elements: int):
+    """Round trip `elements` list elements through a fresh LMDB directory,
+    print the rates and finish the test."""
+    fc = file.FileCap(t.env.cap)
+    fs = file.FS(fc)
+    db_path = fs.mktmpdir("test_ttt_bench_")
+
+    def open_store() -> swdb.Store:
+        return swlmdb.LmdbStore(file.WriteFileCap(fc), db_path)
+
+    def finished(error: ?Exception, commit_secs: float, restore_secs: float) -> None:
+        if error is not None:
+            raise error
+        await async fs.rmtree(db_path)
+        await async fs.rmdir(db_path)
+        print(bench.report("lmdb", elements, commit_secs, restore_secs))
+        t.success()
+
+    bench.Roundtrip(open_store, elements, finished)
+
+
+actor bench_lmdb_200(t: testing.EnvT):
+    LmdbRoundtrip(t, 200)

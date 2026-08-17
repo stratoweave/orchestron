@@ -1,0 +1,114 @@
+"""Persistence workload for benchmarks and performance tests.
+
+Roundtrip commits a list of N elements through a store, closes the
+store, opens it again, restores, checks the tree came back, and reports
+how long the commit and the restore took. test_ttt_persistence_bench
+runs it two ways: as a performance test of a fixed size for
+`acton test perf`, and as a benchmark whose size and store come from
+the environment.
+"""
+
+import time
+
+import db as swdb
+import ttt
+import yang.gdata as gdata
+
+
+BENCH_NS = "urn:test:bench"
+
+
+def q(name: str) -> gdata.Id:
+    return gdata.Id(BENCH_NS, name)
+
+
+def list_tree(size: int) -> gdata.List:
+    elements = []
+    for i in range(size):
+        suffix = str(i)
+        while len(suffix) < 6:
+            suffix = "0" + suffix
+        elements.append(gdata.Container({
+            q("name"): gdata.Leaf("item-" + suffix),
+            q("value"): gdata.Leaf(i)
+        }))
+    return gdata.List([q("name")], elements)
+
+
+def list_root() -> proc(ttt.Path, ?ttt.Layer) -> ttt.Node:
+    return ttt.List(ttt.Transform(ttt.PassThrough), [q("name")])
+
+
+def report(store: str, elements: int, commit_secs: float, restore_secs: float) -> str:
+    """One line with the commit and restore rates of a round trip."""
+    commit_rate = float(elements) / commit_secs if commit_secs > 0.0 else 0.0
+    restore_rate = float(elements) / restore_secs if restore_secs > 0.0 else 0.0
+    return "bench store={store} elements={elements} commit={commit_secs:.3f}s ({commit_rate:.0f} elem/s) restore={restore_secs:.3f}s ({restore_rate:.0f} elem/s)"
+
+
+actor Roundtrip(
+    open_store: proc() -> swdb.Store,
+    elements: int,
+    done: action(?Exception, float, float) -> None
+):
+    """Commit `elements` list elements, reopen the store, restore them.
+
+    `open_store` is called twice, once per phase, and must return a store
+    over the same data both times. `done` gets an error or the commit and
+    restore times in seconds.
+    """
+
+    expected = list_tree(elements)
+    var store: ?swdb.Store = None
+    var layer: ?ttt.Layer = None
+    var watch = time.Stopwatch()
+    var commit_secs = 0.0
+
+    def fail(error: Exception) -> None:
+        done(error, 0.0, 0.0)
+
+    def after_restore(error: ?Exception) -> None:
+        if error is not None:
+            fail(error)
+            return
+        restore_secs = watch.elapsed().to_float()
+        got = layer!.get()
+        if got != expected:
+            n = len(got.elements) if isinstance(got, gdata.List) else -1
+            fail(ValueError("restore mismatch: got {n} elements, expected {elements}"))
+            return
+        def closed(err: ?Exception) -> None:
+            if err is not None:
+                fail(err)
+            else:
+                done(None, commit_secs, restore_secs)
+        s = store
+        if s is not None:
+            s.close(closed)
+
+    def after_reopen_close(error: ?Exception) -> None:
+        if error is not None:
+            fail(error)
+            return
+        s = open_store()
+        store = s
+        l = ttt.Layer("bench", list_root(), None, s)
+        layer = l
+        watch = time.Stopwatch()
+        l.load_from_db(after_restore)
+
+    def after_commit(result: value) -> None:
+        if not (isinstance(result, str) and result == "Ok"):
+            fail(ValueError("commit failed: {result}"))
+            return
+        commit_secs = watch.elapsed().to_float()
+        s = store
+        if s is not None:
+            s.close(after_reopen_close)
+
+    s0 = open_store()
+    store = s0
+    l0 = ttt.Layer("bench", list_root(), None, s0)
+    layer = l0
+    watch = time.Stopwatch()
+    l0.edit_config(expected, after_commit)
