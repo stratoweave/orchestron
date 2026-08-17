@@ -15,11 +15,6 @@ import mini.devices.ietf as ietf_dev
 import mini.devices.ietf_oper as ietf_oper
 from mini.devices.ietf_oper import root as ietf_oper_root
 
-def unwrap[T](t: ?T) -> T:
-    if t is not None:
-        return t
-    raise ValueError("unwrap called on None")
-
 
 class BaseConfig(base.BaseConfig):
     def transform(self, i, di, dynstate: ?BaseConfigDynstate):
@@ -78,7 +73,7 @@ class L3vpnEndpoint(base.L3vpnEndpoint):
             elif i.vlan_id is not None or "." in i.interface_name:
                 interface_type = ietf_dev.iana_if_type_l3ipvlan
 
-            description = unwrap(i.description) if i.description is not None else "{i.customer_name} vpn {i.vpn_name}"
+            description = i.description! if i.description is not None else "{i.customer_name} vpn {i.vpn_name}"
             if i.description is None:
                 if i.site_code is not None:
                     description += " site {i.site_code}"

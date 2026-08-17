@@ -43,13 +43,6 @@ def build_explicit_schemas_list(explicit_modules: list[str], format: str) -> lis
     return schemas_to_download
 
 
-def unwrap[T](a: ?T, msg: ?str=None) -> T:
-    if a is not None:
-        return a
-    errmsg = msg if msg is not None else "Expected non-None value"
-    raise ValueError(errmsg)
-
-
 def resolve_client_fixups(args, log_handler):
     log = logging.Logger(log_handler)
     no_fixups = args.get_bool("no-fixups")
@@ -699,7 +692,7 @@ actor CmdRpc(env, args, log_handler):
             print("Error: No RPC content to send", err=True)
             env.exit(1)
             return
-        c.rpc(unwrap(rpc_content, "Expected RPC content"), _on_rpc)
+        c.rpc(rpc_content!, _on_rpc)
 
     def _close_and_exit(exit_code: int):
         def _close_cb():
@@ -733,7 +726,7 @@ actor CmdRpc(env, args, log_handler):
             _close_and_exit(1)
             return
 
-        _emit_reply(unwrap(result, "Expected rpc-reply").encode(), 1 if error is not None else 0, error)
+        _emit_reply(result!.encode(), 1 if error is not None else 0, error)
 
     def _connect_and_send():
         netconf.Client(net.TCPConnectCap(net.TCPCap(net.NetCap(env.auth))),

@@ -67,12 +67,6 @@ class ConnectionRefusedError(ConnectionError):
 class ConnectionResetError(ConnectionError):
     pass
 
-def unwrap[T](a: ?T, msg: ?str=None) -> T:
-    if a is not None:
-        return a
-    errmsg = msg if msg is not None else "Expected non-None value"
-    raise ValueError(errmsg)
-
 
 class NetconfError(Exception):
     def __init__(self, error_message: ?str, rpc_error: ?list[RpcError]):
@@ -84,6 +78,17 @@ class NetconfError(Exception):
 
     def __repr__(self):
         return "{self._name()}({repr(self.error_message)}, {repr(self.rpc_error)})"
+
+
+class MalformedRpcError(NetconfError):
+    pass
+
+
+def required_text(child: xml.Node, field: str) -> str:
+    text = child.text
+    if text is not None:
+        return text
+    raise MalformedRpcError("rpc-error missing expected {field}", None)
 
 
 class RpcError(object):
@@ -111,11 +116,11 @@ class RpcError(object):
         # Parse the XML into well-known attributes
         for child in xml_node.children:
             if child.tag == "error-type":
-                self.error_type = unwrap(child.text, "rpc-error missing expected error-type")
+                self.error_type = required_text(child, "error-type")
             elif child.tag == "error-tag":
-                self.error_tag = unwrap(child.text, "rpc-error missing expected error-tag")
+                self.error_tag = required_text(child, "error-tag")
             elif child.tag == "error-severity":
-                self.error_severity = unwrap(child.text, "rpc-error missing expected error-severity")
+                self.error_severity = required_text(child, "error-severity")
             elif child.tag == "error-app-tag":
                 self.error_app_tag = child.text
             elif child.tag == "error-path":
@@ -230,7 +235,7 @@ actor Client(
         if fixups is None:
             _log.debug("NETCONF fixups disabled")
             return
-        configured_fixups = unwrap(fixups, "Expected fixup list")
+        configured_fixups = fixups!
 
         for mk in configured_fixups:
             try:

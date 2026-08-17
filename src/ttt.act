@@ -7,12 +7,6 @@ from device_meta_config import stratoweave_rfs__device_entry as DeviceMetaConfig
 import std.xml as xml
 import logging
 
-def unwrap[T](t: ?T) -> T:
-    if t is not None:
-        return t
-    raise ValueError("unwrap called on None")
-
-
 NS_stratoweave_device = "http://stratoweave.org/yang/stratoweave-device"
 
 # How many node restores of one layer load may run at the same time.
@@ -2292,7 +2286,7 @@ class _TransformTransaction(_TransformTransactionBase):
 
     proc def init_actor(self, node, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None, update_dynstate, update_oper):
         self.node = node
-        self.function.init_actor(act, update_dynstate, update_oper, unwrap(self.path), self.lower)
+        self.function.init_actor(act, update_dynstate, update_oper, self.path!, self.lower)
 
     proc def update_dynstate(self, dynstate):
         if self.dynstate == dynstate:
@@ -2454,7 +2448,7 @@ class _RFSTransaction(_TransformTransactionBase):
 
     proc def init_actor(self, node, act: proc(TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None, update_dynstate, update_oper):
         self.node = node
-        self.function.init_actor(act, update_dynstate, update_oper, unwrap(self.path), self.dev)
+        self.function.init_actor(act, update_dynstate, update_oper, self.path!, self.dev)
 
     proc def update_dynstate(self, dynstate):
         if self.dynstate == dynstate:
