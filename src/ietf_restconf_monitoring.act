@@ -1478,7 +1478,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream__access_entry(ya
 _breaker3: None = None
 class ietf_restconf_monitoring__restconf_state__streams__stream__access(yadata.MKeyedList[str, ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]):
     mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream__access_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.encoding, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.encoding == k, elements)
 
     mut def create(self, key: str, location: str) -> ietf_restconf_monitoring__restconf_state__streams__stream__access_entry:
         e = self.get(key)
@@ -1536,7 +1536,7 @@ class ietf_restconf_monitoring__restconf_state__streams__stream_entry(yadata.MNo
 _breaker5: None = None
 class ietf_restconf_monitoring__restconf_state__streams__stream(yadata.MKeyedList[str, ietf_restconf_monitoring__restconf_state__streams__stream_entry]):
     mut def __init__(self, elements: list[ietf_restconf_monitoring__restconf_state__streams__stream_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, description: ?str=None, replay_support: ?bool=None, replay_log_creation_time: ?str=None) -> ietf_restconf_monitoring__restconf_state__streams__stream_entry:
         e = self.get(key)

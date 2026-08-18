@@ -8759,7 +8759,7 @@ class ietf_netconf_acm__nacm__groups__group_entry(yadata.MNode):
 _breaker2: None = None
 class ietf_netconf_acm__nacm__groups__group(yadata.MKeyedList[str, ietf_netconf_acm__nacm__groups__group_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__groups__group_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str) -> ietf_netconf_acm__nacm__groups__group_entry:
         e = self.get(key)
@@ -8843,7 +8843,7 @@ class ietf_netconf_acm__nacm__rule_list__rule_entry(yadata.MNode):
 _breaker5: None = None
 class ietf_netconf_acm__nacm__rule_list__rule(yadata.MKeyedList[str, ietf_netconf_acm__nacm__rule_list__rule_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__rule_list__rule_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, module_name: ?str=None, rpc_name: ?str=None, notification_name: ?str=None, path: ?str=None, access_operations: ?value=None, action_: ?str=None, comment: ?str=None) -> ietf_netconf_acm__nacm__rule_list__rule_entry:
         e = self.get(key)
@@ -8910,7 +8910,7 @@ class ietf_netconf_acm__nacm__rule_list_entry(yadata.MNode):
 _breaker7: None = None
 class ietf_netconf_acm__nacm__rule_list(yadata.MKeyedList[str, ietf_netconf_acm__nacm__rule_list_entry]):
     mut def __init__(self, elements: list[ietf_netconf_acm__nacm__rule_list_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str) -> ietf_netconf_acm__nacm__rule_list_entry:
         e = self.get(key)
@@ -9052,7 +9052,7 @@ class ietf_system__system__ntp__server_entry(yadata.MNode):
 _breaker12: None = None
 class ietf_system__system__ntp__server(yadata.MKeyedList[str, ietf_system__system__ntp__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__ntp__server_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, association_type: ?str=None, iburst: ?bool=None, prefer: ?bool=None) -> ietf_system__system__ntp__server_entry:
         e = self.get(key)
@@ -9158,7 +9158,7 @@ class ietf_system__system__dns_resolver__server_entry(yadata.MNode):
 _breaker16: None = None
 class ietf_system__system__dns_resolver__server(yadata.MKeyedList[str, ietf_system__system__dns_resolver__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__dns_resolver__server_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str) -> ietf_system__system__dns_resolver__server_entry:
         e = self.get(key)
@@ -9284,7 +9284,7 @@ class ietf_system__system__radius__server_entry(yadata.MNode):
 _breaker21: None = None
 class ietf_system__system__radius__server(yadata.MKeyedList[str, ietf_system__system__radius__server_entry]):
     mut def __init__(self, elements: list[ietf_system__system__radius__server_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, authentication_type: ?Identityref=None) -> ietf_system__system__radius__server_entry:
         e = self.get(key)
@@ -9385,7 +9385,7 @@ class ietf_system__system__authentication__user__authorized_key_entry(yadata.MNo
 _breaker25: None = None
 class ietf_system__system__authentication__user__authorized_key(yadata.MKeyedList[str, ietf_system__system__authentication__user__authorized_key_entry]):
     mut def __init__(self, elements: list[ietf_system__system__authentication__user__authorized_key_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, algorithm: ?str=None, key_data: ?bytes=None) -> ietf_system__system__authentication__user__authorized_key_entry:
         e = self.get(key)
@@ -9442,7 +9442,7 @@ class ietf_system__system__authentication__user_entry(yadata.MNode):
 _breaker27: None = None
 class ietf_system__system__authentication__user(yadata.MKeyedList[str, ietf_system__system__authentication__user_entry]):
     mut def __init__(self, elements: list[ietf_system__system__authentication__user_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, password: ?str=None) -> ietf_system__system__authentication__user_entry:
         e = self.get(key)
@@ -9687,7 +9687,7 @@ class ietf_interfaces__interfaces__interface__ipv4__address_entry(yadata.MNode):
 _breaker35: None = None
 class ietf_interfaces__interfaces__interface__ipv4__address(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv4__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv4__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, prefix_length: ?u64=None, netmask: ?str=None, origin: ?str=None) -> ietf_interfaces__interfaces__interface__ipv4__address_entry:
         e = self.get(key)
@@ -9746,7 +9746,7 @@ class ietf_interfaces__interfaces__interface__ipv4__neighbor_entry(yadata.MNode)
 _breaker37: None = None
 class ietf_interfaces__interfaces__interface__ipv4__neighbor(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv4__neighbor_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, link_layer_address: ?str=None, origin: ?str=None) -> ietf_interfaces__interfaces__interface__ipv4__neighbor_entry:
         e = self.get(key)
@@ -9837,7 +9837,7 @@ class ietf_interfaces__interfaces__interface__ipv6__address_entry(yadata.MNode):
 _breaker40: None = None
 class ietf_interfaces__interfaces__interface__ipv6__address(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv6__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv6__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, prefix_length: ?u64=None, origin: ?str=None, status: ?str=None) -> ietf_interfaces__interfaces__interface__ipv6__address_entry:
         e = self.get(key)
@@ -9900,7 +9900,7 @@ class ietf_interfaces__interfaces__interface__ipv6__neighbor_entry(yadata.MNode)
 _breaker42: None = None
 class ietf_interfaces__interfaces__interface__ipv6__neighbor(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface__ipv6__neighbor_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, link_layer_address: ?str=None, origin: ?str=None, is_router: ?bool=None, state: ?str=None) -> ietf_interfaces__interfaces__interface__ipv6__neighbor_entry:
         e = self.get(key)
@@ -10080,7 +10080,7 @@ class ietf_interfaces__interfaces__interface_entry(yadata.MNode):
 _breaker46: None = None
 class ietf_interfaces__interfaces__interface(yadata.MKeyedList[str, ietf_interfaces__interfaces__interface_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces__interface_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, description: ?str=None, type: ?Identityref=None, enabled: ?bool=None, link_up_down_trap_enable: ?str=None, admin_status: ?str=None, oper_status: ?str=None, last_change: ?str=None, if_index: ?int=None, phys_address: ?str=None, speed: ?u64=None) -> ietf_interfaces__interfaces__interface_entry:
         e = self.get(key)
@@ -10223,7 +10223,7 @@ class ietf_interfaces__interfaces_state__interface__ipv4__address_entry(yadata.M
 _breaker50: None = None
 class ietf_interfaces__interfaces_state__interface__ipv4__address(yadata.MKeyedList[str, ietf_interfaces__interfaces_state__interface__ipv4__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces_state__interface__ipv4__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, prefix_length: ?u64=None, netmask: ?str=None, origin: ?str=None) -> ietf_interfaces__interfaces_state__interface__ipv4__address_entry:
         e = self.get(key)
@@ -10282,7 +10282,7 @@ class ietf_interfaces__interfaces_state__interface__ipv4__neighbor_entry(yadata.
 _breaker52: None = None
 class ietf_interfaces__interfaces_state__interface__ipv4__neighbor(yadata.MKeyedList[str, ietf_interfaces__interfaces_state__interface__ipv4__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces_state__interface__ipv4__neighbor_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, link_layer_address: ?str=None, origin: ?str=None) -> ietf_interfaces__interfaces_state__interface__ipv4__neighbor_entry:
         e = self.get(key)
@@ -10371,7 +10371,7 @@ class ietf_interfaces__interfaces_state__interface__ipv6__address_entry(yadata.M
 _breaker55: None = None
 class ietf_interfaces__interfaces_state__interface__ipv6__address(yadata.MKeyedList[str, ietf_interfaces__interfaces_state__interface__ipv6__address_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces_state__interface__ipv6__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, prefix_length: ?u64=None, origin: ?str=None, status: ?str=None) -> ietf_interfaces__interfaces_state__interface__ipv6__address_entry:
         e = self.get(key)
@@ -10434,7 +10434,7 @@ class ietf_interfaces__interfaces_state__interface__ipv6__neighbor_entry(yadata.
 _breaker57: None = None
 class ietf_interfaces__interfaces_state__interface__ipv6__neighbor(yadata.MKeyedList[str, ietf_interfaces__interfaces_state__interface__ipv6__neighbor_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces_state__interface__ipv6__neighbor_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.ip, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip == k, elements)
 
     mut def create(self, key: str, link_layer_address: ?str=None, origin: ?str=None, is_router: ?bool=None, state: ?str=None) -> ietf_interfaces__interfaces_state__interface__ipv6__neighbor_entry:
         e = self.get(key)
@@ -10569,7 +10569,7 @@ class ietf_interfaces__interfaces_state__interface_entry(yadata.MNode):
 _breaker60: None = None
 class ietf_interfaces__interfaces_state__interface(yadata.MKeyedList[str, ietf_interfaces__interfaces_state__interface_entry]):
     mut def __init__(self, elements: list[ietf_interfaces__interfaces_state__interface_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, type: ?Identityref=None, admin_status: ?str=None, oper_status: ?str=None, last_change: ?str=None, if_index: ?int=None, phys_address: ?str=None, speed: ?u64=None) -> ietf_interfaces__interfaces_state__interface_entry:
         e = self.get(key)

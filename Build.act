@@ -3,8 +3,8 @@ fingerprint = 0x9ad673637ba15f05
 dependencies = {
     "actmf": (
         repo_url="https://github.com/stratoweave/actmf",
-        url="https://github.com/stratoweave/actmf/archive/63413d0450dded6fbf8468011b35858eea5625f6.zip",
-        hash="N-V-__8AAPDlBQBd4ILasHDbt0RbaXgSz4au9_H1q7yGVcwy"
+        url="https://github.com/stratoweave/actmf/archive/a82d80abbec73149c4a58a12d080392349b79bb0.zip",
+        hash="N-V-__8AAPDlBQDvZcQ509LAraUT9tuavIfZyKrvL7tIIIV2"
     ),
     "http_router": (
         repo_url="https://github.com/stratoweave/http-router.git",
@@ -28,8 +28,8 @@ dependencies = {
     ),
     "yang": (
         repo_url="https://github.com/stratoweave/acton-yang.git",
-        url="https://github.com/stratoweave/acton-yang/archive/d8d20ea812c7d75843dc44aa05ad97225df70df8.zip",
-        hash="N-V-__8AABj8JgD2jjfBCV3uHrzeIxH6lg9eMMK6yk372ykG"
+        url="https://github.com/stratoweave/acton-yang/archive/880d949ee84b57c93b252547eb725eb1c133d0b8.zip",
+        hash="N-V-__8AAIj_JgDo7AD4YhnwecwNLIXUvCdo_lfgF9yVQJpo"
     )
 }
 zig_dependencies = {}

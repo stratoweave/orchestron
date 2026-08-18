@@ -862,7 +862,7 @@ class netinfra__netinfra__router_entry(yadata.MNode):
 _breaker4: None = None
 class netinfra__netinfra__router(yadata.MKeyedList[str, netinfra__netinfra__router_entry]):
     mut def __init__(self, elements: list[netinfra__netinfra__router_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, id: u64, type: str, mock: ?bool=None) -> netinfra__netinfra__router_entry:
         e = self.get(key)
@@ -977,7 +977,7 @@ class l3vpn__l3vpn__endpoint_entry(yadata.MNode):
 _breaker8: None = None
 class l3vpn__l3vpn__endpoint(yadata.MKeyedList[(device: str, interface_name: str), l3vpn__l3vpn__endpoint_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn__endpoint_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: (e.device, e.interface_name), elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.device == k.device and e.interface_name == k.interface_name, elements)
 
     mut def create(self, key: (device: str, interface_name: str), ipv4_address: str, prefix_length: u64, mtu: ?u64=None, vlan_id: ?u64=None, enabled: ?bool=None, site_code: ?str=None, description: ?str=None) -> l3vpn__l3vpn__endpoint_entry:
         e = self.get(key)
@@ -1050,7 +1050,7 @@ class l3vpn__l3vpn_entry(yadata.MNode):
 _breaker10: None = None
 class l3vpn__l3vpn(yadata.MKeyedList[str, l3vpn__l3vpn_entry]):
     mut def __init__(self, elements: list[l3vpn__l3vpn_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, customer_name: str, vpn_id: u64, service_mtu: ?u64=None, enabled: ?bool=None, description: ?str=None) -> l3vpn__l3vpn_entry:
         e = self.get(key)
