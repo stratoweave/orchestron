@@ -2069,7 +2069,7 @@ class ietf_yang_library__yang_library__module_set__module__submodule_entry(yadat
 _breaker2: None = None
 class ietf_yang_library__yang_library__module_set__module__submodule(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set__module__submodule_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module__submodule_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module__submodule_entry:
         e = self.get(key)
@@ -2132,7 +2132,7 @@ class ietf_yang_library__yang_library__module_set__module_entry(yadata.MNode):
 _breaker4: None = None
 class ietf_yang_library__yang_library__module_set__module(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set__module_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__module_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, namespace: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__module_entry:
         e = self.get(key)
@@ -2188,7 +2188,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module__submodule
 _breaker6: None = None
 class ietf_yang_library__yang_library__module_set__import_only_module__submodule(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str, revision: ?str=None) -> ietf_yang_library__yang_library__module_set__import_only_module__submodule_entry:
         e = self.get(key)
@@ -2247,7 +2247,7 @@ class ietf_yang_library__yang_library__module_set__import_only_module_entry(yada
 _breaker8: None = None
 class ietf_yang_library__yang_library__module_set__import_only_module(yadata.MKeyedList[(name: str, revision: str), ietf_yang_library__yang_library__module_set__import_only_module_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set__import_only_module_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: (e.name, e.revision), elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k.name and e.revision == k.revision, elements)
 
     mut def create(self, key: (name: str, revision: str), namespace: str) -> ietf_yang_library__yang_library__module_set__import_only_module_entry:
         e = self.get(key)
@@ -2301,7 +2301,7 @@ class ietf_yang_library__yang_library__module_set_entry(yadata.MNode):
 _breaker10: None = None
 class ietf_yang_library__yang_library__module_set(yadata.MKeyedList[str, ietf_yang_library__yang_library__module_set_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__module_set_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str) -> ietf_yang_library__yang_library__module_set_entry:
         e = self.get(key)
@@ -2352,7 +2352,7 @@ class ietf_yang_library__yang_library__schema_entry(yadata.MNode):
 _breaker12: None = None
 class ietf_yang_library__yang_library__schema(yadata.MKeyedList[str, ietf_yang_library__yang_library__schema_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__schema_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: str) -> ietf_yang_library__yang_library__schema_entry:
         e = self.get(key)
@@ -2403,7 +2403,7 @@ class ietf_yang_library__yang_library__datastore_entry(yadata.MNode):
 _breaker14: None = None
 class ietf_yang_library__yang_library__datastore(yadata.MKeyedList[Identityref, ietf_yang_library__yang_library__datastore_entry]):
     mut def __init__(self, elements: list[ietf_yang_library__yang_library__datastore_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
     mut def create(self, key: Identityref, schema: str) -> ietf_yang_library__yang_library__datastore_entry:
         e = self.get(key)
