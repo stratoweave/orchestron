@@ -2,7 +2,6 @@
 # Running StratoWeave
 A StratoWeave-based Orchestrator is a single binary that can be deployed on any
 Linux-based system.
-The only runtime requirement is [libssh](https://www.libssh.org).
 
 ## Deployment
 The simplest way to deploy a StratoWeave orchestrator is wrap up the binary
