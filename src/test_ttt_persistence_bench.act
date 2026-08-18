@@ -3,13 +3,18 @@
     acton test perf --record --module test_ttt_persistence_bench
 
 records each test's time and memory for later perf runs to compare
-against; --show-log prints the commit and restore rates.
+against; --show-log prints the commit and restore rates. The etcd
+test needs the local etcd node from test_ttt_persistence_etcd, run
+with the raised transaction limits given there, and --tag etcd.
 """
 
 import file
+import net
 import testing
+import time
 
 import db as swdb
+import db.etcd as swetcd
 import db.lmdb as swlmdb
 import persistence_bench as bench
 
@@ -35,5 +40,33 @@ actor LmdbRoundtrip(t: testing.EnvT, elements: int):
     bench.Roundtrip(open_store, elements, finished)
 
 
+actor EtcdRoundtrip(t: testing.EnvT, elements: int):
+    """Round trip `elements` list elements through the local etcd node
+    under a prefix of its own, print the rates and the requests each phase
+    took, and finish the test."""
+    t.require("etcd")
+    cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    prefix = b"/stratoweave/bench/" + str(time.time().second).encode() + b"-" + actorid().encode() + b"/"
+    var stores: list[swetcd.EtcdStore] = []
+
+    def open_store() -> swdb.Store:
+        store = swetcd.EtcdStore(cap, "127.0.0.1", 2379, prefix)
+        stores.append(store)
+        return store
+
+    def finished(error: ?Exception, commit_secs: float, restore_secs: float) -> None:
+        if error is not None:
+            raise error
+        # One store per phase: the first did the commit, the second the restore.
+        print(bench.report("etcd", elements, commit_secs, restore_secs) + " requests: commit={stores[0].client.request_count()} restore={stores[1].client.request_count()}")
+        t.success()
+
+    bench.Roundtrip(open_store, elements, finished)
+
+
 actor bench_lmdb_200(t: testing.EnvT):
     LmdbRoundtrip(t, 200)
+
+
+actor bench_etcd_200(t: testing.EnvT):
+    EtcdRoundtrip(t, 200)
