@@ -19,10 +19,12 @@ import mini.layers.y_1_oper as y1_oper
 # the link deterministically.
 ZTP_ONBOARDING_BLOCK = "10.64.0.0"
 
-# StratoWeave's own SZTP bootstrap server, as reachable by a booting CPE
-# (routed via its PE). Deployment fact; hard-coded for the demo.
-SZTP_BOOTSTRAP_HTTPS = "https://172.30.0.10"
-SZTP_BOOTSTRAP_HTTP = "http://172.30.0.10"
+# StratoWeave's own bootstrap server, as reachable by a booting CPE (routed via
+# its PE). Deployment fact; hard-coded for the demo. This is the sweave node's
+# address on the quicklab-ztp management network, so a PE lab built on that
+# topology reaches the same server the CPE is pointed at.
+SZTP_BOOTSTRAP_HTTPS = "https://172.31.255.10"
+SZTP_BOOTSTRAP_HTTP = "http://172.31.255.10"
 
 class ZtpOnboarding(base.ZtpOnboarding):
     """Onboard a CPE via an inline DHCP server on a PE port.

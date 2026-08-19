@@ -25,7 +25,7 @@ server = mode_element.create_server(pool='ONBOARD-cpe1')
 server.default_routers.default_router = ['10.64.0.0']
 
 # List /ipv4-dhcpd/profiles/profile[profile-name='ONBOARD-cpe1']/modes/mode[mode='server']/server/option-codes/option-code element: 143
-option_code_element = server.option_codes.option_code.create(u64(143), hex_string='001368747470733a2f2f3137322e33302e302e3130')
+option_code_element = server.option_codes.option_code.create(u64(143), hex_string='001568747470733a2f2f3137322e33312e3235352e3130')
 
 # List /ipv4-dhcpd/interfaces/interface element: GigabitEthernet0/0/0/0
 interface_element = ipv4_dhcpd.interfaces.interface.create('GigabitEthernet0/0/0/0')
