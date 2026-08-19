@@ -217,7 +217,8 @@ Notes / review points:
 
 This section captures the broader onboarding flow beyond the bootstrap server:
 where DHCP lives, how the mode is chosen, and who renders the device config.
-It supersedes the simpler "central Kea appliance" assumption of §7.
+It generalizes the single "central Kea appliance" of §7 into one placement of
+three. §7 now covers the two central placements in detail.
 
 ### Mechanism vs placement vs policy
 
@@ -431,45 +432,61 @@ bootstrap, e.g. cRPD), but it couples address learning to managing the DHCP
 server, and lease ≠ "device is ready". The ZTP exchange itself is the better
 signal when it exists.
 
-## 7. DHCP server
+## 7. DHCP server: the central placements
 
-Findings:
+§5.1 lists three DHCP placements: unmanaged central, managed central, and
+inline on the PE. This section covers the two central ones. Inline-on-PE is the
+`ztp-onboarding` service and uses no Kea.
 
-* **kea-netconf exists and is no longer experimental** (Kea 3.0 LTS), and would
-  give a true NETCONF/YANG-managed DHCP device (`kea-dhcp4-server` YANG via
-  sysrepo). But: no ISC package or container ships it; it requires a custom
-  source build of Kea + libyang3 + sysrepo3 (+ netopeer2 for actual NETCONF
-  wire protocol); no rollback; no operational datastore (so no lease table via
-  NETCONF). Setup complexity is high.
-* Every Kea daemon since 2.7.2 exposes a native **HTTP control socket** with
-  `config-set` / `config-test` / `config-get` / `lease4-get-all` etc., and the
-  official `docker.cloudsmith.io/isc/docker/kea-dhcp4` image works out of the
-  box. Kea emits **RFC-correct option 143** from a comma-separated URI list
-  (`"name": "v4-sztp-redirect"`), plus options 66/67 trivially.
+A device onboards through exactly one placement. One deployment can mix
+placements, because the prefix bucket selects the placement per link (§5.1).
 
-Plan in two stages:
+### Kea findings
 
-1. **[prototype]** Kea container with a static config file in the containerlab
-   topology: mgmt-subnet pool, `always-send` option 143 pointing at the
-   StratoWeave SZTP endpoint, per-device host reservations carrying option 67
-   bootfile URLs for classic ZTP.
-2. **Kea as a managed StratoWeave device** — the design intent. A small
-   `kea-dhcp4` YANG module (subset mirroring Kea's JSON: subnets, pools,
-   option-data, reservations) compiled through the normal device-type pipeline,
-   and a `KeaAdapter(DeviceAdapter)` that renders gdata → Kea JSON and pushes
-   via `config-test`+`config-set` over the control socket (config-get for
-   resync/txid via config hash). Then a transform produces DHCP config from
-   the same intent that declares the routers — i.e. *declaring a ZTP-enabled
-   router automatically provisions its DHCP reservation and bootstrap options*.
-   This also demonstrates that `DeviceAdapter` is genuinely pluggable beyond
-   NETCONF.
+* **kea-netconf is no longer experimental** (Kea 3.0 LTS). It gives a true
+  NETCONF/YANG-managed DHCP device (`kea-dhcp4-server` YANG through sysrepo).
+  Setup complexity is high. No ISC package or container includes it, so a
+  deployment needs a source build of Kea, libyang3 and sysrepo3. The NETCONF
+  wire protocol also needs netopeer2. kea-netconf has no rollback and no
+  operational datastore, so NETCONF cannot read the lease table.
+* Each Kea daemon from version 2.7.2 has a native **HTTP control socket** with
+  `config-set`, `config-test`, `config-get` and `lease4-get-all`. The official
+  `docker.cloudsmith.io/isc/docker/kea-dhcp4` image needs no changes.
+* Kea sends **RFC-correct option 143** from a comma-separated URI list
+  (`"name": "v4-sztp-redirect"`). Options 66 and 67 need no special handling.
 
-kea-netconf remains an option later — the YANG intent we model in stage 2 is a
-strict subset of `kea-dhcp4-server`, so switching the southbound from the REST
-adapter to plain NETCONF would not change the application model.
+### Stage 1 — unmanaged central DHCP (shipped)
 
-**Review point:** is stage 2 (Kea adapter, in-tree) the right scope, or would
-you rather keep StratoWeave NETCONF-only southbound and run kea-netconf?
+A Kea container in the containerlab topology reads a static config file.
+StratoWeave does not configure Kea. The file holds the mgmt-subnet pool, an
+`always-send` option 143 that points at the StratoWeave SZTP endpoint, and
+per-device host reservations that carry option 67 bootfile URLs for classic ZTP.
+
+The prototype lab uses this placement (§8).
+
+### Stage 2 — managed central DHCP (not built)
+
+StratoWeave configures Kea as a device. Three parts:
+
+1. A small `kea-dhcp4` YANG module. It mirrors a subset of Kea's JSON: subnets,
+   pools, option-data and reservations. It compiles through the normal
+   device-type pipeline.
+2. A `KeaAdapter(DeviceAdapter)`. It renders gdata to Kea JSON and writes it
+   with `config-test` then `config-set` over the control socket. It reads
+   `config-get` to resync, and derives the txid from the config hash.
+3. An app transform that produces the DHCP config from the same intent that
+   declares the routers. Declaring a ZTP-enabled router then provisions that
+   router's DHCP reservation and bootstrap options.
+
+Stage 2 also shows that `DeviceAdapter` is pluggable beyond NETCONF. It is
+future work (§10 item 4) and no part of it is built.
+
+kea-netconf stays an option for later. The stage 2 YANG intent is a strict
+subset of `kea-dhcp4-server`, so a later move from the REST adapter to plain
+NETCONF would not change the application model.
+
+**Review point:** is an in-tree Kea adapter the right scope for stage 2? The
+alternative keeps the StratoWeave southbound NETCONF-only and runs kea-netconf.
 
 ## 8. Test environment (containerlab)
 
@@ -486,6 +503,14 @@ mgmt network "ztpnet" (explicit subnet, e.g. 172.31.255.0/24, clab assigns .2-.9
 ├── sztp-dev1     ghcr.io/opiproject/sztp-agent: full RFC 8572 client incl. report-progress
 └── (stretch) c8000v in ZTP mode (§8.3), crpd day-0 (§8.4)
 ```
+
+**Placement:** this lab uses stage 1 of §7, unmanaged central DHCP. Kea reads a
+static config file and StratoWeave does not configure it. The lab has no PE and
+no /31: xrd1 runs DHCP on its management port over the shared clab bridge.
+
+The inline-on-PE placement of §5.1 has no lab. It exists as the
+`ztp-onboarding` CFS service plus the `ztp_onboarding` snapshot test in
+`test_mini`, which checks the rendered PE config without booting a device.
 
 Demo script (the acceptance test):
 
@@ -561,9 +586,10 @@ lab tooling, not the device.
 * Actor-level tests: SZTP RPC handlers (request → response golden tests),
   classic bootfile rendering, registry matching/lifecycle.
 
-Explicitly out of prototype scope, designed-for: CMS signing + vouchers, TLS
-listener, Kea adapter (stage 2 — started if time allows), c8000v image work,
-DHCPv6/option 136 (encoder is shared; v6 lab plumbing is not).
+Explicitly out of prototype scope, designed-for: CMS signing and vouchers, TLS
+listener, the Kea adapter (stage 2 of §7), c8000v image work, and DHCPv6 /
+option 136. The option 136 encoder is shared with option 143, but the v6 lab
+plumbing does not exist.
 
 ## 9.1 Prototype findings (what the lab taught us)
 
