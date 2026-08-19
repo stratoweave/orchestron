@@ -1,1 +1,0 @@
-<data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><system-state xmlns="urn:ietf:params:xml:ns:yang:ietf-system"><clock xmlns="urn:ietf:params:xml:ns:yang:ietf-system"><current-datetime xmlns="urn:ietf:params:xml:ns:yang:ietf-system">2026-02-21T10:11:12Z</current-datetime></clock></system-state></data>

@@ -10685,21 +10685,23 @@ class ietf_system__set_current_datetime__input(yadata.MNode):
 actor rpc_root(tp: ygdata.TreeProvider):
     set_current_datetime: action(cb: action(?Exception) -> None, inp: ietf_system__set_current_datetime__input) -> None
     def set_current_datetime(cb, inp):
-        rpc_xml = xml.Node('set-current-datetime', nsdefs=[(None, 'urn:ietf:params:xml:ns:yang:ietf-system')])
+        rpc_input = ygdata.Container()
         if inp is not None:
-            gdata_inp = yadata.from_adata(SRC_DNODE, inp, True, ["ietf-system:set-current-datetime", "input"])
-            rpc_xml.children.extend(gdata_inp.to_xml())
-        tp.rpc_xml(lambda _, err: cb(err), rpc_xml)
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["ietf-system:set-current-datetime", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('urn:ietf:params:xml:ns:yang:ietf-system', 'set-current-datetime'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
 
     system_restart: action(cb: action(?Exception) -> None) -> None
     def system_restart(cb):
-        rpc_xml = xml.Node('system-restart', nsdefs=[(None, 'urn:ietf:params:xml:ns:yang:ietf-system')])
-        tp.rpc_xml(lambda _, err: cb(err), rpc_xml)
+        rpc_input = ygdata.Container()
+        rpc_gdata = ygdata.Container({ygdata.Id('urn:ietf:params:xml:ns:yang:ietf-system', 'system-restart'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
 
     system_shutdown: action(cb: action(?Exception) -> None) -> None
     def system_shutdown(cb):
-        rpc_xml = xml.Node('system-shutdown', nsdefs=[(None, 'urn:ietf:params:xml:ns:yang:ietf-system')])
-        tp.rpc_xml(lambda _, err: cb(err), rpc_xml)
+        rpc_input = ygdata.Container()
+        rpc_gdata = ygdata.Container({ygdata.Id('urn:ietf:params:xml:ns:yang:ietf-system', 'system-shutdown'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
 
 
 

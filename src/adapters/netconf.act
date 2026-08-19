@@ -311,6 +311,8 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
     var oper_ds = ygdata.Container({})
     var conf_ds = ygdata.Container({})
     var rpc_log: list[(message_id: str, op: xml.Node)] = []
+    # Static mock RPC replies, set with set_rpc_reply(...)
+    var rpc_replies: dict[str, ygdata.Node] = {}
     # YANG-push: the last operational tree pushed, to diff against for on-change.
     var _yp_last: ?ygdata.Node = None
     var yp_service: ?nyp.NetconfSubscriptionService = None
@@ -524,6 +526,8 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
             send_ok(s, message_id)
         elif op.tag == "commit" or op.tag == "discard-changes" or op.tag == "lock" or op.tag == "unlock":
             send_ok(s, message_id)
+        elif op.tag in rpc_replies:
+            send_reply_with_log(s, message_id, rpc_replies[op.tag].to_xml(deterministic=True))
         else:
             send_error(s, message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
 
@@ -547,6 +551,10 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
         if schema is not None:
             conf_schema = schema
             yl_view = monitoring.build_yl_view([conf_schema, oper_schema])
+
+    def set_rpc_reply(tag: str, output: ygdata.Node):
+        """Register a static RPC output."""
+        rpc_replies[tag] = output
 
 
 actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc: DeviceMetaConfig, schema_registry: swdev.SchemaRegistry, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap):
@@ -1486,18 +1494,6 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
     def get_config():
         return running_conf
 
-    def rpc_xml(cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
-        def rpc_reply(c, r: ?xml.Node, error: ?netconf.NetconfError):
-            if _is_stale(c):
-                cb(None, NotConnectedError())
-                return
-            _log.debug("Device.rpc_xml.rpc_reply", {"r": r, "error": error})
-            cb(r, error)
-
-        _log.debug("Device.rpc_xml", {"xml_rpc": xml_rpc})
-        if client is not None:
-            client.rpc(xml_rpc, rpc_reply)
-
     def _build_subtree_filter(filt: ygdata.FNode) -> xml.Node:
         return xml.Node("filter", attributes=[("type", "subtree")], children=filt.to_filter_xml(deterministic=True))
 
@@ -1522,6 +1518,45 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                 return None
             return _parse_data_node(r.children[0])
         return None
+
+    def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        if len(gdata_rpc.children) != 1:
+            cb(None, ValueError("gdata_rpc container must have exactly one child"))
+            return
+
+        rpc_id = next(gdata_rpc.children.keys())
+        schema = _oper_schema()
+        if schema is None:
+            cb(None, ValueError("Schema for rpc {rpc_id} not found"))
+            return
+        out_path = None
+        for r in schema!.rpcs:
+            if r.namespace == rpc_id.q and r.name == rpc_id.name:
+                if r.output is not None:
+                    out_path = ["{r.module}:{r.name}", "output"]
+                break
+
+        def rpc_reply(c, r: ?xml.Node, error: ?netconf.NetconfError):
+            if _is_stale(c):
+                cb(None, NotConnectedError())
+                return
+            _log.debug("Device.rpc.rpc_reply", {"r": r, "error": error})
+            if r is not None and error is None:
+                if out_path is not None and schema is not None:
+                    try:
+                        gd = yxml.from_xml(schema, r, loose=True, root_path=out_path)
+                        cb(gd, None)
+                    except Exception as e:
+                        cb(None, e)
+                return
+            cb(None, error)
+
+        xml_rpc = gdata_rpc.to_xml()[0]
+        _log.debug("Device.rpc", {"xml_rpc": xml_rpc})
+        if client is not None:
+            client.rpc(xml_rpc, rpc_reply)
+        else:
+            cb(None, NotConnectedError())
 
     def _owner_publish(owner_id: str, err: ?Exception=None):
         if owner_id not in sub_owners:
@@ -1824,8 +1859,8 @@ class NetconfAdapter(DeviceAdapter):
         """
         self._driver.close(on_close)
 
-    def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
-        return self._driver.rpc_xml(cb, xml_rpc)
+    def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        self._driver.rpc(cb, gdata_rpc)
 
     def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         self._driver.declare_subscriptions(owner_id, cb, want)

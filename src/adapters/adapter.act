@@ -275,7 +275,7 @@ class DeviceAdapter(object):
 
     get_config: proc() -> ?ygdata.Node
 
-    rpc_xml: proc(cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None
+    rpc: proc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None
 
     declare_subscriptions: proc(str, action(?ygdata.Node, ?Exception) -> None, set[ygdata.SubscriptionSpec]) -> None
     remove_subscriptions: proc(str) -> None
@@ -313,8 +313,8 @@ class NoAdapter(DeviceAdapter):
     def get_config(self):
         pass
 
-    def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
-        pass
+    def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        cb(None, NotConnectedError())
 
     def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         cb(None, NotConnectedError())
@@ -359,8 +359,8 @@ class MockAdapter(DeviceAdapter):
     def get_config(self):
         return self._driver.get_config()
 
-    def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
-        return self._driver.rpc_xml(cb, xml_rpc)
+    def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        return self._driver.rpc(cb, gdata_rpc)
 
     def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         # TODO: can / should subscriptions do something on a MockAdapter ?
@@ -432,8 +432,8 @@ actor MockDriver(on_connect: action(dict[str, ModCap], ?u64) -> None, bundled_sc
     def get_config():
         return running_conf
 
-    def rpc_xml(cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
-        cb(xml.Node("ok"), None)
+    def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        cb(ygdata.Container({}), None)
 
 
 
