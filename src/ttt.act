@@ -2460,12 +2460,8 @@ class _RFSTransaction(_TransformTransactionBase):
 
     def finalize(self, tid):
         #print('####', tid, '(_TransformTransaction)', _format_path(self.path), 'finalize', actorid(), err=True)
-        # Run transform.on_conf only When we have an updated running config and there is actual output (i.e. the transform function was run)
         if self.running:
-            output = self.output
-            if output is not None:
-                if not (isinstance(output, gdata.Container) and not output.presence and len(output.children) == 0):
-                    self.function.on_conf(self.get(), self.memory)
+            self.function.on_conf(self.get(), self.memory)
 
 class DeviceInfo(object):
     name: str

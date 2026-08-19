@@ -142,6 +142,16 @@ class FailingRFSTransform(ttt.RFSFunction):
     def transform_wrapper(self, cfg, device_info, memory, dynstate):
         raise AssertionError("Test RFS transform error")
 
+
+class EmptyOutputRFSTransform(ttt.RFSFunction):
+    def transform_wrapper(self, cfg, device_info, memory, dynstate):
+        return gdata.Container(), memory
+
+
+actor EmptyOutputTransformActor(notify: action() -> None):
+    def on_conf(_conf: gdata.Node, _memory: ?gdata.Node):
+        notify()
+
 rfs_fail_cfg = gdata.Container({
     q("rfs"): gdata.List([q("name")], [
         gdata.Container({
@@ -155,6 +165,70 @@ rfs_fail_cfg = gdata.Container({
         })
     ])
 })
+
+
+actor rfs_actor_notified_for_empty_output(t: testing.AsyncT):
+    dev_registry = swdev.DeviceRegistry(log_handler=t.log_handler)
+    var starts = 0
+    var notifications = 0
+    var configuring = False
+    var done = False
+
+    def notified():
+        notifications += 1
+
+    def actor_ctor(_params: ttt.TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None:
+        starts += 1
+        act = EmptyOutputTransformActor(notified)
+        return act.on_conf
+
+    stack = ttt.Layer("rfs", ttt.Container({
+        q("rfs"): ttt.List(ttt.Container({
+            q("base"): ttt.List(ttt.RFSTransform(
+                EmptyOutputRFSTransform,
+                dev_registry,
+                actor_ctor,
+            ), [q("id")]),
+        }), [q("name")]),
+    }), None)
+
+    def fail(error: Exception):
+        if done:
+            return
+        done = True
+        t.failure(error)
+
+    def check_notified(attempt: int=0):
+        if done:
+            return
+        if starts == 1 and notifications == 1:
+            done = True
+            t.success()
+        elif starts > 1 or notifications > 1 or attempt >= 100:
+            fail(AssertionError(
+                "Expected one actor start and notification, got {starts} and {notifications}"
+            ))
+        else:
+            after 0.01: check_notified(attempt + 1)
+
+    def configured(result: value):
+        if isinstance(result, Exception):
+            fail(result)
+        else:
+            after 0: check_notified()
+
+    def timeout():
+        fail(AssertionError("Timed out waiting for empty-output actor notification"))
+
+    def reconf_cb(dev):
+        if dev == "k1" and not configuring:
+            configuring = True
+            stack.edit_config(rfs_fail_cfg, configured)
+
+    dev_registry.on_reconf(reconf_cb)
+    dmc = DeviceMetaConfig("k1", Credentials("admin", "admin"), mock=mock_with_module())
+    dev_registry.get_or_create("k1").set_dmc(dmc)
+    after 3: timeout()
 
 actor rfs_transform_exception(t: testing.AsyncT):
     dev_registry = swdev.DeviceRegistry(log_handler=t.log_handler)
