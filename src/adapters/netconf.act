@@ -23,7 +23,7 @@ from device_meta_config import \
     stratoweave_rfs__device_entry as DeviceMetaConfig
 from adapters.adapter import \
     DeviceAdapter, ModCap, DISCONNECTED, CONNECTING, CONNECTED, TRANSACTION, \
-    NotConnectedError, BusyError, LockedError, TxidMismatchError, ConfigError, \
+    NotConnectedError, BusyError, LockedError, TxidMismatchError, ConfigError, RpcError, \
     SharedSubscription, SubscriptionOwner, parse_cap, \
     subscription_delay, merge_subscription_tree, \
     SubscriptionStatus, SUBSCRIPTION_YANG_PUSH, SUBSCRIPTION_POLL, SUBSCRIPTION_CONNECTING
@@ -1492,11 +1492,22 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                 cb(None, NotConnectedError())
                 return
             _log.debug("Device.rpc_xml.rpc_reply", {"r": r, "error": error})
-            cb(r, error)
+            if error is not None:
+                # If the reply carries rpc-error content, the device actually
+                # rejected the request. Otherwise the session died with the
+                # RPC in flight.
+                if error.rpc_error is not None:
+                    cb(r, RpcError(str(error)))
+                else:
+                    cb(r, NotConnectedError(str(error)))
+                return
+            cb(r, None)
 
         _log.debug("Device.rpc_xml", {"xml_rpc": xml_rpc})
         if client is not None:
             client.rpc(xml_rpc, rpc_reply)
+        else:
+            cb(None, NotConnectedError())
 
     def _build_subtree_filter(filt: ygdata.FNode) -> xml.Node:
         return xml.Node("filter", attributes=[("type", "subtree")], children=filt.to_filter_xml(deterministic=True))
