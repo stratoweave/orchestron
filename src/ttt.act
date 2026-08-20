@@ -1516,7 +1516,10 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
         else:
             keys1 = set(elems.keys())
             #print('====', tid, path, 'acquire all keys:', keys1, actorid(), err=True)
-        active[tid] = keys1
+        if tid in active:
+            active[tid] |= keys1
+        else:
+            active[tid] = keys1
 
         return {k: elems[k] for k in keys1}
 
