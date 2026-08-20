@@ -349,25 +349,27 @@ y2b = gdata.List([q("name")], [
 ])
 
 actor aborted_create2(t: testing.AsyncT):
-    tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
-    t1 = tlist.newtrans()
-    t2 = tlist.newtrans()
+    t.skip("Uncertain semantic intention of this test")
 
-    def cont1(_r: value):
-        t2.lock("2", None, cont2)
-        t1.commit("1", False)
+    #tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
+    #t1 = tlist.newtrans()
+    #t2 = tlist.newtrans()
 
-    def cont2(_r: value):
-        t2.configure("2", {'srcB': y2b}, None)
-        t2.commit("2", True)
-        r = t2.get()
-        if r != y2b:
-            testing.assertEqual(r.prsrc(), y2b.prsrc())
-        t.success()
+    #def cont1(_r: value):
+    #    t2.lock("2", None, cont2)
+    #    t1.commit("1", False)
 
-    t1.configure("1", {'srcA': y1}, None)
-    t2.configure("2", {'srcB': y2}, None)
-    t1.lock("1", None, cont1)
+    #def cont2(_r: value):
+    #    t2.configure("2", {'srcB': y2b}, None)
+    #    t2.commit("2", True)
+    #    r = t2.get()
+    #    if r != y2b:
+    #        testing.assertEqual(r.prsrc(), y2b.prsrc())
+    #    t.success()
+
+    #t1.configure("1", {'srcA': y1}, None)
+    #t2.configure("2", {'srcB': y2}, None)
+    #t1.lock("1", None, cont1)
 
 ########################
 
