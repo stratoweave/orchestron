@@ -24,6 +24,11 @@ Then run:
 
     acton test --tag kea --module test_mini_kea_live
 
+The test has two halves. The first drives the adapter with a configuration
+that the test builds. The second runs the app transforms and writes the
+configuration that they render, so it covers the whole path from the
+northbound intent to the server.
+
 The test writes a configuration to the server, so use a throwaway
 container and not a production one.
 """
@@ -35,12 +40,15 @@ import testing
 import yang.adata as yadata
 import yang.gdata as ygdata
 
+import stratoweave
 import stratoweave.adapters.kea as swkea
 import stratoweave.device as swdev
 import stratoweave.device_meta_config as dmc
+import stratoweave.test_rig as swts
 
 import mini.devices.kea as kea_dev
 import mini.devices.kea_oper as kea_oper
+import mini.layers.y_0 as cfs_layer
 import mini.sysspec as sysspec
 
 KEA_HOST = "127.0.0.1"
@@ -116,6 +124,7 @@ actor kea_live_adapter(t: testing.EnvT):
     var attempts = 0
     var first_txid: ?str = None
     var target: ?ygdata.Node = None
+    var transform_rig: ?swts.TestRig = None
 
     ## Two lifetimes, so the two writes hold different content.
     LIFETIME_A = 600
@@ -289,6 +298,85 @@ actor kea_live_adapter(t: testing.EnvT):
             fail("lease4-wipe failed: {err}")
             return
         log.info("kea_live: lease4-wipe")
+        run_transform()
+
+    #########################################################
+    ## 5. The app transform renders a configuration that the
+    ##    server accepts
+    #########################################################
+
+    def run_transform():
+        """Write the configuration that the app transform renders.
+
+        The rig runs the CFS and the RFS transforms against a mocked Kea
+        device, and it gives back the device configuration that they
+        produce. The adapter then writes that configuration to the real
+        server. So this covers intent -> transform -> adapter -> server.
+        """
+        root = cfs_layer.root()
+        root.netinfra.global_settings.asn = 65000
+
+        server = root.netinfra.dhcp_server.create("kea", address=KEA_HOST)
+        server.mock = True
+        server.scope.create(u64(1), subnet="172.31.255.0/24",
+                            pool_start="172.31.255.100",
+                            pool_end="172.31.255.149",
+                            gateway="172.31.255.1",
+                            valid_lifetime=u64(3600))
+
+        router = root.netinfra.router.create("xrd1", 1, "xr")
+        router.mock = True
+        router.ztp = True
+        router.create_ztp_dhcp(server="kea", scope=u64(1),
+                               mac_address="02:42:ac:1f:ff:14",
+                               address="172.31.255.120")
+
+        rig = stratoweave.test_main(sysspec.SYSSPEC, t.log_handler)
+        transform_rig = rig
+        rig.edit_config(root.to_gdata(), on_transformed)
+
+    def on_transformed(res: value):
+        if isinstance(res, Exception):
+            fail("the transform failed: {res}")
+            return
+        rig = transform_rig
+        if rig is None:
+            fail("the transform rig disappeared")
+            return
+        device = rig!.dev_registry.get("kea")
+        if device is None:
+            fail("the transform created no kea device")
+            return
+        conf = device!.get_running_conf()
+        if conf is None:
+            conf = device!.get_target_conf()
+        if conf is None:
+            fail("the transform produced no configuration for the kea device")
+            return
+        rendered = conf!
+        target = rendered
+        log.info("kea_live: the transform rendered a configuration",
+                 {"config": rendered.to_yang_jsonstr(pretty=False, deterministic=True)})
+        adapter.configure(on_transform_written, rendered, rendered, None)
+
+    def on_transform_written(err: ?Exception, resulting: ?ygdata.Node):
+        if err is not None:
+            fail("the server refused the configuration of the transform: {err}")
+            return
+        if resulting is None:
+            fail("the transform write returned no configuration")
+            return
+        # The server holds exactly what the transform asked for. A leftover
+        # diff would make the device reconcile forever.
+        tgt = target
+        if tgt is not None:
+            diff = ygdata.diff(resulting!, tgt!)
+            if diff is not None:
+                fail("the transform output does not settle."
+                     + "\n  running: " + resulting!.to_yang_jsonstr(pretty=False, deterministic=True)
+                     + "\n  target:  " + tgt!.to_yang_jsonstr(pretty=False, deterministic=True))
+                return
+        log.info("kea_live: the server took the configuration of the transform")
         adapter.close(None)
         t.success()
 

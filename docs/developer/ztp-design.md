@@ -514,16 +514,16 @@ per-device host reservations that carry option 67 bootfile URLs for classic ZTP.
 
 The prototype lab uses this placement (§8).
 
-### Stage 2 — managed central DHCP (model and adapter built)
+### Stage 2 — managed central DHCP (built)
 
 StratoWeave configures Kea as a device. Three parts:
 
 1. **A `kea-dhcp4` YANG module** — `minisys/gen/yang/dev-kea/kea-dhcp4.yang`,
    the `kea` device type. **Built.**
 2. **A `KeaAdapter(DeviceAdapter)`** — `src/adapters/kea.act`. **Built.**
-3. An app transform that produces the DHCP config from the same intent that
-   declares the routers. Declaring a ZTP-enabled router then provisions that
-   router's DHCP reservation and bootstrap options. **Not built.**
+3. **An app transform** that produces the DHCP config from the same intent
+   that declares the routers, so declaring a ZTP-enabled router provisions
+   that router's DHCP reservation and bootstrap options. **Built.**
 
 Stage 2 also shows that `DeviceAdapter` is pluggable beyond NETCONF.
 `build.act` used to hardcode `adapter_type=NetconfAdapter` for every generated
@@ -642,6 +642,63 @@ against a Kea container (`acton test --tag kea`): read, two writes with a
 content change between them, read back, then the RPCs. It asserts that the
 second read still answers, which is the check that the splice kept
 `control-sockets`.
+
+#### The transform
+
+The transform is app code, not platform code — §5.1 puts the vendor DHCP
+config on the app side. It is in `minisys`, and it has two halves that meet
+at the device.
+
+**The server and its scopes.** A new CFS list `netinfra/dhcp-server` declares
+a managed DHCP server: its management address, its credentials, and a `scope`
+list. `mini.cfs.DhcpServer` turns each server into a StratoWeave device of
+type `kea` and each scope into one `dhcp-scope` RFS service. `mini.rfs.DhcpScope`
+renders that service into `Dhcp4/subnet4`: the prefix, the pool, the default
+router, and — when the scope enables it — the SZTP redirect as an
+`always-send` option 143. A scope is a prefix bucket in the sense of §5.1, so
+every router that onboards through it gets the same subnet-wide options.
+
+**The routers and their reservations.** A ZTP router adds a `ztp-dhcp`
+presence container that names the server, the scope, the router's hardware
+address and the address to reserve. `mini.cfs.Router` then emits one
+`dhcp-reservation` RFS service against the *server's* RFS, and
+`mini.rfs.DhcpReservation` renders it into `subnet4/reservations`. The boot
+file of classic ZTP is per router, because the URL carries the router name,
+so it belongs on the reservation and not on the scope.
+
+Two results follow from this shape.
+
+* **The services merge into one scope.** `DhcpScope` writes
+  `subnet4[id]` with the prefix and the pool, `DhcpReservation` writes
+  `subnet4[id]` with one reservation, and the RFS layer merges them. So a
+  router joins a scope by declaring itself, and no transform rewrites the
+  whole server. Removing the router removes its reservation, which the
+  adapter's ownership rule turns into a deletion on the server.
+* **The reservation gives StratoWeave the management address.** The router's
+  device meta-config takes its address from `ztp-dhcp/address`. This is the
+  central-DHCP form of the /31 argument in §5.1: the address is assigned, not
+  discovered, so StratoWeave knows where to reach the router before the router
+  boots. The bootstrap check-in confirms that the router took the lease.
+
+A ZTP router enables both mechanisms today, because the device meta-config
+defaults `ztp/sztp/enabled` and `ztp/classic/enabled` to true and the CFS
+router model has no switch. So a reservation carries a boot file and the
+scope sends the redirect. Option 143 outranks option 67 on the platforms that
+read both, so such a router takes the SZTP path.
+
+`minisys/src/test_mini.act::_test_managed_dhcp` snapshots the Kea device
+configuration that one server plus two ZTP routers produce.
+`_test_managed_dhcp_removal` then removes the `ztp-dhcp` container from one
+router. It shows that the router's reservation disappears, and that the scope
+and the other reservation stay. The live test writes the rendered
+configuration to a real Kea container, which covers the whole path from the
+northbound intent to the server.
+
+The quicklab-ztp lab still uses the stage 1 static file. Moving it to the
+managed placement needs per-router hardware addresses, and containerlab does
+not pin the MAC of a node on the management network, so the reservations
+would not match. A lab on a point-to-point topology, where the MACs are
+declared, can use the managed placement as it stands.
 
 kea-netconf stays an option for later. The stage 2 YANG intent is a strict
 subset of what `kea-dhcp4-server` expresses — the tree differs, since it
@@ -802,14 +859,13 @@ northbound lands on the device. Things learned by running it:
 3. **ZTP oper state as modeled `config false` data** + transform
    subscriptions (option B of §6); device `state` container is the natural
    home.
-4. **The Kea app transform** — the third part of stage 2 (§7). The model and
-   the adapter are built; what is missing is the transform that renders the
-   DHCP configuration from the same intent that declares the routers.
-   Related, smaller items: `subnet4-add`/`subnet4-update` from the
-   `subnet_cmds` hook as an incremental write path for subnets (it does not
-   cover reservations, so `config-set` stays the primary path); a gdata-typed
-   RPC path on `DeviceAdapter` so a JSON device need not convert through XML;
-   and kea-netconf as an alternative southbound.
+4. **Managed DHCP follow-ups** — stage 2 (§7) is built end to end.
+   What remains is smaller: move the quicklab-ztp lab from the static file to
+   the managed placement, which needs a topology that pins each router's
+   hardware address; `subnet4-add`/`subnet4-update` from the `subnet_cmds`
+   hook as an incremental write path for subnets (it does not cover
+   reservations, so `config-set` stays the primary path); and kea-netconf as
+   an alternative southbound.
 5. **NETCONF Call Home (RFC 8071)** as a third mechanism — the natural
    onboarding path for devices behind NAT; pairs well with SZTP's
    `bootstrap-complete` ssh-host-key pinning.

@@ -9,9 +9,9 @@ actor main(env):
     pc = process.ProcessCap(env.cap)
 
     cfs_layer = swbuild.Layer.from_dir(fc, "yang/cfs")
-    cfs_layer.models.extend([swyang.stratoweave, swyang.ietf_inet_types])
+    cfs_layer.models.extend([swyang.stratoweave, swyang.ietf_inet_types, swyang.ietf_yang_types])
     rfs_layer = swbuild.Layer.from_dir(fc, "yang/rfs")
-    rfs_layer.models.extend([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types])
+    rfs_layer.models.extend([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types])
 
     spec = swbuild.SysSpec("mini", [
         cfs_layer,

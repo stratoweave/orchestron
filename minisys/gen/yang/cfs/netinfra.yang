@@ -10,6 +10,12 @@ module netinfra {
   import stratoweave {
     prefix sw;
   }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
 
   container netinfra {
     description "Network infrastructure";
@@ -69,6 +75,113 @@ module netinfra {
       }
     }
 
+    list dhcp-server {
+      description
+        "A DHCP server that StratoWeave manages as a device. The server
+        gives an address to each router that onboards through it, and it
+        sends the DHCP options that point the router at StratoWeave.
+
+        StratoWeave owns only the scopes below. The server keeps its own
+        plumbing (control channel, lease database, interfaces, loggers).";
+      key name;
+
+      sw:transform mini.cfs.DhcpServer;
+
+      leaf name {
+        description
+          "Name of the DHCP server. StratoWeave creates a device with this
+          name.";
+        type string;
+      }
+      leaf type {
+        description "Device type of the DHCP server";
+        type string;
+        default "kea";
+      }
+      leaf address {
+        description "Address of the server's management API";
+        type inet:ip-address;
+        mandatory true;
+      }
+      leaf port {
+        description "Port of the server's management API";
+        type inet:port-number;
+        default 8000;
+      }
+      leaf username {
+        description
+          "User name for the management API. It defaults to the name of the
+          server.";
+        type string;
+      }
+      leaf password {
+        description
+          "Password for the management API. Leave it unset for a server that
+          does not authenticate. StratoWeave then sends no credentials.";
+        type string;
+      }
+      leaf mock {
+        description "Do not connect to the server. The tests use this leaf.";
+        type boolean;
+        default false;
+      }
+
+      list scope {
+        description
+          "One address range that the server serves. A scope is also a ZTP
+          bucket: every router that onboards through it gets the same
+          bootstrap options.";
+        key id;
+
+        leaf id {
+          description "Identity of the scope on the server";
+          type uint32;
+        }
+        leaf subnet {
+          description "Prefix that the scope serves";
+          type inet:ipv4-prefix;
+          mandatory true;
+        }
+        leaf pool-start {
+          description "First address in the range that the server assigns";
+          type inet:ipv4-address;
+          mandatory true;
+        }
+        leaf pool-end {
+          description "Last address in the range that the server assigns";
+          type inet:ipv4-address;
+          mandatory true;
+        }
+        leaf gateway {
+          description "Default router (DHCP option 3) for the scope";
+          type inet:ipv4-address;
+        }
+        leaf interface {
+          description
+            "Server interface that serves the scope. Leave it unset to let
+            the server select the interface from the prefix.";
+          type string;
+        }
+        leaf valid-lifetime {
+          description
+            "Lease time in seconds. Always set this value. A server that
+            gets no value takes one from its global scope, and then reports
+            the value as the scope's own.";
+          type uint32;
+          default 600;
+        }
+        leaf sztp {
+          description
+            "Send the RFC 8572 redirect (DHCP option 143) to every client in
+            the scope. Set it to false for a scope that onboards routers
+            with classic ZTP only, because option 143 outranks option 67 on
+            many platforms.";
+          type boolean;
+          default true;
+        }
+      }
+    }
+
     list router {
       key name;
 
@@ -109,6 +222,38 @@ module netinfra {
         description "Bootstrap identity (serial number) of the router,
           defaults to the router name";
         type string;
+      }
+      container ztp-dhcp {
+        presence
+          "Reserve an address for this router on a managed DHCP server";
+        description
+          "Where the router gets its address and its bootstrap options from.
+          StratoWeave writes one reservation into the scope, so it knows the
+          router's management address before the router boots. It does not
+          have to learn the address from the bootstrap exchange.";
+        leaf server {
+          description "Name of the dhcp-server that serves this router";
+          type string;
+          mandatory true;
+        }
+        leaf scope {
+          description "Scope on that server that holds the reservation";
+          type uint32;
+          mandatory true;
+        }
+        leaf mac-address {
+          description
+            "Hardware address that identifies the router to the DHCP server";
+          type yang:mac-address;
+          mandatory true;
+        }
+        leaf address {
+          description
+            "Address to reserve for the router. StratoWeave also uses it as
+            the router's management address.";
+          type inet:ipv4-address;
+          mandatory true;
+        }
       }
       container dynstate {
         sw:dynstate;

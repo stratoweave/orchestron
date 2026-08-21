@@ -1,0 +1,32 @@
+# device kea
+# Top node: /
+kea = root()
+
+# List /Dhcp4/subnet4 element: 1
+subnet4_element = kea.Dhcp4.subnet4.create(u64(1), subnet='172.31.255.0/24', valid_lifetime=u64(3600))
+
+# List /Dhcp4/subnet4[id='1']/pools element: 172.31.255.100-172.31.255.149
+pools_element = subnet4_element.pools.create('172.31.255.100-172.31.255.149')
+
+# List /Dhcp4/subnet4[id='1']/option-data element: dhcp4,3
+option_data_element = subnet4_element.option_data.create((space='dhcp4', code=u64(3)), data='172.31.255.1')
+
+# List /Dhcp4/subnet4[id='1']/option-data element: dhcp4,143
+option_data_element = subnet4_element.option_data.create((space='dhcp4', code=u64(143)), data='https://172.31.255.10', always_send=True)
+
+# List /Dhcp4/subnet4[id='1']/reservations element: hw-address,02:42:ac:1f:ff:14
+reservations_element = subnet4_element.reservations.create((identifier_type='hw-address', identifier='02:42:ac:1f:ff:14'), ip_address='172.31.255.120', hostname='xrd1', boot_file_name='http://172.31.255.10/ztp/v1/device/xrd1/bootfile')
+
+# device sztp-dev1
+# Top node: /
+sztp_dev1 = root()
+
+# Container: /hostname
+sztp_dev1.hostname.system_network_name = 'sztp-dev1'
+
+# device xrd1
+# Top node: /
+xrd1 = root()
+
+# Container: /hostname
+xrd1.hostname.system_network_name = 'xrd1'

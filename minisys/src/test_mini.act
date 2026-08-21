@@ -1,10 +1,18 @@
 import testing
 
+import yang.gdata as ygdata
+
 import mini.layers.y_0 as cfs_layer
 import mini.layers.y_0_oper as cfs_oper
 import mini.sysspec as sysspec
 import stratoweave
 import stratoweave.test_rig as swts
+
+NS_NETINFRA = "http://example.com/netinfra"
+
+
+def _NETINFRA(name: str) -> ygdata.Id:
+    return ygdata.Id(NS_NETINFRA, name)
 
 actor _test_netinfra1(t: testing.AsyncT):
     # Test input config
@@ -94,3 +102,80 @@ actor _test_l3vpn1(t: testing.AsyncT):
     )
 
     swts.TransformTester(t, sysspec.SYSSPEC, root.to_gdata())
+
+
+def _managed_dhcp_root(with_sztp_dev: bool) -> cfs_layer.root:
+    """A managed DHCP server, one scope, and one or two ZTP routers."""
+    root = cfs_layer.root()
+    root.netinfra.global_settings.asn = 65000
+
+    kea = root.netinfra.dhcp_server.create("kea", address="172.31.255.11")
+    kea.mock = True
+    kea.scope.create(u64(1), subnet="172.31.255.0/24",
+                     pool_start="172.31.255.100", pool_end="172.31.255.149",
+                     gateway="172.31.255.1", valid_lifetime=u64(3600))
+
+    # Classic ZTP (DHCP option 67): the boot file URL names the router, so
+    # each router fetches its own day-0 artifact.
+    xrd1 = root.netinfra.router.create("xrd1", 1, "xr")
+    xrd1.mock = True
+    xrd1.ztp = True
+    xrd1.create_ztp_dhcp(server="kea", scope=u64(1),
+                         mac_address="02:42:ac:1f:ff:14",
+                         address="172.31.255.120")
+
+    if with_sztp_dev:
+        # RFC 8572 SZTP: the scope sends option 143 to every client. A ZTP
+        # router enables both mechanisms, so this reservation also carries a
+        # boot file. Option 143 outranks option 67 on the platforms that read
+        # both, so the router still takes the SZTP path.
+        dev1 = root.netinfra.router.create("sztp-dev1", 2, "xr")
+        dev1.mock = True
+        dev1.ztp = True
+        dev1.ztp_serial = "first-serial-number"
+        dev1.hostname = "sztp-dev1"
+        dev1.create_ztp_dhcp(server="kea", scope=u64(1),
+                             mac_address="02:42:ac:1f:ff:1e",
+                             address="172.31.255.121")
+
+    return root
+
+
+actor _test_managed_dhcp(t: testing.AsyncT):
+    # A managed central DHCP server plus two routers that onboard through
+    # it. The server transform renders the scope; each router adds its own
+    # reservation to the same scope, and the two merge into one Kea config.
+    swts.TransformTester(t, sysspec.SYSSPEC, _managed_dhcp_root(True).to_gdata())
+
+
+actor _test_managed_dhcp_removal(t: testing.AsyncT):
+    # A router that stops onboarding through the DHCP server loses its
+    # reservation. The scope and the other reservation stay. The adapter
+    # owns subnet4, so an absent reservation is a deletion on the server.
+    tr = stratoweave.test_main(sysspec.SYSSPEC, t.log_handler)
+
+    def on_removed(r: value):
+        if isinstance(r, Exception):
+            t.failure(r)
+            return
+        t.success(tr.device_adata_snapshot())
+
+    # Edits merge, so the removal names the node to delete.
+    removal = ygdata.Container({
+        _NETINFRA("netinfra"): ygdata.Container({
+            _NETINFRA("router"): ygdata.List([_NETINFRA("name")], [
+                ygdata.Container({
+                    _NETINFRA("name"): ygdata.Leaf("sztp-dev1"),
+                    _NETINFRA("ztp-dhcp"): ygdata.Absent(),
+                })
+            ])
+        })
+    })
+
+    def on_created(r: value):
+        if isinstance(r, Exception):
+            t.failure(r)
+            return
+        tr.edit_config(removal, on_removed)
+
+    tr.edit_config(_managed_dhcp_root(True).to_gdata(), on_created)

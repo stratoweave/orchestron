@@ -13,6 +13,7 @@ import mini.layers.y_1_oper as y1_oper
 
 import mini.devices.ietf as ietf_dev
 import mini.devices.ietf_oper as ietf_oper
+import mini.devices.kea as kea_dev
 import mini.devices.xr as xr_dev
 from mini.devices.ietf_oper import root as ietf_oper_root
 
@@ -67,6 +68,66 @@ class DhcpOnboarding(base.DhcpOnboarding):
             intf = dhcpd.interfaces.interface.create(i.pe_interface)
             intf.create_profile(profile_name=i.profile_name, mode="server")
 
+            return dev
+
+        raise UnsupportedDevice()
+
+
+class DhcpScope(base.DhcpScope):
+    """Render one address range onto a managed DHCP server.
+
+    The scope carries the options that every client in it receives: the
+    default router, and the SZTP redirect that points a booting router at
+    StratoWeave. The per-router boot file comes from DhcpReservation, and
+    the two services merge into the same scope.
+    """
+    def transform(self, i, di):
+        print("RFS dhcp-scope transform running", di.name, i.id, err=True)
+
+        if "kea-dhcp4" in di.modules:
+            dev = kea_dev.root()
+            subnet = dev.Dhcp4.subnet4.create(
+                i.id, subnet=i.subnet, valid_lifetime=i.valid_lifetime)
+            subnet.interface = i.interface
+            subnet.pools.create(i.pool)
+            gateway = i.gateway
+            if gateway is not None:
+                # DHCP option 3, the default router
+                subnet.option_data.create(("dhcp4", 3), data=gateway)
+            sztp_uri = i.sztp_redirect_uri
+            if sztp_uri is not None:
+                # DHCP option 143, the RFC 8572 redirect. Kea encodes the
+                # tuple format of the RFC from this URI list.
+                subnet.option_data.create(("dhcp4", 143), data=sztp_uri,
+                                          always_send=True)
+            return dev
+
+        raise UnsupportedDevice()
+
+
+class DhcpReservation(base.DhcpReservation):
+    """Render one router's address and boot file onto a managed DHCP server.
+
+    The transform writes only the reservation. DhcpScope supplies the prefix
+    and the pool of the same scope, and the two merge. So a scope holds one
+    entry per router that onboards through it.
+    """
+    def transform(self, i, di):
+        print("RFS dhcp-reservation transform running", di.name, i.name, err=True)
+
+        if "kea-dhcp4" in di.modules:
+            dev = kea_dev.root()
+            subnet = dev.Dhcp4.subnet4.create(i.scope)
+            res = subnet.reservations.create(
+                ("hw-address", i.mac_address),
+                ip_address=i.address,
+                hostname=i.hostname)
+            bootfile = i.bootfile_url
+            if bootfile is not None:
+                # Classic ZTP: DHCP option 67 names the file that the router
+                # fetches. The URL holds the router name, so it is also the
+                # router's identity to the bootstrap server.
+                res.boot_file_name = bootfile
             return dev
 
         raise UnsupportedDevice()

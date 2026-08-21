@@ -12,6 +12,9 @@ module mini-rfs {
     import ietf-inet-types {
       prefix inet;
     }
+    import ietf-yang-types {
+      prefix yang;
+    }
 
     augment "/sw-rfs:rfs" {
         container base-config {
@@ -55,6 +58,90 @@ module mini-rfs {
             leaf profile-name { type string; mandatory true; }
             leaf option-code { type uint16; mandatory true; }
             leaf option-hex { type string; mandatory true; }
+        }
+
+        list dhcp-scope {
+            description
+                "One address range on a managed DHCP server. StratoWeave owns
+                the scope: an absent scope is a deletion.";
+            key id;
+
+            sw:rfs-transform mini.rfs.DhcpScope;
+
+            leaf id {
+                description "Identity of the scope on the server";
+                type uint32;
+            }
+            leaf subnet {
+                type inet:ipv4-prefix;
+                mandatory true;
+            }
+            leaf pool {
+                description
+                    "Address range that the server assigns, in the form
+                    first-address-last-address";
+                type string;
+                mandatory true;
+            }
+            leaf valid-lifetime {
+                description "Lease time in seconds";
+                type uint32;
+                mandatory true;
+            }
+            leaf gateway {
+                description "Default router (DHCP option 3) for the scope";
+                type inet:ipv4-address;
+            }
+            leaf interface {
+                description "Server interface that serves the scope";
+                type string;
+            }
+            leaf sztp-redirect-uri {
+                description
+                    "Bootstrap server that the scope sends in DHCP option 143.
+                    An absent leaf removes the option.";
+                type string;
+            }
+        }
+
+        list dhcp-reservation {
+            description
+                "The address and the bootstrap options that a managed DHCP
+                server holds for one router.";
+            key name;
+
+            sw:rfs-transform mini.rfs.DhcpReservation;
+
+            leaf name {
+                description "Router that the reservation serves";
+                type string;
+            }
+            leaf scope {
+                description "Scope that holds the reservation";
+                type uint32;
+                mandatory true;
+            }
+            leaf mac-address {
+                description
+                    "Hardware address that identifies the router to the server";
+                type yang:mac-address;
+                mandatory true;
+            }
+            leaf address {
+                description "Address that the server reserves for the router";
+                type inet:ipv4-address;
+                mandatory true;
+            }
+            leaf hostname {
+                description "Host name that the server gives to the router";
+                type string;
+            }
+            leaf bootfile-url {
+                description
+                    "Classic ZTP boot file (DHCP option 67) for this router.
+                    An absent leaf removes the option.";
+                type string;
+            }
         }
 
         list l3vpn-endpoint {

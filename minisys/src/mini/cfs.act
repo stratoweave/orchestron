@@ -82,6 +82,50 @@ class ZtpOnboarding(base.ZtpOnboarding):
         return o
 
 
+class DhcpServer(base.DhcpServer):
+    """Create a managed DHCP server as a device, and render its scopes.
+
+    The server is a StratoWeave device like a router is. Each scope becomes
+    one dhcp-scope service in the server's RFS. Each router that onboards
+    through the server adds its own reservation to the same scope (see
+    Router). The two services merge into one device configuration.
+    """
+    def transform(self, i):
+        o = base.o_root()
+
+        dev = o.device.create(i.name)
+        dev.type = i.type
+        dev.approval_required = False
+        dev.mock.enabled = i.mock
+        api = dev.address.create("control-channel")
+        api.address = i.address
+        api.port = i.port
+        # Every device holds a user name, so the name of the server is the
+        # fallback. The password stays unset for a server that does not
+        # authenticate, and the adapter then sends no credentials.
+        username = i.username
+        dev.credentials.username = username if username is not None else i.name
+        dev.credentials.password = i.password
+
+        rfs = o.rfs.create(i.name)
+        for scope in i.scope:
+            s = rfs.dhcp_scope.create(
+                scope.id,
+                subnet=scope.subnet,
+                pool="{scope.pool_start}-{scope.pool_end}",
+                valid_lifetime=scope.valid_lifetime,
+                gateway=scope.gateway,
+                interface=scope.interface,
+            )
+            # The scope is the ZTP bucket: it sends the SZTP redirect to
+            # every client in it. The option value is the standardized one
+            # from the platform helper.
+            if scope.sztp:
+                s.sztp_redirect_uri = SZTP_BOOTSTRAP_HTTPS
+
+        return o
+
+
 class GlobalSettings(base.GlobalSettings):
     def transform(self, i):
         o = base.o_root()
@@ -146,8 +190,33 @@ class Router(base.Router):
         rfs = o.rfs.create(i.name)
         bc = rfs.base_config
         hostname = i.hostname
-        bc.name = hostname if hostname is not None else i.name
+        router_name = hostname if hostname is not None else i.name
+        bc.name = router_name
         bc.ipv4_address = "10.0.0.{i.id}"
+
+        ztp_dhcp = i.ztp_dhcp
+        if ztp_dhcp is not None:
+            zd = ztp_dhcp!
+            # The reservation fixes the address, so StratoWeave knows where
+            # to reach the router before the router boots. It does not have
+            # to learn the address from the bootstrap exchange.
+            oob_addr = dev.address.create("oob")
+            oob_addr.address = zd.address
+
+            dhcp = o.rfs.create(zd.server)
+            res = dhcp.dhcp_reservation.create(
+                i.name,
+                scope=zd.scope,
+                mac_address=zd.mac_address,
+                address=zd.address,
+                hostname=router_name,
+            )
+            # Classic ZTP identifies the router by the URL that it fetches,
+            # so the boot file is per router. The scope sends the SZTP
+            # redirect, which is the same for every client.
+            if i.ztp:
+                res.bootfile_url = ztpdhcp.classic_bootfile_url(
+                    i.name, SZTP_BOOTSTRAP_HTTP)
 
         return o
 

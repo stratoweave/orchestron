@@ -11,6 +11,7 @@ import yang.xml as yxml
 
 from mini.layers.y_0 import netinfra__netinfra__global_settings
 from mini.layers.y_0 import netinfra__netinfra__ztp_onboarding_entry
+from mini.layers.y_0 import netinfra__netinfra__dhcp_server_entry
 from mini.layers.y_0 import netinfra__netinfra__router_entry
 from mini.layers.y_0 import netinfra__netinfra__router__dynstate
 from mini.layers.y_0 import netinfra__p_container
@@ -70,6 +71,31 @@ class ZtpOnboarding(ttt.TransformFunction):
         """
         gdata_input = yxml.from_xml(SRC_DNODE, i, loose=False, root_path=['netinfra:netinfra', 'ztp-onboarding'])
         modeled_input = netinfra__netinfra__ztp_onboarding_entry.from_gdata(gdata_input)
+
+        return self.transform(modeled_input).to_gdata(), None
+
+class DhcpServer(ttt.TransformFunction):
+    transform: mut(netinfra__netinfra__dhcp_server_entry) -> yadata.MNode
+
+    @staticmethod
+    def input_type():
+        """Return the modeled input type for this transform"""
+        return netinfra__netinfra__dhcp_server_entry
+
+    mut def transform_wrapper(self, i: ygdata.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from gdata to
+        modeled input and back to gdata
+        """
+        modeled_input = netinfra__netinfra__dhcp_server_entry.from_gdata(i)
+
+        return self.transform(modeled_input).to_gdata(), None
+
+    mut def transform_xml(self, i: xml.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from XML to
+        modeled input and return gdata
+        """
+        gdata_input = yxml.from_xml(SRC_DNODE, i, loose=False, root_path=['netinfra:netinfra', 'dhcp-server'])
+        modeled_input = netinfra__netinfra__dhcp_server_entry.from_gdata(gdata_input)
 
         return self.transform(modeled_input).to_gdata(), None
 
