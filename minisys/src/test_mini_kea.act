@@ -1,0 +1,477 @@
+import json
+import testing
+
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.schema as yschema
+
+import stratoweave.adapters.kea as swkea
+
+import mini.devices.kea as kea_dev
+import mini.devices.kea_oper as kea_oper
+
+NS_KEA = "http://stratoweave.org/yang/kea-dhcp4"
+
+## The onboarding configuration that a ZTP transform renders onto a managed
+## central Kea. It has one subnet for each prefix bucket. The subnet options
+## carry the mode. A per-device reservation binds the CPE to the address that
+## StratoWeave allocated for it.
+def _ztp_config() -> kea_dev.root:
+    dev = kea_dev.root()
+    d4 = dev.Dhcp4
+    d4.valid_lifetime = 3600
+
+    # The SZTP bucket. Each device that takes an address here receives the
+    # RFC 8572 redirect.
+    sztp = d4.subnet4.create(1, subnet="172.31.255.0/24", valid_lifetime=600)
+    sztp.pools.create("172.31.255.100-172.31.255.149")
+    sztp.option_data.create(("dhcp4", 3), data="172.31.255.1")
+    sztp.option_data.create(("dhcp4", 143), data="https://172.31.255.10",
+                            always_send=True)
+
+    # The classic bucket. The bootfile URL identifies the device, so it sits
+    # on the reservation and not on the subnet.
+    classic = d4.subnet4.create(2, subnet="172.31.254.0/24", valid_lifetime=600)
+    classic.pools.create("172.31.254.100-172.31.254.149")
+    classic.option_data.create(("dhcp4", 3), data="172.31.254.1")
+    res = classic.reservations.create(("hw-address", "02:42:ac:1f:fe:14"),
+                                      ip_address="172.31.254.120",
+                                      hostname="xrd1")
+    res.boot_file_name = "http://172.31.255.10/ztp/v1/device/xrd1/bootfile"
+
+    return dev
+
+
+def _test_ztp_config_shape():
+    g = _ztp_config().to_gdata()
+    j = g.to_yang_jsonstr(pretty=False, deterministic=True)
+
+    # Each node name under Dhcp4 is the Kea JSON key. That is what lets the
+    # adapter convert by structure alone.
+    for frag in ["\"kea-dhcp4:Dhcp4\"", "\"subnet4\"", "\"pools\"",
+                 "\"option-data\"", "\"reservations\"", "\"valid-lifetime\"",
+                 "\"always-send\"", "\"boot-file-name\""]:
+        if frag not in j:
+            raise ValueError("missing {frag} in rendered JSON: {j}")
+
+    # Kea identifies an option by its space and its code. A rendered option
+    # carries both, and no name.
+    if "\"code\": 143" not in j and "\"code\":143" not in j:
+        raise ValueError("option 143 not rendered: {j}")
+    if "\"name\"" in j:
+        raise ValueError("option-data must not carry the name that Kea derives: {j}")
+
+
+def _test_reservation_identifier_key():
+    ## Each reservation holds exactly one Kea host identifier. The model
+    ## names the identifier instead of the caller setting one leaf of five.
+    dev = kea_dev.root()
+    s = dev.Dhcp4.subnet4.create(1, subnet="10.0.0.0/24")
+    s.reservations.create(("hw-address", "02:42:ac:1f:fe:14"), ip_address="10.0.0.5")
+    s.reservations.create(("client-id", "0102030405"), ip_address="10.0.0.6")
+    s.reservations.create(("circuit-id", "6162"), ip_address="10.0.0.7")
+
+    entries = s.reservations.elements
+    testing.assertEqual(len(entries), 3)
+    kinds = sorted([e.identifier_type for e in entries])
+    testing.assertEqual(kinds, ["circuit-id", "client-id", "hw-address"])
+
+
+def _leaf(n: yschema.DNode, path: list[str]) -> yschema.DLeaf:
+    cur = n
+    for name in path:
+        cur = cur.get(name)
+    if isinstance(cur, yschema.DLeaf):
+        return cur
+    raise ValueError("not a leaf: {path}")
+
+
+def _test_defaults_match_kea():
+    ## Kea returns a full configuration from config-get and fills in each
+    ## default. A leaf with a default here must use the same value as Kea. A
+    ## target that omits the leaf then still gives a clean diff. These are
+    ## the values that Kea 3.0.3 returns.
+    root = kea_dev.SRC_DNODE
+    for path, want in [
+        (["Dhcp4", "next-server"], "0.0.0.0"),
+        (["Dhcp4", "boot-file-name"], ""),
+        (["Dhcp4", "authoritative"], "false"),
+        (["Dhcp4", "echo-client-id"], "true"),
+        (["Dhcp4", "option-data", "csv-format"], "true"),
+        (["Dhcp4", "option-data", "always-send"], "false"),
+        (["Dhcp4", "option-data", "never-send"], "false"),
+        (["Dhcp4", "subnet4", "next-server"], "0.0.0.0"),
+        (["Dhcp4", "subnet4", "server-hostname"], ""),
+        (["Dhcp4", "subnet4", "boot-file-name"], ""),
+        (["Dhcp4", "subnet4", "reservations", "hostname"], ""),
+        (["Dhcp4", "subnet4", "reservations", "next-server"], "0.0.0.0"),
+        (["Dhcp4", "subnet4", "reservations", "server-hostname"], ""),
+        (["Dhcp4", "subnet4", "reservations", "boot-file-name"], ""),
+    ]:
+        testing.assertEqual(_leaf(root, path).default, want, "/".join(path))
+
+
+#################################################################################
+## The transcoding that the adapter runs
+#################################################################################
+
+def _subnet_at(dhcp4: dict[str, ?value], idx: int) -> dict[str, ?value]:
+    subnets = dhcp4.get("subnet4")
+    if isinstance(subnets, list):
+        s = subnets[idx]
+        if isinstance(s, dict):
+            return s
+    raise ValueError("no subnet {idx} in {dhcp4}")
+
+
+def _entry_at(obj: dict[str, ?value], key: str, idx: int) -> dict[str, ?value]:
+    entries = obj.get(key)
+    if isinstance(entries, list):
+        e = entries[idx]
+        if isinstance(e, dict):
+            return e
+    raise ValueError("no {key}[{idx}] in {obj}")
+
+
+## json.decode gives dict[str, ?value]. testing.assertEqual needs one type on
+## both sides, so read each value at the type that the JSON holds.
+def _str_of(d: dict[str, ?value], k: str) -> ?str:
+    v = d.get(k)
+    if isinstance(v, str):
+        return v
+    return None
+
+
+def _int_of(d: dict[str, ?value], k: str) -> ?int:
+    v = d.get(k)
+    if isinstance(v, int):
+        return v
+    return None
+
+
+def _bool_of(d: dict[str, ?value], k: str) -> ?bool:
+    v = d.get(k)
+    if isinstance(v, bool):
+        return v
+    return None
+
+
+def _ints_of(d: dict[str, ?value], k: str) -> list[int]:
+    out = []
+    v = d.get(k)
+    if isinstance(v, list):
+        for e in v:
+            if isinstance(e, int):
+                out.append(e)
+    return out
+
+
+def _has(d: dict[str, ?value], k: str) -> bool:
+    return d.get(k) is not None
+
+
+def _test_kea_from_gdata():
+    ## The model renders to Kea JSON. Two rules apply. The module prefix
+    ## leaves the root. The reservation identifier pair becomes the single
+    ## Kea leaf that it names.
+    kea = swkea.kea_from_gdata(_ztp_config().to_gdata())
+    if kea is None:
+        raise ValueError("kea_from_gdata returned None")
+    d4 = kea!
+
+    testing.assertEqual(_int_of(d4, "valid-lifetime"), 3600)
+    r = _entry_at(_subnet_at(d4, 1), "reservations", 0)
+
+    # Kea holds the value under the name of the identifier.
+    testing.assertEqual(_str_of(r, "hw-address"), "02:42:ac:1f:fe:14")
+    testing.assertEqual(_has(r, "identifier-type"), False)
+    testing.assertEqual(_has(r, "identifier"), False)
+    testing.assertEqual(_str_of(r, "ip-address"), "172.31.254.120")
+
+
+def _test_canonical_forms():
+    ## Kea rewrites two values that the model uses as list keys. The adapter
+    ## writes them in Kea's form, so a rewrite never reads as a new entry.
+    testing.assertEqual(swkea.canonical_pool("10.0.0.1 - 10.0.0.9"), "10.0.0.1-10.0.0.9")
+    testing.assertEqual(swkea.canonical_pool("10.0.0.1-10.0.0.9"), "10.0.0.1-10.0.0.9")
+    testing.assertEqual(swkea.canonical_pool("10.0.0.0/25"), "10.0.0.0/25")
+    testing.assertEqual(swkea.canonical_identifier("client-id", "01:02:03:04:05"), "0102030405")
+    testing.assertEqual(swkea.canonical_identifier("hw-address", "02:42:ac:1f:fe:14"),
+                        "02:42:ac:1f:fe:14")
+
+    dev = kea_dev.root()
+    s = dev.Dhcp4.subnet4.create(1, subnet="10.0.0.0/24")
+    s.pools.create("10.0.0.100 - 10.0.0.149")
+    s.reservations.create(("client-id", "01:02:03:04:05"), ip_address="10.0.0.5")
+
+    kea = swkea.kea_from_gdata(dev.to_gdata())
+    if kea is None:
+        raise ValueError("kea_from_gdata returned None")
+    sn = _subnet_at(kea!, 0)
+    testing.assertEqual(_str_of(_entry_at(sn, "pools", 0), "pool"), "10.0.0.100-10.0.0.149")
+    testing.assertEqual(_str_of(_entry_at(sn, "reservations", 0), "client-id"), "0102030405")
+
+
+## A config-get reply as Kea 3.0.3 returns it: every default filled in, and
+## keys that the model does not define.
+KEA_RUNNING = r"""{
+  "authoritative": false,
+  "echo-client-id": true,
+  "next-server": "0.0.0.0",
+  "boot-file-name": "",
+  "decline-probation-period": 86400,
+  "parked-packet-limit": 256,
+  "valid-lifetime": 3600,
+  "subnet4": [
+    {
+      "4o6-interface": "",
+      "allocator": "iterative",
+      "id": 1,
+      "subnet": "172.31.255.0/24",
+      "next-server": "0.0.0.0",
+      "server-hostname": "",
+      "boot-file-name": "",
+      "pools": [ { "pool": "172.31.255.100-172.31.255.149" } ],
+      "option-data": [
+        { "always-send": true, "code": 143, "csv-format": true,
+          "data": "https://172.31.255.10", "name": "v4-sztp-redirect",
+          "never-send": false, "space": "dhcp4" }
+      ],
+      "reservations": [
+        { "boot-file-name": "http://172.31.255.10/ztp/v1/device/xrd1/bootfile",
+          "hostname": "xrd1",
+          "hw-address": "02:42:ac:1f:fe:14", "ip-address": "172.31.254.120",
+          "next-server": "0.0.0.0", "server-hostname": "" }
+      ]
+    }
+  ]
+}"""
+
+
+def _test_gdata_from_kea_projects_and_drops_defaults():
+    ## The adapter reads a full Kea configuration. It keeps the keys that
+    ## the model defines and drops the rest. It also drops a leaf that holds
+    ## its schema default, because a rendered target never sets one.
+    conf = swkea.gdata_from_kea(kea_dev.SRC_DNODE, json.decode(KEA_RUNNING), "abc123")
+    testing.assertEqual(conf.txid, "abc123")
+
+    j = conf.to_yang_jsonstr(pretty=False, deterministic=True)
+
+    # A key that the model does not define never reaches the tree.
+    for gone in ["allocator", "4o6-interface", "decline-probation-period",
+                 "parked-packet-limit"]:
+        if "\"{gone}\"" in j:
+            raise ValueError("unmodelled key {gone} reached the tree: {j}")
+
+    # Kea fills in the option name. The model has no such leaf.
+    if "v4-sztp-redirect" in j:
+        raise ValueError("the derived option name reached the tree: {j}")
+
+    # A leaf that holds a Kea default is gone, so a target that omits it
+    # still gives a clean diff.
+    for gone in ["\"authoritative\"", "\"echo-client-id\"", "\"csv-format\"",
+                 "\"never-send\"", "\"server-hostname\""]:
+        if gone in j:
+            raise ValueError("default-valued leaf {gone} reached the tree: {j}")
+
+    # always-send is true here, which is not the default, so it stays.
+    if "\"always-send\"" not in j:
+        raise ValueError("always-send should survive: {j}")
+
+    # The reservation identifier comes back as the model pair.
+    if "\"identifier-type\"" not in j:
+        raise ValueError("reservation identifier not converted: {j}")
+    # The identifier-type leaf holds "hw-address" as its value, so look for
+    # the key form to tell the Kea leaf from the model value.
+    if "\"hw-address\":" in j:
+        raise ValueError("the Kea identifier leaf reached the tree: {j}")
+    if "\"identifier\": \"02:42:ac:1f:fe:14\"" not in j and "\"identifier\":\"02:42:ac:1f:fe:14\"" not in j:
+        raise ValueError("the identifier value did not survive: {j}")
+
+
+def _test_round_trip():
+    ## Render the model, read it back, and compare. A difference here would
+    ## show as a diff at each reconcile, and the device would never settle.
+    original = _ztp_config().to_gdata()
+    kea = swkea.kea_from_gdata(original)
+    if kea is None:
+        raise ValueError("kea_from_gdata returned None")
+    back = swkea.gdata_from_kea(kea_dev.SRC_DNODE, kea!)
+    testing.assertEqual(original.to_yang_jsonstr(pretty=False, deterministic=True),
+                        back.to_yang_jsonstr(pretty=False, deterministic=True))
+
+
+def _test_owned_keys():
+    ## The ownership set comes from the schema, so a new leaf in the model
+    ## extends it without a change in the adapter.
+    owned = sorted(swkea.owned_keys(kea_dev.SRC_DNODE))
+    testing.assertEqual(owned, ["authoritative", "boot-file-name", "echo-client-id",
+                                "next-server", "option-data", "rebind-timer",
+                                "renew-timer", "subnet4", "valid-lifetime"])
+
+
+def _test_splice_keeps_the_control_socket():
+    ## Kea replaces the full configuration at each config-set. A
+    ## configuration without control-sockets locks the manager out of the
+    ## server. The adapter therefore starts from the running configuration
+    ## and replaces the owned keys only.
+    running: dict[str, ?value] = {
+        "control-sockets": [{"socket-type": "http", "socket-port": 8000}],
+        "hooks-libraries": [{"library": "/usr/lib/kea/hooks/libdhcp_lease_cmds.so"}],
+        "lease-database": {"type": "memfile"},
+        "interfaces-config": {"interfaces": ["eth0"]},
+        "loggers": [{"name": "kea-dhcp4"}],
+        "client-classes": [{"name": "ztp"}],
+        "valid-lifetime": 7200,
+        "subnet4": [{"id": 9, "subnet": "192.0.2.0/24"}],
+    }
+    target: dict[str, ?value] = {
+        "valid-lifetime": 600,
+        "subnet4": [{"id": 1, "subnet": "172.31.255.0/24"}],
+    }
+    owned = swkea.owned_keys(kea_dev.SRC_DNODE)
+    out = swkea.splice(running, target, owned)
+
+    # The device keeps every key that the model does not define.
+    for kept in ["control-sockets", "hooks-libraries", "lease-database",
+                 "interfaces-config", "loggers", "client-classes"]:
+        if kept not in out:
+            raise ValueError("splice dropped the device-owned key {kept}")
+
+    # The model is the authority for the keys that it defines.
+    testing.assertEqual(_int_of(out, "valid-lifetime"), 600)
+    subnets = out.get("subnet4")
+    if isinstance(subnets, list):
+        testing.assertEqual(len(subnets), 1)
+
+    # An owned key that the target omits is a deletion and not a keep.
+    empty: dict[str, ?value] = {}
+    out2 = swkea.splice(running, empty, owned)
+    if "subnet4" in out2:
+        raise ValueError("splice kept a subnet that the target deleted")
+    if "control-sockets" not in out2:
+        raise ValueError("splice dropped the control socket on an empty target")
+
+
+#################################################################################
+## RPCs
+#################################################################################
+
+def _test_rpc_output_of_a_lease_read():
+    ## Kea answers lease4-get-all with an 'arguments' object that already
+    ## matches the output of the RPC.
+    reply = json.decode(r"""{
+      "result": 0, "text": "1 IPv4 lease(s) found.",
+      "arguments": { "leases": [ {
+        "cltt": 1787130292, "fqdn-fwd": false, "fqdn-rev": false,
+        "hostname": "xrd1", "hw-address": "02:42:ac:1f:ff:14",
+        "ip-address": "172.31.255.120", "state": 0, "subnet-id": 1,
+        "valid-lft": 3600 } ] } }""")
+    out = swkea.rpc_output("lease4-get-all", reply)
+    if out is None:
+        raise ValueError("no output")
+
+    # The output parses against the output schema of the RPC, which is what
+    # the generated rpc_root actor hands back to the caller.
+    g = swkea.rpc_output_gdata(kea_oper.SRC_DNODE, "lease4-get-all", out!)
+    adata = kea_oper.kea_dhcp4__lease4_get_all__output.from_gdata(g)
+    testing.assertEqual(len(adata.leases.elements), 1)
+    lease = adata.leases.elements[0]
+    testing.assertEqual(lease.ip_address, "172.31.255.120")
+    testing.assertEqual(lease.hostname, "xrd1")
+    testing.assertEqual(lease.subnet_id, 1)
+    testing.assertEqual(lease.valid_lft, 3600)
+    testing.assertEqual(lease.fqdn_fwd, False)
+
+
+def _test_rpc_output_divergences():
+    ## Three replies do not follow the rule "output equals arguments".
+
+    # lease4-get returns the lease fields at the top of 'arguments'. The RPC
+    # wraps them in a container.
+    one = swkea.rpc_output("lease4-get", json.decode(
+        r"""{"result":0,"arguments":{"ip-address":"10.0.0.5","subnet-id":1}}"""))
+    if one is None:
+        raise ValueError("no output")
+    lease = one!.get("lease")
+    if isinstance(lease, dict):
+        testing.assertEqual(_str_of(lease, "ip-address"), "10.0.0.5")
+    else:
+        raise ValueError("lease4-get did not wrap the lease")
+
+    # version-get puts the short version in 'text', outside 'arguments'.
+    ver = swkea.rpc_output("version-get", json.decode(
+        r"""{"result":0,"text":"3.0.3","arguments":{"extended":"3.0.3 (tarball)"}}"""))
+    if ver is None:
+        raise ValueError("no output")
+    testing.assertEqual(_str_of(ver!, "version"), "3.0.3")
+    testing.assertEqual(_str_of(ver!, "extended"), "3.0.3 (tarball)")
+
+    # stat-lease4-get returns a table. YANG has no list of lists, so the
+    # adapter joins each row to the column names.
+    stats = swkea.rpc_output("stat-lease4-get", json.decode(
+        r"""{"result":0,"arguments":{"result-set":{
+          "columns":["subnet-id","total-addresses","cumulative-assigned-addresses",
+                     "assigned-addresses","declined-addresses"],
+          "rows":[[1,50,0,1,0],[2,256,4,3,1]],
+          "timestamp":"2026-08-19 09:04:52.459872"}}}"""))
+    if stats is None:
+        raise ValueError("no output")
+
+    g = swkea.rpc_output_gdata(kea_oper.SRC_DNODE, "stat-lease4-get", stats!)
+    adata = kea_oper.kea_dhcp4__stat_lease4_get__output.from_gdata(g)
+    testing.assertEqual(len(adata.subnet_statistics.elements), 2)
+    entry = adata.subnet_statistics.get(2)
+    if entry is None:
+        raise ValueError("no statistics for subnet 2")
+    testing.assertEqual(entry!.total_addresses, 256)
+    testing.assertEqual(entry!.assigned_addresses, 3)
+    testing.assertEqual(entry!.declined_addresses, 1)
+
+
+def _input_gdata(command: str, inp: yadata.MNode) -> ygdata.Node:
+    ## Build the input in the shape that the generated rpc_root actor hands
+    ## to the adapter.
+    return yadata.from_adata(kea_oper.SRC_DNODE, inp, True,
+                             ["kea-dhcp4:{command}", "input"])
+
+
+def _args_of(command: str, inp: yadata.MNode) -> dict[str, ?value]:
+    args = swkea.rpc_input(_input_gdata(command, inp))
+    if args is None:
+        raise ValueError("{command}: no arguments")
+    return args!
+
+
+def _test_rpc_input_types():
+    ## Kea rejects a number that arrives as a string, so the adapter reads
+    ## the YANG type of each input leaf before it builds the JSON.
+    wipe = _args_of("lease4-wipe", kea_oper.kea_dhcp4__lease4_wipe__input(subnet_id=7))
+    testing.assertEqual(_int_of(wipe, "subnet-id"), 7)
+
+    hw = _args_of("lease4-get-by-hw-address",
+                  kea_oper.kea_dhcp4__lease4_get_by_hw_address__input(
+                      hw_address="02:42:ac:1f:ff:14"))
+    testing.assertEqual(_str_of(hw, "hw-address"), "02:42:ac:1f:ff:14")
+
+    reclaim = _args_of("leases-reclaim",
+                       kea_oper.kea_dhcp4__leases_reclaim__input(remove=True))
+    testing.assertEqual(_bool_of(reclaim, "remove"), True)
+
+    disable = _args_of("dhcp-disable",
+                       kea_oper.kea_dhcp4__dhcp_disable__input(max_period=60,
+                                                               origin="stratoweave"))
+    testing.assertEqual(_int_of(disable, "max-period"), 60)
+    testing.assertEqual(_str_of(disable, "origin"), "stratoweave")
+
+
+def _test_rpc_input_leaf_list():
+    ## lease4-get-all takes a list of subnet ids. Kea reads an empty list as
+    ## "all subnets", so the adapter sends no arguments at all in that case.
+    inp = kea_oper.kea_dhcp4__lease4_get_all__input(subnets=[1, 2])
+    args = _args_of("lease4-get-all", inp)
+    testing.assertEqual(_ints_of(args, "subnets"), [1, 2])
+
+    empty = swkea.rpc_input(ygdata.Container())
+    if empty is not None:
+        raise ValueError("an empty input must send no arguments: {empty}")

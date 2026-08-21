@@ -1,0 +1,844 @@
+module kea-dhcp4 {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/kea-dhcp4";
+  prefix "kea4";
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization "StratoWeave";
+
+  description
+    "A device model for an ISC Kea DHCPv4 server. StratoWeave manages the
+    server through the Kea HTTP control channel. This module holds the
+    configuration and the operations that the ZTP flow needs.
+
+    SCOPE. The 'Dhcp4' container is a subset of Kea's configuration. It
+    holds subnets, pools, DHCP options and host reservations. Kea 3.0.3
+    shows 51 top-level keys in 'Dhcp4'. This module has 9 of them.
+
+    OWNERSHIP. Kea replaces the full configuration at each 'config-set'.
+    Kea sets each key that the new configuration does not contain back to
+    its default. A configuration without 'control-sockets' stops the HTTP
+    listener. The manager then has no access to the server until the
+    server restarts. StratoWeave verified this against Kea 3.0.3.
+    'config-set' is also the only write path for reservations, because
+    'reservation-add' needs a 'hosts-database' backend.
+
+    The adapter thus does not send this model as the full configuration.
+    The adapter reads the running configuration. It then replaces the
+    keys that this module defines. It then sends the result back. The
+    ownership rule applies to each top-level key of 'Dhcp4':
+
+      * StratoWeave owns a key that this module defines. The model is
+        the authority for that key. The adapter deletes an entry that
+        the model does not contain. A leaf that the model does not
+        contain goes back to its Kea default.
+      * The device owns each other key. Examples are 'control-sockets',
+        'hooks-libraries', 'lease-database', 'interfaces-config',
+        'loggers', 'client-classes', 'host-reservation-identifiers' and
+        'option-def'. The adapter does not change these keys.
+
+    The operator thus keeps control of the server plumbing. A
+    'client-class' or an 'option-def' that this model refers to can come
+    from the operator's own Kea configuration.
+
+    OPERATIONS. Kea has no operational datastore. Kea supplies all state
+    through control-channel commands, and the useful ones take
+    parameters. This module thus has no config-false tree. It models
+    each command as an RPC instead. The RPC name is the Kea command
+    name. The input leaves are the keys of the Kea 'arguments' object.
+    Each divergence has a note at the RPC that needs it.
+
+    Some commands come from hook libraries. 'lease_cmds' supplies the
+    lease commands. 'stat_cmds' supplies 'stat-lease4-get'. A server
+    that does not load the hook rejects the command with result code 2.
+    The two features below mark the RPCs that need a hook. The adapter
+    reads 'list-commands' at connect time. It then reports the features
+    that the server supports.
+
+    NAMING. Inside 'Dhcp4' each node name is the Kea JSON key. The
+    adapter thus converts between gdata and Kea JSON by structure alone.
+    It needs no name table. Rendered gdata is already Kea JSON except
+    for two rules. First, remove the 'kea-dhcp4:' module prefix that RFC
+    7951 adds to the root. Second, replace a reservation's
+    'identifier-type' and 'identifier' pair with the single Kea
+    identifier leaf that the pair names.
+
+    DEFAULTS. Kea returns a full configuration from 'config-get' and
+    fills in each default. A leaf with a default in this module must
+    therefore use the same default as Kea. The adapter then removes each
+    running leaf that holds its schema default. A target that omits the
+    leaf still gives a clean diff.
+
+    This rule works for a leaf with a fixed default. It does not work for
+    a leaf that a subnet inherits from the global scope, because the
+    inherited value is not fixed. 'subnet4/valid-lifetime' is the one such
+    leaf in this module, and its description says to set it.
+
+    CANONICAL FORMS. Kea rewrites some values that it receives. Two of
+    them are list keys in this module. A rewrite there reads as a
+    different entry. The adapter converts both to Kea's form before it
+    compares. See the notes at 'pool' and at 'identifier'.";
+
+  reference
+    "Kea Administrator Reference Manual, DHCPv4 Server Configuration
+    https://kea.readthedocs.io/en/kea-3.0.3/arm/dhcp4-srv.html";
+
+  revision 2026-08-19 {
+    description "Initial revision: the ZTP subset.";
+  }
+
+  feature lease-commands {
+    description
+      "The server loaded the 'lease_cmds' hook library. The lease
+      commands then work.";
+  }
+
+  feature statistics-commands {
+    description
+      "The server loaded the 'stat_cmds' hook library.
+      'stat-lease4-get' then works.";
+  }
+
+  /*
+   * Option data. Kea accepts an option-data entry that holds a 'code'
+   * and no 'name'. Kea fills in the name from its own option
+   * definitions. This module thus has no 'name' leaf. A 'name' leaf
+   * would be absent from each rendered target and present in each
+   * running configuration. Each reconcile would then show a diff.
+   */
+  grouping option-data-list {
+    list option-data {
+      description
+        "The DHCP options that Kea serves at this scope. Kea identifies
+        an option by its space and its code. This list uses the same
+        two values as its key.";
+
+      key "space code";
+
+      leaf space {
+        description
+          "The option space that holds the code. 'dhcp4' is the standard
+          v4 space. A vendor space such as
+          'vendor-encapsulated-options-space' holds sub-options. Kea
+          uses 'dhcp4' as the default. A list key cannot hold a default,
+          so each entry must give this value. 'config-get' also returns
+          this value in each entry.";
+        type string;
+      }
+
+      leaf code {
+        description
+          "The DHCP option code. The StratoWeave ZTP option helper uses
+          codes and not names. Code 143 is the RFC 8572 SZTP redirect.
+          Code 67 is the classic bootfile. Code 66 is the TFTP server.
+          Code 43 is Cisco PnP. A code that Kea does not know needs an
+          'option-def' entry in the operator's own configuration.";
+        type uint16;
+      }
+
+      leaf data {
+        description
+          "The option value. Kea reads this value as a list of the
+          option's typed fields when 'csv-format' is true. Kea reads it
+          as a hex string when 'csv-format' is false. The RFC 8572
+          bootstrap-server list is a raw tuple encoding. It needs
+          'csv-format' false.";
+        type string;
+      }
+
+      leaf csv-format {
+        description
+          "Read 'data' as the list of typed fields of the option. Read
+          'data' as hex when this leaf is false.";
+        type boolean;
+        default "true";
+      }
+
+      leaf always-send {
+        description
+          "Send the option even when the client does not request it. The
+          ZTP options need this behaviour. A device that boots does not
+          always request code 143 or code 67.";
+        type boolean;
+        default "false";
+      }
+
+      leaf never-send {
+        description
+          "Do not send the option, even when the client requests it.";
+        type boolean;
+        default "false";
+      }
+    }
+  }
+
+  /*
+   * The lease fields. 'lease4-get' returns one lease and puts these
+   * fields in a container. The other lease commands return an array and
+   * put them in the 'leases' list.
+   */
+  grouping lease-body {
+    leaf hw-address {
+      description "The client hardware address, as hex with colons.";
+      type string;
+    }
+
+    leaf client-id {
+      description "The client identifier, as hex without separators.";
+      type string;
+    }
+
+    leaf subnet-id {
+      description "The 'subnet4' entry that supplied this lease.";
+      type uint32;
+    }
+
+    leaf hostname {
+      type string;
+    }
+
+    leaf state {
+      description
+        "The lease state, as Kea reports it. 0 is assigned. 1 is
+        declined. 2 is expired and reclaimed. 3 is released. This leaf
+        is an integer and not an enumeration. A later Kea can then add a
+        state and this model still reads it.";
+      type uint32;
+    }
+
+    leaf valid-lft {
+      description "The lease lifetime, in seconds.";
+      type uint32;
+    }
+
+    leaf cltt {
+      description
+        "The client last transaction time, in seconds since the Unix
+        epoch.";
+      type uint64;
+    }
+
+    leaf fqdn-fwd {
+      description "Kea added a forward DNS record for this lease.";
+      type boolean;
+    }
+
+    leaf fqdn-rev {
+      description "Kea added a reverse DNS record for this lease.";
+      type boolean;
+    }
+  }
+
+  grouping lease-list {
+    list leases {
+      description "The DHCPv4 leases that the command found.";
+
+      key "ip-address";
+
+      leaf ip-address {
+        type inet:ipv4-address;
+      }
+
+      uses lease-body;
+    }
+  }
+
+  /*
+   * Host reservations. Kea identifies a reservation by one of
+   * hw-address, client-id, circuit-id, duid or flex-id. YANG cannot use
+   * "whichever leaf is set" as a key. The pair below names the
+   * identifier instead. The rule "exactly one identifier" thus holds by
+   * structure and needs no 'must' statement. This is the one place
+   * where a node name is not the Kea JSON key. The adapter emits
+   * {"<identifier-type>": "<identifier>", ...}.
+   */
+  grouping reservations-list {
+    list reservations {
+      description
+        "The per-host reservations in this scope. ZTP uses a reservation
+        for the deterministic half of onboarding. StratoWeave knows the
+        /31 CPE address when it allocates the link. The reservation then
+        binds the device that boots to that address. The reservation
+        also carries the per-device classic-ZTP bootfile URL.";
+
+      key "identifier-type identifier";
+
+      leaf identifier-type {
+        description "The Kea host identifier that 'identifier' holds.";
+        type enumeration {
+          enum hw-address {
+            description "The client hardware address, as hex with colons.";
+          }
+          enum client-id {
+            description "The DHCPv4 client identifier, which is option 61.";
+          }
+          enum circuit-id {
+            description
+              "The relay agent circuit ID, which is sub-option 1 of
+              option 82. The PE sets this value in the inline-relay
+              placement.";
+          }
+          enum duid {
+            description "The DHCP unique identifier.";
+          }
+          enum flex-id {
+            description
+              "An identifier that the flex-id hook library computes. The
+              server must load that hook. The server must also list
+              'flex-id' in 'host-reservation-identifiers'. This module
+              owns neither of those keys.";
+          }
+        }
+      }
+
+      leaf identifier {
+        description
+          "The identifier value. A 'hw-address' is hex with colons. A
+          'circuit-id', a 'duid' and a 'flex-id' are hex strings.
+
+          CANONICAL FORM: Kea removes the colons from a 'client-id'. Kea
+          returns '01:02:03:04:05' as '0102030405'. The adapter converts
+          to Kea's form before it compares. A reservation in either form
+          thus gives the same key.";
+        type string;
+      }
+
+      leaf ip-address {
+        description "The address that Kea reserves for this host.";
+        type inet:ipv4-address;
+      }
+
+      leaf hostname {
+        type string;
+        default "";
+      }
+
+      leaf next-server {
+        description
+          "The siaddr field. It gives this host the address of the boot
+          server.";
+        type inet:ipv4-address;
+        default "0.0.0.0";
+      }
+
+      leaf server-hostname {
+        description "The sname field.";
+        type string;
+        default "";
+      }
+
+      leaf boot-file-name {
+        description
+          "The file field, which is also option 67. Classic ZTP puts the
+          per-device bootfile URL here. StratoWeave serves that URL. A
+          classic-ZTP device identifies itself by the URL that it
+          fetches.";
+        type string;
+        default "";
+      }
+
+      leaf-list client-classes {
+        description "The classes that Kea assigns to this host.";
+        type string;
+      }
+
+      uses option-data-list;
+    }
+  }
+
+  container Dhcp4 {
+    description
+      "The part of the Kea 'Dhcp4' configuration object that StratoWeave
+      owns. Each node name is the Kea JSON key. The device keeps each
+      key of 'Dhcp4' that this container does not define.";
+
+    leaf valid-lifetime {
+      description
+        "The default lease lifetime, in seconds. Each subnet without its
+        own lifetime uses this value.";
+      type uint32;
+      default "7200";
+    }
+
+    leaf renew-timer {
+      description
+        "The T1 timer, in seconds. Kea sends no T1 when this leaf is
+        absent, so it needs no default here.";
+      type uint32;
+    }
+
+    leaf rebind-timer {
+      description
+        "The T2 timer, in seconds. Kea sends no T2 when this leaf is
+        absent, so it needs no default here.";
+      type uint32;
+    }
+
+    leaf next-server {
+      description "The global default for the siaddr field.";
+      type inet:ipv4-address;
+      default "0.0.0.0";
+    }
+
+    leaf boot-file-name {
+      description "The global default for option 67.";
+      type string;
+      default "";
+    }
+
+    leaf authoritative {
+      description
+        "Answer a request for an address that this server does not own.
+        The server sends a DHCPNAK instead of no answer.";
+      type boolean;
+      default "false";
+    }
+
+    leaf echo-client-id {
+      description "Send option 61 back to the client. See RFC 6842.";
+      type boolean;
+      default "true";
+    }
+
+    uses option-data-list;
+
+    list subnet4 {
+      description
+        "The IPv4 subnets that this server serves. A ZTP deployment that
+        uses prefix buckets makes one subnet for each onboarding mode.
+        The pool that supplies the /31 thus selects the mode. The device
+        then receives an SZTP redirect or a classic bootfile.";
+
+      key "id";
+
+      leaf id {
+        description
+          "The Kea subnet identifier. It is unique in one server. Leases
+          and statistics report this value as 'subnet-id'. This list
+          therefore uses the identifier as its key and not the prefix.";
+        type uint32;
+      }
+
+      leaf subnet {
+        description "The subnet prefix.";
+        type inet:ipv4-prefix;
+        mandatory true;
+      }
+
+      leaf interface {
+        description
+          "Serve this subnet only to clients that arrive on one local
+          interface.";
+        type string;
+      }
+
+      leaf client-class {
+        description
+          "Serve this subnet only to the members of the named class. The
+          operator's own configuration defines the class. This module
+          does not own 'client-classes'.";
+        type string;
+      }
+
+      leaf valid-lifetime {
+        description
+          "The lease lifetime for this subnet, in seconds. Use a short
+          lifetime for an onboarding pool. The lease only has to last for
+          the bootstrap exchange.
+
+          Set this leaf. Kea gives a subnet without a lifetime the global
+          value, and then reports the inherited value as the value of the
+          subnet. A target that omits this leaf therefore shows a diff at
+          each reconcile. The adapter cannot remove that diff, because it
+          cannot tell an inherited value from a value that the operator
+          set to the same number.";
+        type uint32;
+      }
+
+      leaf next-server {
+        type inet:ipv4-address;
+        default "0.0.0.0";
+      }
+
+      leaf server-hostname {
+        type string;
+        default "";
+      }
+
+      leaf boot-file-name {
+        type string;
+        default "";
+      }
+
+      container relay {
+        description
+          "Select packets by the relay address that forwarded them. The
+          inline-relay placement needs this. There the PE relays the
+          packets to this central server.";
+
+        leaf-list ip-addresses {
+          type inet:ipv4-address;
+        }
+      }
+
+      list pools {
+        description "The address ranges inside this subnet.";
+
+        key "pool";
+
+        leaf pool {
+          description
+            "The range. Give either 'start-end' or a prefix.
+
+            CANONICAL FORM: Kea removes the spaces around the separator
+            of a range. Kea returns '10.0.0.1 - 10.0.0.9' as
+            '10.0.0.1-10.0.0.9'. This leaf is the list key, so the form
+            with spaces reads as a different pool. The adapter converts
+            to Kea's form before it compares.";
+          type string;
+        }
+
+        leaf client-class {
+          description
+            "Use this pool only for the members of the named class.";
+          type string;
+        }
+
+        uses option-data-list;
+      }
+
+      uses option-data-list;
+
+      uses reservations-list;
+    }
+  }
+
+  /*
+   * Read operations.
+   *
+   * Kea supplies all state through commands, so this module has no
+   * config-false tree. Each RPC below reads data and changes nothing.
+   */
+
+  rpc lease4-get-all {
+    if-feature "lease-commands";
+
+    description
+      "Read the DHCPv4 lease table. ZTP uses a lease as proof of life
+      and not as a source of addresses. StratoWeave knows the CPE
+      address from the /31 allocation. A lease shows that the device
+      booted and took that address.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf-list subnets {
+        description
+          "Read the leases of these subnets only. Kea reads all subnets
+          when this list is empty.";
+        type uint32;
+      }
+    }
+
+    output {
+      uses lease-list;
+    }
+  }
+
+  rpc lease4-get {
+    if-feature "lease-commands";
+
+    description
+      "Read one lease by its address. Use this command in place of
+      'lease4-get-all' when the address is known. That is the normal
+      case for a /31 onboarding link.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf ip-address {
+        type inet:ipv4-address;
+        mandatory true;
+      }
+    }
+
+    output {
+      container lease {
+        description
+          "The lease that Kea found. Kea returns an error when no lease
+          holds this address.";
+
+        leaf ip-address {
+          type inet:ipv4-address;
+        }
+
+        uses lease-body;
+      }
+    }
+  }
+
+  rpc lease4-get-by-hw-address {
+    if-feature "lease-commands";
+
+    description
+      "Read the leases of one hardware address. Use this command when
+      the MAC address is known and the IP address is not.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf hw-address {
+        description "The client hardware address, as hex with colons.";
+        type string;
+        mandatory true;
+      }
+    }
+
+    output {
+      uses lease-list;
+    }
+  }
+
+  rpc stat-lease4-get {
+    if-feature "statistics-commands";
+
+    description
+      "Read the pool use of each subnet. An onboarding pool that runs
+      out of addresses makes ZTP fail without a message. Devices boot,
+      ask for an address, and receive nothing. These counters show that
+      failure.
+
+      This command comes from the 'stat_cmds' hook library.
+
+      DIVERGENCE: Kea returns a table and not a list of records. The
+      reply holds 'result-set' with a 'columns' array and a 'rows' array
+      of arrays. YANG has no list of lists. The adapter therefore joins
+      each row to the column names and builds the list below.";
+
+    input {
+      leaf subnet-id {
+        description
+          "Read this subnet only. Kea reads all subnets when this leaf
+          is absent.";
+        type uint32;
+      }
+    }
+
+    output {
+      list subnet-statistics {
+        description "One record for each subnet that Kea reported.";
+
+        key "subnet-id";
+
+        leaf subnet-id {
+          type uint32;
+        }
+
+        leaf total-addresses {
+          description "The number of addresses in the pools of the subnet.";
+          type uint64;
+        }
+
+        leaf assigned-addresses {
+          description "The number of addresses that Kea leases now.";
+          type uint64;
+        }
+
+        leaf cumulative-assigned-addresses {
+          description
+            "The number of addresses that Kea assigned since it started.";
+          type uint64;
+        }
+
+        leaf declined-addresses {
+          description
+            "The number of addresses that a client declined. Kea holds
+            these addresses out of the pool until the decline probation
+            period ends.";
+          type uint64;
+        }
+      }
+    }
+  }
+
+  rpc status-get {
+    description
+      "Read the health of the server. This is a core command. It needs
+      no hook library.";
+
+    output {
+      leaf pid {
+        type uint32;
+      }
+
+      leaf uptime {
+        description "The seconds since the server process started.";
+        type uint32;
+      }
+
+      leaf reload {
+        description
+          "The seconds since the server last loaded its configuration.";
+        type uint32;
+      }
+
+      leaf multi-threading-enabled {
+        type boolean;
+      }
+
+      leaf thread-pool-size {
+        type uint32;
+      }
+
+      container sockets {
+        leaf status {
+          description
+            "The state of the DHCP listening sockets. Examples are
+            'ready' and 'failed'.";
+          type string;
+        }
+      }
+
+      container dhcp-state {
+        leaf globally-disabled {
+          description
+            "The DHCP service is suspended. The control channel still
+            answers. The server hands out no leases.";
+          type boolean;
+        }
+      }
+    }
+  }
+
+  rpc version-get {
+    description
+      "Read the version of the server. This is a core command.
+
+      DIVERGENCE: Kea returns the short version in the 'text' field of
+      the reply and not inside 'arguments'. The adapter reads 'text'
+      into 'version'.";
+
+    output {
+      leaf version {
+        description "The short version, for example '3.0.3'.";
+        type string;
+      }
+
+      leaf extended {
+        description
+          "The long version. It lists the libraries and the lease
+          backends of the build.";
+        type string;
+      }
+    }
+  }
+
+  /*
+   * Write operations.
+   *
+   * Each RPC below changes the state of the server. None of them
+   * changes the configuration that the 'Dhcp4' container owns.
+   */
+
+  rpc dhcp-disable {
+    description
+      "Stop the DHCP service. The control channel stays available. Use
+      this command to hold onboarding while an operator works on the
+      pools.";
+
+    input {
+      leaf max-period {
+        description
+          "Start the service again after this number of seconds. The
+          service stays stopped when this leaf is absent.";
+        type uint32;
+      }
+
+      leaf origin {
+        description
+          "The name that Kea records as the source of the request.";
+        type string;
+      }
+    }
+  }
+
+  rpc dhcp-enable {
+    description "Start the DHCP service after a 'dhcp-disable'.";
+
+    input {
+      leaf origin {
+        description
+          "The name that Kea records as the source of the request. It
+          must match the name that stopped the service.";
+        type string;
+      }
+    }
+  }
+
+  rpc lease4-wipe {
+    if-feature "lease-commands";
+
+    description
+      "Delete the leases of one subnet. A lab that runs an onboarding
+      test again needs this command.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf subnet-id {
+        description
+          "Delete the leases of this subnet. Kea deletes the leases of
+          all subnets when this leaf is 0.";
+        type uint32;
+      }
+    }
+  }
+
+  rpc leases-reclaim {
+    description
+      "Reclaim the expired leases now. Kea also does this work on a
+      timer. This is a core command.";
+
+    input {
+      leaf remove {
+        description
+          "Delete each reclaimed lease from the database. Kea keeps the
+          lease and marks it when this leaf is false.";
+        type boolean;
+        default "false";
+      }
+    }
+  }
+
+  rpc config-write {
+    description
+      "Write the running configuration to disk. Kea holds a 'config-set'
+      in memory only, so a restart loses it. Call this command after
+      StratoWeave changes the configuration and the change must survive
+      a restart. This is a core command.";
+
+    input {
+      leaf filename {
+        description
+          "The target file. Kea writes to the file that it loaded at
+          start when this leaf is absent.";
+        type string;
+      }
+    }
+
+    output {
+      leaf filename {
+        description "The file that Kea wrote.";
+        type string;
+      }
+
+      leaf size {
+        description "The number of bytes that Kea wrote.";
+        type uint64;
+      }
+    }
+  }
+}

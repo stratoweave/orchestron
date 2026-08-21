@@ -70,7 +70,7 @@ class SysSpec(object):
             root = yang.compile(dev_type.models, strict_quoting=False, allow_failure=allow_failure)
             for t in dev_type.transforms:
                 t.apply(root)
-            r = CompiledDeviceType(root, dev_type.models, dev_type.name, dev_type.transforms)
+            r = CompiledDeviceType(root, dev_type.models, dev_type.name, dev_type.transforms, dev_type.adapter)
             print(" {sw.elapsed().to_float():.3f}s")
             return r
         compiled_layers = [_compile_layer(l, idx) for (idx, l) in enumerate(self.layers)]
@@ -104,7 +104,11 @@ class CompiledSysSpec(object):
         syssrc += "import stratoweave.app as swapp\n"
         syssrc += "import stratoweave.db as swdb\n"
         syssrc += "import stratoweave.device as swdev\n"
-        syssrc += "import stratoweave.adapters.netconf as swna\n"
+        adapter_imports = {}
+        for dev_type in self.dev_types.values():
+            adapter_imports[dev_type.adapter.alias] = dev_type.adapter.import_line()
+        for alias in sorted(adapter_imports.keys()):
+            syssrc += adapter_imports[alias]
         syssrc += "import stratoweave.ttt as ttt\n"
         syssrc += "\n"
         syssrc += "import {self.name}.device_types as sw_device_types\n"
@@ -218,7 +222,7 @@ class CompiledSysSpec(object):
             syssrc += "import {modname} as {dev_alias}\n"
             syssrc += "import {modname}_oper as {dev_oper_alias}\n"
             syssrc_devtypes += """    "{dev_type.name}": swdev.DeviceType(name="{dev_type.name}",
-            adapter_type=swna.NetconfAdapter,
+            adapter_type={dev_type.adapter.ref()},
             src_dnode={dev_alias}.SRC_DNODE,
             oper_src_dnode={dev_oper_alias}.SRC_DNODE,
 """
@@ -354,11 +358,12 @@ class CompiledLayer(CompiledLayerBase):
         self.name = name
 
 class CompiledDeviceType(CompiledLayerBase):
-    def __init__(self, root: yschema.DRoot, src: list[str], name: str, transforms: list[SchemaTreeTransform]=[]):
+    def __init__(self, root: yschema.DRoot, src: list[str], name: str, transforms: list[SchemaTreeTransform]=[], adapter: ?AdapterRef=None):
         self.root = root
         self.src = src
         self.name = name
         self.transforms = transforms
+        self.adapter = adapter if adapter is not None else netconf_adapter()
 
 def apply_schema_transforms_to_dir(fc: file.FileCap, dir: str, transforms: list[SchemaTransformChain]=[]) -> None:
     """Apply schema transformations to YANG files in a directory.
@@ -391,18 +396,54 @@ def apply_schema_transforms_to_dir(fc: file.FileCap, dir: str, transforms: list[
             wf = file.WriteFile(wfc, file.join_path([dir, out_name]))
             await async wf.write(yang_text.encode())
 
+class AdapterRef(object):
+    """The DeviceAdapter that a device type uses.
+
+    The generator writes an import line for `module` and names the class
+    as `alias`.`cls` in the generated sysspec. A device type that does not
+    name an adapter uses NETCONF.
+    """
+    module: str
+    alias: str
+    cls: str
+
+    def __init__(self, module: str, alias: str, cls: str):
+        self.module = module
+        self.alias = alias
+        self.cls = cls
+
+    def import_line(self) -> str:
+        return "import {self.module} as {self.alias}\n"
+
+    def ref(self) -> str:
+        return "{self.alias}.{self.cls}"
+
+
+def netconf_adapter() -> AdapterRef:
+    """The NETCONF adapter. This is the default for a device type."""
+    return AdapterRef("stratoweave.adapters.netconf", "swna", "NetconfAdapter")
+
+
+def kea_adapter() -> AdapterRef:
+    """The adapter for an ISC Kea DHCPv4 server, over its HTTP control
+    channel."""
+    return AdapterRef("stratoweave.adapters.kea", "swkea", "KeaAdapter")
+
+
 class DeviceType(object):
-    def __init__(self, name: str, models: list[str], transforms: list[SchemaTreeTransform]=[]):
+    def __init__(self, name: str, models: list[str], transforms: list[SchemaTreeTransform]=[], adapter: ?AdapterRef=None):
         self.name = name
         self.models = models
         self.transforms = transforms
+        self.adapter = adapter if adapter is not None else netconf_adapter()
 
     @staticmethod
-    def from_dir(fc: file.FileCap, name: str, dir: str, transforms: list[SchemaTreeTransform]=[]) -> DeviceType:
+    def from_dir(fc: file.FileCap, name: str, dir: str, transforms: list[SchemaTreeTransform]=[], adapter: ?AdapterRef=None) -> DeviceType:
         """Create a DeviceType DTO from YANG models in a directory
 
         This method simply loads all .yang files from the specified directory
-        to create a DeviceType.
+        to create a DeviceType. Pass `adapter` when the device does not speak
+        NETCONF.
         """
         rfc = file.ReadFileCap(fc)
         fs = file.FS(fc)
@@ -411,4 +452,4 @@ class DeviceType(object):
         sw = time.Stopwatch()
         models = [file.ReadFile(rfc, "{dir}/{f}").read().decode() for f in yang_files]
         print(" {sw.elapsed().to_float():.3f}s")
-        return DeviceType(name, models, transforms)
+        return DeviceType(name, models, transforms, adapter)

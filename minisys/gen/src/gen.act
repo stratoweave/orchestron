@@ -18,7 +18,8 @@ actor main(env):
         rfs_layer,
     ], [
         swbuild.DeviceType.from_dir(fc, "ietf", "yang/dev-ietf"),
-        swbuild.DeviceType.from_dir(fc, "xr", "yang/dev-xr")
+        swbuild.DeviceType.from_dir(fc, "xr", "yang/dev-xr"),
+        swbuild.DeviceType.from_dir(fc, "kea", "yang/dev-kea", adapter=swbuild.kea_adapter())
     ])
     try:
         compiled_spec = spec.compile()

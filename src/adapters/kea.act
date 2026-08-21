@@ -1,0 +1,942 @@
+import base64
+import http
+import json
+import logging
+import net
+
+import yang.gdata as ygdata
+import yang.json as yjson
+import yang.schema as yschema
+
+import device as swdev
+from device_schema import DeviceSchema
+from device_meta_config import \
+    stratoweave_rfs__device_entry as DeviceMetaConfig
+from adapters.adapter import \
+    DeviceAdapter, ModCap, DISCONNECTED, CONNECTING, CONNECTED, \
+    NotConnectedError, BusyError, ConfigError, PermanentError, TransientError, \
+    SubscriptionStatus, SUBSCRIPTION_UNKNOWN
+
+MODULE_KEA_DHCP4 = "kea-dhcp4"
+NS_KEA_DHCP4 = "http://stratoweave.org/yang/kea-dhcp4"
+
+## The root object of a Kea DHCPv4 configuration, and the name of the
+## container that mirrors it in kea-dhcp4.yang.
+KEA_ROOT = "Dhcp4"
+
+## The default port of the Kea HTTP control channel.
+DEFAULT_PORT = 8000
+
+## Seconds to wait before the driver connects again after a failure.
+RECONNECT_DELAY = 5.0
+
+## Kea result codes. Kea returns one of these in each reply element.
+KEA_OK = 0
+KEA_ERROR = 1
+KEA_UNSUPPORTED = 2
+KEA_EMPTY = 3
+KEA_CONFLICT = 4
+
+## The features of kea-dhcp4.yang, and the command that proves each one.
+## The adapter reads list-commands at connect time and reports the
+## features that the server supports.
+HOOK_FEATURES = [
+    (feature="lease-commands", command="lease4-get-all"),
+    (feature="statistics-commands", command="stat-lease4-get"),
+]
+
+
+class KeaError(PermanentError):
+    """Kea rejected a command.
+
+    `code` is the Kea result code. `command` is the command that failed.
+    """
+    code: int
+    command: str
+
+    def __init__(self, command: str, code: int, message: str):
+        PermanentError.__init__(self, "{command}: {message}")
+        self.code = code
+        self.command = command
+
+
+#################################################################################
+## Kea JSON <-> model JSON
+##
+## Inside 'Dhcp4' each node name in kea-dhcp4.yang is the Kea JSON key, so
+## the two forms differ in three places only. The functions below hold all
+## three. Each one is pure, so a test can drive it without a server.
+##
+##   1. A reservation names its identifier. Kea puts the value under the
+##      name of the identifier itself.
+##   2. Kea rewrites two values that this model uses as list keys. The
+##      adapter writes them in Kea's form.
+##   3. Kea returns a full configuration and fills in each default. The
+##      adapter removes a leaf that holds its schema default.
+#################################################################################
+
+## The Kea host identifiers, in the order of the 'identifier-type'
+## enumeration in kea-dhcp4.yang.
+IDENTIFIER_TYPES = ["hw-address", "client-id", "circuit-id", "duid", "flex-id"]
+
+
+def canonical_pool(pool: str) -> str:
+    """Return a pool range in the form that Kea returns.
+
+    Kea removes the spaces around the separator of a range. It returns
+    '10.0.0.1 - 10.0.0.9' as '10.0.0.1-10.0.0.9'.
+    """
+    return "".join(pool.split(" "))
+
+
+def canonical_identifier(identifier_type: str, identifier: str) -> str:
+    """Return a host identifier in the form that Kea returns.
+
+    Kea removes the colons from a client identifier. It returns
+    '01:02:03:04:05' as '0102030405'. Kea keeps the colons of a hardware
+    address.
+    """
+    if identifier_type == "client-id":
+        return "".join(identifier.split(":"))
+    return identifier
+
+
+def _schema_child(s: yschema.DNodeInner, name: str) -> ?yschema.DNode:
+    """Return the child of `s` with this name, or None."""
+    for child in s.children:
+        if child.name == name:
+            return child
+    return None
+
+
+def _default_str(v: ?value) -> ?str:
+    """Return a JSON value in the form that a YANG default uses."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        return v
+    if isinstance(v, int):
+        return str(v)
+    return None
+
+
+def project(s: yschema.DNodeInner, data: dict[str, ?value]) -> dict[str, ?value]:
+    """Project a Kea JSON object onto the model.
+
+    The function keeps a key that the schema defines and drops each other
+    key. It also drops a leaf that holds its schema default, because Kea
+    fills in each default and a rendered target does not. Without this
+    step each reconcile would show a diff on those leaves.
+    """
+    out: dict[str, ?value] = {}
+    for k, v in data.items():
+        child = _schema_child(s, k)
+        if child is None:
+            continue
+        if isinstance(child, yschema.DLeaf):
+            d = child.default
+            if d is not None and _default_str(v) == d:
+                continue
+            out[k] = v
+        elif isinstance(child, yschema.DList):
+            if isinstance(v, list):
+                entries: list[?value] = []
+                for e in v:
+                    if isinstance(e, dict):
+                        entries.append(project(child, e))
+                out[k] = entries
+        elif isinstance(child, yschema.DContainer):
+            if isinstance(v, dict):
+                out[k] = project(child, v)
+        else:
+            out[k] = v
+    return out
+
+
+def reservations_to_kea(res: dict[str, ?value]) -> dict[str, ?value]:
+    """Convert one reservation from the model form to the Kea form.
+
+    The model names the identifier in 'identifier-type' and holds the
+    value in 'identifier'. Kea holds the value under the name of the
+    identifier. YANG cannot use "whichever leaf is set" as a list key, so
+    the model names the identifier instead.
+    """
+    out: dict[str, ?value] = {}
+    id_type = res.get("identifier-type")
+    id_value = res.get("identifier")
+    for k, v in res.items():
+        if k == "identifier-type" or k == "identifier":
+            continue
+        out[k] = v
+    if isinstance(id_type, str) and isinstance(id_value, str):
+        out[id_type] = canonical_identifier(id_type, id_value)
+    return out
+
+
+def reservations_from_kea(res: dict[str, ?value]) -> dict[str, ?value]:
+    """Convert one reservation from the Kea form to the model form."""
+    out: dict[str, ?value] = {}
+    for k, v in res.items():
+        if k in IDENTIFIER_TYPES:
+            if isinstance(v, str):
+                out["identifier-type"] = k
+                out["identifier"] = v
+            continue
+        out[k] = v
+    return out
+
+
+def _map_subnet(s: dict[str, ?value], to_kea: bool) -> dict[str, ?value]:
+    """Convert the reservations and the pools of one subnet."""
+    res = s.get("reservations")
+    if isinstance(res, list):
+        out_res: list[?value] = []
+        for r in res:
+            if isinstance(r, dict):
+                out_res.append(reservations_to_kea(r) if to_kea else reservations_from_kea(r))
+        s["reservations"] = out_res
+    if to_kea:
+        pools = s.get("pools")
+        if isinstance(pools, list):
+            for p in pools:
+                if isinstance(p, dict):
+                    pv = p.get("pool")
+                    if isinstance(pv, str):
+                        p["pool"] = canonical_pool(pv)
+    return s
+
+
+def _map_reservations(dhcp4: dict[str, ?value], to_kea: bool) -> dict[str, ?value]:
+    """Convert each reservation of each subnet, in the given direction."""
+    subnets = dhcp4.get("subnet4")
+    if isinstance(subnets, list):
+        out_subnets: list[?value] = []
+        for s in subnets:
+            if isinstance(s, dict):
+                out_subnets.append(_map_subnet(s, to_kea))
+        dhcp4["subnet4"] = out_subnets
+    return dhcp4
+
+
+def kea_from_gdata(conf: ?ygdata.Node) -> ?dict[str, ?value]:
+    """Render a device configuration as a Kea 'Dhcp4' object.
+
+    The gdata tree serializes to RFC 7951, which puts the module name on
+    the root key. This function removes that prefix and converts each
+    reservation. The result is a Kea 'Dhcp4' object.
+    """
+    if conf is None:
+        return None
+    doc = json.decode(conf!.to_yang_jsonstr(pretty=False, deterministic=True))
+    inner = doc.get("{MODULE_KEA_DHCP4}:{KEA_ROOT}")
+    if inner is None:
+        inner = doc.get(KEA_ROOT)
+    if isinstance(inner, dict):
+        return _map_reservations(inner, True)
+    return None
+
+
+def gdata_from_kea(root: yschema.DRoot, dhcp4: dict[str, ?value], txid: ?str=None) -> ygdata.Node:
+    """Parse a Kea 'Dhcp4' object into a device configuration.
+
+    The function projects the object onto the model first, so a key that
+    the model does not define never reaches the tree.
+    """
+    # Convert the reservations first. A Kea reservation names its
+    # identifier leaf, and the model has no such leaf, so a projection
+    # before the conversion would drop the identifier.
+    model = _map_reservations(dhcp4, False)
+    s = _schema_child(root, KEA_ROOT)
+    if isinstance(s, yschema.DContainer):
+        model = project(s, model)
+    doc: dict[str, ?value] = {"{MODULE_KEA_DHCP4}:{KEA_ROOT}": model}
+    node = yjson.from_json(root, doc, loose=True)
+    if txid is None:
+        return node
+    return ygdata.Container(children=node.children, presence=node.presence,
+                            ns=node.ns, module=node.module, txid=txid)
+
+
+def owned_keys(root: yschema.DRoot) -> list[str]:
+    """Return the 'Dhcp4' keys that StratoWeave owns.
+
+    A key that kea-dhcp4.yang defines is StratoWeave's. The device keeps
+    each other key. The list comes from the schema, so a new leaf in the
+    model extends the set without a change here.
+    """
+    s = _schema_child(root, KEA_ROOT)
+    if isinstance(s, yschema.DContainer):
+        return [c.name for c in s.children]
+    return []
+
+
+def splice(running: dict[str, ?value], target: ?dict[str, ?value], owned: list[str]) -> dict[str, ?value]:
+    """Merge the owned keys of `target` into the running configuration.
+
+    Kea replaces the full configuration at each 'config-set'. A key that
+    the new configuration omits goes back to its default. A configuration
+    without 'control-sockets' stops the HTTP listener and locks the
+    manager out. The adapter therefore starts from the running
+    configuration and replaces the owned keys only.
+    """
+    out: dict[str, ?value] = {}
+    for k, v in running.items():
+        out[k] = v
+    for k in owned:
+        if k in out:
+            del out[k]
+        if target is not None and k in target:
+            out[k] = target[k]
+    return out
+
+
+#################################################################################
+## RPC transcoding
+##
+## Each RPC in kea-dhcp4.yang carries the name of a Kea command. The input
+## leaves are the keys of the Kea 'arguments' object. Three replies do not
+## fit that rule, and `rpc_output` holds all three.
+#################################################################################
+
+def rpc_input(node: ygdata.Node) -> ?dict[str, ?value]:
+    """Build the Kea 'arguments' object from the input of an RPC call.
+
+    The input arrives as gdata, which holds each leaf as a value of its
+    YANG type. The RFC 7951 encoding of that tree is the arguments object:
+    a number reaches Kea as a number, and Kea rejects a number that
+    arrives as a string. An empty input sends no arguments at all.
+    """
+    args = json.decode(node.to_yang_jsonstr(pretty=False, deterministic=True))
+    if len(args) == 0:
+        return None
+    return args
+
+
+def _stat_records(arguments: dict[str, ?value]) -> list[?value]:
+    """Turn the table of 'stat-lease4-get' into a list of records.
+
+    Kea answers with 'result-set', which holds a 'columns' array of names
+    and a 'rows' array of arrays. YANG has no list of lists, so this
+    function joins each row to the column names.
+    """
+    out: list[?value] = []
+    rs = arguments.get("result-set")
+    if isinstance(rs, dict):
+        cols = rs.get("columns")
+        rows = rs.get("rows")
+        if isinstance(cols, list) and isinstance(rows, list):
+            names: list[str] = []
+            for c in cols:
+                if isinstance(c, str):
+                    names.append(c)
+            for row in rows:
+                if isinstance(row, list):
+                    rec: dict[str, ?value] = {}
+                    for i in range(min([len(names), len(row)])):
+                        rec[names[i]] = row[i]
+                    out.append(rec)
+    return out
+
+
+def find_rpc(root: yschema.DRoot, name: str) -> ?yschema.DRpc:
+    """Return the RPC of this name in the schema, or None."""
+    for r in root.rpcs:
+        if r.name == name:
+            return r
+    return None
+
+
+def rpc_output_gdata(root: yschema.DRoot, command: str, out: dict[str, ?value]) -> ygdata.Node:
+    """Parse an RPC output object into gdata against the output schema."""
+    return yjson.from_json(root, out, loose=True,
+                           root_path=["{MODULE_KEA_DHCP4}:{command}", "output"])
+
+
+def rpc_output(command: str, reply: dict[str, ?value]) -> ?dict[str, ?value]:
+    """Build the output object of an RPC from a Kea reply.
+
+    Most commands return an 'arguments' object that already matches the
+    output of the RPC. The three exceptions are here.
+    """
+    arguments = reply.get("arguments")
+    args: dict[str, ?value] = {}
+    if isinstance(arguments, dict):
+        args = arguments
+
+    if command == "lease4-get":
+        # Kea returns the lease fields at the top of 'arguments'. The RPC
+        # wraps them in a container, because a container gives the reply
+        # a name that a caller can read.
+        return {"lease": args}
+
+    if command == "stat-lease4-get":
+        return {"subnet-statistics": _stat_records(args)}
+
+    if command == "version-get":
+        # Kea puts the short version in 'text', outside 'arguments'.
+        out: dict[str, ?value] = {}
+        text = reply.get("text")
+        if isinstance(text, str):
+            out["version"] = text
+        ext = args.get("extended")
+        if ext is not None:
+            out["extended"] = ext
+        return out
+
+    return args
+
+
+#################################################################################
+## The adapter
+#################################################################################
+
+class KeaAdapter(DeviceAdapter):
+    """A device adapter for an ISC Kea DHCPv4 server.
+
+    The adapter speaks the Kea HTTP control channel, which carries JSON
+    commands and no datastore. It reads and writes the configuration with
+    'config-get', 'config-test' and 'config-set'. It runs each RPC of
+    kea-dhcp4.yang as the Kea command of the same name.
+
+    The adapter realizes no subscriptions. Kea pushes nothing, and the
+    model holds no config-false tree to poll. A caller that needs state
+    calls an RPC.
+    """
+
+    def supports_mocking(self) -> bool:
+        return False
+
+    def __init__(self, dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc: DeviceMetaConfig, schema_registry: swdev.SchemaRegistry, log_handler, connect_cap: ?net.TCPConnectCap):
+        self._dev = dev
+        self._bundled_schema = bundled_schema
+        self._log_handler = log_handler
+        self._connect_cap = connect_cap
+        self._driver = KeaDriver(dev, bundled_schema, init_dmc, log_handler, connect_cap)
+
+    def set_dmc(self, new_dmc: DeviceMetaConfig):
+        self._driver.set_dmc(new_dmc)
+
+    def configure(self, done, new_diff, new_conf, running_conf):
+        return self._driver.configure(done, new_diff, new_conf, running_conf)
+
+    def get_capabilities(self) -> list[str]:
+        return self._driver.get_capabilities()
+
+    def subscription_method(self) -> str:
+        return SUBSCRIPTION_UNKNOWN
+
+    def subscription_status(self) -> SubscriptionStatus:
+        return SubscriptionStatus(SUBSCRIPTION_UNKNOWN)
+
+    def get_modules(self) -> dict[str, ModCap]:
+        return self._driver.get_modules()
+
+    def fetch_config(self, done: action(?ygdata.Node, ?Exception) -> None) -> None:
+        self._driver.fetch_config(done)
+
+    def get_config(self) -> ?ygdata.Node:
+        return self._driver.get_config()
+
+    def close(self, on_close: ?action() -> None=None):
+        self._driver.close(on_close)
+
+    def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        self._driver.rpc(cb, gdata_rpc)
+
+    def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
+        cb(None, PermanentError("Kea has no subscriptions. Call an RPC instead."))
+
+    def remove_subscriptions(self, owner_id: str):
+        pass
+
+
+actor KeaDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc: DeviceMetaConfig, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap):
+    """The connection to one Kea server, and the commands in flight on it.
+
+    Kea answers one HTTP request with one reply, and it matches replies to
+    requests in order. The driver therefore holds a queue and keeps one
+    command in flight. The control channel carries little traffic, so the
+    queue costs nothing and it removes a class of ordering faults.
+    """
+    _log = logging.Logger(log_handler)
+    _log.info("KeaDriver starting up")
+
+    var dmc: DeviceMetaConfig = init_dmc
+    var state: int = DISCONNECTED
+    var client: ?http.Client = None
+    var connected: bool = False
+    var reconnect_pending: bool = False
+    var auth_header: ?str = None
+
+    ## The configuration that the driver last read from the server.
+    var running_conf: ?ygdata.Node = None
+
+    ## The commands that the server supports, from 'list-commands'.
+    var commands: list[str] = []
+    var modset: dict[str, ModCap] = {}
+
+    ## The command queue. Each entry holds a request body and the callback
+    ## that receives the reply.
+    var queue: list[(body: bytes, cb: action(?dict[str, ?value], ?Exception) -> None)] = []
+    var inflight: ?action(?dict[str, ?value], ?Exception) -> None = None
+
+    ## The state of the configure operation that is running now. Only one
+    ## runs at a time, so these hold the values that its steps share.
+    var busy: bool = False
+    var cfg_done: ?action(?Exception, ?ygdata.Node) -> None = None
+    var cfg_target: ?dict[str, ?value] = None
+    var cfg_spliced: ?dict[str, ?value] = None
+    var cfg_hash: ?str = None
+    var cfg_conf: ?ygdata.Node = None
+    var cfg_diff: ?ygdata.Node = None
+
+    schema = bundled_schema.src_dnode
+    oper_schema = bundled_schema.oper_src_dnode
+
+    #############################################################
+    ## The control channel
+    #############################################################
+
+    def _fail_all(err: Exception):
+        """Report a failure to each command that waits for a reply."""
+        pend = queue
+        queue = []
+        cur = inflight
+        inflight = None
+        if cur is not None:
+            cur(None, err)
+        for item in pend:
+            item.cb(None, err)
+        if busy:
+            _cfg_fail(err)
+
+    def _reconnect():
+        reconnect_pending = False
+        _connect(dmc)
+
+    def _on_http_error(c: http.Client, error: str):
+        _log.warning("KeaDriver: control channel error", {"error": error})
+        connected = False
+        state = DISCONNECTED
+        _fail_all(NotConnectedError(error))
+        # A dead channel can report more than one error. Schedule one
+        # reconnect only, or each error would start another client.
+        if not reconnect_pending:
+            reconnect_pending = True
+            after RECONNECT_DELAY: _reconnect()
+
+    def _on_http_connect(c: http.Client):
+        _log.debug("KeaDriver: control channel open")
+        connected = True
+        state = CONNECTED
+        _pump()
+        _discover()
+
+    def _connect(new_dmc: DeviceMetaConfig):
+        maybe_cap = connect_cap
+        if maybe_cap is None:
+            _log.debug("KeaDriver._connect: no connect capability, staying offline")
+            return
+        cc = maybe_cap!
+        if len(new_dmc.address.elements) == 0:
+            _log.debug("KeaDriver._connect: no address, staying offline")
+            return
+
+        addr = new_dmc.address.elements[0]
+        addr_port = addr.port
+        port = int(addr_port) if addr_port is not None else DEFAULT_PORT
+
+        # Kea takes optional basic authentication on the control channel.
+        # A server with authentication answers 401 without credentials. A
+        # server without it accepts the header and ignores it.
+        username = new_dmc.credentials.username
+        password = new_dmc.credentials.password
+        if username is not None and password is not None:
+            raw = "{username}:{password}".encode()
+            auth_header = "Basic " + base64.encode(raw).decode()
+        else:
+            auth_header = None
+
+        # Close the channel that failed before a new one replaces it.
+        old_client = client
+        if old_client is not None:
+            old_client!.close()
+
+        connected = False
+        state = CONNECTING
+        _log.debug("KeaDriver._connect: opening control channel",
+                   {"address": addr.address, "port": port})
+        client = http.Client(cc, addr.address, _on_http_connect, _on_http_error,
+                             scheme="http", port=port, log_handler=log_handler)
+
+    def _pump():
+        """Send the next queued command when the channel is free."""
+        if inflight is not None:
+            return
+        if not connected:
+            return
+        if len(queue) == 0:
+            return
+        maybe_client = client
+        if maybe_client is None:
+            return
+        c = maybe_client!
+        item = queue[0]
+        del queue[0]
+        inflight = item.cb
+        headers = {"Content-Type": "application/json"}
+        a = auth_header
+        if a is not None:
+            headers["Authorization"] = a
+        c.post("/", item.body, _on_response, headers)
+
+    def _on_response(c: http.Client, r: http.Response):
+        cb = inflight
+        inflight = None
+        if cb is not None:
+            if r.status == 401:
+                cb(None, PermanentError("Kea rejected the credentials (HTTP 401)"))
+            elif r.status != 200:
+                cb(None, TransientError("Kea answered HTTP {r.status}"))
+            else:
+                reply, err = _parse_reply(r.body)
+                cb(reply, err)
+        _pump()
+
+    def _parse_reply(body: bytes) -> (?dict[str, ?value], ?Exception):
+        """Read one reply element out of a Kea response.
+
+        Kea answers with a JSON array that holds one element per service.
+        The driver talks to the DHCPv4 daemon itself, so the array holds
+        one element.
+        """
+        try:
+            elements = json.decode_list(body.decode())
+        except Exception as e:
+            return (None, TransientError("Kea sent a malformed reply: {e}"))
+        if len(elements) == 0:
+            return (None, TransientError("Kea sent an empty reply"))
+        first = elements[0]
+        if isinstance(first, dict):
+            return (first, None)
+        return (None, TransientError("Kea sent a reply that is not an object"))
+
+    def _send(command: str, arguments: ?dict[str, ?value], cb: action(?dict[str, ?value], ?Exception) -> None):
+        """Queue one Kea command."""
+        body: dict[str, ?value] = {"command": command, "service": []}
+        if arguments is not None:
+            body["arguments"] = arguments
+        queue.append((body=json.encode(body).encode(), cb=cb))
+        _pump()
+
+    def _result(command: str, reply: ?dict[str, ?value], err: ?Exception) -> ?Exception:
+        """Turn a Kea result code into an exception, or None on success.
+
+        Code 3 means success with no data. 'lease4-get-all' returns it
+        when the table is empty, so it is not a failure.
+        """
+        if err is not None:
+            return err
+        maybe_reply = reply
+        if maybe_reply is None:
+            return TransientError("{command}: no reply")
+        r = maybe_reply!
+        code = r.get("result")
+        text = r.get("text")
+        message = text if isinstance(text, str) else "no message"
+        if isinstance(code, int):
+            if code == KEA_OK or code == KEA_EMPTY:
+                return None
+            if code == KEA_CONFLICT:
+                return TransientError("{command}: {message}")
+            return KeaError(command, code, message)
+        return TransientError("{command}: reply carries no result code")
+
+    #############################################################
+    ## Connect and discover
+    #############################################################
+
+    def _discover():
+        """Read the command set and report the device as connected."""
+        _send("list-commands", None, _on_commands)
+
+    def _on_commands(reply: ?dict[str, ?value], err: ?Exception):
+        e = _result("list-commands", reply, err)
+        if e is not None:
+            # Discovery is the first command on a new channel. It fails when
+            # the credentials are wrong, or when the server is still coming
+            # up. Try again instead of leaving the device offline with no
+            # further activity. A closed channel needs no retry here,
+            # because the reconnect runs discovery again.
+            _log.warning("KeaDriver: list-commands failed",
+                         {"error": e, "retry": connected})
+            if connected:
+                after RECONNECT_DELAY: _discover()
+            return
+        found: list[str] = []
+        if reply is not None:
+            args = reply.get("arguments")
+            if isinstance(args, list):
+                for c in args:
+                    if isinstance(c, str):
+                        found.append(c)
+        commands = found
+
+        # A Kea command can come from a hook library that the operator did
+        # not load. Report each hook that answers as a YANG feature, so a
+        # caller can see what this server supports before it calls.
+        features: list[str] = []
+        for hf in HOOK_FEATURES:
+            if hf.command in found:
+                features.append(hf.feature)
+
+        new_modset: dict[str, ModCap] = {}
+        for ns, meta in bundled_schema.module_inventory().items():
+            new_modset[meta.module] = ModCap(meta.module, ns, meta.revision, features)
+        modset = new_modset
+        _log.info("KeaDriver: connected", {"commands": len(found), "features": features})
+        dev.on_connect(modset, None)
+
+    #############################################################
+    ## Read and write the configuration
+    #############################################################
+
+    def fetch_config(done: action(?ygdata.Node, ?Exception) -> None) -> None:
+        """Read the running configuration and its hash.
+
+        Kea returns no hash with 'config-get', so this takes two commands.
+        The hash is the device transaction id. It changes at each accepted
+        'config-set', so DeviceMgr can see drift without a comparison of
+        the whole tree.
+        """
+        if not connected:
+            done(None, NotConnectedError())
+            return
+
+        def on_hash(reply: ?dict[str, ?value], err: ?Exception, cfg: dict[str, ?value]):
+            e = _result("config-hash-get", reply, err)
+            if e is not None:
+                done(None, e)
+                return
+            h = None
+            if reply is not None:
+                args = reply.get("arguments")
+                if isinstance(args, dict):
+                    hv = args.get("hash")
+                    if isinstance(hv, str):
+                        h = hv
+            conf = gdata_from_kea(schema, cfg, h)
+            running_conf = conf
+            done(conf, None)
+
+        def on_config(reply: ?dict[str, ?value], err: ?Exception):
+            e = _result("config-get", reply, err)
+            if e is not None:
+                done(None, e)
+                return
+            maybe_cfg = _dhcp4_of(reply)
+            if maybe_cfg is None:
+                done(None, PermanentError("config-get returned no Dhcp4 object"))
+                return
+            cfg = maybe_cfg!
+            _send("config-hash-get", None, lambda r, x: on_hash(r, x, cfg))
+
+        _send("config-get", None, on_config)
+
+    def _dhcp4_of(reply: ?dict[str, ?value]) -> ?dict[str, ?value]:
+        """Read the 'Dhcp4' object out of a 'config-get' reply."""
+        r = reply
+        if r is not None:
+            args = r!.get("arguments")
+            if isinstance(args, dict):
+                d = args.get(KEA_ROOT)
+                if isinstance(d, dict):
+                    return d
+        return None
+
+    def get_config() -> ?ygdata.Node:
+        return running_conf
+
+    def _cfg_fail(err: Exception):
+        """End the configure operation that is running, with a failure."""
+        d = cfg_done
+        busy = False
+        cfg_done = None
+        if d is not None:
+            d(err, None)
+
+    def configure(done: action(?Exception, ?ygdata.Node) -> None, new_diff: ygdata.Node, new_conf: ygdata.Node, running: ?ygdata.Node) -> None:
+        """Write the intended configuration to the server.
+
+        The steps are: read the running configuration, replace the owned
+        keys, check the result with 'config-test', and apply it with
+        'config-set'. The read comes first because 'config-set' replaces
+        everything. See the OWNERSHIP note in kea-dhcp4.yang.
+        """
+        if not connected:
+            done(NotConnectedError(), None)
+            return
+        if busy:
+            done(BusyError(), None)
+            return
+
+        busy = True
+        cfg_done = done
+        cfg_diff = new_diff
+        cfg_target = kea_from_gdata(new_conf)
+        cfg_spliced = None
+        cfg_hash = None
+        cfg_conf = None
+        _send("config-get", None, _cfg_on_running)
+
+    def _cfg_on_running(reply: ?dict[str, ?value], err: ?Exception):
+        e = _result("config-get", reply, err)
+        if e is not None:
+            _cfg_fail(e)
+            return
+        maybe_running = _dhcp4_of(reply)
+        if maybe_running is None:
+            _cfg_fail(PermanentError("config-get returned no Dhcp4 object"))
+            return
+        spliced = splice(maybe_running!, cfg_target, owned_keys(schema))
+        cfg_spliced = spliced
+        _send("config-test", {KEA_ROOT: spliced}, _cfg_on_tested)
+
+    def _cfg_on_tested(reply: ?dict[str, ?value], err: ?Exception):
+        e = _result("config-test", reply, err)
+        if e is not None:
+            # Kea checked the configuration and refused it. The same
+            # configuration will fail again, so report a ConfigError and
+            # let DeviceMgr stop instead of retry.
+            _cfg_fail(ConfigError(str(e), cfg_diff, None))
+            return
+        maybe_spliced = cfg_spliced
+        if maybe_spliced is None:
+            _cfg_fail(PermanentError("no configuration to apply"))
+            return
+        _send("config-set", {KEA_ROOT: maybe_spliced!}, _cfg_on_set)
+
+    def _cfg_on_set(reply: ?dict[str, ?value], err: ?Exception):
+        e = _result("config-set", reply, err)
+        if e is not None:
+            _cfg_fail(ConfigError(str(e), cfg_diff, None))
+            return
+        # An accepted 'config-set' returns the hash of the new
+        # configuration, so the driver needs no 'config-hash-get' here.
+        if reply is not None:
+            args = reply.get("arguments")
+            if isinstance(args, dict):
+                hv = args.get("hash")
+                if isinstance(hv, str):
+                    cfg_hash = hv
+        # Read the configuration back. The reply then reports what the
+        # server holds and not what the driver believes it sent.
+        _send("config-get", None, _cfg_on_reread)
+
+    def _cfg_on_reread(reply: ?dict[str, ?value], err: ?Exception):
+        e = _result("config-get", reply, err)
+        if e is not None:
+            _cfg_fail(e)
+            return
+        maybe_cfg = _dhcp4_of(reply)
+        if maybe_cfg is None:
+            _cfg_fail(PermanentError("config-get returned no Dhcp4 object"))
+            return
+        conf = gdata_from_kea(schema, maybe_cfg!, cfg_hash)
+        running_conf = conf
+        d = cfg_done
+        busy = False
+        cfg_done = None
+        if d is not None:
+            d(None, conf)
+
+    #############################################################
+    ## RPCs
+    #############################################################
+
+    def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        """Run one RPC of kea-dhcp4.yang as a Kea command.
+
+        The call arrives as a container that holds one child: the RPC,
+        named by its namespace and its name. That child holds the input.
+        The driver renders the input as the Kea 'arguments' object, sends
+        the command, and parses the reply against the output of the RPC.
+        """
+        if len(gdata_rpc.children) != 1:
+            cb(None, PermanentError("an RPC call must hold exactly one RPC"))
+            return
+        rpc_id = next(gdata_rpc.children.keys())
+        if rpc_id.q != NS_KEA_DHCP4:
+            cb(None, PermanentError("{rpc_id.q} is not the namespace of kea-dhcp4"))
+            return
+        command = rpc_id.name
+        maybe_rpc = find_rpc(oper_schema, command)
+        if maybe_rpc is None:
+            cb(None, PermanentError("kea-dhcp4 defines no RPC named {command}"))
+            return
+        drpc = maybe_rpc!
+        if not connected:
+            cb(None, NotConnectedError())
+            return
+        if len(commands) > 0 and command not in commands:
+            # The server did not list this command. A hook library that
+            # the operator did not load is the usual reason.
+            cb(None, KeaError(command, KEA_UNSUPPORTED,
+                              "the server does not support this command"))
+            return
+
+        def on_reply(reply: ?dict[str, ?value], err: ?Exception):
+            e = _result(command, reply, err)
+            if e is not None:
+                cb(None, e)
+                return
+            if drpc.output is None or reply is None:
+                cb(None, None)
+                return
+            maybe_out = rpc_output(command, reply!)
+            if maybe_out is None:
+                cb(None, None)
+                return
+            try:
+                cb(rpc_output_gdata(oper_schema, command, maybe_out!), None)
+            except Exception as pe:
+                cb(None, PermanentError("{command}: cannot read the reply: {pe}"))
+
+        _send(command, rpc_input(gdata_rpc.children[rpc_id]), on_reply)
+
+    #############################################################
+    ## Lifecycle
+    #############################################################
+
+    def get_capabilities() -> list[str]:
+        """Report the Kea command set as the capabilities of the device."""
+        return commands
+
+    def get_modules() -> dict[str, ModCap]:
+        return modset
+
+    def set_dmc(new_dmc: DeviceMetaConfig):
+        if dmc.to_gdata() == new_dmc.to_gdata():
+            _log.debug("KeaDriver.set_dmc: no change")
+            return
+        # Open the channel again only when the session parameters change.
+        if not (dmc.credentials.to_gdata() == new_dmc.credentials.to_gdata()
+                and dmc.address.to_gdata() == new_dmc.address.to_gdata()):
+            _log.debug("KeaDriver.set_dmc: session parameters changed, reconnecting")
+            dmc = new_dmc
+            close(None)
+            _connect(new_dmc)
+            return
+        dmc = new_dmc
+
+    def close(on_close: ?action() -> None=None):
+        c = client
+        if c is not None:
+            client = None
+            connected = False
+            state = DISCONNECTED
+            c.close()
+        if on_close is not None:
+            on_close()
+
+    _connect(init_dmc)

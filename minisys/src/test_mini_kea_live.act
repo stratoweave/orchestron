@@ -1,0 +1,295 @@
+"""KeaAdapter integration test against a real Kea DHCPv4 server.
+
+Start the server first. The lease and statistics commands come from hook
+libraries, so the configuration must load them:
+
+    docker run -d --name stratoweave-kea-test -p 18000:8000 \
+      -v $PWD/kea-test.conf:/etc/kea/kea-dhcp4.conf:ro \
+      docker.cloudsmith.io/isc/docker/kea-dhcp4:3.0.3
+
+kea-test.conf:
+
+    { "Dhcp4": {
+      "interfaces-config": { "interfaces": [ "*" ] },
+      "lease-database": { "type": "memfile", "persist": false },
+      "control-sockets": [ { "socket-type": "http",
+                             "socket-address": "0.0.0.0",
+                             "socket-port": 8000 } ],
+      "hooks-libraries": [
+        { "library": "/usr/lib/kea/hooks/libdhcp_lease_cmds.so" },
+        { "library": "/usr/lib/kea/hooks/libdhcp_stat_cmds.so" } ],
+      "subnet4": [ { "id": 99, "subnet": "192.0.2.0/24" } ] } }
+
+Then run:
+
+    acton test --tag kea --module test_mini_kea_live
+
+The test writes a configuration to the server, so use a throwaway
+container and not a production one.
+"""
+
+import logging
+import net
+import testing
+
+import yang.adata as yadata
+import yang.gdata as ygdata
+
+import stratoweave.adapters.kea as swkea
+import stratoweave.device as swdev
+import stratoweave.device_meta_config as dmc
+
+import mini.devices.kea as kea_dev
+import mini.devices.kea_oper as kea_oper
+import mini.sysspec as sysspec
+
+KEA_HOST = "127.0.0.1"
+KEA_PORT = 18000
+NS_KEA = "http://stratoweave.org/yang/kea-dhcp4"
+
+## Kea takes optional basic authentication on the control channel. Set both
+## of these to run the test against a server that requires it. The adapter
+## sends no Authorization header when the password is empty.
+KEA_USER = "api-user-name"
+KEA_PASS = ""
+
+## The server needs a few seconds to answer after the container starts.
+CONNECT_ATTEMPTS = 40
+CONNECT_DELAY = 0.25
+
+
+def _dmc(name: str) -> dmc.stratoweave_rfs__device_entry:
+    address = dmc.stratoweave_rfs__device__address_entry(
+        name="control-channel", address=KEA_HOST, port=u64(KEA_PORT))
+    password = KEA_PASS if len(KEA_PASS) > 0 else None
+    creds = dmc.stratoweave_rfs__device__credentials(username=KEA_USER,
+                                                     password=password)
+    return dmc.stratoweave_rfs__device_entry(name=name, type="kea",
+                                             credentials=creds, address=[address])
+
+
+def _target(valid_lifetime: int) -> ygdata.Node:
+    """The configuration that the test writes: one onboarding subnet with a
+    pool, an SZTP redirect and a reservation.
+
+    The test writes this twice with a different lifetime. Kea hashes the
+    configuration, so two runs of the same content give the same hash. Two
+    different contents must give two different hashes.
+    """
+    dev = kea_dev.root()
+    s = dev.Dhcp4.subnet4.create(1, subnet="172.31.255.0/24",
+                                 valid_lifetime=u64(valid_lifetime))
+    s.pools.create("172.31.255.100-172.31.255.149")
+    s.option_data.create(("dhcp4", 3), data="172.31.255.1")
+    s.option_data.create(("dhcp4", 143), data="https://172.31.255.10", always_send=True)
+    r = s.reservations.create(("hw-address", "02:42:ac:1f:fe:14"),
+                              ip_address="172.31.255.120", hostname="xrd1")
+    r.boot_file_name = "http://172.31.255.10/ztp/v1/device/xrd1/bootfile"
+    return dev.to_gdata()
+
+
+def _rpc_call(command: str, inp: ?yadata.MNode) -> ygdata.Node:
+    """Build an RPC call in the shape that the generated rpc_root actor
+    hands to the adapter."""
+    rpc_input = ygdata.Container()
+    if inp is not None:
+        rpc_input = yadata.from_adata(kea_oper.SRC_DNODE, inp!, True,
+                                      ["kea-dhcp4:{command}", "input"])
+    return ygdata.Container({ygdata.Id(NS_KEA, command): rpc_input})
+
+
+actor kea_live_adapter(t: testing.EnvT):
+    t.require("kea")
+    log = logging.Logger(t.log_handler)
+    cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    schema_registry = swdev.SchemaRegistry()
+
+    def on_reconf(name: str):
+        pass
+
+    dev = swdev.DeviceMgr({}, cap, "kea1", t.log_handler, on_reconf, schema_registry)
+    device_type = sysspec.device_types["kea"]
+    meta = _dmc("kea1")
+    adapter = swkea.KeaAdapter(dev, device_type.bundled_schema, meta,
+                               schema_registry, t.log_handler, cap)
+
+    var attempts = 0
+    var first_txid: ?str = None
+    var target: ?ygdata.Node = None
+
+    ## Two lifetimes, so the two writes hold different content.
+    LIFETIME_A = 600
+    LIFETIME_B = 900
+
+    def fail(msg: str):
+        t.error(ValueError(msg))
+
+    #########################################################
+    ## 1. Read the running configuration and its transaction id
+    #########################################################
+
+    def read_first():
+        adapter.fetch_config(on_first)
+
+    def on_first(conf: ?ygdata.Node, err: ?Exception):
+        if err is not None or conf is None:
+            attempts += 1
+            if attempts < CONNECT_ATTEMPTS:
+                after CONNECT_DELAY: read_first()
+                return
+            fail("fetch_config never succeeded: {err}")
+            return
+        txid = conf!.txid
+        if txid is None:
+            fail("fetch_config returned no transaction id")
+            return
+        log.info("kea_live: read the running configuration", {"txid": txid})
+
+        #####################################################
+        ## 2. Write the intended configuration, twice
+        #####################################################
+        tgt = _target(LIFETIME_A)
+        target = tgt
+        adapter.configure(on_configured_a, tgt, tgt, conf)
+
+    #########################################################
+    ## 3. Check the result of each write
+    #########################################################
+
+    def _check_write(err: ?Exception, resulting: ?ygdata.Node) -> ?str:
+        """Return the new transaction id. Report the failure and return None
+        when the write did not land."""
+        if err is not None:
+            fail("configure failed: {err}")
+            return None
+        if resulting is None:
+            fail("configure returned no resulting configuration")
+            return None
+        txid = resulting!.txid
+        if txid is None:
+            fail("configure returned no transaction id")
+            return None
+        # The target matches what the server now holds. A leftover diff here
+        # would make DeviceMgr send the same configuration again at each
+        # reconcile, and the device would never settle.
+        tgt = target
+        if tgt is not None:
+            diff = ygdata.diff(resulting!, tgt!)
+            if diff is not None:
+                fail("the running configuration still differs from the target."
+                     + "\n  running: " + resulting!.to_yang_jsonstr(pretty=False, deterministic=True)
+                     + "\n  target:  " + tgt!.to_yang_jsonstr(pretty=False, deterministic=True))
+                return None
+        return txid
+
+    def on_configured_a(err: ?Exception, resulting: ?ygdata.Node):
+        txid = _check_write(err, resulting)
+        if txid is None:
+            return
+        first_txid = txid
+        log.info("kea_live: wrote the first configuration", {"txid": txid})
+
+        tgt = _target(LIFETIME_B)
+        target = tgt
+        adapter.configure(on_configured_b, tgt, tgt, resulting)
+
+    def on_configured_b(err: ?Exception, resulting: ?ygdata.Node):
+        txid = _check_write(err, resulting)
+        if txid is None:
+            return
+        # Kea hashes the configuration, so a change of content must change
+        # the transaction id. DeviceMgr reads drift from that id.
+        if txid == first_txid:
+            fail("the transaction id did not change after a content change")
+            return
+        log.info("kea_live: wrote the second configuration", {"txid": txid})
+
+        # A config-set that omits control-sockets stops the HTTP listener.
+        # The next command only answers because the splice kept that key.
+        adapter.fetch_config(on_second)
+
+    def on_second(conf: ?ygdata.Node, err: ?Exception):
+        if err is not None or conf is None:
+            fail("the control channel closed after config-set, so the splice "
+                 "dropped control-sockets: {err}")
+            return
+        j = conf!.to_yang_jsonstr(pretty=False, deterministic=True)
+        for want in ["172.31.255.100-172.31.255.149", "\"code\":143",
+                     "\"identifier-type\"", "xrd1"]:
+            if want not in j:
+                fail("the configuration that came back is missing {want}: {j}")
+                return
+        log.info("kea_live: read the configuration back")
+        adapter.rpc(on_version, _rpc_call("version-get", None))
+
+    #########################################################
+    ## 4. Run the RPCs
+    #########################################################
+
+    def on_version(res: ?ygdata.Node, err: ?Exception):
+        if err is not None or res is None:
+            fail("version-get failed: {err}")
+            return
+        out = kea_oper.kea_dhcp4__version_get__output.from_gdata(res!)
+        if out.version is None:
+            fail("version-get returned no version")
+            return
+        log.info("kea_live: version-get", {"version": out.version})
+        adapter.rpc(on_status, _rpc_call("status-get", None))
+
+    def on_status(res: ?ygdata.Node, err: ?Exception):
+        if err is not None or res is None:
+            fail("status-get failed: {err}")
+            return
+        out = kea_oper.kea_dhcp4__status_get__output.from_gdata(res!)
+        if out.pid is None:
+            fail("status-get returned no pid")
+            return
+        log.info("kea_live: status-get", {"pid": out.pid, "uptime": out.uptime})
+        adapter.rpc(on_leases, _rpc_call("lease4-get-all", None))
+
+    def on_leases(res: ?ygdata.Node, err: ?Exception):
+        # The lease table is empty on a fresh server, and Kea answers with
+        # result code 3. That is success with no data and not a failure.
+        if err is not None:
+            fail("lease4-get-all failed. Does the server load lease_cmds? {err}")
+            return
+        if res is not None:
+            out = kea_oper.kea_dhcp4__lease4_get_all__output.from_gdata(res!)
+            log.info("kea_live: lease4-get-all", {"leases": len(out.leases.elements)})
+        adapter.rpc(on_stats, _rpc_call("stat-lease4-get", None))
+
+    def on_stats(res: ?ygdata.Node, err: ?Exception):
+        if err is not None:
+            fail("stat-lease4-get failed. Does the server load stat_cmds? {err}")
+            return
+        if res is None:
+            fail("stat-lease4-get returned nothing")
+            return
+        out = kea_oper.kea_dhcp4__stat_lease4_get__output.from_gdata(res!)
+        rows = out.subnet_statistics.elements
+        if len(rows) == 0:
+            fail("stat-lease4-get returned no rows")
+            return
+        # The subnet that the test wrote holds 50 addresses in its pool.
+        entry = out.subnet_statistics.get(u64(1))
+        if entry is None:
+            fail("stat-lease4-get has no row for subnet 1")
+            return
+        testing.assertEqual(entry!.total_addresses, 50, "pool size of subnet 1")
+        log.info("kea_live: stat-lease4-get", {"rows": len(rows)})
+
+        # An RPC of a command that the server does not know must fail and
+        # not hang. lease4-wipe on an empty table is safe.
+        adapter.rpc(on_wipe, _rpc_call("lease4-wipe",
+            kea_oper.kea_dhcp4__lease4_wipe__input(subnet_id=u64(1))))
+
+    def on_wipe(res: ?ygdata.Node, err: ?Exception):
+        if err is not None:
+            fail("lease4-wipe failed: {err}")
+            return
+        log.info("kea_live: lease4-wipe")
+        adapter.close(None)
+        t.success()
+
+    after 0: read_first()

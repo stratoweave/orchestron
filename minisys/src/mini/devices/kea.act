@@ -1,0 +1,1395 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+import mini.devices.kea_schema
+
+# == This file is generated ==
+
+
+
+
+SRC_DNODE: DRoot = mini.devices.kea_schema.SRC_DNODE
+
+pure def src_yang() -> list[str]:
+    return mini.devices.kea_schema.src_yang()
+
+
+NS_kea_dhcp4: str = 'http://stratoweave.org/yang/kea-dhcp4'
+NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+
+
+_breaker1: None = None
+class kea_dhcp4__Dhcp4__option_data_entry(yadata.MNode):
+    space: str
+    code: u64
+    data: ?str
+    csv_format: ?bool
+    always_send: ?bool
+    never_send: ?bool
+
+    mut def __init__(self, space: str, code: u64, data: ?str, csv_format: ?bool, always_send: ?bool, never_send: ?bool) -> None:
+        self.space = space
+        self.code = code
+        self.data = data
+        self.csv_format = csv_format
+        self.always_send = always_send
+        self.never_send = never_send
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'option-data'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__Dhcp4__option_data_entry:
+        return kea_dhcp4__Dhcp4__option_data_entry(space=n.get_str(ygdata.Id(NS_kea_dhcp4, 'space')), code=n.get_u64(ygdata.Id(NS_kea_dhcp4, 'code')), data=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'data')), csv_format=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'csv-format')), always_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'always-send')), never_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'never-send')))
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__option_data_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__option_data_entry.from_gdata(self.to_gdata())
+
+_breaker2: None = None
+class kea_dhcp4__Dhcp4__option_data(yadata.MKeyedList[(space: str, code: u64), kea_dhcp4__Dhcp4__option_data_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__Dhcp4__option_data_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.space == k.space and e.code == k.code, elements)
+
+    mut def create(self, key: (space: str, code: u64), data: ?str=None, csv_format: ?bool=None, always_send: ?bool=None, never_send: ?bool=None) -> kea_dhcp4__Dhcp4__option_data_entry:
+        e = self.get(key)
+        if e is not None:
+            if data is not None:
+                e.data = data
+            if csv_format is not None:
+                e.csv_format = csv_format
+            if always_send is not None:
+                e.always_send = always_send
+            if never_send is not None:
+                e.never_send = never_send
+            return e
+        (space=space, code=code) = key
+        res = kea_dhcp4__Dhcp4__option_data_entry(space=space, code=code, data=data, csv_format=csv_format, always_send=always_send, never_send=never_send)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__Dhcp4__option_data_entry]:
+        if n is not None:
+            return [kea_dhcp4__Dhcp4__option_data_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__option_data:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__Dhcp4__option_data(elements=copied_elements)
+
+
+_breaker3: None = None
+class kea_dhcp4__Dhcp4__subnet4__relay(yadata.MNode):
+    ip_addresses: list[str]
+
+    mut def __init__(self, ip_addresses: ?list[str]=None) -> None:
+        self.ip_addresses = ip_addresses if ip_addresses is not None else []
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'subnet4', 'relay'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__Dhcp4__subnet4__relay:
+        if n is not None:
+            return kea_dhcp4__Dhcp4__subnet4__relay(ip_addresses=n.get_opt_strs(ygdata.Id(NS_kea_dhcp4, 'ip-addresses')))
+        return kea_dhcp4__Dhcp4__subnet4__relay()
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__relay:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__subnet4__relay.from_gdata(self.to_gdata())
+
+
+_breaker4: None = None
+class kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry(yadata.MNode):
+    space: str
+    code: u64
+    data: ?str
+    csv_format: ?bool
+    always_send: ?bool
+    never_send: ?bool
+
+    mut def __init__(self, space: str, code: u64, data: ?str, csv_format: ?bool, always_send: ?bool, never_send: ?bool) -> None:
+        self.space = space
+        self.code = code
+        self.data = data
+        self.csv_format = csv_format
+        self.always_send = always_send
+        self.never_send = never_send
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'subnet4', 'pools', 'option-data'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry:
+        return kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry(space=n.get_str(ygdata.Id(NS_kea_dhcp4, 'space')), code=n.get_u64(ygdata.Id(NS_kea_dhcp4, 'code')), data=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'data')), csv_format=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'csv-format')), always_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'always-send')), never_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'never-send')))
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry.from_gdata(self.to_gdata())
+
+_breaker5: None = None
+class kea_dhcp4__Dhcp4__subnet4__pools__option_data(yadata.MKeyedList[(space: str, code: u64), kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.space == k.space and e.code == k.code, elements)
+
+    mut def create(self, key: (space: str, code: u64), data: ?str=None, csv_format: ?bool=None, always_send: ?bool=None, never_send: ?bool=None) -> kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry:
+        e = self.get(key)
+        if e is not None:
+            if data is not None:
+                e.data = data
+            if csv_format is not None:
+                e.csv_format = csv_format
+            if always_send is not None:
+                e.always_send = always_send
+            if never_send is not None:
+                e.never_send = never_send
+            return e
+        (space=space, code=code) = key
+        res = kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry(space=space, code=code, data=data, csv_format=csv_format, always_send=always_send, never_send=never_send)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry]:
+        if n is not None:
+            return [kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__pools__option_data:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__Dhcp4__subnet4__pools__option_data(elements=copied_elements)
+
+
+_breaker6: None = None
+class kea_dhcp4__Dhcp4__subnet4__pools_entry(yadata.MNode):
+    pool: str
+    client_class: ?str
+    option_data: kea_dhcp4__Dhcp4__subnet4__pools__option_data
+
+    mut def __init__(self, pool: str, client_class: ?str, option_data: list[kea_dhcp4__Dhcp4__subnet4__pools__option_data_entry]=[]) -> None:
+        self.pool = pool
+        self.client_class = client_class
+        self.option_data = kea_dhcp4__Dhcp4__subnet4__pools__option_data(elements=option_data)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'subnet4', 'pools'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__Dhcp4__subnet4__pools_entry:
+        return kea_dhcp4__Dhcp4__subnet4__pools_entry(pool=n.get_str(ygdata.Id(NS_kea_dhcp4, 'pool')), client_class=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'client-class')), option_data=kea_dhcp4__Dhcp4__subnet4__pools__option_data.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'option-data'))))
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__pools_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__subnet4__pools_entry.from_gdata(self.to_gdata())
+
+_breaker7: None = None
+class kea_dhcp4__Dhcp4__subnet4__pools(yadata.MKeyedList[str, kea_dhcp4__Dhcp4__subnet4__pools_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__Dhcp4__subnet4__pools_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.pool == k, elements)
+
+    mut def create(self, key: str, client_class: ?str=None) -> kea_dhcp4__Dhcp4__subnet4__pools_entry:
+        e = self.get(key)
+        if e is not None:
+            if client_class is not None:
+                e.client_class = client_class
+            return e
+        pool = key
+        res = kea_dhcp4__Dhcp4__subnet4__pools_entry(pool=pool, client_class=client_class)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__Dhcp4__subnet4__pools_entry]:
+        if n is not None:
+            return [kea_dhcp4__Dhcp4__subnet4__pools_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__pools:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__Dhcp4__subnet4__pools(elements=copied_elements)
+
+
+_breaker8: None = None
+class kea_dhcp4__Dhcp4__subnet4__option_data_entry(yadata.MNode):
+    space: str
+    code: u64
+    data: ?str
+    csv_format: ?bool
+    always_send: ?bool
+    never_send: ?bool
+
+    mut def __init__(self, space: str, code: u64, data: ?str, csv_format: ?bool, always_send: ?bool, never_send: ?bool) -> None:
+        self.space = space
+        self.code = code
+        self.data = data
+        self.csv_format = csv_format
+        self.always_send = always_send
+        self.never_send = never_send
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'subnet4', 'option-data'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__Dhcp4__subnet4__option_data_entry:
+        return kea_dhcp4__Dhcp4__subnet4__option_data_entry(space=n.get_str(ygdata.Id(NS_kea_dhcp4, 'space')), code=n.get_u64(ygdata.Id(NS_kea_dhcp4, 'code')), data=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'data')), csv_format=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'csv-format')), always_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'always-send')), never_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'never-send')))
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__option_data_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__subnet4__option_data_entry.from_gdata(self.to_gdata())
+
+_breaker9: None = None
+class kea_dhcp4__Dhcp4__subnet4__option_data(yadata.MKeyedList[(space: str, code: u64), kea_dhcp4__Dhcp4__subnet4__option_data_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__Dhcp4__subnet4__option_data_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.space == k.space and e.code == k.code, elements)
+
+    mut def create(self, key: (space: str, code: u64), data: ?str=None, csv_format: ?bool=None, always_send: ?bool=None, never_send: ?bool=None) -> kea_dhcp4__Dhcp4__subnet4__option_data_entry:
+        e = self.get(key)
+        if e is not None:
+            if data is not None:
+                e.data = data
+            if csv_format is not None:
+                e.csv_format = csv_format
+            if always_send is not None:
+                e.always_send = always_send
+            if never_send is not None:
+                e.never_send = never_send
+            return e
+        (space=space, code=code) = key
+        res = kea_dhcp4__Dhcp4__subnet4__option_data_entry(space=space, code=code, data=data, csv_format=csv_format, always_send=always_send, never_send=never_send)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__Dhcp4__subnet4__option_data_entry]:
+        if n is not None:
+            return [kea_dhcp4__Dhcp4__subnet4__option_data_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__option_data:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__Dhcp4__subnet4__option_data(elements=copied_elements)
+
+
+_breaker10: None = None
+class kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry(yadata.MNode):
+    space: str
+    code: u64
+    data: ?str
+    csv_format: ?bool
+    always_send: ?bool
+    never_send: ?bool
+
+    mut def __init__(self, space: str, code: u64, data: ?str, csv_format: ?bool, always_send: ?bool, never_send: ?bool) -> None:
+        self.space = space
+        self.code = code
+        self.data = data
+        self.csv_format = csv_format
+        self.always_send = always_send
+        self.never_send = never_send
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'subnet4', 'reservations', 'option-data'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry:
+        return kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry(space=n.get_str(ygdata.Id(NS_kea_dhcp4, 'space')), code=n.get_u64(ygdata.Id(NS_kea_dhcp4, 'code')), data=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'data')), csv_format=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'csv-format')), always_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'always-send')), never_send=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'never-send')))
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry.from_gdata(self.to_gdata())
+
+_breaker11: None = None
+class kea_dhcp4__Dhcp4__subnet4__reservations__option_data(yadata.MKeyedList[(space: str, code: u64), kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.space == k.space and e.code == k.code, elements)
+
+    mut def create(self, key: (space: str, code: u64), data: ?str=None, csv_format: ?bool=None, always_send: ?bool=None, never_send: ?bool=None) -> kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry:
+        e = self.get(key)
+        if e is not None:
+            if data is not None:
+                e.data = data
+            if csv_format is not None:
+                e.csv_format = csv_format
+            if always_send is not None:
+                e.always_send = always_send
+            if never_send is not None:
+                e.never_send = never_send
+            return e
+        (space=space, code=code) = key
+        res = kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry(space=space, code=code, data=data, csv_format=csv_format, always_send=always_send, never_send=never_send)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry]:
+        if n is not None:
+            return [kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__reservations__option_data:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__Dhcp4__subnet4__reservations__option_data(elements=copied_elements)
+
+
+_breaker12: None = None
+class kea_dhcp4__Dhcp4__subnet4__reservations_entry(yadata.MNode):
+    identifier_type: str
+    identifier: str
+    ip_address: ?str
+    hostname: ?str
+    next_server: ?str
+    server_hostname: ?str
+    boot_file_name: ?str
+    client_classes: list[str]
+    option_data: kea_dhcp4__Dhcp4__subnet4__reservations__option_data
+
+    mut def __init__(self, identifier_type: str, identifier: str, ip_address: ?str, hostname: ?str, next_server: ?str, server_hostname: ?str, boot_file_name: ?str, client_classes: ?list[str]=None, option_data: list[kea_dhcp4__Dhcp4__subnet4__reservations__option_data_entry]=[]) -> None:
+        self.identifier_type = identifier_type
+        self.identifier = identifier
+        self.ip_address = ip_address
+        self.hostname = hostname
+        self.next_server = next_server
+        self.server_hostname = server_hostname
+        self.boot_file_name = boot_file_name
+        self.client_classes = client_classes if client_classes is not None else []
+        self.option_data = kea_dhcp4__Dhcp4__subnet4__reservations__option_data(elements=option_data)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'subnet4', 'reservations'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__Dhcp4__subnet4__reservations_entry:
+        return kea_dhcp4__Dhcp4__subnet4__reservations_entry(identifier_type=n.get_str(ygdata.Id(NS_kea_dhcp4, 'identifier-type')), identifier=n.get_str(ygdata.Id(NS_kea_dhcp4, 'identifier')), ip_address=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'ip-address')), hostname=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hostname')), next_server=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'next-server')), server_hostname=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'server-hostname')), boot_file_name=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'boot-file-name')), client_classes=n.get_opt_strs(ygdata.Id(NS_kea_dhcp4, 'client-classes')), option_data=kea_dhcp4__Dhcp4__subnet4__reservations__option_data.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'option-data'))))
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__reservations_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__subnet4__reservations_entry.from_gdata(self.to_gdata())
+
+_breaker13: None = None
+class kea_dhcp4__Dhcp4__subnet4__reservations(yadata.MKeyedList[(identifier_type: str, identifier: str), kea_dhcp4__Dhcp4__subnet4__reservations_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__Dhcp4__subnet4__reservations_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.identifier_type == k.identifier_type and e.identifier == k.identifier, elements)
+
+    mut def create(self, key: (identifier_type: str, identifier: str), ip_address: ?str=None, hostname: ?str=None, next_server: ?str=None, server_hostname: ?str=None, boot_file_name: ?str=None) -> kea_dhcp4__Dhcp4__subnet4__reservations_entry:
+        e = self.get(key)
+        if e is not None:
+            if ip_address is not None:
+                e.ip_address = ip_address
+            if hostname is not None:
+                e.hostname = hostname
+            if next_server is not None:
+                e.next_server = next_server
+            if server_hostname is not None:
+                e.server_hostname = server_hostname
+            if boot_file_name is not None:
+                e.boot_file_name = boot_file_name
+            return e
+        (identifier_type=identifier_type, identifier=identifier) = key
+        res = kea_dhcp4__Dhcp4__subnet4__reservations_entry(identifier_type=identifier_type, identifier=identifier, ip_address=ip_address, hostname=hostname, next_server=next_server, server_hostname=server_hostname, boot_file_name=boot_file_name)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__Dhcp4__subnet4__reservations_entry]:
+        if n is not None:
+            return [kea_dhcp4__Dhcp4__subnet4__reservations_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4__reservations:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__Dhcp4__subnet4__reservations(elements=copied_elements)
+
+
+_breaker14: None = None
+class kea_dhcp4__Dhcp4__subnet4_entry(yadata.MNode):
+    id: u64
+    subnet: ?str
+    interface: ?str
+    client_class: ?str
+    valid_lifetime: ?u64
+    next_server: ?str
+    server_hostname: ?str
+    boot_file_name: ?str
+    relay: kea_dhcp4__Dhcp4__subnet4__relay
+    pools: kea_dhcp4__Dhcp4__subnet4__pools
+    option_data: kea_dhcp4__Dhcp4__subnet4__option_data
+    reservations: kea_dhcp4__Dhcp4__subnet4__reservations
+
+    mut def __init__(self, id: u64, subnet: ?str, interface: ?str, client_class: ?str, valid_lifetime: ?u64, next_server: ?str, server_hostname: ?str, boot_file_name: ?str, relay: ?kea_dhcp4__Dhcp4__subnet4__relay=None, pools: list[kea_dhcp4__Dhcp4__subnet4__pools_entry]=[], option_data: list[kea_dhcp4__Dhcp4__subnet4__option_data_entry]=[], reservations: list[kea_dhcp4__Dhcp4__subnet4__reservations_entry]=[]) -> None:
+        self.id = id
+        self.subnet = subnet
+        self.interface = interface
+        self.client_class = client_class
+        self.valid_lifetime = valid_lifetime
+        self.next_server = next_server
+        self.server_hostname = server_hostname
+        self.boot_file_name = boot_file_name
+        self.relay = relay if relay is not None else kea_dhcp4__Dhcp4__subnet4__relay()
+        self.pools = kea_dhcp4__Dhcp4__subnet4__pools(elements=pools)
+        self.option_data = kea_dhcp4__Dhcp4__subnet4__option_data(elements=option_data)
+        self.reservations = kea_dhcp4__Dhcp4__subnet4__reservations(elements=reservations)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4', 'subnet4'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__Dhcp4__subnet4_entry:
+        return kea_dhcp4__Dhcp4__subnet4_entry(id=n.get_u64(ygdata.Id(NS_kea_dhcp4, 'id')), subnet=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'subnet')), interface=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'interface')), client_class=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'client-class')), valid_lifetime=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'valid-lifetime')), next_server=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'next-server')), server_hostname=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'server-hostname')), boot_file_name=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'boot-file-name')), relay=kea_dhcp4__Dhcp4__subnet4__relay.from_gdata(n.get_opt_cnt(ygdata.Id(NS_kea_dhcp4, 'relay'))), pools=kea_dhcp4__Dhcp4__subnet4__pools.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'pools'))), option_data=kea_dhcp4__Dhcp4__subnet4__option_data.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'option-data'))), reservations=kea_dhcp4__Dhcp4__subnet4__reservations.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'reservations'))))
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4__subnet4_entry.from_gdata(self.to_gdata())
+
+_breaker15: None = None
+class kea_dhcp4__Dhcp4__subnet4(yadata.MKeyedList[u64, kea_dhcp4__Dhcp4__subnet4_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__Dhcp4__subnet4_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.id == k, elements)
+
+    mut def create(self, key: u64, subnet: ?str=None, interface: ?str=None, client_class: ?str=None, valid_lifetime: ?u64=None, next_server: ?str=None, server_hostname: ?str=None, boot_file_name: ?str=None) -> kea_dhcp4__Dhcp4__subnet4_entry:
+        e = self.get(key)
+        if e is not None:
+            if subnet is not None:
+                e.subnet = subnet
+            if interface is not None:
+                e.interface = interface
+            if client_class is not None:
+                e.client_class = client_class
+            if valid_lifetime is not None:
+                e.valid_lifetime = valid_lifetime
+            if next_server is not None:
+                e.next_server = next_server
+            if server_hostname is not None:
+                e.server_hostname = server_hostname
+            if boot_file_name is not None:
+                e.boot_file_name = boot_file_name
+            return e
+        id = key
+        res = kea_dhcp4__Dhcp4__subnet4_entry(id=id, subnet=subnet, interface=interface, client_class=client_class, valid_lifetime=valid_lifetime, next_server=next_server, server_hostname=server_hostname, boot_file_name=boot_file_name)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__Dhcp4__subnet4_entry]:
+        if n is not None:
+            return [kea_dhcp4__Dhcp4__subnet4_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4__subnet4:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__Dhcp4__subnet4(elements=copied_elements)
+
+
+_breaker16: None = None
+class kea_dhcp4__Dhcp4(yadata.MNode):
+    valid_lifetime: ?u64
+    renew_timer: ?u64
+    rebind_timer: ?u64
+    next_server: ?str
+    boot_file_name: ?str
+    authoritative: ?bool
+    echo_client_id: ?bool
+    option_data: kea_dhcp4__Dhcp4__option_data
+    subnet4: kea_dhcp4__Dhcp4__subnet4
+
+    mut def __init__(self, valid_lifetime: ?u64, renew_timer: ?u64, rebind_timer: ?u64, next_server: ?str, boot_file_name: ?str, authoritative: ?bool, echo_client_id: ?bool, option_data: list[kea_dhcp4__Dhcp4__option_data_entry]=[], subnet4: list[kea_dhcp4__Dhcp4__subnet4_entry]=[]) -> None:
+        self.valid_lifetime = valid_lifetime
+        self.renew_timer = renew_timer
+        self.rebind_timer = rebind_timer
+        self.next_server = next_server
+        self.boot_file_name = boot_file_name
+        self.authoritative = authoritative
+        self.echo_client_id = echo_client_id
+        self.option_data = kea_dhcp4__Dhcp4__option_data(elements=option_data)
+        self.subnet4 = kea_dhcp4__Dhcp4__subnet4(elements=subnet4)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:Dhcp4'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__Dhcp4:
+        if n is not None:
+            return kea_dhcp4__Dhcp4(valid_lifetime=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'valid-lifetime')), renew_timer=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'renew-timer')), rebind_timer=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'rebind-timer')), next_server=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'next-server')), boot_file_name=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'boot-file-name')), authoritative=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'authoritative')), echo_client_id=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'echo-client-id')), option_data=kea_dhcp4__Dhcp4__option_data.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'option-data'))), subnet4=kea_dhcp4__Dhcp4__subnet4.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'subnet4'))))
+        return kea_dhcp4__Dhcp4()
+
+    mut def copy(self) -> kea_dhcp4__Dhcp4:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__Dhcp4.from_gdata(self.to_gdata())
+
+
+_breaker17: None = None
+class root(yadata.MNode):
+    Dhcp4: kea_dhcp4__Dhcp4
+
+    mut def __init__(self, Dhcp4: ?kea_dhcp4__Dhcp4=None) -> None:
+        self.Dhcp4 = Dhcp4 if Dhcp4 is not None else kea_dhcp4__Dhcp4()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(Dhcp4=kea_dhcp4__Dhcp4.from_gdata(n.get_opt_cnt(ygdata.Id(NS_kea_dhcp4, 'Dhcp4'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+_breaker18: None = None
+class kea_dhcp4__lease4_get_all__input(yadata.MNode):
+    subnets: list[u64]
+
+    mut def __init__(self, subnets: ?list[u64]=None) -> None:
+        self.subnets = subnets if subnets is not None else []
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get-all', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_get_all__input:
+        if n is not None:
+            return kea_dhcp4__lease4_get_all__input(subnets=n.get_opt_u64s(ygdata.Id(NS_kea_dhcp4, 'subnets')))
+        return kea_dhcp4__lease4_get_all__input()
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_all__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get_all__input.from_gdata(self.to_gdata())
+
+
+_breaker19: None = None
+class kea_dhcp4__lease4_get_all__output__leases_entry(yadata.MNode):
+    ip_address: str
+    hw_address: ?str
+    client_id: ?str
+    subnet_id: ?u64
+    hostname: ?str
+    state: ?u64
+    valid_lft: ?u64
+    cltt: ?u64
+    fqdn_fwd: ?bool
+    fqdn_rev: ?bool
+
+    mut def __init__(self, ip_address: str, hw_address: ?str, client_id: ?str, subnet_id: ?u64, hostname: ?str, state: ?u64, valid_lft: ?u64, cltt: ?u64, fqdn_fwd: ?bool, fqdn_rev: ?bool) -> None:
+        self.ip_address = ip_address
+        self.hw_address = hw_address
+        self.client_id = client_id
+        self.subnet_id = subnet_id
+        self.hostname = hostname
+        self.state = state
+        self.valid_lft = valid_lft
+        self.cltt = cltt
+        self.fqdn_fwd = fqdn_fwd
+        self.fqdn_rev = fqdn_rev
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get-all', 'output', 'leases'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__lease4_get_all__output__leases_entry:
+        return kea_dhcp4__lease4_get_all__output__leases_entry(ip_address=n.get_str(ygdata.Id(NS_kea_dhcp4, 'ip-address')), hw_address=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hw-address')), client_id=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'client-id')), subnet_id=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'subnet-id')), hostname=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hostname')), state=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'state')), valid_lft=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'valid-lft')), cltt=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'cltt')), fqdn_fwd=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'fqdn-fwd')), fqdn_rev=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'fqdn-rev')))
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_all__output__leases_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get_all__output__leases_entry.from_gdata(self.to_gdata())
+
+_breaker20: None = None
+class kea_dhcp4__lease4_get_all__output__leases(yadata.MKeyedList[str, kea_dhcp4__lease4_get_all__output__leases_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__lease4_get_all__output__leases_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip_address == k, elements)
+
+    mut def create(self, key: str, hw_address: ?str=None, client_id: ?str=None, subnet_id: ?u64=None, hostname: ?str=None, state: ?u64=None, valid_lft: ?u64=None, cltt: ?u64=None, fqdn_fwd: ?bool=None, fqdn_rev: ?bool=None) -> kea_dhcp4__lease4_get_all__output__leases_entry:
+        e = self.get(key)
+        if e is not None:
+            if hw_address is not None:
+                e.hw_address = hw_address
+            if client_id is not None:
+                e.client_id = client_id
+            if subnet_id is not None:
+                e.subnet_id = subnet_id
+            if hostname is not None:
+                e.hostname = hostname
+            if state is not None:
+                e.state = state
+            if valid_lft is not None:
+                e.valid_lft = valid_lft
+            if cltt is not None:
+                e.cltt = cltt
+            if fqdn_fwd is not None:
+                e.fqdn_fwd = fqdn_fwd
+            if fqdn_rev is not None:
+                e.fqdn_rev = fqdn_rev
+            return e
+        ip_address = key
+        res = kea_dhcp4__lease4_get_all__output__leases_entry(ip_address=ip_address, hw_address=hw_address, client_id=client_id, subnet_id=subnet_id, hostname=hostname, state=state, valid_lft=valid_lft, cltt=cltt, fqdn_fwd=fqdn_fwd, fqdn_rev=fqdn_rev)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__lease4_get_all__output__leases_entry]:
+        if n is not None:
+            return [kea_dhcp4__lease4_get_all__output__leases_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_all__output__leases:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__lease4_get_all__output__leases(elements=copied_elements)
+
+
+_breaker21: None = None
+class kea_dhcp4__lease4_get_all__output(yadata.MNode):
+    leases: kea_dhcp4__lease4_get_all__output__leases
+
+    mut def __init__(self, leases: list[kea_dhcp4__lease4_get_all__output__leases_entry]=[]) -> None:
+        self.leases = kea_dhcp4__lease4_get_all__output__leases(elements=leases)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get-all', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_get_all__output:
+        if n is not None:
+            return kea_dhcp4__lease4_get_all__output(leases=kea_dhcp4__lease4_get_all__output__leases.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'leases'))))
+        return kea_dhcp4__lease4_get_all__output()
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_all__output:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get_all__output.from_gdata(self.to_gdata())
+
+
+_breaker22: None = None
+class kea_dhcp4__lease4_get__input(yadata.MNode):
+    ip_address: ?str
+
+    mut def __init__(self, ip_address: ?str) -> None:
+        self.ip_address = ip_address
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_get__input:
+        if n is not None:
+            return kea_dhcp4__lease4_get__input(ip_address=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'ip-address')))
+        return kea_dhcp4__lease4_get__input()
+
+    mut def copy(self) -> kea_dhcp4__lease4_get__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get__input.from_gdata(self.to_gdata())
+
+
+_breaker23: None = None
+class kea_dhcp4__lease4_get__output__lease(yadata.MNode):
+    ip_address: ?str
+    hw_address: ?str
+    client_id: ?str
+    subnet_id: ?u64
+    hostname: ?str
+    state: ?u64
+    valid_lft: ?u64
+    cltt: ?u64
+    fqdn_fwd: ?bool
+    fqdn_rev: ?bool
+
+    mut def __init__(self, ip_address: ?str, hw_address: ?str, client_id: ?str, subnet_id: ?u64, hostname: ?str, state: ?u64, valid_lft: ?u64, cltt: ?u64, fqdn_fwd: ?bool, fqdn_rev: ?bool) -> None:
+        self.ip_address = ip_address
+        self.hw_address = hw_address
+        self.client_id = client_id
+        self.subnet_id = subnet_id
+        self.hostname = hostname
+        self.state = state
+        self.valid_lft = valid_lft
+        self.cltt = cltt
+        self.fqdn_fwd = fqdn_fwd
+        self.fqdn_rev = fqdn_rev
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get', 'output', 'lease'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_get__output__lease:
+        if n is not None:
+            return kea_dhcp4__lease4_get__output__lease(ip_address=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'ip-address')), hw_address=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hw-address')), client_id=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'client-id')), subnet_id=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'subnet-id')), hostname=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hostname')), state=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'state')), valid_lft=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'valid-lft')), cltt=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'cltt')), fqdn_fwd=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'fqdn-fwd')), fqdn_rev=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'fqdn-rev')))
+        return kea_dhcp4__lease4_get__output__lease()
+
+    mut def copy(self) -> kea_dhcp4__lease4_get__output__lease:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get__output__lease.from_gdata(self.to_gdata())
+
+
+_breaker24: None = None
+class kea_dhcp4__lease4_get__output(yadata.MNode):
+    lease: kea_dhcp4__lease4_get__output__lease
+
+    mut def __init__(self, lease: ?kea_dhcp4__lease4_get__output__lease=None) -> None:
+        self.lease = lease if lease is not None else kea_dhcp4__lease4_get__output__lease()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_get__output:
+        if n is not None:
+            return kea_dhcp4__lease4_get__output(lease=kea_dhcp4__lease4_get__output__lease.from_gdata(n.get_opt_cnt(ygdata.Id(NS_kea_dhcp4, 'lease'))))
+        return kea_dhcp4__lease4_get__output()
+
+    mut def copy(self) -> kea_dhcp4__lease4_get__output:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get__output.from_gdata(self.to_gdata())
+
+
+_breaker25: None = None
+class kea_dhcp4__lease4_get_by_hw_address__input(yadata.MNode):
+    hw_address: ?str
+
+    mut def __init__(self, hw_address: ?str) -> None:
+        self.hw_address = hw_address
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get-by-hw-address', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_get_by_hw_address__input:
+        if n is not None:
+            return kea_dhcp4__lease4_get_by_hw_address__input(hw_address=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hw-address')))
+        return kea_dhcp4__lease4_get_by_hw_address__input()
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_by_hw_address__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get_by_hw_address__input.from_gdata(self.to_gdata())
+
+
+_breaker26: None = None
+class kea_dhcp4__lease4_get_by_hw_address__output__leases_entry(yadata.MNode):
+    ip_address: str
+    hw_address: ?str
+    client_id: ?str
+    subnet_id: ?u64
+    hostname: ?str
+    state: ?u64
+    valid_lft: ?u64
+    cltt: ?u64
+    fqdn_fwd: ?bool
+    fqdn_rev: ?bool
+
+    mut def __init__(self, ip_address: str, hw_address: ?str, client_id: ?str, subnet_id: ?u64, hostname: ?str, state: ?u64, valid_lft: ?u64, cltt: ?u64, fqdn_fwd: ?bool, fqdn_rev: ?bool) -> None:
+        self.ip_address = ip_address
+        self.hw_address = hw_address
+        self.client_id = client_id
+        self.subnet_id = subnet_id
+        self.hostname = hostname
+        self.state = state
+        self.valid_lft = valid_lft
+        self.cltt = cltt
+        self.fqdn_fwd = fqdn_fwd
+        self.fqdn_rev = fqdn_rev
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get-by-hw-address', 'output', 'leases'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__lease4_get_by_hw_address__output__leases_entry:
+        return kea_dhcp4__lease4_get_by_hw_address__output__leases_entry(ip_address=n.get_str(ygdata.Id(NS_kea_dhcp4, 'ip-address')), hw_address=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hw-address')), client_id=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'client-id')), subnet_id=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'subnet-id')), hostname=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'hostname')), state=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'state')), valid_lft=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'valid-lft')), cltt=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'cltt')), fqdn_fwd=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'fqdn-fwd')), fqdn_rev=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'fqdn-rev')))
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_by_hw_address__output__leases_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get_by_hw_address__output__leases_entry.from_gdata(self.to_gdata())
+
+_breaker27: None = None
+class kea_dhcp4__lease4_get_by_hw_address__output__leases(yadata.MKeyedList[str, kea_dhcp4__lease4_get_by_hw_address__output__leases_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__lease4_get_by_hw_address__output__leases_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.ip_address == k, elements)
+
+    mut def create(self, key: str, hw_address: ?str=None, client_id: ?str=None, subnet_id: ?u64=None, hostname: ?str=None, state: ?u64=None, valid_lft: ?u64=None, cltt: ?u64=None, fqdn_fwd: ?bool=None, fqdn_rev: ?bool=None) -> kea_dhcp4__lease4_get_by_hw_address__output__leases_entry:
+        e = self.get(key)
+        if e is not None:
+            if hw_address is not None:
+                e.hw_address = hw_address
+            if client_id is not None:
+                e.client_id = client_id
+            if subnet_id is not None:
+                e.subnet_id = subnet_id
+            if hostname is not None:
+                e.hostname = hostname
+            if state is not None:
+                e.state = state
+            if valid_lft is not None:
+                e.valid_lft = valid_lft
+            if cltt is not None:
+                e.cltt = cltt
+            if fqdn_fwd is not None:
+                e.fqdn_fwd = fqdn_fwd
+            if fqdn_rev is not None:
+                e.fqdn_rev = fqdn_rev
+            return e
+        ip_address = key
+        res = kea_dhcp4__lease4_get_by_hw_address__output__leases_entry(ip_address=ip_address, hw_address=hw_address, client_id=client_id, subnet_id=subnet_id, hostname=hostname, state=state, valid_lft=valid_lft, cltt=cltt, fqdn_fwd=fqdn_fwd, fqdn_rev=fqdn_rev)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__lease4_get_by_hw_address__output__leases_entry]:
+        if n is not None:
+            return [kea_dhcp4__lease4_get_by_hw_address__output__leases_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_by_hw_address__output__leases:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__lease4_get_by_hw_address__output__leases(elements=copied_elements)
+
+
+_breaker28: None = None
+class kea_dhcp4__lease4_get_by_hw_address__output(yadata.MNode):
+    leases: kea_dhcp4__lease4_get_by_hw_address__output__leases
+
+    mut def __init__(self, leases: list[kea_dhcp4__lease4_get_by_hw_address__output__leases_entry]=[]) -> None:
+        self.leases = kea_dhcp4__lease4_get_by_hw_address__output__leases(elements=leases)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-get-by-hw-address', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_get_by_hw_address__output:
+        if n is not None:
+            return kea_dhcp4__lease4_get_by_hw_address__output(leases=kea_dhcp4__lease4_get_by_hw_address__output__leases.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'leases'))))
+        return kea_dhcp4__lease4_get_by_hw_address__output()
+
+    mut def copy(self) -> kea_dhcp4__lease4_get_by_hw_address__output:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_get_by_hw_address__output.from_gdata(self.to_gdata())
+
+
+_breaker29: None = None
+class kea_dhcp4__stat_lease4_get__input(yadata.MNode):
+    subnet_id: ?u64
+
+    mut def __init__(self, subnet_id: ?u64) -> None:
+        self.subnet_id = subnet_id
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:stat-lease4-get', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__stat_lease4_get__input:
+        if n is not None:
+            return kea_dhcp4__stat_lease4_get__input(subnet_id=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'subnet-id')))
+        return kea_dhcp4__stat_lease4_get__input()
+
+    mut def copy(self) -> kea_dhcp4__stat_lease4_get__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__stat_lease4_get__input.from_gdata(self.to_gdata())
+
+
+_breaker30: None = None
+class kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry(yadata.MNode):
+    subnet_id: u64
+    total_addresses: ?u64
+    assigned_addresses: ?u64
+    cumulative_assigned_addresses: ?u64
+    declined_addresses: ?u64
+
+    mut def __init__(self, subnet_id: u64, total_addresses: ?u64, assigned_addresses: ?u64, cumulative_assigned_addresses: ?u64, declined_addresses: ?u64) -> None:
+        self.subnet_id = subnet_id
+        self.total_addresses = total_addresses
+        self.assigned_addresses = assigned_addresses
+        self.cumulative_assigned_addresses = cumulative_assigned_addresses
+        self.declined_addresses = declined_addresses
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:stat-lease4-get', 'output', 'subnet-statistics'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry:
+        return kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry(subnet_id=n.get_u64(ygdata.Id(NS_kea_dhcp4, 'subnet-id')), total_addresses=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'total-addresses')), assigned_addresses=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'assigned-addresses')), cumulative_assigned_addresses=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'cumulative-assigned-addresses')), declined_addresses=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'declined-addresses')))
+
+    mut def copy(self) -> kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry.from_gdata(self.to_gdata())
+
+_breaker31: None = None
+class kea_dhcp4__stat_lease4_get__output__subnet_statistics(yadata.MKeyedList[u64, kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry]):
+    mut def __init__(self, elements: list[kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.subnet_id == k, elements)
+
+    mut def create(self, key: u64, total_addresses: ?u64=None, assigned_addresses: ?u64=None, cumulative_assigned_addresses: ?u64=None, declined_addresses: ?u64=None) -> kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry:
+        e = self.get(key)
+        if e is not None:
+            if total_addresses is not None:
+                e.total_addresses = total_addresses
+            if assigned_addresses is not None:
+                e.assigned_addresses = assigned_addresses
+            if cumulative_assigned_addresses is not None:
+                e.cumulative_assigned_addresses = cumulative_assigned_addresses
+            if declined_addresses is not None:
+                e.declined_addresses = declined_addresses
+            return e
+        subnet_id = key
+        res = kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry(subnet_id=subnet_id, total_addresses=total_addresses, assigned_addresses=assigned_addresses, cumulative_assigned_addresses=cumulative_assigned_addresses, declined_addresses=declined_addresses)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry]:
+        if n is not None:
+            return [kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> kea_dhcp4__stat_lease4_get__output__subnet_statistics:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return kea_dhcp4__stat_lease4_get__output__subnet_statistics(elements=copied_elements)
+
+
+_breaker32: None = None
+class kea_dhcp4__stat_lease4_get__output(yadata.MNode):
+    subnet_statistics: kea_dhcp4__stat_lease4_get__output__subnet_statistics
+
+    mut def __init__(self, subnet_statistics: list[kea_dhcp4__stat_lease4_get__output__subnet_statistics_entry]=[]) -> None:
+        self.subnet_statistics = kea_dhcp4__stat_lease4_get__output__subnet_statistics(elements=subnet_statistics)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:stat-lease4-get', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__stat_lease4_get__output:
+        if n is not None:
+            return kea_dhcp4__stat_lease4_get__output(subnet_statistics=kea_dhcp4__stat_lease4_get__output__subnet_statistics.from_gdata(n.get_opt_list(ygdata.Id(NS_kea_dhcp4, 'subnet-statistics'))))
+        return kea_dhcp4__stat_lease4_get__output()
+
+    mut def copy(self) -> kea_dhcp4__stat_lease4_get__output:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__stat_lease4_get__output.from_gdata(self.to_gdata())
+
+
+_breaker33: None = None
+class kea_dhcp4__status_get__output__sockets(yadata.MNode):
+    status: ?str
+
+    mut def __init__(self, status: ?str) -> None:
+        self.status = status
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:status-get', 'output', 'sockets'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__status_get__output__sockets:
+        if n is not None:
+            return kea_dhcp4__status_get__output__sockets(status=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'status')))
+        return kea_dhcp4__status_get__output__sockets()
+
+    mut def copy(self) -> kea_dhcp4__status_get__output__sockets:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__status_get__output__sockets.from_gdata(self.to_gdata())
+
+
+_breaker34: None = None
+class kea_dhcp4__status_get__output__dhcp_state(yadata.MNode):
+    globally_disabled: ?bool
+
+    mut def __init__(self, globally_disabled: ?bool) -> None:
+        self.globally_disabled = globally_disabled
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:status-get', 'output', 'dhcp-state'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__status_get__output__dhcp_state:
+        if n is not None:
+            return kea_dhcp4__status_get__output__dhcp_state(globally_disabled=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'globally-disabled')))
+        return kea_dhcp4__status_get__output__dhcp_state()
+
+    mut def copy(self) -> kea_dhcp4__status_get__output__dhcp_state:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__status_get__output__dhcp_state.from_gdata(self.to_gdata())
+
+
+_breaker35: None = None
+class kea_dhcp4__status_get__output(yadata.MNode):
+    pid: ?u64
+    uptime: ?u64
+    reload: ?u64
+    multi_threading_enabled: ?bool
+    thread_pool_size: ?u64
+    sockets: kea_dhcp4__status_get__output__sockets
+    dhcp_state: kea_dhcp4__status_get__output__dhcp_state
+
+    mut def __init__(self, pid: ?u64, uptime: ?u64, reload: ?u64, multi_threading_enabled: ?bool, thread_pool_size: ?u64, sockets: ?kea_dhcp4__status_get__output__sockets=None, dhcp_state: ?kea_dhcp4__status_get__output__dhcp_state=None) -> None:
+        self.pid = pid
+        self.uptime = uptime
+        self.reload = reload
+        self.multi_threading_enabled = multi_threading_enabled
+        self.thread_pool_size = thread_pool_size
+        self.sockets = sockets if sockets is not None else kea_dhcp4__status_get__output__sockets()
+        self.dhcp_state = dhcp_state if dhcp_state is not None else kea_dhcp4__status_get__output__dhcp_state()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:status-get', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__status_get__output:
+        if n is not None:
+            return kea_dhcp4__status_get__output(pid=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'pid')), uptime=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'uptime')), reload=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'reload')), multi_threading_enabled=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'multi-threading-enabled')), thread_pool_size=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'thread-pool-size')), sockets=kea_dhcp4__status_get__output__sockets.from_gdata(n.get_opt_cnt(ygdata.Id(NS_kea_dhcp4, 'sockets'))), dhcp_state=kea_dhcp4__status_get__output__dhcp_state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_kea_dhcp4, 'dhcp-state'))))
+        return kea_dhcp4__status_get__output()
+
+    mut def copy(self) -> kea_dhcp4__status_get__output:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__status_get__output.from_gdata(self.to_gdata())
+
+
+_breaker36: None = None
+class kea_dhcp4__version_get__output(yadata.MNode):
+    version: ?str
+    extended: ?str
+
+    mut def __init__(self, version: ?str, extended: ?str) -> None:
+        self.version = version
+        self.extended = extended
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:version-get', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__version_get__output:
+        if n is not None:
+            return kea_dhcp4__version_get__output(version=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'version')), extended=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'extended')))
+        return kea_dhcp4__version_get__output()
+
+    mut def copy(self) -> kea_dhcp4__version_get__output:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__version_get__output.from_gdata(self.to_gdata())
+
+
+_breaker37: None = None
+class kea_dhcp4__dhcp_disable__input(yadata.MNode):
+    max_period: ?u64
+    origin: ?str
+
+    mut def __init__(self, max_period: ?u64, origin: ?str) -> None:
+        self.max_period = max_period
+        self.origin = origin
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:dhcp-disable', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__dhcp_disable__input:
+        if n is not None:
+            return kea_dhcp4__dhcp_disable__input(max_period=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'max-period')), origin=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'origin')))
+        return kea_dhcp4__dhcp_disable__input()
+
+    mut def copy(self) -> kea_dhcp4__dhcp_disable__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__dhcp_disable__input.from_gdata(self.to_gdata())
+
+
+_breaker38: None = None
+class kea_dhcp4__dhcp_enable__input(yadata.MNode):
+    origin: ?str
+
+    mut def __init__(self, origin: ?str) -> None:
+        self.origin = origin
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:dhcp-enable', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__dhcp_enable__input:
+        if n is not None:
+            return kea_dhcp4__dhcp_enable__input(origin=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'origin')))
+        return kea_dhcp4__dhcp_enable__input()
+
+    mut def copy(self) -> kea_dhcp4__dhcp_enable__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__dhcp_enable__input.from_gdata(self.to_gdata())
+
+
+_breaker39: None = None
+class kea_dhcp4__lease4_wipe__input(yadata.MNode):
+    subnet_id: ?u64
+
+    mut def __init__(self, subnet_id: ?u64) -> None:
+        self.subnet_id = subnet_id
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:lease4-wipe', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__lease4_wipe__input:
+        if n is not None:
+            return kea_dhcp4__lease4_wipe__input(subnet_id=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'subnet-id')))
+        return kea_dhcp4__lease4_wipe__input()
+
+    mut def copy(self) -> kea_dhcp4__lease4_wipe__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__lease4_wipe__input.from_gdata(self.to_gdata())
+
+
+_breaker40: None = None
+class kea_dhcp4__leases_reclaim__input(yadata.MNode):
+    remove: ?bool
+
+    mut def __init__(self, remove: ?bool) -> None:
+        self.remove = remove
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:leases-reclaim', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__leases_reclaim__input:
+        if n is not None:
+            return kea_dhcp4__leases_reclaim__input(remove=n.get_opt_bool(ygdata.Id(NS_kea_dhcp4, 'remove')))
+        return kea_dhcp4__leases_reclaim__input()
+
+    mut def copy(self) -> kea_dhcp4__leases_reclaim__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__leases_reclaim__input.from_gdata(self.to_gdata())
+
+
+_breaker41: None = None
+class kea_dhcp4__config_write__input(yadata.MNode):
+    filename: ?str
+
+    mut def __init__(self, filename: ?str) -> None:
+        self.filename = filename
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:config-write', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__config_write__input:
+        if n is not None:
+            return kea_dhcp4__config_write__input(filename=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'filename')))
+        return kea_dhcp4__config_write__input()
+
+    mut def copy(self) -> kea_dhcp4__config_write__input:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__config_write__input.from_gdata(self.to_gdata())
+
+
+_breaker42: None = None
+class kea_dhcp4__config_write__output(yadata.MNode):
+    filename: ?str
+    size: ?u64
+
+    mut def __init__(self, filename: ?str, size: ?u64) -> None:
+        self.filename = filename
+        self.size = size
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['kea-dhcp4:config-write', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> kea_dhcp4__config_write__output:
+        if n is not None:
+            return kea_dhcp4__config_write__output(filename=n.get_opt_str(ygdata.Id(NS_kea_dhcp4, 'filename')), size=n.get_opt_u64(ygdata.Id(NS_kea_dhcp4, 'size')))
+        return kea_dhcp4__config_write__output()
+
+    mut def copy(self) -> kea_dhcp4__config_write__output:
+        """Create a deep copy of this adata object"""
+        return kea_dhcp4__config_write__output.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    lease4_get_all: action(cb: action(?kea_dhcp4__lease4_get_all__output, ?Exception) -> None, inp: ?kea_dhcp4__lease4_get_all__input) -> None
+    def lease4_get_all(cb, inp):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = kea_dhcp4__lease4_get_all__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:lease4-get-all", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'lease4-get-all'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)
+
+    lease4_get: action(cb: action(?kea_dhcp4__lease4_get__output, ?Exception) -> None, inp: kea_dhcp4__lease4_get__input) -> None
+    def lease4_get(cb, inp):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = kea_dhcp4__lease4_get__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:lease4-get", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'lease4-get'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)
+
+    lease4_get_by_hw_address: action(cb: action(?kea_dhcp4__lease4_get_by_hw_address__output, ?Exception) -> None, inp: kea_dhcp4__lease4_get_by_hw_address__input) -> None
+    def lease4_get_by_hw_address(cb, inp):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = kea_dhcp4__lease4_get_by_hw_address__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:lease4-get-by-hw-address", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'lease4-get-by-hw-address'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)
+
+    stat_lease4_get: action(cb: action(?kea_dhcp4__stat_lease4_get__output, ?Exception) -> None, inp: ?kea_dhcp4__stat_lease4_get__input) -> None
+    def stat_lease4_get(cb, inp):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = kea_dhcp4__stat_lease4_get__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:stat-lease4-get", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'stat-lease4-get'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)
+
+    status_get: action(cb: action(?kea_dhcp4__status_get__output, ?Exception) -> None) -> None
+    def status_get(cb):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = kea_dhcp4__status_get__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'status-get'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)
+
+    version_get: action(cb: action(?kea_dhcp4__version_get__output, ?Exception) -> None) -> None
+    def version_get(cb):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = kea_dhcp4__version_get__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'version-get'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)
+
+    dhcp_disable: action(cb: action(?Exception) -> None, inp: ?kea_dhcp4__dhcp_disable__input) -> None
+    def dhcp_disable(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:dhcp-disable", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'dhcp-disable'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    dhcp_enable: action(cb: action(?Exception) -> None, inp: ?kea_dhcp4__dhcp_enable__input) -> None
+    def dhcp_enable(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:dhcp-enable", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'dhcp-enable'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    lease4_wipe: action(cb: action(?Exception) -> None, inp: ?kea_dhcp4__lease4_wipe__input) -> None
+    def lease4_wipe(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:lease4-wipe", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'lease4-wipe'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    leases_reclaim: action(cb: action(?Exception) -> None, inp: ?kea_dhcp4__leases_reclaim__input) -> None
+    def leases_reclaim(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:leases-reclaim", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'leases-reclaim'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    config_write: action(cb: action(?kea_dhcp4__config_write__output, ?Exception) -> None, inp: ?kea_dhcp4__config_write__input) -> None
+    def config_write(cb, inp):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = kea_dhcp4__config_write__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["kea-dhcp4:config-write", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://stratoweave.org/yang/kea-dhcp4', 'config-write'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)
+
+

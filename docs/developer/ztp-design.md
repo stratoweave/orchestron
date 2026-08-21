@@ -449,11 +449,61 @@ placements, because the prefix bucket selects the placement per link (§5.1).
   deployment needs a source build of Kea, libyang3 and sysrepo3. The NETCONF
   wire protocol also needs netopeer2. kea-netconf has no rollback and no
   operational datastore, so NETCONF cannot read the lease table.
-* Each Kea daemon from version 2.7.2 has a native **HTTP control socket** with
-  `config-set`, `config-test`, `config-get` and `lease4-get-all`. The official
-  `docker.cloudsmith.io/isc/docker/kea-dhcp4` image needs no changes.
+* Each Kea daemon from version 2.7.2 has a native **HTTP control socket**. The
+  official `docker.cloudsmith.io/isc/docker/kea-dhcp4` image needs no changes.
 * Kea sends **RFC-correct option 143** from a comma-separated URI list
   (`"name": "v4-sztp-redirect"`). Options 66 and 67 need no special handling.
+
+**Validated empirically** against `kea-dhcp4:3.0.3` (probe, 2026-08-19), driving
+the control socket the way the adapter will:
+
+* The **core** command set is 28 commands: `config-get`, `config-set`,
+  `config-test`, `config-write`, `config-hash-get`, `status-get`, `version-get`,
+  `statistic-get-all` and friends. `lease4-get-all` is **not** among them — it
+  belongs to the `lease_cmds` hook library, and per-subnet pool utilisation
+  (`stat-lease4-get`) to `stat_cmds`. The image ships every hook library under
+  `/usr/lib/kea/hooks/`, so both are one `hooks-libraries` entry away, but a Kea
+  that has not loaded them exposes no lease table at all. The lab config now
+  loads `lease_cmds` and `stat_cmds`; without them `make kea-leases` fails.
+* **`config-set` is the only write path** open source Kea offers for
+  reservations. `reservation-add` answers `Host database not available, cannot
+  add host.` unless a `hosts-database` backend is configured, and file-defined
+  reservations never appear in `config-get`'s subnet entries once added that
+  way. `subnet4-add`/`subnet4-update` (from `subnet_cmds`) do mutate the running
+  config, so incremental subnet writes are available later as an optimisation —
+  but they do not cover reservations, so they cannot be the primary path.
+* **`config-set` replaces the whole configuration**, and omitting
+  `control-sockets` from it succeeds and then **permanently locks the manager
+  out** — the HTTP listener stops and only a process restart brings it back.
+  This is what forces the read-modify-write ownership model in stage 2 below.
+* `config-get` returns a **fully-defaulted** config: 51 top-level `Dhcp4` keys,
+  with every unset leaf filled in. Any model of a subset must therefore know
+  Kea's defaults, or every reconcile diffs against leaves it never set.
+* Kea **rewrites some values it is given**: a pool range loses the padding
+  around its separator (`10.0.0.1 - 10.0.0.9` reads back as
+  `10.0.0.1-10.0.0.9`), and a `client-id` loses its colons (`01:02:03:04:05`
+  reads back as `0102030405`). Both are list keys in the model, where a rewrite
+  would read as a different entry, so the adapter canonicalises them.
+* `config-hash-get` returns a SHA-256 of the running config, and an accepted
+  `config-set` returns the new hash in its response. That is the device txid.
+* The HTTP control channel takes **optional basic auth**
+  (`control-sockets[].authentication`, `type: basic`, credentials from a
+  password file). 3.0.3 serves an unauthenticated channel happily — verified on
+  both the ISC image and an Alpine build — but an authenticated one answers 401
+  without credentials, so the adapter has to send them from the device
+  meta-config `credentials` and must not assume either mode.
+* **Alpine packages the same Kea 3.0.3** (`alpine:3.24`: `kea-dhcp4` plus
+  `kea-hook-lease-cmds` / `kea-hook-subnet-cmds` / `kea-hook-stat-cmds`) at the
+  same `/usr/lib/kea/hooks/` path, which is how the c8000v ZTP test server in
+  `vrnetlab` is built. It needs no third-party registry and pulls only the hooks
+  the config loads, where the ISC image carries all twenty. Either works; the
+  lab stays on the ISC image because it already has what it needs.
+
+The model below was validated against both builds: rendered from the compiled
+adata, transcoded, spliced into a live `config-get`, applied with
+`config-test` + `config-set` through basic auth, and read back — subnets,
+pools, options and reservations all round-trip, with `control-sockets` and
+`hooks-libraries` untouched.
 
 ### Stage 1 — unmanaged central DHCP (shipped)
 
@@ -464,26 +514,140 @@ per-device host reservations that carry option 67 bootfile URLs for classic ZTP.
 
 The prototype lab uses this placement (§8).
 
-### Stage 2 — managed central DHCP (not built)
+### Stage 2 — managed central DHCP (model and adapter built)
 
 StratoWeave configures Kea as a device. Three parts:
 
-1. A small `kea-dhcp4` YANG module. It mirrors a subset of Kea's JSON: subnets,
-   pools, option-data and reservations. It compiles through the normal
-   device-type pipeline.
-2. A `KeaAdapter(DeviceAdapter)`. It renders gdata to Kea JSON and writes it
-   with `config-test` then `config-set` over the control socket. It reads
-   `config-get` to resync, and derives the txid from the config hash.
+1. **A `kea-dhcp4` YANG module** — `minisys/gen/yang/dev-kea/kea-dhcp4.yang`,
+   the `kea` device type. **Built.**
+2. **A `KeaAdapter(DeviceAdapter)`** — `src/adapters/kea.act`. **Built.**
 3. An app transform that produces the DHCP config from the same intent that
    declares the routers. Declaring a ZTP-enabled router then provisions that
-   router's DHCP reservation and bootstrap options.
+   router's DHCP reservation and bootstrap options. **Not built.**
 
-Stage 2 also shows that `DeviceAdapter` is pluggable beyond NETCONF. It is
-future work (§10 item 4) and no part of it is built.
+Stage 2 also shows that `DeviceAdapter` is pluggable beyond NETCONF.
+`build.act` used to hardcode `adapter_type=NetconfAdapter` for every generated
+device type; it now takes an `AdapterRef` per type
+(`DeviceType.from_dir(..., adapter=swbuild.kea_adapter())`), emits the import,
+and names the class in the generated sysspec. NETCONF stays the default.
+
+#### The model
+
+`kea-dhcp4` models 9 of Kea's 51 top-level `Dhcp4` keys: `subnet4` (with
+`pools`, `option-data`, `reservations` and `relay`), global `option-data`, and
+the handful of global leaves ZTP touches. There is no config-false tree — see
+"Operations as RPCs" below.
+
+Three decisions follow directly from the findings above.
+
+**Ownership is per top-level key, and the adapter reads before it writes.**
+Since `config-set` replaces everything and dropping `control-sockets` locks us
+out, the adapter never sends the model as the whole config. It reads the
+running config, replaces the keys the model defines, and sends the result back.
+A key the model defines is StratoWeave-owned — the model is authoritative, so
+an absent entry is a deletion. Every other key — `control-sockets`,
+`hooks-libraries`, `lease-database`, `interfaces-config`, `loggers`,
+`client-classes`, `option-def` — is device-owned and passes through untouched.
+So the operator keeps the server's plumbing, and a `client-class` the model
+references may be defined in the operator's own configuration.
+
+**Under `Dhcp4` the node names are Kea's JSON keys verbatim.** The rendered
+gdata is already Kea JSON except for two rules: drop the `kea-dhcp4:` module
+prefix from the root, and turn a reservation's `identifier-type`/`identifier`
+pair into the single Kea identifier leaf it names. The pair exists because Kea
+identifies a host by whichever of `hw-address`/`client-id`/`circuit-id`/`duid`/
+`flex-id` the entry carries, which YANG cannot key on — naming the identifier
+makes "exactly one" hold structurally instead of by `must`. `option-data` keys
+on `(space, code)`, Kea's own identity for an option, and deliberately does not
+model the `name` Kea derives from the code: it would be absent from every
+target and present in every running config.
+
+**Every default matches Kea's.** `config-get` fills in what it was not given,
+so the adapter drops running leaves equal to their schema default before
+diffing, reading the defaults out of the compiled schema rather than a
+hardcoded table. This works for a leaf with a fixed default. It does not work
+for `subnet4/valid-lifetime`, which Kea inherits from the global scope and then
+reports as the subnet's own value; the adapter cannot tell an inherited value
+from one the operator set to the same number, so the model's description tells
+the caller to set it. That is the only inherited leaf in the model.
+
+#### Operations as RPCs
+
+Kea has no operational datastore. Everything the ZTP flow reads — the lease
+table, pool utilisation, server health — comes from a control-channel command,
+and the useful ones take parameters (`lease4-get-by-hw-address`,
+`stat-lease4-get` by `subnet-id`). A config-false tree cannot express a
+parameter, so the model declares one `rpc` per command instead: the RPC name is
+the Kea command, the input leaves are the keys of the Kea `arguments` object.
+
+This is the same shape as JUNOS, where much of the state is reachable only by
+RPC, so it is the case a device-adapter framework has to handle anyway rather
+than a Kea peculiarity. `acton-yang` already generates the machinery: typed
+input and output adata classes plus an `rpc_root` actor per module, wired
+through `TreeProvider.rpc` → `DeviceMgr` → the adapter.
+
+Two consequences:
+
+* **No subscriptions on a Kea device.** The reactive transform path
+  (`SubscriptionManager` → `declare_subscriptions`) runs over the oper tree, and
+  there is no oper tree. `KeaAdapter.declare_subscriptions` reports that
+  plainly rather than failing silently. Nothing in the ZTP flow subscribes to
+  Kea today — the `ztp-mode` teardown of §5.1 triggers off the registry phase,
+  not the lease table. Should a subscriber appear, a small polled state tree
+  can be added back alongside the RPCs.
+* **The RPC transport is gdata.** `DeviceAdapter.rpc` takes and returns
+  `ygdata.Node`. The call is a container that holds one child, named by the
+  namespace and the name of the RPC, and that child holds the input. A JSON
+  device needs no envelope around that: the RFC 7951 encoding of the input is
+  the Kea `arguments` object, so a `uint32` reaches Kea as a number and not as
+  a string. The adapter reshapes only the three replies below. A NETCONF
+  device renders the same two trees to XML and back, which is where an
+  envelope belongs.
+
+Eleven commands are modelled: six reads (`lease4-get-all`, `lease4-get`,
+`lease4-get-by-hw-address`, `stat-lease4-get`, `status-get`, `version-get`) and
+five writes (`dhcp-disable`, `dhcp-enable`, `lease4-wipe`, `leases-reclaim`,
+`config-write`). Three replies do not follow "output equals arguments" and the
+adapter holds all three: `lease4-get` returns the lease fields unwrapped,
+`version-get` puts the version in the reply's `text` field, and
+`stat-lease4-get` answers with a `columns`/`rows` table that YANG cannot
+express, so the adapter joins each row to the column names.
+
+The two hook-backed command groups are YANG features — `lease-commands` and
+`statistics-commands`. The adapter reads `list-commands` at connect and reports
+the features it found in the `ModCap`, so a caller can tell "the hook is not
+loaded" from "there are no leases".
+
+#### The adapter
+
+`src/adapters/kea.act` follows the `NetconfAdapter` shape: a `KeaAdapter`
+facade over a `KeaDriver` actor that owns the HTTP channel. The driver keeps
+one command in flight and queues the rest, because Kea matches replies to
+requests in order and the control channel carries little traffic.
+
+* `fetch_config` → `config-get` + `config-hash-get`, projected onto the model,
+  with the hash as the device txid.
+* `configure` → `config-get`, splice, `config-test`, `config-set`, then read
+  back. `config-test` failure maps to `ConfigError` so DeviceMgr stops instead
+  of retrying a configuration Kea has already refused.
+* Result code 3 is success with no data (`lease4-get-all` on an empty table),
+  code 2 is an unsupported command (usually a hook that is not loaded), code 4
+  is a transient conflict.
+* Basic auth comes from the device meta-config credentials and is optional, so
+  the adapter works against both an open and an authenticated control channel.
+
+`minisys/src/test_mini_kea.act` covers the transcoding against the real
+compiled schema. `minisys/src/test_mini_kea_live.act` drives the whole adapter
+against a Kea container (`acton test --tag kea`): read, two writes with a
+content change between them, read back, then the RPCs. It asserts that the
+second read still answers, which is the check that the splice kept
+`control-sockets`.
 
 kea-netconf stays an option for later. The stage 2 YANG intent is a strict
-subset of `kea-dhcp4-server`, so a later move from the REST adapter to plain
-NETCONF would not change the application model.
+subset of what `kea-dhcp4-server` expresses — the tree differs, since it
+mirrors Kea's JSON rather than ISC's YANG — so a later move from the REST
+adapter to plain NETCONF would remap the device model but would not change the
+application model above it.
 
 **Review point:** is an in-tree Kea adapter the right scope for stage 2? The
 alternative keeps the StratoWeave southbound NETCONF-only and runs kea-netconf.
@@ -638,7 +802,14 @@ northbound lands on the device. Things learned by running it:
 3. **ZTP oper state as modeled `config false` data** + transform
    subscriptions (option B of §6); device `state` container is the natural
    home.
-4. **Kea as managed device** (stage 2 of §7) and/or kea-netconf southbound.
+4. **The Kea app transform** — the third part of stage 2 (§7). The model and
+   the adapter are built; what is missing is the transform that renders the
+   DHCP configuration from the same intent that declares the routers.
+   Related, smaller items: `subnet4-add`/`subnet4-update` from the
+   `subnet_cmds` hook as an incremental write path for subnets (it does not
+   cover reservations, so `config-set` stays the primary path); a gdata-typed
+   RPC path on `DeviceAdapter` so a JSON device need not convert through XML;
+   and kea-netconf as an alternative southbound.
 5. **NETCONF Call Home (RFC 8071)** as a third mechanism — the natural
    onboarding path for devices behind NAT; pairs well with SZTP's
    `bootstrap-complete` ssh-host-key pinning.

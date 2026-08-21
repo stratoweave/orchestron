@@ -7,6 +7,7 @@ import logging
 import stratoweave.app as swapp
 import stratoweave.db as swdb
 import stratoweave.device as swdev
+import stratoweave.adapters.kea as swkea
 import stratoweave.adapters.netconf as swna
 import stratoweave.ttt as ttt
 
@@ -21,6 +22,8 @@ import mini.devices.ietf as dev_ietf
 import mini.devices.ietf_oper as dev_ietf_oper
 import mini.devices.xr as dev_xr
 import mini.devices.xr_oper as dev_xr_oper
+import mini.devices.kea as dev_kea
+import mini.devices.kea_oper as dev_kea_oper
 
 def get_layers(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None, db: ?swdb.Store=None):
     layer2 = ttt.Layer('2', t_2.get_ttt(None, dev_registry, log_handler), None, db)
@@ -55,6 +58,11 @@ generated_device_types: dict[str, swdev.DeviceType] = {
             adapter_type=swna.NetconfAdapter,
             src_dnode=dev_xr.SRC_DNODE,
             oper_src_dnode=dev_xr_oper.SRC_DNODE,
+        ),
+    "kea": swdev.DeviceType(name="kea",
+            adapter_type=swkea.KeaAdapter,
+            src_dnode=dev_kea.SRC_DNODE,
+            oper_src_dnode=dev_kea_oper.SRC_DNODE,
         ),
 }
 

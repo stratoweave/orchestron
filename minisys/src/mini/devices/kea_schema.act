@@ -1,0 +1,1654 @@
+import base64
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+
+# == This file is generated ==
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_1: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lifetime', config=True, description='The default lease lifetime, in seconds. Each subnet without its\nown lifetime uses this value.', default='7200', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+
+SRC_DNODE_CHILD_2: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='renew-timer', config=True, description='The T1 timer, in seconds. Kea sends no T1 when this leaf is\nabsent, so it needs no default here.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+
+SRC_DNODE_CHILD_3: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='rebind-timer', config=True, description='The T2 timer, in seconds. Kea sends no T2 when this leaf is\nabsent, so it needs no default here.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+
+SRC_DNODE_CHILD_4: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='next-server', config=True, description='The global default for the siaddr field.', default='0.0.0.0', mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]))
+
+SRC_DNODE_CHILD_5: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='boot-file-name', config=True, description='The global default for option 67.', default='', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_6: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='authoritative', config=True, description='Answer a request for an address that this server does not own.\nThe server sends a DHCPNAK instead of no answer.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+
+SRC_DNODE_CHILD_7: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='echo-client-id', config=True, description='Send option 61 back to the client. See RFC 6842.', default='true', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+
+SRC_DNODE_CHILD_8: DList = DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='option-data', key=[
+'space',
+'code'
+    ], config=True, description='The DHCP options that Kea serves at this scope. Kea identifies\nan option by its space and its code. This list uses the same\ntwo values as its key.', min_elements=0, ordered_by='system', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='space', config=True, description="The option space that holds the code. 'dhcp4' is the standard\nv4 space. A vendor space such as\n'vendor-encapsulated-options-space' holds sub-options. Kea\nuses 'dhcp4' as the default. A list key cannot hold a default,\nso each entry must give this value. 'config-get' also returns\nthis value in each entry.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='code', config=True, description="The DHCP option code. The StratoWeave ZTP option helper uses\ncodes and not names. Code 143 is the RFC 8572 SZTP redirect.\nCode 67 is the classic bootfile. Code 66 is the TFTP server.\nCode 43 is Cisco PnP. A code that Kea does not know needs an\n'option-def' entry in the operator's own configuration.", mandatory=False, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='data', config=True, description="The option value. Kea reads this value as a list of the\noption's typed fields when 'csv-format' is true. Kea reads it\nas a hex string when 'csv-format' is false. The RFC 8572\nbootstrap-server list is a raw tuple encoding. It needs\n'csv-format' false.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='csv-format', config=True, description="Read 'data' as the list of typed fields of the option. Read\n'data' as hex when this leaf is false.", default='true', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='always-send', config=True, description='Send the option even when the client does not request it. The\nZTP options need this behaviour. A device that boots does not\nalways request code 143 or code 67.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='never-send', config=True, description='Do not send the option, even when the client requests it.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+])
+
+SRC_DNODE_CHILD_10: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='id', config=True, description="The Kea subnet identifier. It is unique in one server. Leases\nand statistics report this value as 'subnet-id'. This list\ntherefore uses the identifier as its key and not the prefix.", mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+
+SRC_DNODE_CHILD_11: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet', config=True, description='The subnet prefix.', mandatory=True, type=DTypeString(name='inet:ipv4-prefix', description='The ipv4-prefix type represents an IPv4 address prefix.\nThe prefix length is given by the number following the\nslash character and must be less than or equal to 32.\n\nA prefix length value of n corresponds to an IP address\nmask that has n contiguous 1-bits from the most\nsignificant bit (MSB) and all other bits set to 0.\n\nThe canonical format of an IPv4 prefix has all bits of\nthe IPv4 address set to zero that are not part of the\nIPv4 prefix.', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2])))$', invert=False)]))
+
+SRC_DNODE_CHILD_12: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='interface', config=True, description='Serve this subnet only to clients that arrive on one local\ninterface.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_13: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-class', config=True, description="Serve this subnet only to the members of the named class. The\noperator's own configuration defines the class. This module\ndoes not own 'client-classes'.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_14: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lifetime', config=True, description='The lease lifetime for this subnet, in seconds. Use a short\nlifetime for an onboarding pool. The lease only has to last for\nthe bootstrap exchange.\n\nSet this leaf. Kea gives a subnet without a lifetime the global\nvalue, and then reports the inherited value as the value of the\nsubnet. A target that omits this leaf therefore shows a diff at\neach reconcile. The adapter cannot remove that diff, because it\ncannot tell an inherited value from a value that the operator\nset to the same number.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+
+SRC_DNODE_CHILD_15: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='next-server', config=True, default='0.0.0.0', mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]))
+
+SRC_DNODE_CHILD_16: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='server-hostname', config=True, default='', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_17: DLeaf = DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='boot-file-name', config=True, default='', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_18: DContainer = DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='relay', config=True, description='Select packets by the relay address that forwarded them. The\ninline-relay placement needs this. There the PE relays the\npackets to this central server.', presence=False, children=[
+    DLeafList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-addresses', config=True, min_elements=0, ordered_by='system', type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]))
+])
+
+SRC_DNODE_CHILD_19: DList = DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='pools', key=['pool'], config=True, description='The address ranges inside this subnet.', min_elements=0, ordered_by='system', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='pool', config=True, description="The range. Give either 'start-end' or a prefix.\n\nCANONICAL FORM: Kea removes the spaces around the separator\nof a range. Kea returns '10.0.0.1 - 10.0.0.9' as\n'10.0.0.1-10.0.0.9'. This leaf is the list key, so the form\nwith spaces reads as a different pool. The adapter converts\nto Kea's form before it compares.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-class', config=True, description='Use this pool only for the members of the named class.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='option-data', key=[
+'space',
+'code'
+        ], config=True, description='The DHCP options that Kea serves at this scope. Kea identifies\nan option by its space and its code. This list uses the same\ntwo values as its key.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='space', config=True, description="The option space that holds the code. 'dhcp4' is the standard\nv4 space. A vendor space such as\n'vendor-encapsulated-options-space' holds sub-options. Kea\nuses 'dhcp4' as the default. A list key cannot hold a default,\nso each entry must give this value. 'config-get' also returns\nthis value in each entry.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='code', config=True, description="The DHCP option code. The StratoWeave ZTP option helper uses\ncodes and not names. Code 143 is the RFC 8572 SZTP redirect.\nCode 67 is the classic bootfile. Code 66 is the TFTP server.\nCode 43 is Cisco PnP. A code that Kea does not know needs an\n'option-def' entry in the operator's own configuration.", mandatory=False, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='data', config=True, description="The option value. Kea reads this value as a list of the\noption's typed fields when 'csv-format' is true. Kea reads it\nas a hex string when 'csv-format' is false. The RFC 8572\nbootstrap-server list is a raw tuple encoding. It needs\n'csv-format' false.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='csv-format', config=True, description="Read 'data' as the list of typed fields of the option. Read\n'data' as hex when this leaf is false.", default='true', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='always-send', config=True, description='Send the option even when the client does not request it. The\nZTP options need this behaviour. A device that boots does not\nalways request code 143 or code 67.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='never-send', config=True, description='Do not send the option, even when the client requests it.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    ])
+])
+
+SRC_DNODE_CHILD_20: DList = DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='option-data', key=[
+'space',
+'code'
+    ], config=True, description='The DHCP options that Kea serves at this scope. Kea identifies\nan option by its space and its code. This list uses the same\ntwo values as its key.', min_elements=0, ordered_by='system', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='space', config=True, description="The option space that holds the code. 'dhcp4' is the standard\nv4 space. A vendor space such as\n'vendor-encapsulated-options-space' holds sub-options. Kea\nuses 'dhcp4' as the default. A list key cannot hold a default,\nso each entry must give this value. 'config-get' also returns\nthis value in each entry.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='code', config=True, description="The DHCP option code. The StratoWeave ZTP option helper uses\ncodes and not names. Code 143 is the RFC 8572 SZTP redirect.\nCode 67 is the classic bootfile. Code 66 is the TFTP server.\nCode 43 is Cisco PnP. A code that Kea does not know needs an\n'option-def' entry in the operator's own configuration.", mandatory=False, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='data', config=True, description="The option value. Kea reads this value as a list of the\noption's typed fields when 'csv-format' is true. Kea reads it\nas a hex string when 'csv-format' is false. The RFC 8572\nbootstrap-server list is a raw tuple encoding. It needs\n'csv-format' false.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='csv-format', config=True, description="Read 'data' as the list of typed fields of the option. Read\n'data' as hex when this leaf is false.", default='true', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='always-send', config=True, description='Send the option even when the client does not request it. The\nZTP options need this behaviour. A device that boots does not\nalways request code 143 or code 67.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='never-send', config=True, description='Do not send the option, even when the client requests it.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+])
+
+SRC_DNODE_CHILD_21: DList = DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='reservations', key=[
+'identifier-type',
+'identifier'
+    ], config=True, description='The per-host reservations in this scope. ZTP uses a reservation\nfor the deterministic half of onboarding. StratoWeave knows the\n/31 CPE address when it allocates the link. The reservation then\nbinds the device that boots to that address. The reservation\nalso carries the per-device classic-ZTP bootfile URL.', min_elements=0, ordered_by='system', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='identifier-type', config=True, description="The Kea host identifier that 'identifier' holds.", mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'hw-address':0, 'client-id':1, 'circuit-id':2, 'duid':3, 'flex-id':4})),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='identifier', config=True, description="The identifier value. A 'hw-address' is hex with colons. A\n'circuit-id', a 'duid' and a 'flex-id' are hex strings.\n\nCANONICAL FORM: Kea removes the colons from a 'client-id'. Kea\nreturns '01:02:03:04:05' as '0102030405'. The adapter converts\nto Kea's form before it compares. A reservation in either form\nthus gives the same key.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=True, description='The address that Kea reserves for this host.', mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hostname', config=True, default='', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='next-server', config=True, description='The siaddr field. It gives this host the address of the boot\nserver.', default='0.0.0.0', mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='server-hostname', config=True, description='The sname field.', default='', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='boot-file-name', config=True, description='The file field, which is also option 67. Classic ZTP puts the\nper-device bootfile URL here. StratoWeave serves that URL. A\nclassic-ZTP device identifies itself by the URL that it\nfetches.', default='', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeafList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-classes', config=True, description='The classes that Kea assigns to this host.', min_elements=0, ordered_by='system', type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='option-data', key=[
+'space',
+'code'
+        ], config=True, description='The DHCP options that Kea serves at this scope. Kea identifies\nan option by its space and its code. This list uses the same\ntwo values as its key.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='space', config=True, description="The option space that holds the code. 'dhcp4' is the standard\nv4 space. A vendor space such as\n'vendor-encapsulated-options-space' holds sub-options. Kea\nuses 'dhcp4' as the default. A list key cannot hold a default,\nso each entry must give this value. 'config-get' also returns\nthis value in each entry.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='code', config=True, description="The DHCP option code. The StratoWeave ZTP option helper uses\ncodes and not names. Code 143 is the RFC 8572 SZTP redirect.\nCode 67 is the classic bootfile. Code 66 is the TFTP server.\nCode 43 is Cisco PnP. A code that Kea does not know needs an\n'option-def' entry in the operator's own configuration.", mandatory=False, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='data', config=True, description="The option value. Kea reads this value as a list of the\noption's typed fields when 'csv-format' is true. Kea reads it\nas a hex string when 'csv-format' is false. The RFC 8572\nbootstrap-server list is a raw tuple encoding. It needs\n'csv-format' false.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='csv-format', config=True, description="Read 'data' as the list of typed fields of the option. Read\n'data' as hex when this leaf is false.", default='true', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='always-send', config=True, description='Send the option even when the client does not request it. The\nZTP options need this behaviour. A device that boots does not\nalways request code 143 or code 67.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='never-send', config=True, description='Do not send the option, even when the client requests it.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    ])
+])
+
+SRC_DNODE_CHILD_9: DList = DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet4', key=['id'], config=True, description='The IPv4 subnets that this server serves. A ZTP deployment that\nuses prefix buckets makes one subnet for each onboarding mode.\nThe pool that supplies the /31 thus selects the mode. The device\nthen receives an SZTP redirect or a classic bootfile.', min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11, SRC_DNODE_CHILD_12, SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15, SRC_DNODE_CHILD_16, SRC_DNODE_CHILD_17, SRC_DNODE_CHILD_18, SRC_DNODE_CHILD_19, SRC_DNODE_CHILD_20, SRC_DNODE_CHILD_21])
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='Dhcp4', config=True, description="The part of the Kea 'Dhcp4' configuration object that StratoWeave\nowns. Each node name is the Kea JSON key. The device keeps each\nkey of 'Dhcp4' that this container does not define.", presence=False, children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9])
+
+SRC_DNODE_RPC_0: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='lease4-get-all', description="Read the DHCPv4 lease table. ZTP uses a lease as proof of life\nand not as a source of addresses. StratoWeave knows the CPE\naddress from the /31 allocation. A lease shows that the device\nbooted and took that address.\n\nThis command comes from the 'lease_cmds' hook library.", if_feature=['lease-commands'], input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeafList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnets', config=False, description='Read the leases of these subnets only. Kea reads all subnets\nwhen this list is empty.', min_elements=0, ordered_by='system', type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+]), output=DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='leases', key=['ip-address'], config=False, description='The DHCPv4 leases that the command found.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-id', config=False, description='The client identifier, as hex without separators.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description="The 'subnet4' entry that supplied this lease.", mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hostname', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='state', config=False, description='The lease state, as Kea reports it. 0 is assigned. 1 is\ndeclined. 2 is expired and reclaimed. 3 is released. This leaf\nis an integer and not an enumeration. A later Kea can then add a\nstate and this model still reads it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lft', config=False, description='The lease lifetime, in seconds.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cltt', config=False, description='The client last transaction time, in seconds since the Unix\nepoch.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-fwd', config=False, description='Kea added a forward DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-rev', config=False, description='Kea added a reverse DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    ])
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeafList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnets', config=False, description='Read the leases of these subnets only. Kea reads all subnets\nwhen this list is empty.', min_elements=0, ordered_by='system', type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+    ]),
+    DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='leases', key=['ip-address'], config=False, description='The DHCPv4 leases that the command found.', min_elements=0, ordered_by='system', children=[
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-id', config=False, description='The client identifier, as hex without separators.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description="The 'subnet4' entry that supplied this lease.", mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hostname', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='state', config=False, description='The lease state, as Kea reports it. 0 is assigned. 1 is\ndeclined. 2 is expired and reclaimed. 3 is released. This leaf\nis an integer and not an enumeration. A later Kea can then add a\nstate and this model still reads it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lft', config=False, description='The lease lifetime, in seconds.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cltt', config=False, description='The client last transaction time, in seconds since the Unix\nepoch.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-fwd', config=False, description='Kea added a forward DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-rev', config=False, description='Kea added a reverse DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+        ])
+    ])
+])
+
+SRC_DNODE_RPC_1: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='lease4-get', description="Read one lease by its address. Use this command in place of\n'lease4-get-all' when the address is known. That is the normal\ncase for a /31 onboarding link.\n\nThis command comes from the 'lease_cmds' hook library.", if_feature=['lease-commands'], input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=True, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]))
+]), output=DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='lease', config=False, description='The lease that Kea found. Kea returns an error when no lease\nholds this address.', presence=False, children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-id', config=False, description='The client identifier, as hex without separators.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description="The 'subnet4' entry that supplied this lease.", mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hostname', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='state', config=False, description='The lease state, as Kea reports it. 0 is assigned. 1 is\ndeclined. 2 is expired and reclaimed. 3 is released. This leaf\nis an integer and not an enumeration. A later Kea can then add a\nstate and this model still reads it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lft', config=False, description='The lease lifetime, in seconds.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cltt', config=False, description='The client last transaction time, in seconds since the Unix\nepoch.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-fwd', config=False, description='Kea added a forward DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-rev', config=False, description='Kea added a reverse DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    ])
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=True, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]))
+    ]),
+    DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='lease', config=False, description='The lease that Kea found. Kea returns an error when no lease\nholds this address.', presence=False, children=[
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-id', config=False, description='The client identifier, as hex without separators.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description="The 'subnet4' entry that supplied this lease.", mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hostname', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='state', config=False, description='The lease state, as Kea reports it. 0 is assigned. 1 is\ndeclined. 2 is expired and reclaimed. 3 is released. This leaf\nis an integer and not an enumeration. A later Kea can then add a\nstate and this model still reads it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lft', config=False, description='The lease lifetime, in seconds.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cltt', config=False, description='The client last transaction time, in seconds since the Unix\nepoch.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-fwd', config=False, description='Kea added a forward DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-rev', config=False, description='Kea added a reverse DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+        ])
+    ])
+])
+
+SRC_DNODE_RPC_2: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='lease4-get-by-hw-address', description="Read the leases of one hardware address. Use this command when\nthe MAC address is known and the IP address is not.\n\nThis command comes from the 'lease_cmds' hook library.", if_feature=['lease-commands'], input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), output=DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='leases', key=['ip-address'], config=False, description='The DHCPv4 leases that the command found.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-id', config=False, description='The client identifier, as hex without separators.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description="The 'subnet4' entry that supplied this lease.", mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hostname', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='state', config=False, description='The lease state, as Kea reports it. 0 is assigned. 1 is\ndeclined. 2 is expired and reclaimed. 3 is released. This leaf\nis an integer and not an enumeration. A later Kea can then add a\nstate and this model still reads it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lft', config=False, description='The lease lifetime, in seconds.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cltt', config=False, description='The client last transaction time, in seconds since the Unix\nepoch.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-fwd', config=False, description='Kea added a forward DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-rev', config=False, description='Kea added a reverse DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    ])
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='leases', key=['ip-address'], config=False, description='The DHCPv4 leases that the command found.', min_elements=0, ordered_by='system', children=[
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='ip-address', config=False, mandatory=False, type=DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hw-address', config=False, description='The client hardware address, as hex with colons.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='client-id', config=False, description='The client identifier, as hex without separators.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description="The 'subnet4' entry that supplied this lease.", mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='hostname', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='state', config=False, description='The lease state, as Kea reports it. 0 is assigned. 1 is\ndeclined. 2 is expired and reclaimed. 3 is released. This leaf\nis an integer and not an enumeration. A later Kea can then add a\nstate and this model still reads it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='valid-lft', config=False, description='The lease lifetime, in seconds.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cltt', config=False, description='The client last transaction time, in seconds since the Unix\nepoch.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-fwd', config=False, description='Kea added a forward DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='fqdn-rev', config=False, description='Kea added a reverse DNS record for this lease.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+        ])
+    ])
+])
+
+SRC_DNODE_RPC_3: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='stat-lease4-get', description="Read the pool use of each subnet. An onboarding pool that runs\nout of addresses makes ZTP fail without a message. Devices boot,\nask for an address, and receive nothing. These counters show that\nfailure.\n\nThis command comes from the 'stat_cmds' hook library.\n\nDIVERGENCE: Kea returns a table and not a list of records. The\nreply holds 'result-set' with a 'columns' array and a 'rows' array\nof arrays. YANG has no list of lists. The adapter therefore joins\neach row to the column names and builds the list below.", if_feature=[
+'statistics-commands'
+    ], input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description='Read this subnet only. Kea reads all subnets when this leaf\nis absent.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+]), output=DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-statistics', key=['subnet-id'], config=False, description='One record for each subnet that Kea reported.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='total-addresses', config=False, description='The number of addresses in the pools of the subnet.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='assigned-addresses', config=False, description='The number of addresses that Kea leases now.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cumulative-assigned-addresses', config=False, description='The number of addresses that Kea assigned since it started.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='declined-addresses', config=False, description='The number of addresses that a client declined. Kea holds\nthese addresses out of the pool until the decline probation\nperiod ends.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)])))
+    ])
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description='Read this subnet only. Kea reads all subnets when this leaf\nis absent.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+    ]),
+    DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DList(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-statistics', key=['subnet-id'], config=False, description='One record for each subnet that Kea reported.', min_elements=0, ordered_by='system', children=[
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='total-addresses', config=False, description='The number of addresses in the pools of the subnet.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='assigned-addresses', config=False, description='The number of addresses that Kea leases now.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='cumulative-assigned-addresses', config=False, description='The number of addresses that Kea assigned since it started.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='declined-addresses', config=False, description='The number of addresses that a client declined. Kea holds\nthese addresses out of the pool until the decline probation\nperiod ends.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)])))
+        ])
+    ])
+])
+
+SRC_DNODE_RPC_4: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='status-get', description='Read the health of the server. This is a core command. It needs\nno hook library.', output=DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='pid', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='uptime', config=False, description='The seconds since the server process started.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='reload', config=False, description='The seconds since the server last loaded its configuration.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='multi-threading-enabled', config=False, mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='thread-pool-size', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='sockets', config=False, presence=False, children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='status', config=False, description="The state of the DHCP listening sockets. Examples are\n'ready' and 'failed'.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='dhcp-state', config=False, presence=False, children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='globally-disabled', config=False, description='The DHCP service is suspended. The control channel still\nanswers. The server hands out no leases.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    ])
+]), children=[
+    DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='pid', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='uptime', config=False, description='The seconds since the server process started.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='reload', config=False, description='The seconds since the server last loaded its configuration.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='multi-threading-enabled', config=False, mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='thread-pool-size', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='sockets', config=False, presence=False, children=[
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='status', config=False, description="The state of the DHCP listening sockets. Examples are\n'ready' and 'failed'.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+        ]),
+        DContainer(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='dhcp-state', config=False, presence=False, children=[
+            DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='globally-disabled', config=False, description='The DHCP service is suspended. The control channel still\nanswers. The server hands out no leases.', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+        ])
+    ])
+])
+
+SRC_DNODE_RPC_5: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='version-get', description="Read the version of the server. This is a core command.\n\nDIVERGENCE: Kea returns the short version in the 'text' field of\nthe reply and not inside 'arguments'. The adapter reads 'text'\ninto 'version'.", output=DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='version', config=False, description="The short version, for example '3.0.3'.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='extended', config=False, description='The long version. It lists the libraries and the lease\nbackends of the build.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='version', config=False, description="The short version, for example '3.0.3'.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='extended', config=False, description='The long version. It lists the libraries and the lease\nbackends of the build.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_6: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='dhcp-disable', description='Stop the DHCP service. The control channel stays available. Use\nthis command to hold onboarding while an operator works on the\npools.', input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='max-period', config=False, description='Start the service again after this number of seconds. The\nservice stays stopped when this leaf is absent.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='origin', config=False, description='The name that Kea records as the source of the request.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='max-period', config=False, description='Start the service again after this number of seconds. The\nservice stays stopped when this leaf is absent.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='origin', config=False, description='The name that Kea records as the source of the request.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_7: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='dhcp-enable', description="Start the DHCP service after a 'dhcp-disable'.", input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='origin', config=False, description='The name that Kea records as the source of the request. It\nmust match the name that stopped the service.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='origin', config=False, description='The name that Kea records as the source of the request. It\nmust match the name that stopped the service.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_8: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='lease4-wipe', description="Delete the leases of one subnet. A lab that runs an onboarding\ntest again needs this command.\n\nThis command comes from the 'lease_cmds' hook library.", if_feature=['lease-commands'], input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description='Delete the leases of this subnet. Kea deletes the leases of\nall subnets when this leaf is 0.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='subnet-id', config=False, description='Delete the leases of this subnet. Kea deletes the leases of\nall subnets when this leaf is 0.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)])))
+    ])
+])
+
+SRC_DNODE_RPC_9: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='leases-reclaim', description='Reclaim the expired leases now. Kea also does this work on a\ntimer. This is a core command.', input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='remove', config=False, description='Delete each reclaimed lease from the database. Kea keeps the\nlease and marks it when this leaf is false.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='remove', config=False, description='Delete each reclaimed lease from the database. Kea keeps the\nlease and marks it when this leaf is false.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+    ])
+])
+
+SRC_DNODE_RPC_10: DRpc = DRpc(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='config-write', description="Write the running configuration to disk. Kea holds a 'config-set'\nin memory only, so a restart loses it. Call this command after\nStratoWeave changes the configuration and the change must survive\na restart. This is a core command.", input=DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='filename', config=False, description='The target file. Kea writes to the file that it loaded at\nstart when this leaf is absent.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), output=DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='filename', config=False, description='The file that Kea wrote.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='size', config=False, description='The number of bytes that Kea wrote.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)])))
+]), children=[
+    DInput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='filename', config=False, description='The target file. Kea writes to the file that it loaded at\nstart when this leaf is absent.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DOutput(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', children=[
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='filename', config=False, description='The file that Kea wrote.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='kea-dhcp4', namespace='http://stratoweave.org/yang/kea-dhcp4', prefix='kea4', name='size', config=False, description='The number of bytes that Kea wrote.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)])))
+    ])
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[SRC_DNODE_RPC_0, SRC_DNODE_RPC_1, SRC_DNODE_RPC_2, SRC_DNODE_RPC_3, SRC_DNODE_RPC_4, SRC_DNODE_RPC_5, SRC_DNODE_RPC_6, SRC_DNODE_RPC_7, SRC_DNODE_RPC_8, SRC_DNODE_RPC_9, SRC_DNODE_RPC_10],
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/kea-dhcp4':('kea-dhcp4', '2026-08-19')},
+)
+
+SRC_YANG_0: str = r"""module ietf-inet-types {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
+  prefix "inet";
+
+  organization
+   "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netmod/>
+    WG List:  <mailto:netmod@ietf.org>
+
+    WG Chair: David Kessens
+              <mailto:david.kessens@nsn.com>
+
+    WG Chair: Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>
+
+    Editor:   Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>";
+
+  description
+   "This module contains a collection of generally useful derived
+    YANG data types for Internet addresses and related things.
+
+    Copyright (c) 2013 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC 6991; see
+    the RFC itself for full legal notices.";
+
+  revision 2013-07-15 {
+    description
+     "This revision adds the following new data types:
+      - ip-address-no-zone
+      - ipv4-address-no-zone
+      - ipv6-address-no-zone";
+    reference
+     "RFC 6991: Common YANG Data Types";
+  }
+
+  revision 2010-09-24 {
+    description
+     "Initial revision.";
+    reference
+     "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of types related to protocol fields ***/
+
+  typedef ip-version {
+    type enumeration {
+      enum unknown {
+        value "0";
+        description
+         "An unknown or unspecified version of the Internet
+          protocol.";
+      }
+      enum ipv4 {
+        value "1";
+        description
+         "The IPv4 protocol as defined in RFC 791.";
+      }
+      enum ipv6 {
+        value "2";
+        description
+         "The IPv6 protocol as defined in RFC 2460.";
+      }
+    }
+    description
+     "This value represents the version of the IP protocol.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetVersion textual convention of the SMIv2.";
+    reference
+     "RFC  791: Internet Protocol
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  typedef dscp {
+    type uint8 {
+      range "0..63";
+    }
+    description
+     "The dscp type represents a Differentiated Services Code Point
+      that may be used for marking packets in a traffic stream.
+      In the value set and its semantics, this type is equivalent
+      to the Dscp textual convention of the SMIv2.";
+    reference
+     "RFC 3289: Management Information Base for the Differentiated
+                Services Architecture
+      RFC 2474: Definition of the Differentiated Services Field
+                (DS Field) in the IPv4 and IPv6 Headers
+      RFC 2780: IANA Allocation Guidelines For Values In
+                the Internet Protocol and Related Headers";
+  }
+
+  typedef ipv6-flow-label {
+    type uint32 {
+      range "0..1048575";
+    }
+    description
+     "The ipv6-flow-label type represents the flow identifier or Flow
+      Label in an IPv6 packet header that may be used to
+      discriminate traffic flows.
+
+      In the value set and its semantics, this type is equivalent
+      to the IPv6FlowLabel textual convention of the SMIv2.";
+    reference
+     "RFC 3595: Textual Conventions for IPv6 Flow Label
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification";
+  }
+
+  typedef port-number {
+    type uint16 {
+      range "0..65535";
+    }
+    description
+     "The port-number type represents a 16-bit port number of an
+      Internet transport-layer protocol such as UDP, TCP, DCCP, or
+      SCTP.  Port numbers are assigned by IANA.  A current list of
+      all assignments is available from <http://www.iana.org/>.
+
+      Note that the port number value zero is reserved by IANA.  In
+      situations where the value zero does not make sense, it can
+      be excluded by subtyping the port-number type.
+      In the value set and its semantics, this type is equivalent
+      to the InetPortNumber textual convention of the SMIv2.";
+    reference
+     "RFC  768: User Datagram Protocol
+      RFC  793: Transmission Control Protocol
+      RFC 4960: Stream Control Transmission Protocol
+      RFC 4340: Datagram Congestion Control Protocol (DCCP)
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  /*** collection of types related to autonomous systems ***/
+
+  typedef as-number {
+    type uint32;
+    description
+     "The as-number type represents autonomous system numbers
+      which identify an Autonomous System (AS).  An AS is a set
+      of routers under a single technical administration, using
+      an interior gateway protocol and common metrics to route
+      packets within the AS, and using an exterior gateway
+      protocol to route packets to other ASes.  IANA maintains
+      the AS number space and has delegated large parts to the
+      regional registries.
+
+      Autonomous system numbers were originally limited to 16
+      bits.  BGP extensions have enlarged the autonomous system
+      number space to 32 bits.  This type therefore uses an uint32
+      base type without a range restriction in order to support
+      a larger autonomous system number space.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetAutonomousSystemNumber textual convention of
+      the SMIv2.";
+    reference
+     "RFC 1930: Guidelines for creation, selection, and registration
+                of an Autonomous System (AS)
+      RFC 4271: A Border Gateway Protocol 4 (BGP-4)
+      RFC 4001: Textual Conventions for Internet Network Addresses
+      RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+                Number Space";
+  }
+
+  /*** collection of types related to IP addresses and hostnames ***/
+
+  typedef ip-address {
+    type union {
+      type inet:ipv4-address;
+      type inet:ipv6-address;
+    }
+    description
+     "The ip-address type represents an IP address and is IP
+      version neutral.  The format of the textual representation
+      implies the IP version.  This type supports scoped addresses
+      by allowing zone identifiers in the address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+      + '(%[\p{N}\p{L}]+)?';
+    }
+    description
+      "The ipv4-address type represents an IPv4 address in
+       dotted-quad notation.  The IPv4 address may include a zone
+       index, separated by a % sign.
+
+       The zone index is used to disambiguate identical address
+       values.  For link-local addresses, the zone index will
+       typically be the interface index number or the name of an
+       interface.  If the zone index is not present, the default
+       zone of the device will be used.
+
+       The canonical format for the zone index is the numerical
+       format";
+  }
+
+  typedef ipv6-address {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(%[\p{N}\p{L}]+)?';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(%.+)?';
+    }
+    description
+     "The ipv6-address type represents an IPv6 address in full,
+      mixed, shortened, and shortened-mixed notation.  The IPv6
+      address may include a zone index, separated by a % sign.
+
+      The zone index is used to disambiguate identical address
+      values.  For link-local addresses, the zone index will
+      typically be the interface index number or the name of an
+      interface.  If the zone index is not present, the default
+      zone of the device will be used.
+
+      The canonical format of IPv6 addresses uses the textual
+      representation defined in Section 4 of RFC 5952.  The
+      canonical format for the zone index is the numerical
+      format as described in Section 11.2 of RFC 4007.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-address-no-zone {
+    type union {
+      type inet:ipv4-address-no-zone;
+      type inet:ipv6-address-no-zone;
+    }
+    description
+     "The ip-address-no-zone type represents an IP address and is
+      IP version neutral.  The format of the textual representation
+      implies the IP version.  This type does not support scoped
+      addresses since it does not allow zone identifiers in the
+      address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address-no-zone {
+    type inet:ipv4-address {
+      pattern '[0-9\.]*';
+    }
+    description
+      "An IPv4 address without a zone index.  This type, derived from
+       ipv4-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+  }
+
+  typedef ipv6-address-no-zone {
+    type inet:ipv6-address {
+      pattern '[0-9a-fA-F:\.]*';
+    }
+    description
+      "An IPv6 address without a zone index.  This type, derived from
+       ipv6-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-prefix {
+    type union {
+      type inet:ipv4-prefix;
+      type inet:ipv6-prefix;
+    }
+    description
+     "The ip-prefix type represents an IP prefix and is IP
+      version neutral.  The format of the textual representations
+      implies the IP version.";
+  }
+
+  typedef ipv4-prefix {
+    type string {
+      pattern
+         '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+       +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+       + '/(([0-9])|([1-2][0-9])|(3[0-2]))';
+    }
+    description
+     "The ipv4-prefix type represents an IPv4 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 32.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The canonical format of an IPv4 prefix has all bits of
+      the IPv4 address set to zero that are not part of the
+      IPv4 prefix.";
+  }
+
+  typedef ipv6-prefix {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(/.+)';
+    }
+
+    description
+     "The ipv6-prefix type represents an IPv6 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 128.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The IPv6 address should have all bits that do not belong
+      to the prefix set to zero.
+
+      The canonical format of an IPv6 prefix has all bits of
+      the IPv6 address set to zero that are not part of the
+      IPv6 prefix.  Furthermore, the IPv6 address is represented
+      as defined in Section 4 of RFC 5952.";
+    reference
+     "RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  /*** collection of domain name and URI types ***/
+
+  typedef domain-name {
+    type string {
+      pattern
+        '((([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.)*'
+      + '([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.?)'
+      + '|\.';
+      length "1..253";
+    }
+    description
+     "The domain-name type represents a DNS domain name.  The
+      name SHOULD be fully qualified whenever possible.
+
+      Internet domain names are only loosely specified.  Section
+      3.5 of RFC 1034 recommends a syntax (modified in Section
+      2.1 of RFC 1123).  The pattern above is intended to allow
+      for current practice in domain name use, and some possible
+      future expansion.  It is designed to hold various types of
+      domain names, including names used for A or AAAA records
+      (host names) and other records, such as SRV records.  Note
+      that Internet host names have a stricter syntax (described
+      in RFC 952) than the DNS recommendations in RFCs 1034 and
+      1123, and that systems that want to store host names in
+      schema nodes using the domain-name type are recommended to
+      adhere to this stricter standard to ensure interoperability.
+
+      The encoding of DNS names in the DNS protocol is limited
+      to 255 characters.  Since the encoding consists of labels
+      prefixed by a length bytes and there is a trailing NULL
+      byte, only 253 characters can appear in the textual dotted
+      notation.
+
+      The description clause of schema nodes using the domain-name
+      type MUST describe when and how these names are resolved to
+      IP addresses.  Note that the resolution of a domain-name value
+      may require to query multiple DNS records (e.g., A for IPv4
+      and AAAA for IPv6).  The order of the resolution process and
+      which DNS record takes precedence can either be defined
+      explicitly or may depend on the configuration of the
+      resolver.
+
+      Domain-name values use the US-ASCII encoding.  Their canonical
+      format uses lowercase US-ASCII characters.  Internationalized
+      domain names MUST be A-labels as per RFC 5890.";
+    reference
+     "RFC  952: DoD Internet Host Table Specification
+      RFC 1034: Domain Names - Concepts and Facilities
+      RFC 1123: Requirements for Internet Hosts -- Application
+                and Support
+      RFC 2782: A DNS RR for specifying the location of services
+                (DNS SRV)
+      RFC 5890: Internationalized Domain Names in Applications
+                (IDNA): Definitions and Document Framework";
+  }
+
+  typedef host {
+    type union {
+      type inet:ip-address;
+      type inet:domain-name;
+    }
+    description
+     "The host type represents either an IP address or a DNS
+      domain name.";
+  }
+
+  typedef uri {
+    type string;
+    description
+     "The uri type represents a Uniform Resource Identifier
+      (URI) as defined by STD 66.
+
+      Objects using the uri type MUST be in US-ASCII encoding,
+      and MUST be normalized as described by RFC 3986 Sections
+      6.2.1, 6.2.2.1, and 6.2.2.2.  All unnecessary
+      percent-encoding is removed, and all case-insensitive
+      characters are set to lowercase except for hexadecimal
+      digits, which are normalized to uppercase as described in
+      Section 6.2.2.1.
+
+      The purpose of this normalization is to help provide
+      unique URIs.  Note that this normalization is not
+      sufficient to provide uniqueness.  Two URIs that are
+      textually distinct after this normalization may still be
+      equivalent.
+
+      Objects using the uri type may restrict the schemes that
+      they permit.  For example, 'data:' and 'urn:' schemes
+      might not be appropriate.
+
+      A zero-length URI is not a valid URI.  This can be used to
+      express 'URI absent' where required.
+
+      In the value set and its semantics, this type is equivalent
+      to the Uri SMIv2 textual convention defined in RFC 5017.";
+    reference
+     "RFC 3986: Uniform Resource Identifier (URI): Generic Syntax
+      RFC 3305: Report from the Joint W3C/IETF URI Planning Interest
+                Group: Uniform Resource Identifiers (URIs), URLs,
+                and Uniform Resource Names (URNs): Clarifications
+                and Recommendations
+      RFC 5017: MIB Textual Conventions for Uniform Resource
+                Identifiers (URIs)";
+  }
+
+}
+"""
+
+SRC_YANG_1: str = r"""module kea-dhcp4 {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/kea-dhcp4";
+  prefix "kea4";
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization "StratoWeave";
+
+  description
+    "A device model for an ISC Kea DHCPv4 server. StratoWeave manages the
+    server through the Kea HTTP control channel. This module holds the
+    configuration and the operations that the ZTP flow needs.
+
+    SCOPE. The 'Dhcp4' container is a subset of Kea's configuration. It
+    holds subnets, pools, DHCP options and host reservations. Kea 3.0.3
+    shows 51 top-level keys in 'Dhcp4'. This module has 9 of them.
+
+    OWNERSHIP. Kea replaces the full configuration at each 'config-set'.
+    Kea sets each key that the new configuration does not contain back to
+    its default. A configuration without 'control-sockets' stops the HTTP
+    listener. The manager then has no access to the server until the
+    server restarts. StratoWeave verified this against Kea 3.0.3.
+    'config-set' is also the only write path for reservations, because
+    'reservation-add' needs a 'hosts-database' backend.
+
+    The adapter thus does not send this model as the full configuration.
+    The adapter reads the running configuration. It then replaces the
+    keys that this module defines. It then sends the result back. The
+    ownership rule applies to each top-level key of 'Dhcp4':
+
+      * StratoWeave owns a key that this module defines. The model is
+        the authority for that key. The adapter deletes an entry that
+        the model does not contain. A leaf that the model does not
+        contain goes back to its Kea default.
+      * The device owns each other key. Examples are 'control-sockets',
+        'hooks-libraries', 'lease-database', 'interfaces-config',
+        'loggers', 'client-classes', 'host-reservation-identifiers' and
+        'option-def'. The adapter does not change these keys.
+
+    The operator thus keeps control of the server plumbing. A
+    'client-class' or an 'option-def' that this model refers to can come
+    from the operator's own Kea configuration.
+
+    OPERATIONS. Kea has no operational datastore. Kea supplies all state
+    through control-channel commands, and the useful ones take
+    parameters. This module thus has no config-false tree. It models
+    each command as an RPC instead. The RPC name is the Kea command
+    name. The input leaves are the keys of the Kea 'arguments' object.
+    Each divergence has a note at the RPC that needs it.
+
+    Some commands come from hook libraries. 'lease_cmds' supplies the
+    lease commands. 'stat_cmds' supplies 'stat-lease4-get'. A server
+    that does not load the hook rejects the command with result code 2.
+    The two features below mark the RPCs that need a hook. The adapter
+    reads 'list-commands' at connect time. It then reports the features
+    that the server supports.
+
+    NAMING. Inside 'Dhcp4' each node name is the Kea JSON key. The
+    adapter thus converts between gdata and Kea JSON by structure alone.
+    It needs no name table. Rendered gdata is already Kea JSON except
+    for two rules. First, remove the 'kea-dhcp4:' module prefix that RFC
+    7951 adds to the root. Second, replace a reservation's
+    'identifier-type' and 'identifier' pair with the single Kea
+    identifier leaf that the pair names.
+
+    DEFAULTS. Kea returns a full configuration from 'config-get' and
+    fills in each default. A leaf with a default in this module must
+    therefore use the same default as Kea. The adapter then removes each
+    running leaf that holds its schema default. A target that omits the
+    leaf still gives a clean diff.
+
+    This rule works for a leaf with a fixed default. It does not work for
+    a leaf that a subnet inherits from the global scope, because the
+    inherited value is not fixed. 'subnet4/valid-lifetime' is the one such
+    leaf in this module, and its description says to set it.
+
+    CANONICAL FORMS. Kea rewrites some values that it receives. Two of
+    them are list keys in this module. A rewrite there reads as a
+    different entry. The adapter converts both to Kea's form before it
+    compares. See the notes at 'pool' and at 'identifier'.";
+
+  reference
+    "Kea Administrator Reference Manual, DHCPv4 Server Configuration
+    https://kea.readthedocs.io/en/kea-3.0.3/arm/dhcp4-srv.html";
+
+  revision 2026-08-19 {
+    description "Initial revision: the ZTP subset.";
+  }
+
+  feature lease-commands {
+    description
+      "The server loaded the 'lease_cmds' hook library. The lease
+      commands then work.";
+  }
+
+  feature statistics-commands {
+    description
+      "The server loaded the 'stat_cmds' hook library.
+      'stat-lease4-get' then works.";
+  }
+
+  /*
+   * Option data. Kea accepts an option-data entry that holds a 'code'
+   * and no 'name'. Kea fills in the name from its own option
+   * definitions. This module thus has no 'name' leaf. A 'name' leaf
+   * would be absent from each rendered target and present in each
+   * running configuration. Each reconcile would then show a diff.
+   */
+  grouping option-data-list {
+    list option-data {
+      description
+        "The DHCP options that Kea serves at this scope. Kea identifies
+        an option by its space and its code. This list uses the same
+        two values as its key.";
+
+      key "space code";
+
+      leaf space {
+        description
+          "The option space that holds the code. 'dhcp4' is the standard
+          v4 space. A vendor space such as
+          'vendor-encapsulated-options-space' holds sub-options. Kea
+          uses 'dhcp4' as the default. A list key cannot hold a default,
+          so each entry must give this value. 'config-get' also returns
+          this value in each entry.";
+        type string;
+      }
+
+      leaf code {
+        description
+          "The DHCP option code. The StratoWeave ZTP option helper uses
+          codes and not names. Code 143 is the RFC 8572 SZTP redirect.
+          Code 67 is the classic bootfile. Code 66 is the TFTP server.
+          Code 43 is Cisco PnP. A code that Kea does not know needs an
+          'option-def' entry in the operator's own configuration.";
+        type uint16;
+      }
+
+      leaf data {
+        description
+          "The option value. Kea reads this value as a list of the
+          option's typed fields when 'csv-format' is true. Kea reads it
+          as a hex string when 'csv-format' is false. The RFC 8572
+          bootstrap-server list is a raw tuple encoding. It needs
+          'csv-format' false.";
+        type string;
+      }
+
+      leaf csv-format {
+        description
+          "Read 'data' as the list of typed fields of the option. Read
+          'data' as hex when this leaf is false.";
+        type boolean;
+        default "true";
+      }
+
+      leaf always-send {
+        description
+          "Send the option even when the client does not request it. The
+          ZTP options need this behaviour. A device that boots does not
+          always request code 143 or code 67.";
+        type boolean;
+        default "false";
+      }
+
+      leaf never-send {
+        description
+          "Do not send the option, even when the client requests it.";
+        type boolean;
+        default "false";
+      }
+    }
+  }
+
+  /*
+   * The lease fields. 'lease4-get' returns one lease and puts these
+   * fields in a container. The other lease commands return an array and
+   * put them in the 'leases' list.
+   */
+  grouping lease-body {
+    leaf hw-address {
+      description "The client hardware address, as hex with colons.";
+      type string;
+    }
+
+    leaf client-id {
+      description "The client identifier, as hex without separators.";
+      type string;
+    }
+
+    leaf subnet-id {
+      description "The 'subnet4' entry that supplied this lease.";
+      type uint32;
+    }
+
+    leaf hostname {
+      type string;
+    }
+
+    leaf state {
+      description
+        "The lease state, as Kea reports it. 0 is assigned. 1 is
+        declined. 2 is expired and reclaimed. 3 is released. This leaf
+        is an integer and not an enumeration. A later Kea can then add a
+        state and this model still reads it.";
+      type uint32;
+    }
+
+    leaf valid-lft {
+      description "The lease lifetime, in seconds.";
+      type uint32;
+    }
+
+    leaf cltt {
+      description
+        "The client last transaction time, in seconds since the Unix
+        epoch.";
+      type uint64;
+    }
+
+    leaf fqdn-fwd {
+      description "Kea added a forward DNS record for this lease.";
+      type boolean;
+    }
+
+    leaf fqdn-rev {
+      description "Kea added a reverse DNS record for this lease.";
+      type boolean;
+    }
+  }
+
+  grouping lease-list {
+    list leases {
+      description "The DHCPv4 leases that the command found.";
+
+      key "ip-address";
+
+      leaf ip-address {
+        type inet:ipv4-address;
+      }
+
+      uses lease-body;
+    }
+  }
+
+  /*
+   * Host reservations. Kea identifies a reservation by one of
+   * hw-address, client-id, circuit-id, duid or flex-id. YANG cannot use
+   * "whichever leaf is set" as a key. The pair below names the
+   * identifier instead. The rule "exactly one identifier" thus holds by
+   * structure and needs no 'must' statement. This is the one place
+   * where a node name is not the Kea JSON key. The adapter emits
+   * {"<identifier-type>": "<identifier>", ...}.
+   */
+  grouping reservations-list {
+    list reservations {
+      description
+        "The per-host reservations in this scope. ZTP uses a reservation
+        for the deterministic half of onboarding. StratoWeave knows the
+        /31 CPE address when it allocates the link. The reservation then
+        binds the device that boots to that address. The reservation
+        also carries the per-device classic-ZTP bootfile URL.";
+
+      key "identifier-type identifier";
+
+      leaf identifier-type {
+        description "The Kea host identifier that 'identifier' holds.";
+        type enumeration {
+          enum hw-address {
+            description "The client hardware address, as hex with colons.";
+          }
+          enum client-id {
+            description "The DHCPv4 client identifier, which is option 61.";
+          }
+          enum circuit-id {
+            description
+              "The relay agent circuit ID, which is sub-option 1 of
+              option 82. The PE sets this value in the inline-relay
+              placement.";
+          }
+          enum duid {
+            description "The DHCP unique identifier.";
+          }
+          enum flex-id {
+            description
+              "An identifier that the flex-id hook library computes. The
+              server must load that hook. The server must also list
+              'flex-id' in 'host-reservation-identifiers'. This module
+              owns neither of those keys.";
+          }
+        }
+      }
+
+      leaf identifier {
+        description
+          "The identifier value. A 'hw-address' is hex with colons. A
+          'circuit-id', a 'duid' and a 'flex-id' are hex strings.
+
+          CANONICAL FORM: Kea removes the colons from a 'client-id'. Kea
+          returns '01:02:03:04:05' as '0102030405'. The adapter converts
+          to Kea's form before it compares. A reservation in either form
+          thus gives the same key.";
+        type string;
+      }
+
+      leaf ip-address {
+        description "The address that Kea reserves for this host.";
+        type inet:ipv4-address;
+      }
+
+      leaf hostname {
+        type string;
+        default "";
+      }
+
+      leaf next-server {
+        description
+          "The siaddr field. It gives this host the address of the boot
+          server.";
+        type inet:ipv4-address;
+        default "0.0.0.0";
+      }
+
+      leaf server-hostname {
+        description "The sname field.";
+        type string;
+        default "";
+      }
+
+      leaf boot-file-name {
+        description
+          "The file field, which is also option 67. Classic ZTP puts the
+          per-device bootfile URL here. StratoWeave serves that URL. A
+          classic-ZTP device identifies itself by the URL that it
+          fetches.";
+        type string;
+        default "";
+      }
+
+      leaf-list client-classes {
+        description "The classes that Kea assigns to this host.";
+        type string;
+      }
+
+      uses option-data-list;
+    }
+  }
+
+  container Dhcp4 {
+    description
+      "The part of the Kea 'Dhcp4' configuration object that StratoWeave
+      owns. Each node name is the Kea JSON key. The device keeps each
+      key of 'Dhcp4' that this container does not define.";
+
+    leaf valid-lifetime {
+      description
+        "The default lease lifetime, in seconds. Each subnet without its
+        own lifetime uses this value.";
+      type uint32;
+      default "7200";
+    }
+
+    leaf renew-timer {
+      description
+        "The T1 timer, in seconds. Kea sends no T1 when this leaf is
+        absent, so it needs no default here.";
+      type uint32;
+    }
+
+    leaf rebind-timer {
+      description
+        "The T2 timer, in seconds. Kea sends no T2 when this leaf is
+        absent, so it needs no default here.";
+      type uint32;
+    }
+
+    leaf next-server {
+      description "The global default for the siaddr field.";
+      type inet:ipv4-address;
+      default "0.0.0.0";
+    }
+
+    leaf boot-file-name {
+      description "The global default for option 67.";
+      type string;
+      default "";
+    }
+
+    leaf authoritative {
+      description
+        "Answer a request for an address that this server does not own.
+        The server sends a DHCPNAK instead of no answer.";
+      type boolean;
+      default "false";
+    }
+
+    leaf echo-client-id {
+      description "Send option 61 back to the client. See RFC 6842.";
+      type boolean;
+      default "true";
+    }
+
+    uses option-data-list;
+
+    list subnet4 {
+      description
+        "The IPv4 subnets that this server serves. A ZTP deployment that
+        uses prefix buckets makes one subnet for each onboarding mode.
+        The pool that supplies the /31 thus selects the mode. The device
+        then receives an SZTP redirect or a classic bootfile.";
+
+      key "id";
+
+      leaf id {
+        description
+          "The Kea subnet identifier. It is unique in one server. Leases
+          and statistics report this value as 'subnet-id'. This list
+          therefore uses the identifier as its key and not the prefix.";
+        type uint32;
+      }
+
+      leaf subnet {
+        description "The subnet prefix.";
+        type inet:ipv4-prefix;
+        mandatory true;
+      }
+
+      leaf interface {
+        description
+          "Serve this subnet only to clients that arrive on one local
+          interface.";
+        type string;
+      }
+
+      leaf client-class {
+        description
+          "Serve this subnet only to the members of the named class. The
+          operator's own configuration defines the class. This module
+          does not own 'client-classes'.";
+        type string;
+      }
+
+      leaf valid-lifetime {
+        description
+          "The lease lifetime for this subnet, in seconds. Use a short
+          lifetime for an onboarding pool. The lease only has to last for
+          the bootstrap exchange.
+
+          Set this leaf. Kea gives a subnet without a lifetime the global
+          value, and then reports the inherited value as the value of the
+          subnet. A target that omits this leaf therefore shows a diff at
+          each reconcile. The adapter cannot remove that diff, because it
+          cannot tell an inherited value from a value that the operator
+          set to the same number.";
+        type uint32;
+      }
+
+      leaf next-server {
+        type inet:ipv4-address;
+        default "0.0.0.0";
+      }
+
+      leaf server-hostname {
+        type string;
+        default "";
+      }
+
+      leaf boot-file-name {
+        type string;
+        default "";
+      }
+
+      container relay {
+        description
+          "Select packets by the relay address that forwarded them. The
+          inline-relay placement needs this. There the PE relays the
+          packets to this central server.";
+
+        leaf-list ip-addresses {
+          type inet:ipv4-address;
+        }
+      }
+
+      list pools {
+        description "The address ranges inside this subnet.";
+
+        key "pool";
+
+        leaf pool {
+          description
+            "The range. Give either 'start-end' or a prefix.
+
+            CANONICAL FORM: Kea removes the spaces around the separator
+            of a range. Kea returns '10.0.0.1 - 10.0.0.9' as
+            '10.0.0.1-10.0.0.9'. This leaf is the list key, so the form
+            with spaces reads as a different pool. The adapter converts
+            to Kea's form before it compares.";
+          type string;
+        }
+
+        leaf client-class {
+          description
+            "Use this pool only for the members of the named class.";
+          type string;
+        }
+
+        uses option-data-list;
+      }
+
+      uses option-data-list;
+
+      uses reservations-list;
+    }
+  }
+
+  /*
+   * Read operations.
+   *
+   * Kea supplies all state through commands, so this module has no
+   * config-false tree. Each RPC below reads data and changes nothing.
+   */
+
+  rpc lease4-get-all {
+    if-feature "lease-commands";
+
+    description
+      "Read the DHCPv4 lease table. ZTP uses a lease as proof of life
+      and not as a source of addresses. StratoWeave knows the CPE
+      address from the /31 allocation. A lease shows that the device
+      booted and took that address.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf-list subnets {
+        description
+          "Read the leases of these subnets only. Kea reads all subnets
+          when this list is empty.";
+        type uint32;
+      }
+    }
+
+    output {
+      uses lease-list;
+    }
+  }
+
+  rpc lease4-get {
+    if-feature "lease-commands";
+
+    description
+      "Read one lease by its address. Use this command in place of
+      'lease4-get-all' when the address is known. That is the normal
+      case for a /31 onboarding link.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf ip-address {
+        type inet:ipv4-address;
+        mandatory true;
+      }
+    }
+
+    output {
+      container lease {
+        description
+          "The lease that Kea found. Kea returns an error when no lease
+          holds this address.";
+
+        leaf ip-address {
+          type inet:ipv4-address;
+        }
+
+        uses lease-body;
+      }
+    }
+  }
+
+  rpc lease4-get-by-hw-address {
+    if-feature "lease-commands";
+
+    description
+      "Read the leases of one hardware address. Use this command when
+      the MAC address is known and the IP address is not.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf hw-address {
+        description "The client hardware address, as hex with colons.";
+        type string;
+        mandatory true;
+      }
+    }
+
+    output {
+      uses lease-list;
+    }
+  }
+
+  rpc stat-lease4-get {
+    if-feature "statistics-commands";
+
+    description
+      "Read the pool use of each subnet. An onboarding pool that runs
+      out of addresses makes ZTP fail without a message. Devices boot,
+      ask for an address, and receive nothing. These counters show that
+      failure.
+
+      This command comes from the 'stat_cmds' hook library.
+
+      DIVERGENCE: Kea returns a table and not a list of records. The
+      reply holds 'result-set' with a 'columns' array and a 'rows' array
+      of arrays. YANG has no list of lists. The adapter therefore joins
+      each row to the column names and builds the list below.";
+
+    input {
+      leaf subnet-id {
+        description
+          "Read this subnet only. Kea reads all subnets when this leaf
+          is absent.";
+        type uint32;
+      }
+    }
+
+    output {
+      list subnet-statistics {
+        description "One record for each subnet that Kea reported.";
+
+        key "subnet-id";
+
+        leaf subnet-id {
+          type uint32;
+        }
+
+        leaf total-addresses {
+          description "The number of addresses in the pools of the subnet.";
+          type uint64;
+        }
+
+        leaf assigned-addresses {
+          description "The number of addresses that Kea leases now.";
+          type uint64;
+        }
+
+        leaf cumulative-assigned-addresses {
+          description
+            "The number of addresses that Kea assigned since it started.";
+          type uint64;
+        }
+
+        leaf declined-addresses {
+          description
+            "The number of addresses that a client declined. Kea holds
+            these addresses out of the pool until the decline probation
+            period ends.";
+          type uint64;
+        }
+      }
+    }
+  }
+
+  rpc status-get {
+    description
+      "Read the health of the server. This is a core command. It needs
+      no hook library.";
+
+    output {
+      leaf pid {
+        type uint32;
+      }
+
+      leaf uptime {
+        description "The seconds since the server process started.";
+        type uint32;
+      }
+
+      leaf reload {
+        description
+          "The seconds since the server last loaded its configuration.";
+        type uint32;
+      }
+
+      leaf multi-threading-enabled {
+        type boolean;
+      }
+
+      leaf thread-pool-size {
+        type uint32;
+      }
+
+      container sockets {
+        leaf status {
+          description
+            "The state of the DHCP listening sockets. Examples are
+            'ready' and 'failed'.";
+          type string;
+        }
+      }
+
+      container dhcp-state {
+        leaf globally-disabled {
+          description
+            "The DHCP service is suspended. The control channel still
+            answers. The server hands out no leases.";
+          type boolean;
+        }
+      }
+    }
+  }
+
+  rpc version-get {
+    description
+      "Read the version of the server. This is a core command.
+
+      DIVERGENCE: Kea returns the short version in the 'text' field of
+      the reply and not inside 'arguments'. The adapter reads 'text'
+      into 'version'.";
+
+    output {
+      leaf version {
+        description "The short version, for example '3.0.3'.";
+        type string;
+      }
+
+      leaf extended {
+        description
+          "The long version. It lists the libraries and the lease
+          backends of the build.";
+        type string;
+      }
+    }
+  }
+
+  /*
+   * Write operations.
+   *
+   * Each RPC below changes the state of the server. None of them
+   * changes the configuration that the 'Dhcp4' container owns.
+   */
+
+  rpc dhcp-disable {
+    description
+      "Stop the DHCP service. The control channel stays available. Use
+      this command to hold onboarding while an operator works on the
+      pools.";
+
+    input {
+      leaf max-period {
+        description
+          "Start the service again after this number of seconds. The
+          service stays stopped when this leaf is absent.";
+        type uint32;
+      }
+
+      leaf origin {
+        description
+          "The name that Kea records as the source of the request.";
+        type string;
+      }
+    }
+  }
+
+  rpc dhcp-enable {
+    description "Start the DHCP service after a 'dhcp-disable'.";
+
+    input {
+      leaf origin {
+        description
+          "The name that Kea records as the source of the request. It
+          must match the name that stopped the service.";
+        type string;
+      }
+    }
+  }
+
+  rpc lease4-wipe {
+    if-feature "lease-commands";
+
+    description
+      "Delete the leases of one subnet. A lab that runs an onboarding
+      test again needs this command.
+
+      This command comes from the 'lease_cmds' hook library.";
+
+    input {
+      leaf subnet-id {
+        description
+          "Delete the leases of this subnet. Kea deletes the leases of
+          all subnets when this leaf is 0.";
+        type uint32;
+      }
+    }
+  }
+
+  rpc leases-reclaim {
+    description
+      "Reclaim the expired leases now. Kea also does this work on a
+      timer. This is a core command.";
+
+    input {
+      leaf remove {
+        description
+          "Delete each reclaimed lease from the database. Kea keeps the
+          lease and marks it when this leaf is false.";
+        type boolean;
+        default "false";
+      }
+    }
+  }
+
+  rpc config-write {
+    description
+      "Write the running configuration to disk. Kea holds a 'config-set'
+      in memory only, so a restart loses it. Call this command after
+      StratoWeave changes the configuration and the change must survive
+      a restart. This is a core command.";
+
+    input {
+      leaf filename {
+        description
+          "The target file. Kea writes to the file that it loaded at
+          start when this leaf is absent.";
+        type string;
+      }
+    }
+
+    output {
+      leaf filename {
+        description "The file that Kea wrote.";
+        type string;
+      }
+
+      leaf size {
+        description "The number of bytes that Kea wrote.";
+        type uint64;
+      }
+    }
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+    ]
+
