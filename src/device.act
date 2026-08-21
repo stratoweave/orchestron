@@ -204,13 +204,8 @@ class DeviceTreeProvider(ygdata.TreeProvider):
     def __init__(self, dev: DeviceMgr):
         self.dev = dev
 
-    # TODO: remove this, standardize on gdata
-    proc def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node):
-        self.dev.rpc_xml(cb, xml_rpc)
-
-    proc def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, rpc_input: ygdata.Node):
-        pass
-        # self.dev.rpc(cb, rpc_input)
+    proc def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node):
+        self.dev.rpc(cb, gdata_rpc)
 
     proc def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         self.dev.declare_subscriptions(owner_id, cb, want)
@@ -784,8 +779,8 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
     def get_fetched_schema():
         return schema_registry.get_schema(schema_hash)
 
-    def rpc_xml(cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node):
-        adapter.rpc_xml(cb, xml_rpc)
+    def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node):
+        adapter.rpc(cb, gdata_rpc)
 
     def declare_subscriptions(owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         adapter.declare_subscriptions(owner_id, cb, want)

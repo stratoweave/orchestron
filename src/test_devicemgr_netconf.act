@@ -3,14 +3,12 @@
 import logging
 import net
 import testing
-import std.xml as xml
 import yang
 import yang.gdata as ygdata
 import yang.schema as yschema
 
 import device as swdev
 import adapters.netconf as swna
-import monitoring
 import swyang
 
 from device_meta_config import \
@@ -33,6 +31,18 @@ IETF_SYSTEM_YANG = r"""module ietf-system {
         type string;
       }
       leaf boot-datetime {
+        type string;
+      }
+    }
+  }
+  rpc set-clock {
+    input {
+      leaf new-datetime {
+        type string;
+      }
+    }
+    output {
+      leaf old-datetime {
         type string;
       }
     }
@@ -95,20 +105,6 @@ def _has_boot_datetime(n: ?ygdata.Node) -> bool:
                 return clock.get_opt_leaf(_q("boot-datetime")) is not None
     return False
 
-def _subtree_filter_xml(filt: ygdata.FNode) -> xml.Node:
-    return xml.Node("filter", attributes=[("type", "subtree")], children=filt.to_filter_xml(deterministic=True))
-
-
-
-def _data_xml_from_rpc_reply(r: ?xml.Node) -> ?str:
-    if r is not None:
-        if r.tag != "rpc-reply":
-            return None
-        for rpc_child in r.children:
-            if rpc_child.tag == "data":
-                return rpc_child.encode()
-    return None
-
 def make_netconf_mock_dmc(name: str) -> DeviceMetaConfig:
     return DeviceMetaConfig(
         name=name,
@@ -136,19 +132,55 @@ def new_netconf_mock_device_mgr(t: testing.EnvT, name: str, on_reconf: action(st
 #################################################################################
 ## Tests
 #################################################################################
-actor _test_get(t: testing.EnvT):
-    """Do a simple NETCONF GET
-    1. Create DeviceMgr in NETCONF mock-server mode.
-    2. Side-load gdata operational datastore on the mock NETCONF server.
-    3. Send <get> with subtree filter for current-datetime.
-    4. Snapshot the returned filtered <data> XML.
+actor _test_get_yang_library(t: testing.EnvT):
+    """ietf-yang-library discovery against the mock NETCONF server.
+
+    1. Create a DeviceMgr whose device schema bundles ietf-yang-library, so the
+       mock's inventory implements it and the mock advertises + serves the
+       library (rather than falling back to per-module capabilities).
+    2. Wait until schema discovery has populated the module set with ietf-yang-library.
+    3. Snapshot the discovered module set: the names, namespaces and revisions
+       all come from the served library.
     """
-    mock_current_datetime = "2026-02-21T10:11:12Z"
-    mock_boot_datetime = "2025-12-31T00:00:00Z"
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-yanglib", noop_on_reconf,
+        extra_models=[swyang.ietf_yang_library, swyang.ietf_yang_types,
+                      swyang.ietf_inet_types, swyang.ietf_datastores])
+    var done = False
+
+    def succeed(data: ?str):
+        if done:
+            return
+        done = True
+        t.success(data)
+
+    def start():
+        if done:
+            return
+        mods = dev.get_modules().0
+        if "ietf-yang-library" not in mods:
+            after 0.01: start()
+            return
+        succeed("\n".join(sorted(["{m.name} {m.namespace} {m.revision}" for m in mods.values()])))
+
+    start()
+
+
+actor _test_rpc(t: testing.EnvT):
+    """YANG RPC through the gdata path against the mock NETCONF server.
+
+    1. Create DeviceMgr in NETCONF mock-server mode.
+    2. Register a canned rpc-reply for set-clock on the mock server.
+    3. Call DeviceMgr.rpc with the RPC as gdata: a root container holding the
+       set-clock node with its input subtree.
+    4. Validate the RPC output gdata (old-datetime) parsed from the reply.
+    """
+    mock_old_datetime = "2026-02-21T10:11:12Z"
 
     def noop_on_reconf(name: str):
         pass
-    dev = new_netconf_mock_device_mgr(t, "dev1", noop_on_reconf)
+    dev = new_netconf_mock_device_mgr(t, "dev-rpc", noop_on_reconf)
     var done = False
 
     def fail(msg: str):
@@ -157,20 +189,26 @@ actor _test_get(t: testing.EnvT):
         done = True
         t.failure(ValueError(msg))
 
-    def succeed(data: ?str):
+    def succeed():
         if done:
             return
         done = True
-        t.success(data)
+        t.success()
 
-    def on_get(r: ?xml.Node, err: ?Exception):
+    def on_reply(r: ?ygdata.Node, err: ?Exception):
         if done:
             return
         if err is not None:
-            fail("Mock <get> failed: {err}")
+            fail("Mock set-clock RPC failed: {err}")
             return
-
-        succeed(_data_xml_from_rpc_reply(r))
+        if r is not None:
+            old_datetime = r.get_opt_str(_q("old-datetime"))
+            if old_datetime is not None and old_datetime == mock_old_datetime:
+                succeed()
+            else:
+                fail("Unexpected set-clock output: {r}")
+        else:
+            fail("Got no RPC output when one was expected")
 
     def start():
         if done:
@@ -181,81 +219,19 @@ actor _test_get(t: testing.EnvT):
         msg = async dev.get_adapter()
         adapter = await msg
         if isinstance(adapter, swna.NetconfAdapter):
-            rpc = xml.Node("get", children=[
-                _subtree_filter_xml(_current_datetime_filter())
-            ])
-
             mock_server = adapter.get_mock_server()
             if mock_server is not None:
-                mock_server.set_oper_ds(_mock_oper_ds(mock_current_datetime, mock_boot_datetime))
-                dev.rpc_xml(on_get, rpc)
+                mock_server.set_rpc_reply("set-clock", ygdata.Container({
+                    _q("old-datetime"): ygdata.Leaf(mock_old_datetime, ns=IETF_SYSTEM_NS, module=IETF_SYSTEM_MODULE)
+                }))
+                rpc_gdata = ygdata.Container({
+                    _q("set-clock"): ygdata.Container({
+                        _q("new-datetime"): ygdata.Leaf("2026-03-01T00:00:00Z")
+                    })
+                })
+                dev.rpc(on_reply, rpc_gdata)
             else:
                 fail("Expected NetconfMockServer from NetconfAdapter")
-        else:
-            fail("Expected NetconfAdapter from DeviceMgr")
-
-    start()
-    after 2.0: fail("Timed out waiting for mock NETCONF get")
-
-
-actor _test_get_yang_library(t: testing.EnvT):
-    """ietf-yang-library discovery + <get> against the mock NETCONF server.
-
-    1. Create a DeviceMgr whose device schema bundles ietf-yang-library, so the
-       mock's inventory implements it and the mock advertises + serves the
-       library (rather than falling back to per-module capabilities).
-    2. Wait until schema discovery has populated the module set with
-       ietf-yang-library — proof the client discovered modules from the served
-       library.
-    3. Send <get> with the ietf-yang-library subtree filter the client uses.
-    4. Snapshot the returned filtered <data> XML.
-    """
-    def noop_on_reconf(name: str):
-        pass
-    dev = new_netconf_mock_device_mgr(t, "dev-yanglib", noop_on_reconf,
-        extra_models=[swyang.ietf_yang_library, swyang.ietf_yang_types,
-                      swyang.ietf_inet_types, swyang.ietf_datastores])
-    var done = False
-
-    def fail(msg: str):
-        if done:
-            return
-        done = True
-        t.failure(ValueError(msg))
-
-    def succeed(data: ?str):
-        if done:
-            return
-        done = True
-        t.success(data)
-
-    def on_get(r: ?xml.Node, err: ?Exception):
-        if done:
-            return
-        if err is not None:
-            fail("Mock yang-library <get> failed: {err}")
-            return
-        succeed(_data_xml_from_rpc_reply(r))
-
-    def start():
-        if done:
-            return
-        if "ietf-yang-library" not in dev.get_modules().0:
-            after 0.01: start()
-            return
-        msg = async dev.get_adapter()
-        adapter = await msg
-        if isinstance(adapter, swna.NetconfAdapter):
-            rpc = xml.Node("get", children=[
-                xml.Node("filter", attributes=[("type", "subtree")], children=[
-                    xml.Node("yang-library", [(None, monitoring.NS_YANG_LIBRARY)], children=[
-                        xml.Node("module-set"),
-                        xml.Node("schema"),
-                        xml.Node("datastore")
-                    ])
-                ])
-            ])
-            dev.rpc_xml(on_get, rpc)
         else:
             fail("Expected NetconfAdapter from DeviceMgr")
 
