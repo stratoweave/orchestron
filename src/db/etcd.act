@@ -2,6 +2,9 @@
 
 Keys live under a prefix so several logical stores can share one
 cluster. Range scans are paged; a write batch is one etcd transaction.
+Every range scan opened from one reader reads at a single pinned MVCC
+revision, so all of that reader's scan traffic observes one point-in-time
+view even though etcd has no cross-request read transaction.
 """
 
 import base64
@@ -40,6 +43,23 @@ def as_bytes(data: ?value, context: str, required: bool=False) -> bytes:
     if isinstance(data, str):
         return base64.decode(data.encode())
     raise ValueError("Etcd returned an invalid {context}")
+
+
+def as_revision(data: ?value, context: str) -> str:
+    """Return an etcd revision as a decimal string.
+
+    The JSON gateway encodes int64 as a string; an int is accepted too. The
+    result is a string to match how requests send integers, e.g. "64".
+    """
+    if isinstance(data, str):
+        revision = int(data)
+    elif isinstance(data, int):
+        revision = data
+    else:
+        raise ValueError("Etcd returned an invalid {context}")
+    if revision <= 0:
+        raise ValueError("Etcd returned a non-positive {context}: {revision}")
+    return str(revision)
 
 
 def end_key(prefix: bytes, end: ?bytes) -> bytes:
@@ -155,13 +175,76 @@ actor EtcdGet(
     }, received)
 
 
+actor EtcdReadSnapshot(client: EtcdClient, prefix: bytes):
+    """Pin one etcd MVCC revision for every scan of a reader.
+
+    A restore opens many scans from one reader and runs them at once, but
+    etcd has no cross-request read transaction. The first scan to need data
+    acquires the current revision from a range response header; every later
+    page of every scan reads at it, so the reader sees one snapshot.
+    Concurrent first requests wait for that one acquisition. Failure is
+    sticky: a read never falls back to latest, which would mix snapshots.
+    """
+
+    var revision: ?str = None
+    var failure: ?Exception = None
+    var acquiring = False
+    var waiters: list[action(?str, ?Exception) -> None] = []
+
+    def complete(resolved_revision: ?str, error: ?Exception) -> None:
+        revision = resolved_revision
+        failure = error
+        acquiring = False
+        callbacks = waiters
+        waiters = []
+        for callback in callbacks:
+            callback(resolved_revision, error)
+
+    def received(data: ?value, error: ?Exception) -> None:
+        if error is not None:
+            complete(None, error)
+            return
+        try:
+            result = obj(data, "snapshot range response")
+            header = obj(result.get("header"), "snapshot response header")
+            resolved = as_revision(header.get("revision"), "snapshot revision")
+            complete(resolved, None)
+        except Exception as e:
+            complete(None, e)
+
+    def get_revision(done: action(?str, ?Exception) -> None) -> None:
+        if revision is not None:
+            done(revision, None)
+            return
+        if failure is not None:
+            done(None, failure)
+            return
+        waiters.append(done)
+        if acquiring:
+            return
+        acquiring = True
+        # header.revision comes back even on an exact-key miss, so probe
+        # META_KEY. No range end, so an empty prefix works too.
+        client.post("/v3/kv/range", {
+            "key": b64(prefix + swdb.META_KEY),
+            "limit": "1",
+            "keys_only": True
+        }, received)
+
+
 actor EtcdScan(
     client: EtcdClient,
     prefix: bytes,
+    snapshot: EtcdReadSnapshot,
     start: bytes,
     end: ?bytes
 ):
-    """Lazy etcd range scan, one page of ETCD_PAGE_SIZE rows at a time."""
+    """Lazy etcd range scan, one page of ETCD_PAGE_SIZE rows at a time.
+
+    Every page reads at the reader's pinned revision (see EtcdReadSnapshot),
+    so the scan sees one point-in-time snapshot regardless of concurrent
+    writes.
+    """
 
     start_key = prefix + start
     range_end = end_key(prefix, end)
@@ -252,16 +335,29 @@ actor EtcdScan(
         serial = request_serial
         pending_serial = serial
 
-        def received(data: ?value, error: ?Exception) -> None:
+        def page_response(data: ?value, error: ?Exception) -> None:
             page_received(serial, data, error)
 
-        client.post("/v3/kv/range", {
-            "key": b64(position),
-            "range_end": b64(range_end),
-            "limit": str(ETCD_PAGE_SIZE),
-            "sort_order": "ASCEND",
-            "sort_target": "KEY"
-        }, received)
+        def revision_received(read_revision: ?str, error: ?Exception) -> None:
+            # a seek or close may have superseded this fetch; drop it if so.
+            if pending_serial != serial or closed:
+                return
+            if error is not None:
+                page_received(serial, None, error)
+                return
+            if read_revision is None:
+                page_received(serial, None, ValueError("Etcd snapshot returned no revision"))
+                return
+            client.post("/v3/kv/range", {
+                "key": b64(position),
+                "range_end": b64(range_end),
+                "limit": str(ETCD_PAGE_SIZE),
+                "revision": read_revision,
+                "sort_order": "ASCEND",
+                "sort_target": "KEY"
+            }, page_response)
+
+        snapshot.get_revision(revision_received)
 
     def next(done: action(?(key: bytes, value: bytes), ?Exception) -> None) -> None:
         if waiting is not None:
@@ -353,17 +449,19 @@ actor EtcdWrite(
 
 
 class EtcdReader(swdb.Reader):
-    """Reader over an etcd store; scans read the current state."""
+    """All scans in this reader use one pinned etcd MVCC revision."""
 
     client: EtcdClient
     prefix: bytes
+    snapshot: EtcdReadSnapshot
 
     def __init__(self, client: EtcdClient, prefix: bytes):
         self.client = client
         self.prefix = prefix
+        self.snapshot = EtcdReadSnapshot(client, prefix)
 
     def scan(self, start: bytes, end: ?bytes) -> swdb.Scan:
-        scan = EtcdScan(self.client, self.prefix, start, end)
+        scan = EtcdScan(self.client, self.prefix, self.snapshot, start, end)
         return swdb.Scan(scan.next, scan.seek_ge, scan.close)
 
     def close(self, done: action(?Exception) -> None) -> None:

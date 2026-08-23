@@ -259,3 +259,221 @@ actor ttt_round_trip_restores_from_etcd_ranges(t: testing.EnvT):
         restored.load_from_db(after_restore)
 
     restored.edit_config(expected, after_commit)
+
+
+actor etcd_reader_pins_revision_across_pages_and_scans(t: testing.EnvT):
+    """All scans of one reader read at a single pinned MVCC revision.
+
+    70 keys span two pages (ETCD_PAGE_SIZE is 64). After scan1 drains the
+    first page, a mutation updates, deletes, and creates keys that fall in
+    the second page. scan1's later pages and a second scan opened from the
+    same reader after the mutation must both still see the original 70-key
+    snapshot; only a reader opened afresh sees the mutation. On the unpinned
+    "read current state" behaviour this fails, because the later reads would
+    observe the mutation.
+
+    EtcdScan does not prefetch, so the second page is not requested until the
+    65th next(); committing the mutation between the 64th record and that call
+    makes the ordering deterministic without sleeps or retries.
+    """
+    t.require("etcd")
+    prefix = test_prefix("snapshot")
+    store = swetcd.EtcdStore(connect_cap(t), "127.0.0.1", 2379, prefix)
+    total = 70
+    writes = []
+    cleanup = []
+    for i in range(total):
+        key = ("k-" + padded_index(i)).encode()
+        writes.append((key=key, value=("old-" + str(i)).encode()))
+        cleanup.append((key=key, value=None))
+    cleanup.append((key=("k-" + padded_index(70)).encode(), value=None))
+
+    var reader: ?swdb.Reader = None
+    var scan1: ?swdb.Scan = None
+    var scan2: ?swdb.Scan = None
+    var fresh_scan: ?swdb.Scan = None
+    var fresh_reader: ?swdb.Reader = None
+    var index_1 = 0
+    var index_2 = 0
+    var mutated = False
+    var fresh_rows: dict[bytes, bytes] = {}
+
+    def after_store_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        t.success()
+
+    def after_cleanup(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.close(after_store_close)
+
+    # Step 10-12: a reader opened after the mutation sees the new state.
+    def after_fresh_reader_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        testing.assertEqual(len(fresh_rows), total)
+        testing.assertEqual(fresh_rows.get(("k-" + padded_index(64)).encode()), b"new-64")
+        testing.assertEqual(("k-" + padded_index(65)).encode() in fresh_rows, False)
+        testing.assertEqual(fresh_rows.get(("k-" + padded_index(70)).encode()), b"new-70")
+        testing.assertEqual(fresh_rows.get(("k-" + padded_index(0)).encode()), b"old-0")
+        store.write(cleanup, after_cleanup)
+
+    def after_fresh_scan_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        fresh_reader!.close(after_fresh_reader_close)
+
+    def fresh_received(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        if record is None:
+            fresh_scan!.close(after_fresh_scan_close)
+            return
+        row = record!
+        fresh_rows[row.key] = row.value
+        fresh_scan!.next(fresh_received)
+
+    def start_fresh() -> None:
+        r = store.read()
+        fresh_reader = r
+        s = r.scan(b"k-", b"k.")
+        fresh_scan = s
+        s.next(fresh_received)
+
+    # Step 8-9: a second scan on the same reader still sees the snapshot.
+    def after_reader_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        start_fresh()
+
+    def after_scan2_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        reader!.close(after_reader_close)
+
+    def scan2_received(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        if record is None:
+            testing.assertEqual(index_2, total)
+            scan2!.close(after_scan2_close)
+            return
+        row = record!
+        testing.assertEqual(row.key, ("k-" + padded_index(index_2)).encode())
+        testing.assertEqual(row.value, ("old-" + str(index_2)).encode())
+        index_2 += 1
+        scan2!.next(scan2_received)
+
+    def start_scan2() -> None:
+        # Opened after the mutation, yet pinned to the same reader revision.
+        s = reader!.scan(b"k-", b"k.")
+        scan2 = s
+        s.next(scan2_received)
+
+    # Step 6-7: scan1 resumes into the second page, still at the snapshot.
+    def after_scan1_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        start_scan2()
+
+    def after_mutation(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        scan1!.next(scan1_received)
+
+    def scan1_received(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        if record is None:
+            testing.assertEqual(index_1, total)
+            scan1!.close(after_scan1_close)
+            return
+        row = record!
+        testing.assertEqual(row.key, ("k-" + padded_index(index_1)).encode())
+        testing.assertEqual(row.value, ("old-" + str(index_1)).encode())
+        index_1 += 1
+        # First page drained, second not yet fetched: mutate second-page keys
+        # before resuming. The pinned revision must hide them.
+        if index_1 == swetcd.ETCD_PAGE_SIZE and not mutated:
+            mutated = True
+            store.write([
+                (key=("k-" + padded_index(64)).encode(), value=b"new-64"),
+                (key=("k-" + padded_index(65)).encode(), value=None),
+                (key=("k-" + padded_index(70)).encode(), value=b"new-70")
+            ], after_mutation)
+        else:
+            scan1!.next(scan1_received)
+
+    def after_write(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        r = store.read()
+        reader = r
+        s = r.scan(b"k-", b"k.")
+        scan1 = s
+        s.next(scan1_received)
+
+    store.write(writes, after_write)
+
+
+actor etcd_reader_snapshot_supports_bounded_empty_prefix(t: testing.EnvT):
+    """Snapshot acquisition works when the store prefix is empty.
+
+    EtcdStore's low-level prefix defaults to b"". A bounded scan needs no
+    prefix successor key, and snapshot acquisition must not need one either:
+    it reads the exact metadata key, so it never computes next_prefix(b"").
+    """
+    t.require("etcd")
+    store = swetcd.EtcdStore(connect_cap(t), "127.0.0.1", 2379, b"")
+    unique = test_prefix("empty-prefix")
+    key = unique + b"a"
+    end = unique + b"z"
+
+    var reader: ?swdb.Reader = None
+    var scan: ?swdb.Scan = None
+    var seen = 0
+
+    def after_store_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        t.success()
+
+    def after_cleanup(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.close(after_store_close)
+
+    def after_reader_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        store.write([(key=key, value=None)], after_cleanup)
+
+    def after_scan_close(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        reader!.close(after_reader_close)
+
+    def received(record: ?(key: bytes, value: bytes), error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        if record is None:
+            testing.assertEqual(seen, 1)
+            scan!.close(after_scan_close)
+            return
+        row = record!
+        testing.assertEqual(row.key, key)
+        testing.assertEqual(row.value, b"v")
+        seen += 1
+        scan!.next(received)
+
+    def after_write(error: ?Exception) -> None:
+        if error is not None:
+            raise error
+        r = store.read()
+        reader = r
+        s = r.scan(key, end)
+        scan = s
+        s.next(received)
+
+    store.write([(key=key, value=b"v")], after_write)
