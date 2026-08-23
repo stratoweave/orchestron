@@ -32,6 +32,7 @@ MODULE_YANG_PUSH = "ietf-yang-push"
 MODULE_SUBSCRIBED_NOTIFICATIONS = "ietf-subscribed-notifications"
 MODULE_EVENT_NOTIFICATIONS = "ietf-event-notifications"
 MODULE_PREFIX_IOSXR = "Cisco-IOS-XR-"
+CAPABILITY_INTERLEAVE = "urn:ietf:params:netconf:capability:interleave:1.0"
 RUNTIME_SCHEMA_MODULE_SETS = ["no-openconfig"]
 
 # TODO: Delete this table and read module prefixes from the compiled YANG
@@ -71,13 +72,15 @@ def _is_iosxr(modules: dict[str, ModCap]) -> bool:
     return False
 
 
-def _yang_push_event_notifs(modules: dict[str, ModCap]) -> ?bool:
+def _yang_push_event_notifs(modules: dict[str, ModCap], capabilities: list[str]) -> ?bool:
     """Return the YANG Push RPC dialect, or None when dynamic YANG Push is absent.
 
     False means the standard RFC 8639/8641 combination: ietf-yang-push over
     ietf-subscribed-notifications. True means IOS XE's non-standard
     ietf-yang-push over ietf-event-notifications shape.
     """
+    if CAPABILITY_INTERLEAVE not in capabilities:
+        return None
     if _is_iosxr(modules):
         # TODO: IOS XRd advertises the YANG Push modules but it only works over UDP-Notif (WIP)
         return None
@@ -93,16 +96,17 @@ def _yang_push_event_notifs(modules: dict[str, ModCap]) -> ?bool:
 def _test_yang_push_dialect():
     # Advertised module names, and the dialect they resolve to. None means no
     # dynamic YANG Push, so the device is driven by polling instead.
-    cases: list[(list[str], ?bool)] = [
-        ([MODULE_YANG_PUSH, MODULE_SUBSCRIBED_NOTIFICATIONS, MODULE_EVENT_NOTIFICATIONS], False),
-        ([MODULE_YANG_PUSH, MODULE_EVENT_NOTIFICATIONS], True),
-        ([MODULE_YANG_PUSH], None),
-        ([MODULE_YANG_PUSH, MODULE_SUBSCRIBED_NOTIFICATIONS, "Cisco-IOS-XR-um-hostname-cfg"], None),
-        ([MODULE_YANG_PUSH, MODULE_EVENT_NOTIFICATIONS, "Cisco-IOS-XE-native"], True),
+    cases: list[(list[str], list[str], ?bool)] = [
+        ([MODULE_YANG_PUSH, MODULE_SUBSCRIBED_NOTIFICATIONS, MODULE_EVENT_NOTIFICATIONS], [CAPABILITY_INTERLEAVE], False),
+        ([MODULE_YANG_PUSH, MODULE_EVENT_NOTIFICATIONS], [CAPABILITY_INTERLEAVE], True),
+        ([MODULE_YANG_PUSH], [CAPABILITY_INTERLEAVE], None),
+        ([MODULE_YANG_PUSH, MODULE_SUBSCRIBED_NOTIFICATIONS, "Cisco-IOS-XR-um-hostname-cfg"], [CAPABILITY_INTERLEAVE], None),
+        ([MODULE_YANG_PUSH, MODULE_EVENT_NOTIFICATIONS, "Cisco-IOS-XE-native"], [CAPABILITY_INTERLEAVE], True),
+        ([MODULE_YANG_PUSH, MODULE_SUBSCRIBED_NOTIFICATIONS], [], None),
     ]
-    for names, want in cases:
+    for names, capabilities, want in cases:
         modules = {name: ModCap(name, "") for name in names}
-        testing.assertEqual(_yang_push_event_notifs(modules), want, "modules: {names}")
+        testing.assertEqual(_yang_push_event_notifs(modules, capabilities), want, "modules: {names}, capabilities: {capabilities}")
 
 
 def _xpath_literal(v) -> ?str:
@@ -244,7 +248,8 @@ def _mock_capabilities_from_dmc(new_dmc: DeviceMetaConfig) -> list[str]:
     """
     caps: list[str] = [netconf.CAP_NC_1_0, netconf.CAP_NC_1_1,
         "urn:ietf:params:netconf:capability:writable-running:1.0",
-        "urn:ietf:params:netconf:capability:candidate:1.0"]
+        "urn:ietf:params:netconf:capability:candidate:1.0",
+        CAPABILITY_INTERLEAVE]
     for mock_cap in new_dmc.mock.module.elements:
         cap = mock_cap.namespace + "?module=" + mock_cap.name
         rev = mock_cap.revision
@@ -698,7 +703,7 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             # Pick the monitoring method from the device's modules. A fresh
             # client session invalidates any prior device-side subscriptions, so
             # drop the stale id maps and (re-)establish for this connection.
-            yp_event_notifs = _yang_push_event_notifs(new_modset)
+            yp_event_notifs = _yang_push_event_notifs(new_modset, c.get_capabilities())
             _yang_push = yp_event_notifs is not None
             _yp_event_notifs = False
             if yp_event_notifs is not None:
