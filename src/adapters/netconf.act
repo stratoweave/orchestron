@@ -1536,11 +1536,16 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             cb(None, ValueError("Schema for rpc {rpc_id} not found"))
             return
         out_path = None
+        rpc_found = False
         for r in schema!.rpcs:
             if r.namespace == rpc_id.q and r.name == rpc_id.name:
+                rpc_found = True
                 if r.output is not None:
                     out_path = ["{r.module}:{r.name}", "output"]
                 break
+        if not rpc_found:
+            cb(None, ValueError("RPC {rpc_id} not found in schema"))
+            return
 
         def rpc_reply(c, r: ?xml.Node, error: ?netconf.NetconfError):
             if _is_stale(c):
@@ -1554,11 +1559,13 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                         cb(gd, None)
                     except Exception as e:
                         cb(None, e)
-                else:
+                elif len(r.children) == 1 and r.children[0].tag == "ok":
                     # The RPC has no modeled output: <ok/> is the whole reply.
                     # Complete with an empty tree rather than dropping the
                     # callback, which would hang the caller.
                     cb(ygdata.Container({}), None)
+                else:
+                    cb(None, ValueError("Unexpected rpc-reply for {rpc_id}"))
                 return
             cb(None, error)
 
