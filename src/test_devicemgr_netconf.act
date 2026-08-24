@@ -35,6 +35,8 @@ IETF_SYSTEM_YANG = r"""module ietf-system {
       }
     }
   }
+  rpc system-restart {
+  }
   rpc set-clock {
     input {
       leaf new-datetime {
@@ -236,6 +238,60 @@ actor _test_rpc(t: testing.EnvT):
             fail("Expected NetconfAdapter from DeviceMgr")
 
     start()
+
+
+actor _test_rpc_without_output(t: testing.EnvT):
+    """An RPC whose model declares no output still completes.
+
+    1. Create DeviceMgr in NETCONF mock-server mode.
+    2. Register an empty reply for system-restart, which has no output.
+    3. Call DeviceMgr.rpc and expect the callback to run without an error.
+    """
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-rpc-no-output", noop_on_reconf)
+    var done = False
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def on_reply(r: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            fail("system-restart RPC failed: {err}")
+            return
+        if r is None:
+            fail("system-restart RPC returned no tree")
+            return
+        done = True
+        t.success()
+
+    def start():
+        if done:
+            return
+        if IETF_SYSTEM_MODULE not in dev.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async dev.get_adapter()
+        adapter = await msg
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            if mock_server is not None:
+                mock_server.set_rpc_reply("system-restart", ygdata.Container({}))
+                dev.rpc(on_reply, ygdata.Container({
+                    _q("system-restart"): ygdata.Container({})
+                }))
+            else:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+    after 2.0: fail("Timed out waiting for the RPC callback")
 
 
 actor _test_subscribe_periodic(t: testing.EnvT):

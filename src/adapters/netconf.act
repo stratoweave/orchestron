@@ -527,7 +527,13 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
         elif op.tag == "commit" or op.tag == "discard-changes" or op.tag == "lock" or op.tag == "unlock":
             send_ok(s, message_id)
         elif op.tag in rpc_replies:
-            send_reply_with_log(s, message_id, rpc_replies[op.tag].to_xml(deterministic=True))
+            output = rpc_replies[op.tag].to_xml(deterministic=True)
+            if len(output) == 0:
+                # An RPC with no output answers <ok/> on a real device. An
+                # empty <rpc-reply> is not a valid reply.
+                send_ok(s, message_id)
+            else:
+                send_reply_with_log(s, message_id, output)
         else:
             send_error(s, message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
 
@@ -1548,10 +1554,22 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                         cb(gd, None)
                     except Exception as e:
                         cb(None, e)
+                else:
+                    # The RPC has no modeled output: <ok/> is the whole reply.
+                    # Complete with an empty tree rather than dropping the
+                    # callback, which would hang the caller.
+                    cb(ygdata.Container({}), None)
                 return
             cb(None, error)
 
-        xml_rpc = gdata_rpc.to_xml()[0]
+        # Build the operation element ourselves, named and namespaced from
+        # the RPC's schema id. Serializing gdata_rpc directly would drop the
+        # namespace: gdata reads xmlns from the container's ns field, which
+        # callers leave unset, and an element without xmlns inherits the
+        # NETCONF base namespace inside <rpc>. The child container
+        # serializes to just the input elements (empty for an RPC with no
+        # input).
+        xml_rpc = xml.Node(rpc_id.name, nsdefs=[(None, rpc_id.q)], children=gdata_rpc.children[rpc_id].to_xml())
         _log.debug("Device.rpc", {"xml_rpc": xml_rpc})
         if client is not None:
             client.rpc(xml_rpc, rpc_reply)
