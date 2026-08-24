@@ -238,6 +238,71 @@ actor _test_rpc(t: testing.EnvT):
     start()
 
 
+actor _test_get(t: testing.EnvT):
+    """One-shot device data read through the gdata path against the mock
+    NETCONF server, mapping to NETCONF <get>.
+
+    1. Create DeviceMgr in NETCONF mock-server mode.
+    2. Seed the mock operational datastore with both clock leaves.
+    3. Call DeviceMgr.get with a filter selecting current-datetime.
+    4. Validate that the reply carries current-datetime and nothing else.
+    """
+    mock_current_datetime = "2026-02-21T10:11:12Z"
+    mock_boot_datetime = "2026-02-20T08:00:00Z"
+
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-get", noop_on_reconf)
+    var done = False
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def on_get(r: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            fail("get failed: {err}")
+            return
+        if r is None:
+            fail("get returned no data")
+            return
+        current = _current_datetime_from_tree(r)
+        if current is None or current != mock_current_datetime:
+            fail("Unexpected current-datetime: {current}")
+            return
+        if _has_boot_datetime(r):
+            fail("get returned data outside the filter")
+            return
+        done = True
+        t.success()
+
+    def start():
+        if done:
+            return
+        if IETF_SYSTEM_MODULE not in dev.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async dev.get_adapter()
+        adapter = await msg
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            if mock_server is not None:
+                mock_server.set_oper_ds(_mock_oper_ds(
+                    mock_current_datetime, mock_boot_datetime))
+                dev.get(on_get, _current_datetime_filter())
+            else:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+    after 2.0: fail("Timed out waiting for the device data read")
+
+
 actor _test_subscribe_periodic(t: testing.EnvT):
     """Periodic subscription via NETCONF mock server.
 

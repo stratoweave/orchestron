@@ -782,6 +782,12 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
     def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node):
         adapter.rpc(cb, gdata_rpc)
 
+    def get(cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None):
+        """Read device data once, narrowed by `filt`. The result may contain
+        configuration, operational state, or both. Subscribe instead when the
+        value is watched continuously."""
+        adapter.get(cb, filt)
+
     def declare_subscriptions(owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         adapter.declare_subscriptions(owner_id, cb, want)
 
