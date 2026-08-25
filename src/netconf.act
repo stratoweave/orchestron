@@ -877,11 +877,25 @@ actor Client(
         fixed_root = _apply_response_fixups(root)
 
         if len(rpc_cbs) > 0:
-            cb = rpc_cbs.pop(0)
+            cb = rpc_cbs[0]
             if msg_id is None:
                 _log.warning("Received invalid rpc-reply, missing message-id", {"msg": fixed_root.encode()})
-            elif msg_id is not None and msg_id != cb.id:
-                _log.warning("Received rpc-reply with unexpected message-id", {"msg-id": msg_id, "cb.id": cb.id})
+                cb = rpc_cbs.pop(0)
+            else:
+                cb_index: ?int = None
+                for i in range(len(rpc_cbs)):
+                    if cb_index is None and rpc_cbs[i].id == msg_id:
+                        cb_index = i
+
+                if cb_index is None:
+                    _log.error("No RPC callback for message-id", {"msg-id": msg_id})
+                    return
+
+                idx = cb_index!
+                if idx != 0:
+                    _log.debug("Received rpc-reply out of order", {"msg-id": msg_id, "expected": rpc_cbs[0].id})
+                cb = rpc_cbs[idx]
+                del rpc_cbs[idx]
 
             if len(fixed_root.children) == 0:
                 cb.cb(self, fixed_root, NetconfError("Empty <rpc-reply>"))
@@ -1369,6 +1383,91 @@ actor _test_client_server_actor_pipe_get(t: testing.EnvT):
                     on_notif=None,
                     log_handler=t.log_handler,
                     pipe=pipes.client)
+
+
+actor _test_client_dispatches_out_of_order_rpc_replies(t: testing.EnvT):
+    """Concurrent RPC replies are dispatched by message-id, not receive order."""
+    pipes = actor_pipe_pair()
+    var done = False
+    var got_first = False
+    var got_second = False
+
+    def _fail_once(e: Exception):
+        if done:
+            return
+        done = True
+        t.failure(e)
+
+    def _reply_value(result: ?xml.Node) -> ?str:
+        if result is not None:
+            for rpc_child in result.children:
+                if rpc_child.tag == "data":
+                    for data_child in rpc_child.children:
+                        if data_child.tag == "value":
+                            return data_child.text
+        return None
+
+    def _success_if_done(c: Client):
+        if not done and got_first and got_second:
+            done = True
+            c.close(None)
+            t.success()
+
+    def _on_first(c: Client, result: ?xml.Node, error: ?NetconfError):
+        if done:
+            return
+        if error is not None:
+            _fail_once(error)
+            return
+        testing.assertEqual(_reply_value(result), "first")
+        got_first = True
+        _success_if_done(c)
+
+    def _on_second(c: Client, result: ?xml.Node, error: ?NetconfError):
+        if done:
+            return
+        if error is not None:
+            _fail_once(error)
+            return
+        testing.assertEqual(_reply_value(result), "second")
+        got_second = True
+        _success_if_done(c)
+
+    def _on_server_rpc(s: Server, message_id: str, op: xml.Node):
+        if op.tag != "get":
+            s.send_error(message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
+            return
+
+        children = [xml.Node("data", [(None, NS_NC_1_0)], children=[
+            xml.Node("value", text="first" if message_id == "1" else "second")
+        ])]
+        if message_id == "1":
+            after 0.02: s.send_reply(message_id, children)
+        else:
+            s.send_reply(message_id, children)
+
+    def _on_connect(c: Client, e: ?Exception):
+        if e is not None:
+            _fail_once(ValueError("Failed to connect to in-process NETCONF server: {e}"))
+        else:
+            c.get(_on_first)
+            c.get(_on_second)
+
+    def _on_timeout():
+        _fail_once(ValueError("Timed out waiting for out-of-order NETCONF replies"))
+
+    server = Server(pipe=pipes.server, on_rpc=_on_server_rpc, log_handler=t.log_handler)
+    client = Client(None,
+                    address="actor-pipe",
+                    username="actor-pipe",
+                    key=None,
+                    password=None,
+                    port=0,
+                    on_connect=_on_connect,
+                    on_notif=None,
+                    log_handler=t.log_handler,
+                    pipe=pipes.client)
+    after 2.0: _on_timeout()
 
 
 actor _test_client_server_tcp_get(t: testing.EnvT):
