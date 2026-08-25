@@ -64,6 +64,59 @@ jobs:
       # notconf is stateful and module tests are sensitive to parallel/retry runs
       - run: acton test --tag notconf-server --module netconf --jobs 1 --min-iter 1 --max-iter 1
 
+  etcd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actonlang/setup-acton@v1
+        with:
+          channel: 'tip'
+      - name: "Check out repository code"
+        uses: actions/checkout@v4
+      - name: "Start etcd in background"
+        run: |
+          docker run -d --name etcd --publish 2379:2379 \
+            gcr.io/etcd-development/etcd:v3.6.11 \
+            /usr/local/bin/etcd \
+            --name s1 \
+            --data-dir /tmp/etcd-data \
+            --listen-client-urls http://0.0.0.0:2379 \
+            --advertise-client-urls http://0.0.0.0:2379 \
+            --listen-peer-urls http://0.0.0.0:2380 \
+            --initial-advertise-peer-urls http://0.0.0.0:2380 \
+            --initial-cluster s1=http://0.0.0.0:2380 \
+            --initial-cluster-state new \
+            --max-txn-ops 100000 \
+            --max-request-bytes 104857600 \
+            --quota-backend-bytes 8589934592 \
+            --auto-compaction-mode periodic \
+            --auto-compaction-retention 10m
+      - name: "Wait for etcd"
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:2379/health | grep -q '"health":"true"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs etcd
+          exit 1
+      # The race showed on the first request of a fresh process, so run the
+      # module ten times, each a new process, with the cache off.
+      - name: "Run etcd integration tests"
+        run: |
+          for i in $(seq 1 10); do
+            echo "::group::etcd test run $i/10"
+            acton test --tag etcd --module test_ttt_persistence_etcd --jobs 1 --min-iter 1 --max-iter 1 --no-cache
+            echo "::endgroup::"
+          done
+      - name: "etcd logs on failure"
+        if: failure()
+        run: docker logs etcd
+      - name: "Remove etcd"
+        if: always()
+        run: docker rm -f etcd
+
   ncurl:
     runs-on: ubuntu-latest
     steps:
