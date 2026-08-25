@@ -1,7 +1,32 @@
 """etcd persistence store over the etcd v3 JSON gateway.
 
 Keys live under a prefix so several logical stores can share one
-cluster. Range scans are paged; a write batch is one etcd transaction.
+cluster. Range scans are paged. A write batch is one etcd transaction:
+either the whole batch lands or none of it. Etcd bounds transaction
+size with --max-txn-ops and --max-request-bytes, and the defaults are
+far below a real commit, so the store needs an etcd with those raised;
+test_ttt_persistence_etcd gives the settings. A batch over the limit
+fails as a whole, it is never split.
+
+TTT is the transaction authority in StratoWeave, not the store. By the
+time a write reaches the store its outcome is settled, so no revision
+check in etcd can make the data any more consistent. One instance owns
+a store at a time and it restores before it writes, so nothing writes
+to the store during a restore, and scans read the current state. The
+store requires single ownership but does not enforce it; it must be
+upheld outside this module, by deployment or by leader election over
+the same etcd.
+
+In LMDB the reader does take a snapshot, because there a snapshot is
+free: a read transaction pins the pages it started from, and nothing
+can take them away. In etcd a snapshot is a pinned revision, and it is
+not just more expensive: it can be destroyed while the restore uses
+it. Etcd answers reads at a pinned revision from old versions of the
+keys, and compaction deletes old versions. Other applications on the
+same cluster move the revision forward and compaction follows, so a
+long restore would find its snapshot deleted halfway through.
+Our scans instead read the newest value of each key, which compaction
+never deletes. The restore can take as long as it needs.
 """
 
 import base64
