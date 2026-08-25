@@ -2,6 +2,12 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
 
 env:
   # ncurl ships as a standalone artifact under its own name even though it now
