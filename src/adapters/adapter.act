@@ -277,6 +277,13 @@ class DeviceAdapter(object):
 
     rpc: proc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None
 
+    ## Read device data once, narrowed by `filt`.
+    ##
+    ## The result may contain configuration, operational state, or both. For
+    ## callers that need a value now rather than a stream of updates. A
+    ## subscription is the better choice for anything watched continuously.
+    get: proc(cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode) -> None
+
     declare_subscriptions: proc(str, action(?ygdata.Node, ?Exception) -> None, set[ygdata.SubscriptionSpec]) -> None
     remove_subscriptions: proc(str) -> None
 
@@ -314,6 +321,9 @@ class NoAdapter(DeviceAdapter):
         pass
 
     def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        cb(None, NotConnectedError())
+
+    def get(self, cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
         cb(None, NotConnectedError())
 
     def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
@@ -361,6 +371,9 @@ class MockAdapter(DeviceAdapter):
 
     def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
         return self._driver.rpc(cb, gdata_rpc)
+
+    def get(self, cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
+        return self._driver.get(cb, filt)
 
     def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         # TODO: can / should subscriptions do something on a MockAdapter ?
@@ -433,6 +446,10 @@ actor MockDriver(on_connect: action(dict[str, ModCap], ?u64) -> None, bundled_sc
         return running_conf
 
     def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
+        cb(ygdata.Container({}), None)
+
+    def get(cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
+        # The mock driver keeps no device data.
         cb(ygdata.Container({}), None)
 
 

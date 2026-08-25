@@ -1519,6 +1519,37 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             return _parse_data_node(r.children[0])
         return None
 
+    def get(cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
+        def on_get(c: netconf.Client, r: ?xml.Node, error: ?netconf.NetconfError):
+            if _is_stale(c):
+                cb(None, NotConnectedError())
+                return
+            if error is not None:
+                cb(None, error)
+                return
+            if r is None:
+                cb(None, NotConnectedError())
+                return
+            try:
+                parsed = _parse_get_reply(r)
+                if parsed is not None:
+                    cb(parsed, None)
+                else:
+                    cb(None, ValueError("Unexpected rpc-reply for get"))
+            except Exception as e:
+                cb(None, e)
+
+        if _oper_schema() is None:
+            cb(None, ValueError("Schema for operational data not found"))
+            return
+        filt_xml: ?xml.Node = None
+        if filt is not None:
+            filt_xml = _build_subtree_filter(filt)
+        if client is not None:
+            client.get(on_get, filt_xml)
+        else:
+            cb(None, NotConnectedError())
+
     def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
         if len(gdata_rpc.children) != 1:
             cb(None, ValueError("gdata_rpc container must have exactly one child"))
@@ -1861,6 +1892,9 @@ class NetconfAdapter(DeviceAdapter):
 
     def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
         self._driver.rpc(cb, gdata_rpc)
+
+    def get(self, cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
+        self._driver.get(cb, filt)
 
     def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
         self._driver.declare_subscriptions(owner_id, cb, want)
