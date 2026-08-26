@@ -229,14 +229,16 @@ actor _test_rpc(t: testing.EnvT):
         if isinstance(adapter, swna.NetconfAdapter):
             mock_server = adapter.get_mock_server()
             if mock_server is not None:
-                def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+                def on_rpc(request: xml.Node,
+                           respond: action(children: ?list[xml.Node], tag: ?str, message: ?str) -> None) -> None:
                     if request.tag == "set-clock":
                         out = ygdata.Container({
                             _q("old-datetime"): ygdata.Leaf(mock_old_datetime, ns=IETF_SYSTEM_NS, module=IETF_SYSTEM_MODULE)
                         })
-                        reply(out.to_xml(deterministic=True), None, None)
+                        respond(out.to_xml(deterministic=True))
                     else:
-                        reply(None, "operation-not-supported", "mock does not do {request.tag}")
+                        respond(tag="operation-not-supported",
+                                message="mock does not do {request.tag}")
                 mock_server.set_rpc_cb(on_rpc)
                 rpc_gdata = ygdata.Container({
                     _q("set-clock"): ygdata.Container({
@@ -287,13 +289,15 @@ actor _test_rpc_without_output(t: testing.EnvT):
         if isinstance(adapter, swna.NetconfAdapter):
             mock_server = adapter.get_mock_server()
             if mock_server is not None:
-                def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+                def on_rpc(request: xml.Node,
+                           respond: action(children: ?list[xml.Node], tag: ?str, message: ?str) -> None) -> None:
                     if request.tag == "set-current-datetime":
                         # An empty successful result is normalized to <ok/> by
                         # netconf.Server before it is sent on the wire.
-                        reply([], None, None)
+                        respond([])
                     else:
-                        reply(None, "operation-not-supported", "mock does not do {request.tag}")
+                        respond(tag="operation-not-supported",
+                                message="mock does not do {request.tag}")
                 mock_server.set_rpc_cb(on_rpc)
                 dev.rpc(on_reply, ygdata.Container({
                     _q("set-current-datetime"): ygdata.Container({
@@ -330,13 +334,13 @@ actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
     def noop_on_reconf(name: str):
         pass
     dev = new_netconf_mock_device_mgr(t, "dev-rpc-handler", noop_on_reconf)
-    var done = False
+    var finished = False
     var calls = 0
 
     def fail(msg: str):
-        if done:
+        if finished:
             return
-        done = True
+        finished = True
         t.failure(ValueError(msg))
 
     def rpc_gdata() -> ygdata.Node:
@@ -346,13 +350,15 @@ actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
             })
         })
 
-    def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+    def on_rpc(request: xml.Node,
+               respond: action(children: ?list[xml.Node], tag: ?str, message: ?str) -> None) -> None:
         if request.tag != "set-clock":
-            reply(None, "operation-not-supported", "mock does not do {request.tag}")
+            respond(tag="operation-not-supported",
+                    message="mock does not do {request.tag}")
             return
         calls += 1
         if calls == 1:
-            reply(None, "operation-failed", "clock is busy")
+            respond(tag="operation-failed", message="clock is busy")
             return
         got = ""
         for child in request.children:
@@ -361,13 +367,13 @@ actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
                 if txt is not None:
                     got = txt
         if got == "":
-            reply(None, "missing-element", "no new-datetime in request")
+            respond(tag="missing-element", message="no new-datetime in request")
             return
         captured = "<old-datetime xmlns=\"{IETF_SYSTEM_NS}\">{got}</old-datetime>"
-        reply([xml.decode(captured)], None, None)
+        respond([xml.decode(captured)])
 
     def on_second_reply(r: ?ygdata.Node, err: ?Exception):
-        if done:
+        if finished:
             return
         if err is not None:
             fail("Second set-clock should have succeeded: {err}")
@@ -375,7 +381,7 @@ actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
         if r is not None:
             echoed = r.get_opt_str(_q("old-datetime"))
             if echoed is not None and echoed == sent_datetime:
-                done = True
+                finished = True
                 t.success()
             else:
                 fail("Callback did not echo the requested datetime, got {echoed}")
@@ -383,15 +389,21 @@ actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
             fail("Second set-clock returned no output")
 
     def on_first_reply(r: ?ygdata.Node, err: ?Exception):
-        if done:
+        if finished:
             return
         if err is None:
             fail("First set-clock should have been refused")
             return
+        # Specifically the callback's refusal, not the operation-not-supported
+        # the mock server sends when nothing handles an RPC. Without this the
+        # test would pass even if the callback were never installed.
+        if "clock is busy" not in str(err):
+            fail("Expected the callback's rpc-error, got: {err}")
+            return
         dev.rpc(on_second_reply, rpc_gdata())
 
     def start():
-        if done:
+        if finished:
             return
         if IETF_SYSTEM_MODULE not in dev.get_modules().0:
             after 0.01: start()
