@@ -1601,7 +1601,17 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                 return
             cb(None, error)
 
-        xml_rpc = gdata_rpc.to_xml()[0]
+        # TODO: acton-yang doesn't have a RPC-aware XML serializer, only a
+        # generic one, and it is a slight mismatch for the RPC semantics we
+        # need. Generic gdata serialization omits empty non-presence
+        # containers, but the RPC operation element must always be present.
+        # So fix by moving this to an RPC-aware XML serializer.
+        rpc_input = gdata_rpc.children[rpc_id]
+        xml_rpc = xml.Node(
+            rpc_id.name,
+            nsdefs=[(None, rpc_id.q)],
+            children=rpc_input.to_xml(),
+        )
         _log.debug("Device.rpc", {"xml_rpc": xml_rpc})
         if client is not None:
             client.rpc(xml_rpc, rpc_reply)
