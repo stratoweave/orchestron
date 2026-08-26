@@ -2073,7 +2073,7 @@ class _TransformTransactionBase(_Transaction):
         ###
         if updates:
             self.candidate_link_updates[tid] = self.candidate_link_updates.get_def(tid, []) + updates
-        return self.configure(tid, {}, out, True, dbuf)
+        return self.configure(tid, {}, out, dbuf)
 
     # yield action
     def lock(self, actself, tid, out: ?Session, done, dbuf: ?swdb.Buffer=None):          # yield await
