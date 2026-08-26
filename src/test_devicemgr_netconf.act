@@ -55,6 +55,13 @@ IETF_SYSTEM_YANG = r"""module ietf-system {
       }
     }
   }
+  rpc get-current-datetime {
+    output {
+      leaf current-datetime {
+        type string;
+      }
+    }
+  }
 }"""
 
 def _q(name: str) -> ygdata.Id:
@@ -299,6 +306,76 @@ actor _test_rpc_without_output(t: testing.EnvT):
                     _q("set-current-datetime"): ygdata.Container({
                         _q("current-datetime"): ygdata.Leaf("2026-03-01T00:00:00Z")
                     })
+                }))
+            else:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+    after 2.0: fail("Timed out waiting for the RPC callback")
+
+
+actor _test_rpc_without_input(t: testing.EnvT):
+    """An RPC with no input still sends its namespaced operation element."""
+    mock_current_datetime = "2026-03-01T00:00:00Z"
+
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-rpc-no-input", noop_on_reconf)
+    var done = False
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def on_reply(r: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            fail("get-current-datetime RPC failed: {err}")
+        elif r is not None:
+            current_datetime = r.get_opt_str(_q("current-datetime"))
+            if current_datetime == mock_current_datetime:
+                done = True
+                t.success()
+            else:
+                fail("Unexpected get-current-datetime output: {r}")
+        else:
+            fail("get-current-datetime returned no output")
+
+    def start():
+        if done:
+            return
+        if IETF_SYSTEM_MODULE not in dev.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async dev.get_adapter()
+        adapter = await msg
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            if mock_server is not None:
+                def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+                    has_namespace = False
+                    for prefix, namespace in request.nsdefs:
+                        if prefix is None and namespace == IETF_SYSTEM_NS:
+                            has_namespace = True
+                    if request.tag != "get-current-datetime":
+                        reply(None, "operation-not-supported", "unexpected RPC {request.tag}")
+                    elif not has_namespace:
+                        reply(None, "unknown-namespace", "get-current-datetime has no ietf-system namespace")
+                    elif len(request.children) != 0:
+                        reply(None, "invalid-value", "get-current-datetime unexpectedly has input")
+                    else:
+                        output = ygdata.Container({
+                            _q("current-datetime"): ygdata.Leaf(mock_current_datetime, ns=IETF_SYSTEM_NS, module=IETF_SYSTEM_MODULE)
+                        })
+                        reply(output.to_xml(deterministic=True), None, None)
+                mock_server.set_rpc_cb(on_rpc)
+                dev.rpc(on_reply, ygdata.Container({
+                    _q("get-current-datetime"): ygdata.Container({})
                 }))
             else:
                 fail("Expected NetconfMockServer from NetconfAdapter")
