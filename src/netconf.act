@@ -44,6 +44,10 @@ CAP_NC_1_1 = "urn:ietf:params:netconf:base:1.1"
 NS_NC_1_0 = "urn:ietf:params:xml:ns:netconf:base:1.0"
 NS_YANG_ACTION = "urn:ietf:params:xml:ns:yang:1"
 
+def is_ok_reply(rpc_reply: xml.Node) -> bool:
+    """Return whether an rpc-reply is a successful response with no data."""
+    return rpc_reply.tag == "rpc-reply" and len(rpc_reply.children) == 1 and rpc_reply.children[0].tag == "ok"
+
 def actor_pipe_pair() -> (client: Pipe, server: Pipe):
     return _actor_pipe_pair()
 
@@ -898,8 +902,7 @@ actor Client(
             del rpc_cbs[callback_id]
             if len(fixed_root.children) == 0:
                 cb(self, fixed_root, NetconfError("Empty <rpc-reply>"))
-            elif len(fixed_root.children) == 1 and fixed_root.children[0].tag == "ok":
-                # TODO: Should also verify namespace is NS_NC_1_0
+            elif is_ok_reply(fixed_root):
                 cb(self, fixed_root, None)
             else:
                 # Parse for errors
@@ -1089,6 +1092,7 @@ actor Server(
                 return
 
         rpc_reply = xml.Node("rpc-reply", [(None, NS_NC_1_0)], None, [("message-id", message_id)], children)
+        _log.debug("Sending rpc-reply", {"message_id": message_id, "reply_xml": rpc_reply.encode()})
         _send_node(rpc_reply)
 
         if serialize_rpc_dispatch:
@@ -1098,7 +1102,10 @@ actor Server(
                 _dispatch_rpc(next_rpc.message_id, next_rpc.op)
 
     def send_reply(message_id: str, children: list[xml.Node]):
-        _send_rpc_reply(message_id, children)
+        if len(children) == 0:
+            _send_rpc_reply(message_id, [xml.Node("ok")])
+        else:
+            _send_rpc_reply(message_id, children)
 
     def send_notification(notification: xml.Node):
         _send_node(notification)
