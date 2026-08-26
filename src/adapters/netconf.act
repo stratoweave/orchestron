@@ -313,7 +313,7 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
     var rpc_log: list[(message_id: str, op: xml.Node)] = []
     # Callback for every RPC the mock server does not implement itself,
     # installed with set_rpc_cb(...).
-    var rpc_cb: ?action(xml.Node, action(?list[xml.Node], ?str, ?str) -> None) -> None = None
+    var rpc_cb: ?action(xml.Node, action(children: ?list[xml.Node], tag: ?str, message: ?str) -> None) -> None = None
     # YANG-push: the last operational tree pushed, to diff against for on-change.
     var _yp_last: ?ygdata.Node = None
     var yp_service: ?nyp.NetconfSubscriptionService = None
@@ -513,12 +513,13 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
         else:
             h = rpc_cb
             if h is not None:
-                def done(children: ?list[xml.Node], error_tag: ?str, error_msg: ?str) -> None:
-                    if error_tag is not None:
-                        s.send_error(message_id, error_tag, str(error_msg))
+                def respond(children: ?list[xml.Node], tag: ?str, message: ?str) -> None:
+                    if tag is not None:
+                        s.send_error(message_id, tag,
+                                     message if message is not None else tag)
                     else:
                         s.send_reply(message_id, children if children is not None else [])
-                h(op, done)
+                h(op, respond)
             else:
                 s.send_error(message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
 
@@ -543,18 +544,26 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
             conf_schema = schema
             yl_view = monitoring.build_yl_view([conf_schema, oper_schema])
 
-    def set_rpc_cb(cb: action(xml.Node, action(?list[xml.Node], ?str, ?str) -> None) -> None):
+    def set_rpc_cb(cb: action(xml.Node, action(children: ?list[xml.Node], tag: ?str, message: ?str) -> None) -> None):
         """Install the callback for every RPC the mock server does not implement.
 
         The mock server answers the datastore RPCs itself: get, get-config,
         edit-config, commit, discard-changes, lock, unlock and the subscription
         RPCs. Everything else goes to this callback, which is called with the
-        request element and a `done` action and answers whenever it is ready:
+        request element and a `respond` action, and answers when it is ready:
 
-            done(children, None, None)    reply with these rpc-reply children;
-                                          an empty list becomes <ok/>
-            done(None, None, None)        same as an empty list
-            done(None, tag, message)      reply with an rpc-error
+            respond([node])                     reply with these children
+            respond([])                         reply <ok/>
+            respond(tag="invalid-value",
+                    message="no such image")    reply with an rpc-error
+
+        Arguments are optional and named, so each call says only what it
+        means. A `tag` makes it an rpc-error and any children are ignored;
+        without one it is a reply, and no children means <ok/>.
+
+        Answer exactly once. Never answering leaves the session waiting,
+        since RFC 6241 dispatch is serialized and the next RPC only runs
+        once this one is answered.
 
         One callback rather than one per RPC tag, because what sits behind it
         is a mock of a device: it decides what it supports and dispatches on
