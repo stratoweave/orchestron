@@ -348,23 +348,6 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
     var yl_view = monitoring.build_yl_view([config_schema, operational_schema])
     all_capabilities = capabilities + monitoring.module_capabilities([config_schema, operational_schema], yl_view)
 
-    def send_reply_with_log(s: netconf.Server, message_id: str, children: list[xml.Node]):
-        rpc_reply = xml.Node("rpc-reply", [(None, NS_NC_1_0)], None, [("message-id", message_id)], children)
-        _log.debug("NetconfMockServer sending rpc-reply", {"message_id": message_id, "reply_xml": rpc_reply.encode()})
-        s.send_reply(message_id, children)
-
-    def send_ok(s: netconf.Server, message_id: str):
-        send_reply_with_log(s, message_id, [xml.Node("ok")])
-
-    def send_error(s: netconf.Server, message_id: str, error_tag: str, error_message: str):
-        rpc_error = xml.Node("rpc-error", children=[
-            xml.Node("error-type", text="application"),
-            xml.Node("error-tag", text=error_tag),
-            xml.Node("error-severity", text="error"),
-            xml.Node("error-message", text=error_message)
-        ])
-        send_reply_with_log(s, message_id, [rpc_error])
-
     def _extract_filter(op: xml.Node) -> (?xml.Node, ?str):
         for child in op.children:
             if child.tag == "filter":
@@ -489,12 +472,12 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
             if yp_service is not None:
                 yp_service.handle_rpc(message_id, op)
             else:
-                send_error(s, message_id, "operation-failed", "subscription service not ready")
+                s.send_error(message_id, "operation-failed", "subscription service not ready")
             return
         if op.tag == "get" or op.tag == "get-config":
             filter_node, filter_type = _extract_filter(op)
             if filter_type is not None and filter_type != "subtree":
-                send_error(s, message_id, "operation-not-supported", "Unsupported filter type: {filter_type}")
+                s.send_error(message_id, "operation-not-supported", "Unsupported filter type: {filter_type}")
                 return
 
             data_children: list[xml.Node] = []
@@ -504,14 +487,14 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
                 else:
                     data_children = _filtered_conf_data(filter_node)
             except Exception as e:
-                send_error(s, message_id, "invalid-value", "Failed to apply subtree filter: {e}")
+                s.send_error(message_id, "invalid-value", "Failed to apply subtree filter: {e}")
                 return
 
-            send_reply_with_log(s, message_id, [xml.Node("data", [(None, NS_NC_1_0)], children=data_children)])
+            s.send_reply(message_id, [xml.Node("data", [(None, NS_NC_1_0)], children=data_children)])
         elif op.tag == "edit-config":
             config_node = _extract_config(op)
             if config_node is None:
-                send_error(s, message_id, "missing-element", "Missing <config> in <edit-config>")
+                s.send_error(message_id, "missing-element", "Missing <config> in <edit-config>")
                 return
             cfg = _expect_xml_node(config_node, "edit-config config")
             try:
@@ -522,24 +505,22 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
                 else:
                     conf_ds = _expect_gdata_node(next_conf_opt, "edit-config result")
             except Exception as e:
-                send_error(s, message_id, "invalid-value", "Failed to apply edit-config: {e}")
+                s.send_error(message_id, "invalid-value", "Failed to apply edit-config: {e}")
                 return
-            send_ok(s, message_id)
+            s.send_ok(message_id)
         elif op.tag == "commit" or op.tag == "discard-changes" or op.tag == "lock" or op.tag == "unlock":
-            send_ok(s, message_id)
+            s.send_ok(message_id)
         else:
             h = rpc_cb
             if h is not None:
                 def done(children: ?list[xml.Node], error_tag: ?str, error_msg: ?str) -> None:
                     if error_tag is not None:
-                        send_error(s, message_id, error_tag, str(error_msg))
-                    elif children is not None:
-                        send_reply_with_log(s, message_id, children)
+                        s.send_error(message_id, error_tag, str(error_msg))
                     else:
-                        send_ok(s, message_id)
+                        s.send_reply(message_id, children if children is not None else [])
                 h(op, done)
             else:
-                send_error(s, message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
+                s.send_error(message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
 
     var server: netconf.Server = netconf.Server(pipe=pipe, on_rpc=on_rpc, log_handler=log_handler, capabilities=all_capabilities)
     yp_service = nyp.NetconfSubscriptionService(server, _MockPushBackend(_yp_prepare_filter, _yp_snapshot, _yp_change), log_handler)
@@ -570,8 +551,9 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
         RPCs. Everything else goes to this callback, which is called with the
         request element and a `done` action and answers whenever it is ready:
 
-            done(children, None, None)    reply with these rpc-reply children
-            done(None, None, None)        reply <ok/>
+            done(children, None, None)    reply with these rpc-reply children;
+                                          an empty list becomes <ok/>
+            done(None, None, None)        same as an empty list
             done(None, tag, message)      reply with an rpc-error
 
         One callback rather than one per RPC tag, because what sits behind it
@@ -1606,12 +1588,16 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                 return
             _log.debug("Device.rpc.rpc_reply", {"r": r, "error": error})
             if r is not None and error is None:
-                if out_path is not None and schema is not None:
+                if netconf.is_ok_reply(r):
+                    cb(ygdata.Container({}), None)
+                elif out_path is not None and schema is not None:
                     try:
                         gd = yxml.from_xml(schema, r, loose=True, root_path=out_path)
                         cb(gd, None)
                     except Exception as e:
                         cb(None, e)
+                else:
+                    cb(None, ValueError("Unexpected rpc-reply for {rpc_id}"))
                 return
             cb(None, error)
 

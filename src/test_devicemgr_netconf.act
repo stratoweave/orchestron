@@ -48,6 +48,13 @@ IETF_SYSTEM_YANG = r"""module ietf-system {
       }
     }
   }
+  rpc set-current-datetime {
+    input {
+      leaf current-datetime {
+        type string;
+      }
+    }
+  }
 }"""
 
 def _q(name: str) -> ygdata.Id:
@@ -243,6 +250,63 @@ actor _test_rpc(t: testing.EnvT):
             fail("Expected NetconfAdapter from DeviceMgr")
 
     start()
+
+
+actor _test_rpc_without_output(t: testing.EnvT):
+    """An empty successful RPC result is returned as an empty gdata tree."""
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-rpc-no-output", noop_on_reconf)
+    var done = False
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def on_reply(r: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            fail("set-current-datetime RPC failed: {err}")
+        elif r is not None and len(r.children) == 0:
+            done = True
+            t.success()
+        else:
+            fail("set-current-datetime RPC returned an unexpected result: {r}")
+
+    def start():
+        if done:
+            return
+        if IETF_SYSTEM_MODULE not in dev.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async dev.get_adapter()
+        adapter = await msg
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            if mock_server is not None:
+                def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+                    if request.tag == "set-current-datetime":
+                        # An empty successful result is normalized to <ok/> by
+                        # netconf.Server before it is sent on the wire.
+                        reply([], None, None)
+                    else:
+                        reply(None, "operation-not-supported", "mock does not do {request.tag}")
+                mock_server.set_rpc_cb(on_rpc)
+                dev.rpc(on_reply, ygdata.Container({
+                    _q("set-current-datetime"): ygdata.Container({
+                        _q("current-datetime"): ygdata.Leaf("2026-03-01T00:00:00Z")
+                    })
+                }))
+            else:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+    after 2.0: fail("Timed out waiting for the RPC callback")
 
 
 actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
