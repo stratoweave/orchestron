@@ -1019,7 +1019,8 @@ actor Server(
         on_connect: ?action(Server, ?Exception) -> None=None,
         on_rpc: action(Server, str, xml.Node) -> None,
         capabilities: ?list[str]=None,
-        log_handler: ?logging.Handler=None):
+        log_handler: ?logging.Handler=None,
+        serialize_rpc_dispatch: bool=True):
 
     _log = logging.Logger(log_handler)
 
@@ -1027,14 +1028,20 @@ actor Server(
     var recv_buf = Buffer()
     var chunk_buf = Buffer()
     var server_capabilities = capabilities if capabilities is not None else [CAP_NC_1_0, CAP_NC_1_1]
+    # With RFC-compliant serialized dispatch, the first queued RPC is active and
+    # later entries wait until its handler sends a reply. Concurrent dispatch is
+    # available for tests that explicitly emulate a non-compliant peer.
+    var rpc_queue: list[(message_id: str, op: ?xml.Node)] = []
 
     def close(cb: ?action() -> None):
+        rpc_queue = []
         pipe.close(cb)
 
     def restart():
         framing = SEPARATOR_FRAMING
         recv_buf = Buffer()
         chunk_buf = Buffer()
+        rpc_queue = []
         pipe.restart()
 
     def _send_message(data: Buffer):
@@ -1071,8 +1078,24 @@ actor Server(
         _send_node(hello)
 
     def _send_rpc_reply(message_id: str, children: list[xml.Node]):
+        if serialize_rpc_dispatch:
+            if len(rpc_queue) == 0:
+                _log.error("Cannot send rpc-reply with no active RPC", {"message-id": message_id})
+                return
+
+            active_rpc = rpc_queue[0]
+            if active_rpc.message_id != message_id:
+                _log.error("Cannot send rpc-reply for inactive RPC", {"message-id": message_id, "active-message-id": active_rpc.message_id})
+                return
+
         rpc_reply = xml.Node("rpc-reply", [(None, NS_NC_1_0)], None, [("message-id", message_id)], children)
         _send_node(rpc_reply)
+
+        if serialize_rpc_dispatch:
+            rpc_queue.pop(0)
+            if len(rpc_queue) > 0:
+                next_rpc = rpc_queue[0]
+                _dispatch_rpc(next_rpc.message_id, next_rpc.op)
 
     def send_reply(message_id: str, children: list[xml.Node]):
         _send_rpc_reply(message_id, children)
@@ -1080,13 +1103,10 @@ actor Server(
     def send_notification(notification: xml.Node):
         _send_node(notification)
 
-    def _send_ok(message_id: str):
+    def send_ok(message_id: str):
         _send_rpc_reply(message_id, [xml.Node("ok")])
 
-    def send_ok(message_id: str):
-        _send_ok(message_id)
-
-    def _send_error(message_id: str, error_tag: str, error_message: str, error_type: str="application"):
+    def send_error(message_id: str, error_tag: str, error_message: str, error_type: str="application"):
         rpc_error = xml.Node("rpc-error", children=[
             xml.Node("error-type", text=error_type),
             xml.Node("error-tag", text=error_tag),
@@ -1094,9 +1114,6 @@ actor Server(
             xml.Node("error-message", text=error_message)
         ])
         _send_rpc_reply(message_id, [rpc_error])
-
-    def send_error(message_id: str, error_tag: str, error_message: str, error_type: str="application"):
-        _send_error(message_id, error_tag, error_message, error_type)
 
     def _read_message_id(root: xml.Node, default_id: str) -> str:
         message_id = default_id
@@ -1118,19 +1135,25 @@ actor Server(
         if client_supports_1_1 and CAP_NC_1_1 in server_capabilities:
             framing = CHUNKED_FRAMING
 
-    def _dispatch_rpc(message_id: str, op: xml.Node):
-        if op.tag == "close-session":
-            _send_ok(message_id)
-            return
-
-        on_rpc(self, message_id, op)
+    def _dispatch_rpc(message_id: str, op: ?xml.Node):
+        if op is None:
+            send_error(message_id, "missing-element", "RPC request has no operation")
+        elif op!.tag == "close-session":
+            send_ok(message_id)
+        else:
+            on_rpc(self, message_id, op!)
 
     def _on_msg_rpc(root: xml.Node):
         message_id = _read_message_id(root, "0")
-        if len(root.children) == 0:
-            _send_error(message_id, "missing-element", "RPC request has no operation")
-            return
-        _dispatch_rpc(message_id, root.children[0])
+        op: ?xml.Node = None
+        if len(root.children) > 0:
+            op = root.children[0]
+        if serialize_rpc_dispatch:
+            rpc_queue.append((message_id=message_id, op=op))
+            if len(rpc_queue) == 1:
+                _dispatch_rpc(message_id, op)
+        else:
+            _dispatch_rpc(message_id, op)
 
     def _handle_msg(msg: str):
         if msg == "":
@@ -1210,6 +1233,7 @@ actor Server(
             framing = SEPARATOR_FRAMING
             recv_buf = Buffer()
             chunk_buf = Buffer()
+            rpc_queue = []
             _send_hello()
             _on_connect = on_connect
             if _on_connect is not None:
@@ -1322,6 +1346,22 @@ test_username = "admin"
 test_password = "admin"
 
 
+def _test_data_reply(value: str) -> list[xml.Node]:
+    return [xml.Node("data", [(None, NS_NC_1_0)], children=[
+        xml.Node("value", text=value)
+    ])]
+
+
+def _test_reply_value(result: ?xml.Node) -> ?str:
+    if result is not None:
+        for rpc_child in result.children:
+            if rpc_child.tag == "data":
+                for data_child in rpc_child.children:
+                    if data_child.tag == "value":
+                        return data_child.text
+    return None
+
+
 actor _test_client_server_actor_pipe_get(t: testing.EnvT):
     """Test in-process Client <-> Server over ActorPipe with a static <get> reply."""
     log = logging.Logger(t.log_handler)
@@ -1382,6 +1422,229 @@ actor _test_client_server_actor_pipe_get(t: testing.EnvT):
                     on_notif=None,
                     log_handler=t.log_handler,
                     pipe=pipes.client)
+
+
+actor _test_client_correlates_malformed_out_of_order_rpc_replies(t: testing.EnvT):
+    """A client uses message-id to correlate replies from a non-compliant peer.
+
+    Concurrent Server dispatch deliberately lets the second request complete first.
+    This keeps peer-violation hardening separate from normal server behavior.
+    """
+    pipes = actor_pipe_pair()
+    var done = False
+    var first_message_id: ?str = None
+    var got_first = False
+    var got_second = False
+
+    def _fail_once(e: Exception):
+        if done:
+            return
+        done = True
+        t.failure(e)
+
+    def _success_if_done(c: Client):
+        if not done and got_first and got_second:
+            done = True
+            c.close(None)
+            t.success()
+
+    def _on_first(c: Client, result: ?xml.Node, error: ?NetconfError):
+        if done:
+            return
+        if error is not None:
+            _fail_once(error)
+            return
+        if _test_reply_value(result) != "first":
+            _fail_once(ValueError("First callback received the wrong rpc-reply"))
+            return
+        got_first = True
+        _success_if_done(c)
+
+    def _on_second(c: Client, result: ?xml.Node, error: ?NetconfError):
+        if done:
+            return
+        if error is not None:
+            _fail_once(error)
+            return
+        if _test_reply_value(result) != "second":
+            _fail_once(ValueError("Second callback received the wrong rpc-reply"))
+            return
+        got_second = True
+        _success_if_done(c)
+
+    def _on_server_rpc(s: Server, message_id: str, op: xml.Node):
+        if message_id == "1":
+            first_message_id = message_id
+        elif message_id == "2":
+            if first_message_id is None:
+                _fail_once(ValueError("Second RPC was dispatched before the first RPC"))
+                return
+            s.send_reply(message_id, _test_data_reply("second"))
+            s.send_reply(first_message_id!, _test_data_reply("first"))
+        else:
+            _fail_once(ValueError("Unexpected message-id: {message_id}"))
+
+    def _on_connect(c: Client, e: ?Exception):
+        if e is not None:
+            _fail_once(ValueError("Failed to connect to malformed peer fixture: {e}"))
+        else:
+            c.get(_on_first)
+            c.get(_on_second)
+
+    server = Server(pipe=pipes.server, on_rpc=_on_server_rpc,
+                    capabilities=[CAP_NC_1_0], log_handler=t.log_handler,
+                    serialize_rpc_dispatch=False)
+    client = Client(None,
+                    address="actor-pipe",
+                    username="actor-pipe",
+                    key=None,
+                    password=None,
+                    port=0,
+                    on_connect=_on_connect,
+                    on_notif=None,
+                    log_handler=t.log_handler,
+                    pipe=pipes.client)
+
+
+actor _test_client_uses_oldest_rpc_for_reply_without_message_id(t: testing.EnvT):
+    """A malformed reply without message-id consumes the oldest pending callback."""
+    pipes = actor_pipe_pair()
+    var done = False
+    var first_message_id: ?str = None
+    var got_first = False
+    var got_second = False
+
+    def _fail_once(e: Exception):
+        if done:
+            return
+        done = True
+        t.failure(e)
+
+    def _success_if_done(c: Client):
+        if not done and got_first and got_second:
+            done = True
+            c.close(None)
+            t.success()
+
+    def _on_first(c: Client, result: ?xml.Node, error: ?NetconfError):
+        if error is not None:
+            _fail_once(error)
+            return
+        if _test_reply_value(result) != "first":
+            _fail_once(ValueError("Reply without message-id did not use the oldest callback"))
+            return
+        got_first = True
+        _success_if_done(c)
+
+    def _on_second(c: Client, result: ?xml.Node, error: ?NetconfError):
+        if error is not None:
+            _fail_once(error)
+            return
+        if _test_reply_value(result) != "second":
+            _fail_once(ValueError("Second callback received the wrong rpc-reply"))
+            return
+        got_second = True
+        _success_if_done(c)
+
+    def _send_reply_without_message_id():
+        reply = xml.Node("rpc-reply", [(None, NS_NC_1_0)], children=_test_data_reply("first"))
+        buf = Buffer()
+        buf.write_str(xml.encode(reply))
+        buf.write_bytes(LEGACY_SEPARATOR)
+        pipes.server.write(buf.read_all_bytes())
+
+    def _on_server_rpc(s: Server, message_id: str, op: xml.Node):
+        if message_id == "1":
+            first_message_id = message_id
+        elif message_id == "2":
+            if first_message_id is None:
+                _fail_once(ValueError("Second RPC was dispatched before the first RPC"))
+                return
+            _send_reply_without_message_id()
+            s.send_reply(message_id, _test_data_reply("second"))
+        else:
+            _fail_once(ValueError("Unexpected message-id: {message_id}"))
+
+    def _on_connect(c: Client, e: ?Exception):
+        if e is not None:
+            _fail_once(ValueError("Failed to connect to malformed peer fixture: {e}"))
+        else:
+            c.get(_on_first)
+            c.get(_on_second)
+
+    server = Server(pipe=pipes.server, on_rpc=_on_server_rpc,
+                    capabilities=[CAP_NC_1_0], log_handler=t.log_handler,
+                    serialize_rpc_dispatch=False)
+    client = Client(None,
+                    address="actor-pipe",
+                    username="actor-pipe",
+                    key=None,
+                    password=None,
+                    port=0,
+                    on_connect=_on_connect,
+                    on_notif=None,
+                    log_handler=t.log_handler,
+                    pipe=pipes.client)
+
+
+actor _test_server_serializes_pipelined_rpc_dispatch(t: testing.EnvT):
+    """Server dispatches the next pipelined RPC only after the first replies."""
+    pipes = actor_pipe_pair()
+    var done = False
+    var first_completed = False
+    var dispatch_count = 0
+
+    def _fail_once(e: Exception):
+        if done:
+            return
+        done = True
+        t.failure(e)
+
+    def _complete_first(s: Server, message_id: str):
+        first_completed = True
+        s.send_reply(message_id, _test_data_reply("first"))
+
+    def _on_server_rpc(s: Server, message_id: str, op: xml.Node):
+        dispatch_count += 1
+        if message_id == "1":
+            if dispatch_count != 1:
+                _fail_once(ValueError("First RPC was not dispatched first"))
+                return
+            # Both RPCs arrived in one transport message. Queue completion behind
+            # any handler calls that concurrent dispatch has already emitted.
+            async _complete_first(s, message_id)
+        elif message_id == "2":
+            if not first_completed:
+                _fail_once(ValueError("Second RPC dispatched before the first completed"))
+                return
+            if dispatch_count != 2:
+                _fail_once(ValueError("Unexpected RPC dispatch count: {dispatch_count}"))
+                return
+            s.send_reply(message_id, _test_data_reply("second"))
+            done = True
+            s.close(None)
+            t.success()
+        else:
+            _fail_once(ValueError("Unexpected message-id: {message_id}"))
+
+    server = Server(pipe=pipes.server, on_rpc=_on_server_rpc,
+                    capabilities=[CAP_NC_1_0], log_handler=t.log_handler)
+
+    request_buf = Buffer()
+    client_hello = xml.Node("hello", [(None, NS_NC_1_0)], children=[
+        xml.Node("capabilities", children=[
+            xml.Node("capability", text=CAP_NC_1_0)
+        ])
+    ])
+    request_buf.write_str(xml.encode(client_hello))
+    request_buf.write_bytes(LEGACY_SEPARATOR)
+    for message_id in ["1", "2"]:
+        rpc = xml.Node("rpc", [(None, NS_NC_1_0)], None,
+                       [("message-id", message_id)],
+                       [xml.Node("get", [(None, NS_NC_1_0)])])
+        request_buf.write_str(xml.encode(rpc))
+        request_buf.write_bytes(LEGACY_SEPARATOR)
+    pipes.client.write(request_buf.read_all_bytes())
 
 
 actor _test_client_server_tcp_get(t: testing.EnvT):
