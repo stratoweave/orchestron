@@ -3,6 +3,7 @@
 import logging
 import net
 import testing
+import std.xml as xml
 import yang
 import yang.gdata as ygdata
 import yang.schema as yschema
@@ -171,7 +172,7 @@ actor _test_rpc(t: testing.EnvT):
     """YANG RPC through the gdata path against the mock NETCONF server.
 
     1. Create DeviceMgr in NETCONF mock-server mode.
-    2. Register a canned rpc-reply for set-clock on the mock server.
+    2. Install an RPC handler on the mock server answering set-clock.
     3. Call DeviceMgr.rpc with the RPC as gdata: a root container holding the
        set-clock node with its input subtree.
     4. Validate the RPC output gdata (old-datetime) parsed from the reply.
@@ -221,15 +222,123 @@ actor _test_rpc(t: testing.EnvT):
         if isinstance(adapter, swna.NetconfAdapter):
             mock_server = adapter.get_mock_server()
             if mock_server is not None:
-                mock_server.set_rpc_reply("set-clock", ygdata.Container({
-                    _q("old-datetime"): ygdata.Leaf(mock_old_datetime, ns=IETF_SYSTEM_NS, module=IETF_SYSTEM_MODULE)
-                }))
+                def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+                    if request.tag == "set-clock":
+                        out = ygdata.Container({
+                            _q("old-datetime"): ygdata.Leaf(mock_old_datetime, ns=IETF_SYSTEM_NS, module=IETF_SYSTEM_MODULE)
+                        })
+                        reply(out.to_xml(deterministic=True), None, None)
+                    else:
+                        reply(None, "operation-not-supported", "mock does not do {request.tag}")
+                mock_server.set_rpc_cb(on_rpc)
                 rpc_gdata = ygdata.Container({
                     _q("set-clock"): ygdata.Container({
                         _q("new-datetime"): ygdata.Leaf("2026-03-01T00:00:00Z")
                     })
                 })
                 dev.rpc(on_reply, rpc_gdata)
+            else:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+
+
+actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
+    """RPC callback on the mock server, installed with set_rpc_cb.
+
+    The callback is called with the request and a done action, so unlike a
+    canned reply it can look at what was asked and answer differently each
+    time. Here
+    the first set-clock is refused and the second echoes back the datetime it
+    was actually given, which a static reply cannot do.
+
+    The reply is built by pasting XML the way it would come off a real NETCONF
+    session, which is the usual way these mocks get written.
+
+    1. Create DeviceMgr in NETCONF mock-server mode.
+    2. Install an RPC callback answering set-clock, failing once first.
+    3. Call DeviceMgr.rpc twice and check we get the error then the echo.
+    """
+    sent_datetime = "2026-03-01T00:00:00Z"
+
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-rpc-handler", noop_on_reconf)
+    var done = False
+    var calls = 0
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def rpc_gdata() -> ygdata.Node:
+        return ygdata.Container({
+            _q("set-clock"): ygdata.Container({
+                _q("new-datetime"): ygdata.Leaf(sent_datetime)
+            })
+        })
+
+    def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+        if request.tag != "set-clock":
+            reply(None, "operation-not-supported", "mock does not do {request.tag}")
+            return
+        calls += 1
+        if calls == 1:
+            reply(None, "operation-failed", "clock is busy")
+            return
+        got = ""
+        for child in request.children:
+            if child.tag == "new-datetime":
+                txt = child.text
+                if txt is not None:
+                    got = txt
+        if got == "":
+            reply(None, "missing-element", "no new-datetime in request")
+            return
+        captured = "<old-datetime xmlns=\"{IETF_SYSTEM_NS}\">{got}</old-datetime>"
+        reply([xml.decode(captured)], None, None)
+
+    def on_second_reply(r: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            fail("Second set-clock should have succeeded: {err}")
+            return
+        if r is not None:
+            echoed = r.get_opt_str(_q("old-datetime"))
+            if echoed is not None and echoed == sent_datetime:
+                done = True
+                t.success()
+            else:
+                fail("Callback did not echo the requested datetime, got {echoed}")
+        else:
+            fail("Second set-clock returned no output")
+
+    def on_first_reply(r: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is None:
+            fail("First set-clock should have been refused")
+            return
+        dev.rpc(on_second_reply, rpc_gdata())
+
+    def start():
+        if done:
+            return
+        if IETF_SYSTEM_MODULE not in dev.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async dev.get_adapter()
+        adapter = await msg
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            if mock_server is not None:
+                mock_server.set_rpc_cb(on_rpc)
+                dev.rpc(on_first_reply, rpc_gdata())
             else:
                 fail("Expected NetconfMockServer from NetconfAdapter")
         else:

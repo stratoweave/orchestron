@@ -311,8 +311,9 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
     var oper_ds = ygdata.Container({})
     var conf_ds = ygdata.Container({})
     var rpc_log: list[(message_id: str, op: xml.Node)] = []
-    # Static mock RPC replies, set with set_rpc_reply(...)
-    var rpc_replies: dict[str, ygdata.Node] = {}
+    # Callback for every RPC the mock server does not implement itself,
+    # installed with set_rpc_cb(...).
+    var rpc_cb: ?action(xml.Node, action(?list[xml.Node], ?str, ?str) -> None) -> None = None
     # YANG-push: the last operational tree pushed, to diff against for on-change.
     var _yp_last: ?ygdata.Node = None
     var yp_service: ?nyp.NetconfSubscriptionService = None
@@ -526,10 +527,19 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
             send_ok(s, message_id)
         elif op.tag == "commit" or op.tag == "discard-changes" or op.tag == "lock" or op.tag == "unlock":
             send_ok(s, message_id)
-        elif op.tag in rpc_replies:
-            send_reply_with_log(s, message_id, rpc_replies[op.tag].to_xml(deterministic=True))
         else:
-            send_error(s, message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
+            h = rpc_cb
+            if h is not None:
+                def done(children: ?list[xml.Node], error_tag: ?str, error_msg: ?str) -> None:
+                    if error_tag is not None:
+                        send_error(s, message_id, error_tag, str(error_msg))
+                    elif children is not None:
+                        send_reply_with_log(s, message_id, children)
+                    else:
+                        send_ok(s, message_id)
+                h(op, done)
+            else:
+                send_error(s, message_id, "operation-not-supported", "Unsupported RPC operation: {op.tag}")
 
     var server: netconf.Server = netconf.Server(pipe=pipe, on_rpc=on_rpc, log_handler=log_handler, capabilities=all_capabilities)
     yp_service = nyp.NetconfSubscriptionService(server, _MockPushBackend(_yp_prepare_filter, _yp_snapshot, _yp_change), log_handler)
@@ -552,9 +562,32 @@ actor NetconfMockServer(pipe, log_handler: logging.Handler, capabilities: list[s
             conf_schema = schema
             yl_view = monitoring.build_yl_view([conf_schema, oper_schema])
 
-    def set_rpc_reply(tag: str, output: ygdata.Node):
-        """Register a static RPC output."""
-        rpc_replies[tag] = output
+    def set_rpc_cb(cb: action(xml.Node, action(?list[xml.Node], ?str, ?str) -> None) -> None):
+        """Install the callback for every RPC the mock server does not implement.
+
+        The mock server answers the datastore RPCs itself: get, get-config,
+        edit-config, commit, discard-changes, lock, unlock and the subscription
+        RPCs. Everything else goes to this callback, which is called with the
+        request element and a `done` action and answers whenever it is ready:
+
+            done(children, None, None)    reply with these rpc-reply children
+            done(None, None, None)        reply <ok/>
+            done(None, tag, message)      reply with an rpc-error
+
+        One callback rather than one per RPC tag, because what sits behind it
+        is a mock of a device: it decides what it supports and dispatches on
+        the request itself, the same way a real device does. Because it also
+        holds state of its own, it can model a real sequence, such as an
+        install that only succeeds after the image was added, or an activate
+        that changes what a later get reports.
+
+        Request and reply are raw XML on purpose. Mocks are usually written
+        from debug dumps of real NETCONF sessions, which paste in verbatim as
+        XML, and only XML can express a malformed reply for testing how the
+        client copes. Where a typed reply reads better, build it as gdata and
+        convert with to_xml(deterministic=True).
+        """
+        rpc_cb = cb
 
 
 actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc: DeviceMetaConfig, schema_registry: swdev.SchemaRegistry, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap):
