@@ -215,7 +215,9 @@ actor Client(
     var nc_prefix: ?str = None
 
     var message_id = 1
-    var rpc_cbs: list[(id: str, cb: action(Client, ?xml.Node, ?NetconfError) -> None)] = []
+    # Dictionaries preserve insertion order, so this gives direct message-id
+    # correlation while retaining the request order for protocol diagnostics.
+    var rpc_cbs: dict[str, action(Client, ?xml.Node, ?NetconfError) -> None] = {}
 
     var p: ?Pipe = pipe
     var state = STATE_NONE
@@ -301,9 +303,9 @@ actor Client(
 
     # TODO: Close protocol
     def close(cb: ?action() -> None) -> None:
-        for rpc_cb in rpc_cbs:
-            rpc_cb.cb(self, None, None)
-        rpc_cbs.clear()
+        for rpc_cb in rpc_cbs.values():
+            rpc_cb(self, None, None)
+        rpc_cbs = {}
 
         if p is not None:
             p.close(cb)
@@ -314,8 +316,8 @@ actor Client(
     # TODO: Restart protocol
     def restart() -> None:
         _log.info("Restarting")
-        for rpc_cb in rpc_cbs:
-            rpc_cb.cb(self, None, None)
+        for rpc_cb in rpc_cbs.values():
+            rpc_cb(self, None, None)
 
         framing = SEPARATOR_FRAMING
         recv_buf = Buffer()
@@ -325,7 +327,7 @@ actor Client(
         capabilities = []
 
         message_id = 1
-        rpc_cbs.clear()
+        rpc_cbs = {}
 
         state = STATE_NONE
         active_fixups.clear()
@@ -376,7 +378,7 @@ actor Client(
         buf: Buffer = Buffer()
         buf.write_str(xml.encode(root))
 
-        rpc_cbs.append((id=message_id_text, cb=callback))
+        rpc_cbs[message_id_text] = callback
         _log.debug("Sending RPC", {"message-id": message_id_text, "content": content})
         _send_message(buf)
 
@@ -877,27 +879,38 @@ actor Client(
         fixed_root = _apply_response_fixups(root)
 
         if len(rpc_cbs) > 0:
-            cb = rpc_cbs.pop(0)
+            expected_id = next(rpc_cbs.keys())
             if msg_id is None:
                 _log.warning("Received invalid rpc-reply, missing message-id", {"msg": fixed_root.encode()})
-            elif msg_id is not None and msg_id != cb.id:
-                _log.warning("Received rpc-reply with unexpected message-id", {"msg-id": msg_id, "cb.id": cb.id})
+                # Preserve the legacy fallback for malformed peers: without an ID,
+                # the only possible correlation is the oldest pending request.
+                callback_id = expected_id
+            else:
+                reply_id = msg_id!
+                if reply_id not in rpc_cbs:
+                    _log.error("No RPC callback for message-id", {"msg-id": reply_id})
+                    return
+                if reply_id != expected_id:
+                    _log.warning("Received rpc-reply with unexpected message-id", {"msg-id": reply_id, "expected": expected_id})
+                callback_id = reply_id
 
+            cb = rpc_cbs[callback_id]
+            del rpc_cbs[callback_id]
             if len(fixed_root.children) == 0:
-                cb.cb(self, fixed_root, NetconfError("Empty <rpc-reply>"))
+                cb(self, fixed_root, NetconfError("Empty <rpc-reply>"))
             elif len(fixed_root.children) == 1 and fixed_root.children[0].tag == "ok":
                 # TODO: Should also verify namespace is NS_NC_1_0
-                cb.cb(self, fixed_root, None)
+                cb(self, fixed_root, None)
             else:
                 # Parse for errors
                 error = _parse_rpc_errors(fixed_root)
 
                 if error is not None:
                     # Error response
-                    cb.cb(self, fixed_root, error)
+                    cb(self, fixed_root, error)
                 else:
                     # Normal data response - pass the whole root
-                    cb.cb(self, fixed_root, None)
+                    cb(self, fixed_root, None)
         else:
             _log.error("No more RPC callbacks", {"msg-id": msg_id})
 
