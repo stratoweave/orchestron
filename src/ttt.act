@@ -1619,12 +1619,10 @@ class _ListTransaction(_Transaction):
         msgs = {}
         for key,subdiff in diff_by_key.items():
             #print('   #', tid, '(List)', _format_path(self.path), 'CONFIGURE ELEMENT', key, err=True)
-            for s in subdiff.keys():
-                if s in sources:        # Only configure elements touched by the current diff
-                    msgs[key] = async self.elems[key].configure(tid, subdiff, out, dbuf)
-                    break
+            if any([ s in sources for s in subdiff.keys() ]) or not subdiff:   # Only configure elems touched by the current diff
+                msgs[key] = async self.elems[key].configure(tid, subdiff, out, dbuf)
         for key in self.accum.keys():
-            if key not in diff_by_key:  # ... or elements first configured and then gone absent
+            if key not in diff_by_key:                                          # ... or elems first configured and then gone absent
                 msgs[key] = async self.elems[key].configure(tid, {}, out, dbuf)
         results = {}
         for key,msg in msgs.items():
