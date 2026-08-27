@@ -1584,12 +1584,18 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         if schema is None:
             cb(None, ValueError("Schema for rpc {rpc_id} not found"))
             return
-        out_path = None
+        rpc_def = None
         for r in schema!.rpcs:
             if r.namespace == rpc_id.q and r.name == rpc_id.name:
-                if r.output is not None:
-                    out_path = ["{r.module}:{r.name}", "output"]
+                rpc_def = r
                 break
+        if rpc_def is None:
+            cb(None, ValueError("RPC {rpc_id} not found in device schema"))
+            return
+
+        out_path = None
+        if rpc_def!.output is not None:
+            out_path = ["{rpc_def!.module}:{rpc_def!.name}", "output"]
 
         def rpc_reply(c, r: ?xml.Node, error: ?netconf.NetconfError):
             if _is_stale(c):
@@ -1599,9 +1605,9 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             if r is not None and error is None:
                 if netconf.is_ok_reply(r):
                     cb(ygdata.Container({}), None)
-                elif out_path is not None and schema is not None:
+                elif out_path is not None:
                     try:
-                        gd = yxml.from_xml(schema, r, loose=True, root_path=out_path)
+                        gd = yxml.from_xml(schema!, r, loose=True, root_path=out_path)
                         cb(gd, None)
                     except Exception as e:
                         cb(None, e)

@@ -390,6 +390,61 @@ actor _test_rpc_without_input(t: testing.EnvT):
     after 2.0: fail("Timed out waiting for the RPC callback")
 
 
+actor _test_rpc_missing_from_schema(t: testing.EnvT):
+    """An RPC absent from the device schema is rejected before transport."""
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-rpc-missing-schema", noop_on_reconf)
+    var done = False
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        t.failure(ValueError(msg))
+
+    def on_reply(r: ?ygdata.Node, err: ?Exception):
+        if done:
+            return
+        if r is not None:
+            fail("Unknown RPC returned data: {r}")
+        elif err is None:
+            fail("Unknown RPC unexpectedly succeeded")
+        elif "not found in device schema" not in str(err):
+            fail("Unknown RPC returned an unexpected error: {err}")
+        else:
+            def succeed_if_not_sent():
+                if not done:
+                    done = True
+                    t.success()
+            after 0.05: succeed_if_not_sent()
+
+    def start():
+        if done:
+            return
+        if IETF_SYSTEM_MODULE not in dev.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async dev.get_adapter()
+        adapter = await msg
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            if mock_server is not None:
+                def on_rpc(request: xml.Node, reply: action(?list[xml.Node], ?str, ?str) -> None) -> None:
+                    fail("Unknown RPC reached the NETCONF server")
+                mock_server.set_rpc_cb(on_rpc)
+                dev.rpc(on_reply, ygdata.Container({
+                    _q("not-modeled"): ygdata.Container({})
+                }))
+            else:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+    after 2.0: fail("Timed out waiting for the RPC callback")
+
+
 actor _test_rpc_cb_sees_request_and_keeps_state(t: testing.EnvT):
     """RPC callback on the mock server, installed with set_rpc_cb.
 
