@@ -114,17 +114,110 @@ class NoSoftwareAdapter(SoftwareAdapter):
         return 0
 
 
+actor MockSoftwareDriver(log_handler: logging.Handler, current: ?str, fail_job: ?str):
+    """State behind MockSoftwareAdapter."""
+    var cur: ?str = current
+    var prev: ?str = current
+    var calls: list[str] = []
+
+    def _record(job: str) -> ?Exception:
+        """Note the job, and fail it if this mock was told to."""
+        calls.append(job)
+        if fail_job == job:
+            return ValueError("mock: {job} failed")
+        return None
+
+    def check(done: action(?str, ?Exception) -> None) -> None:
+        err = _record("check")
+        if err is None:
+            done(cur, None)
+        else:
+            done(None, err)
+
+    def prepare(done: action(?Exception) -> None, release: str) -> None:
+        done(_record("prepare"))
+
+    def install(done: action(?Exception) -> None, release: str) -> None:
+        err = _record("install")
+        if err is None:
+            prev = cur
+            cur = release
+        done(err)
+
+    def rollback(done: action(?Exception) -> None, previous: ?str) -> None:
+        err = _record("rollback")
+        if err is None:
+            cur = prev
+        done(err)
+
+    def cleanup(done: action(?Exception) -> None) -> None:
+        done(_record("cleanup"))
+
+    def get_calls() -> list[str]:
+        return calls
+
+    def get_running() -> ?str:
+        return cur
+
+
+class MockSoftwareAdapter(SoftwareAdapter):
+    """Software adapter that loops back in memory instead of touching a device.
+
+    Installing sets the release the mock reports as running, so a manager
+    driving it sees the same before-and-after a real adapter would produce,
+    without a device, a NETCONF session or a schema. Any single job can be made
+    to fail, so the error paths are reachable.
+    """
+    def __init__(self, log_handler: logging.Handler, current: ?str=None,
+                 fail_job: ?str=None):
+        self._log_handler = log_handler
+        self._driver = MockSoftwareDriver(log_handler, current, fail_job)
+
+    def check(self, done: action(?str, ?Exception) -> None) -> None:
+        self._driver.check(done)
+
+    def prepare(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.prepare(done, release)
+
+    def install(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.install(done, release)
+
+    def rollback(self, done: action(?Exception) -> None, previous: ?str) -> None:
+        self._driver.rollback(done, previous)
+
+    def cleanup(self, done: action(?Exception) -> None) -> None:
+        self._driver.cleanup(done)
+
+    def estimate(self, staged: bool) -> int:
+        return 600 if staged else 1200
+
+    # proc, not plain def: a pure-inferred method returning an actor call's
+    # value crashes the compiler's CPS pass.
+    proc def calls(self) -> list[str]:
+        """Jobs run so far, in order."""
+        return self._driver.get_calls()
+
+    proc def running(self) -> ?str:
+        """Release the mock currently reports."""
+        return self._driver.get_running()
+
+
+ST_UNKNOWN = "unknown"
+ST_IN_PROGRESS = "in-progress"
+ST_SUCCEEDED = "succeeded"
+ST_FAILED = "failed"
+
+
 actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr,
                       on_state_change: action(str, str) -> None):
     """Per-device software manager, one per DeviceMgr.
 
-    INTERFACE ONLY: no implementation yet. The methods below are the API the
-    fleet scheduler, RFS transforms and DeviceMgr code against; the sequencing
-    behind them is deliberately not written until the API settles.
+    Only the install step is implemented: given a target release and an
+    adapter, it installs. The rest of the API below is still a stub.
 
     Declarative like the rest of StratoWeave: the manager is told a target
     release and reconciles toward it, rather than being handed a command to
-    execute. The contract it must implement:
+    execute. The contract it must grow into:
 
         check --> differs? --> prepare --> pre-checks --> install --> post-checks
                                               |                           |
@@ -157,17 +250,31 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
     to gate a later one.
     """
 
+    _log = logging.Logger(log_handler)
+
+    var adapter: SoftwareAdapter = NoSoftwareAdapter(log_handler)
+    var target_release: ?str = None
+    var upgrade_campaign: ?str = None
+    var allow_staging: bool = False
+    var vetoes: dict[str, str] = {}
+    var status: str = ST_UNKNOWN
+
     #### configuration ######################################################
 
     def set_adapter(a: SoftwareAdapter) -> None:
         """Called by DeviceMgr when the device type is known or changes."""
-        pass
+        adapter = a
+        _reconcile()
 
     def set_config(campaign: ?str, target: ?str, staging: bool, veto: dict[str, str]) -> None:
         """Software config from DeviceMetaConfig.software: the owning campaign,
         the target release name, whether staging may run ahead of the window,
         and the current vetoes keyed by holder."""
-        pass
+        upgrade_campaign = campaign
+        target_release = target
+        allow_staging = staging
+        vetoes = veto
+        _reconcile()
 
     #### check registration #################################################
 
@@ -201,6 +308,45 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
 
     def remove_postcheck(registrant: str) -> None:
         pass
+
+    #### introspection ######################################################
+
+    def get_status() -> str:
+        """One of the ST_* values above."""
+        return status
+
+    #### install ############################################################
+
+    def _set_status(s: str) -> None:
+        if s != status:
+            status = s
+            on_state_change(name, s)
+
+    def _reconcile() -> None:
+        """Install when there is something to install and nothing blocking it.
+
+        The full contract in the docstring above adds check, prepare, the check
+        gates, rollback and cleanup around this. For now a target release means
+        install it, once.
+        """
+        if status == ST_IN_PROGRESS:
+            return
+        t = target_release
+        if t is not None:
+            if len(vetoes) > 0:
+                return
+            _set_status(ST_IN_PROGRESS)
+            adapter.install(_on_install_done, t)
+
+    def _on_install_done(err: ?Exception) -> None:
+        if err is not None:
+            _log.error("software install failed", {"device": name, "error": str(err)})
+            _set_status(ST_FAILED)
+            return
+        # New software may mean a different modset, so the device has to be
+        # re-discovered before anything trusts its schema again.
+        devmgr.resync()
+        _set_status(ST_SUCCEEDED)
 
 
 ## DeviceType represents a type of device, i.e. a specific platform or
@@ -583,6 +729,9 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             if rc_txid is not None:
                 return rc_txid
         return ""
+
+    def get_swmgr() -> SoftwareManager:
+        return swmgr
 
     def get_dmc():
         return dmc
