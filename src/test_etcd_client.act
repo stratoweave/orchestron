@@ -1,0 +1,561 @@
+"""EtcdClient unit tests that need no running etcd.
+
+A raw TCP server stands in for etcd and replies with a canned body, so these
+run in the normal suite. The mismatch tests answer a range request with a
+transaction envelope (the wrong kind) to force the out-of-sync path; the
+header-only test answers a transaction request the way etcd answers a failed
+one, which must be accepted rather than mistaken for a mismatch.
+"""
+
+import net
+import http
+import logging
+import random
+import testing
+
+import db as swdb
+import db.etcd as swetcd
+
+
+# A transaction envelope carries succeeded/responses, so it is the wrong shape
+# for a range request and forces the client's out-of-sync path.
+TXN_ENVELOPE = b"{\"succeeded\":true,\"responses\":[]}"
+
+# etcd's JSON gateway omits default-valued fields, so a failed transaction and
+# an empty range both come back header-only. This must not read as a mismatch.
+HEADER_ONLY = b"{\"header\":{\"revision\":\"1\"}}"
+
+# A range reply that matches a range request, for the happy path: a well-formed
+# answer must be delivered, and the request behind it sent exactly once.
+RANGE_BODY = b"{\"header\":{\"revision\":\"1\"},\"kvs\":[{\"key\":\"QQ==\",\"value\":\"Yg==\"}],\"count\":\"1\"}"
+
+# Base64 keys for the range requests; the values do not matter because the
+# server never really ranges, it only ever replies with its canned body.
+RANGE_KEY_A = "QQ=="
+RANGE_KEY_B = "Qg=="
+
+
+actor MockEtcdServer(
+    listen_cap: net.TCPListenCap,
+    port: int,
+    reply_body: bytes,
+    on_ready: action(?str) -> None
+):
+    """Answers every request with one canned body and records activity.
+
+    Faults are recorded rather than ignored so a broken mock shows up in a
+    failing test's diagnostics. A peer-initiated close is expected here (the
+    client closes when it poisons), so a fault only ever surfaces through the
+    timeout path, where it cannot turn a passing run red.
+    """
+
+    var count = 0
+    var buf = b""
+    var faults: list[str] = []
+    var conns: list[net.TCPListenConnection] = []
+    log = logging.Logger(None)
+
+    def on_receive(conn: net.TCPListenConnection, data: bytes) -> None:
+        buf += data
+        while True:
+            req, rest = http.parse_request(buf, log)
+            if req is None:
+                break
+            buf = rest
+            count += 1
+            conn.write(
+                b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                + b"Content-Length: " + str(len(reply_body)).encode() + b"\r\n\r\n"
+                + reply_body
+            )
+
+    def on_error(conn: net.TCPListenConnection, message: str) -> None:
+        faults.append(message)
+
+    def on_accept(conn: net.TCPListenConnection) -> None:
+        conns.append(conn)
+        conn.cb_install(on_receive, on_error, None)
+
+    def on_listen(listener: net.TCPListener, error: ?str) -> None:
+        on_ready(error)
+
+    def request_count() -> int:
+        return count
+
+    def server_faults() -> list[str]:
+        return faults
+
+    def close() -> None:
+        for conn in conns:
+            conn.close()
+
+    listener = net.TCPListener(listen_cap, "127.0.0.1", port, on_listen, on_accept)
+
+
+actor etcd_client_poison_blocks_later_request(t: testing.EnvT):
+    """A mismatched response poisons the client so later requests never send.
+
+    The server answers a range request with a transaction envelope, so the
+    stream is out of sync. The client must fail the pending request and refuse
+    the next one locally; a pre-fix client passed the answer on and stayed
+    usable, so the server saw the second request too.
+    """
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+
+    var attempts = 0
+    var bind_port = 0
+    var done = False
+    var got_first = False
+    var got_second = False
+    var first_error: ?Exception = None
+    var second_error: ?Exception = None
+    var server: ?MockEtcdServer = None
+    var client: ?swetcd.EtcdClient = None
+
+    def drop(error: ?Exception) -> None:
+        pass
+
+    def teardown() -> None:
+        c = client
+        if c is not None:
+            c.close(drop)
+        s = server
+        if s is not None:
+            s.close()
+
+    def fail(message: str) -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.failure(ValueError(message))
+
+    def succeed() -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.success()
+
+    def verify() -> None:
+        if done:
+            return
+        s = server
+        if s is not None:
+            n = await async s.request_count()
+            if not got_first or not got_second:
+                fail("both callbacks must fire: first={got_first} second={got_second}")
+                return
+            fe = first_error
+            se = second_error
+            if fe is None or se is None:
+                fail("both requests must fail after a mismatch")
+                return
+            if "out of sync" not in str(fe):
+                fail("first error must report the desync: {fe}")
+                return
+            if "out of sync" not in str(se):
+                fail("second error must report the desync: {se}")
+                return
+            if n != 1:
+                fail("poison did not stop the later request: server saw {n}")
+                return
+            succeed()
+
+    def on_second(result: ?value, error: ?Exception) -> None:
+        if got_second:
+            fail("second callback fired twice")
+            return
+        got_second = True
+        second_error = error
+        # Give any stray request time to reach the server before counting.
+        after 0.3: verify()
+
+    def on_first(result: ?value, error: ?Exception) -> None:
+        if got_first:
+            fail("first callback fired twice")
+            return
+        got_first = True
+        first_error = error
+        c = client
+        if c is not None:
+            c.post("/v3/kv/range", {"key": RANGE_KEY_B}, on_second)
+
+    def bind() -> None:
+        attempts += 1
+        p = random.randint(20000, 45000)
+        bind_port = p
+        server = MockEtcdServer(listen_cap, p, TXN_ENVELOPE, on_ready)
+
+    def on_ready(error: ?str) -> None:
+        if error is not None:
+            # A port can be taken; retry a fresh one a bounded number of times
+            # rather than skip, so a real bind fault still fails the test.
+            if attempts < 10:
+                bind()
+            else:
+                fail("mock server could not bind after {attempts} attempts: {error}")
+            return
+        c = swetcd.EtcdClient(connect_cap, "127.0.0.1", bind_port)
+        client = c
+        c.post("/v3/kv/range", {"key": RANGE_KEY_A}, on_first)
+
+    def timeout() -> None:
+        if done:
+            return
+        s = server
+        detail = ""
+        if s is not None:
+            fs = await async s.server_faults()
+            if len(fs) > 0:
+                detail = "; server faults: " + str(fs)
+        fail("timed out: first={got_first} second={got_second}{detail}")
+
+    bind()
+    after 10.0: timeout()
+
+
+actor etcd_client_poison_drains_pending(t: testing.EnvT):
+    """Poison fails every pending request in order, not just the head.
+
+    Two range requests are in flight when the server answers the first with a
+    transaction envelope. The client must fail both, in the order they were
+    sent, with the same out-of-sync error.
+    """
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+
+    var attempts = 0
+    var bind_port = 0
+    var done = False
+    var got_a = False
+    var got_b = False
+    var a_before_b = False
+    var a_error: ?Exception = None
+    var b_error: ?Exception = None
+    var server: ?MockEtcdServer = None
+    var client: ?swetcd.EtcdClient = None
+
+    def drop(error: ?Exception) -> None:
+        pass
+
+    def teardown() -> None:
+        c = client
+        if c is not None:
+            c.close(drop)
+        s = server
+        if s is not None:
+            s.close()
+
+    def fail(message: str) -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.failure(ValueError(message))
+
+    def succeed() -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.success()
+
+    def verify() -> None:
+        if done:
+            return
+        if not got_a or not got_b:
+            fail("both callbacks must fire: a={got_a} b={got_b}")
+            return
+        ae = a_error
+        be = b_error
+        if ae is None or be is None:
+            fail("both pending requests must fail after a mismatch")
+            return
+        if not a_before_b:
+            fail("pending requests must fail in the order they were sent")
+            return
+        if "out of sync" not in str(ae):
+            fail("first error must report the desync: {ae}")
+            return
+        if "out of sync" not in str(be):
+            fail("second error must report the desync: {be}")
+            return
+        succeed()
+
+    def on_b(result: ?value, error: ?Exception) -> None:
+        if got_b:
+            fail("second callback fired twice")
+            return
+        got_b = True
+        b_error = error
+        # b arriving after a already fired is the FIFO order we require.
+        a_before_b = got_a
+        if got_a and got_b:
+            after 0.3: verify()
+
+    def on_a(result: ?value, error: ?Exception) -> None:
+        if got_a:
+            fail("first callback fired twice")
+            return
+        got_a = True
+        a_error = error
+        if got_a and got_b:
+            after 0.3: verify()
+
+    def bind() -> None:
+        attempts += 1
+        p = random.randint(20000, 45000)
+        bind_port = p
+        server = MockEtcdServer(listen_cap, p, TXN_ENVELOPE, on_ready)
+
+    def on_ready(error: ?str) -> None:
+        if error is not None:
+            if attempts < 10:
+                bind()
+            else:
+                fail("mock server could not bind after {attempts} attempts: {error}")
+            return
+        c = swetcd.EtcdClient(connect_cap, "127.0.0.1", bind_port)
+        client = c
+        # Post both before the first answer arrives so both are pending when
+        # the mismatch poisons the client.
+        c.post("/v3/kv/range", {"key": RANGE_KEY_A}, on_a)
+        c.post("/v3/kv/range", {"key": RANGE_KEY_B}, on_b)
+
+    def timeout() -> None:
+        if done:
+            return
+        s = server
+        detail = ""
+        if s is not None:
+            fs = await async s.server_faults()
+            if len(fs) > 0:
+                detail = "; server faults: " + str(fs)
+        fail("timed out: a={got_a} b={got_b}{detail}")
+
+    bind()
+    after 10.0: timeout()
+
+
+actor etcd_client_accepts_header_only_response(t: testing.EnvT):
+    """A header-only body answers a transaction request without poisoning.
+
+    etcd returns a header-only body for a transaction whose comparison failed,
+    so the client must pass it on and stay usable. A pre-fix client read the
+    absent succeeded/responses fields as a mismatch and poisoned itself, so the
+    second request failed instead of reaching the server.
+    """
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+
+    var attempts = 0
+    var bind_port = 0
+    var done = False
+    var got_first = False
+    var got_second = False
+    var first_ok = False
+    var second_ok = False
+    var server: ?MockEtcdServer = None
+    var client: ?swetcd.EtcdClient = None
+
+    def drop(error: ?Exception) -> None:
+        pass
+
+    def teardown() -> None:
+        c = client
+        if c is not None:
+            c.close(drop)
+        s = server
+        if s is not None:
+            s.close()
+
+    def fail(message: str) -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.failure(ValueError(message))
+
+    def succeed() -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.success()
+
+    def verify() -> None:
+        if done:
+            return
+        s = server
+        if s is not None:
+            n = await async s.request_count()
+            if not got_first or not got_second:
+                fail("both callbacks must fire: first={got_first} second={got_second}")
+                return
+            if not first_ok or not second_ok:
+                fail("header-only answers must be accepted: first={first_ok} second={second_ok}")
+                return
+            if n != 2:
+                fail("both requests should reach the server: saw {n}")
+                return
+            succeed()
+
+    def on_second(result: ?value, error: ?Exception) -> None:
+        if got_second:
+            fail("second callback fired twice")
+            return
+        got_second = True
+        second_ok = result is not None and error is None
+        after 0.3: verify()
+
+    def on_first(result: ?value, error: ?Exception) -> None:
+        if got_first:
+            fail("first callback fired twice")
+            return
+        got_first = True
+        first_ok = result is not None and error is None
+        c = client
+        if c is not None:
+            c.post("/v3/kv/txn", {"compare": "AA=="}, on_second)
+
+    def bind() -> None:
+        attempts += 1
+        p = random.randint(20000, 45000)
+        bind_port = p
+        server = MockEtcdServer(listen_cap, p, HEADER_ONLY, on_ready)
+
+    def on_ready(error: ?str) -> None:
+        if error is not None:
+            if attempts < 10:
+                bind()
+            else:
+                fail("mock server could not bind after {attempts} attempts: {error}")
+            return
+        c = swetcd.EtcdClient(connect_cap, "127.0.0.1", bind_port)
+        client = c
+        c.post("/v3/kv/txn", {"compare": "AA=="}, on_first)
+
+    def timeout() -> None:
+        if done:
+            return
+        s = server
+        detail = ""
+        if s is not None:
+            fs = await async s.server_faults()
+            if len(fs) > 0:
+                detail = "; server faults: " + str(fs)
+        fail("timed out: first={got_first} second={got_second}{detail}")
+
+    bind()
+    after 10.0: timeout()
+
+
+actor etcd_client_unknown_path_does_not_strand_siblings(t: testing.EnvT):
+    """An unknown path fails its own request without stranding queued siblings.
+
+    response_kind rejects an unsupported path. Resolved while connected() drains
+    the queue, that raise would abort the loop and leave the requests behind it
+    with no callback. The kind is resolved when a request is posted instead, so
+    a bad path fails on its own and a valid request queued alongside it still
+    completes.
+    """
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+
+    var attempts = 0
+    var bind_port = 0
+    var done = False
+    var got_bad = False
+    var got_good = False
+    var bad_error: ?Exception = None
+    var good_ok = False
+    var server: ?MockEtcdServer = None
+    var client: ?swetcd.EtcdClient = None
+
+    def drop(error: ?Exception) -> None:
+        pass
+
+    def teardown() -> None:
+        c = client
+        if c is not None:
+            c.close(drop)
+        s = server
+        if s is not None:
+            s.close()
+
+    def fail(message: str) -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.failure(ValueError(message))
+
+    def succeed() -> None:
+        if done:
+            return
+        done = True
+        teardown()
+        t.success()
+
+    def verify() -> None:
+        if done:
+            return
+        if not got_bad or not got_good:
+            fail("both callbacks must fire: bad={got_bad} good={got_good}")
+            return
+        be = bad_error
+        if be is None:
+            fail("the unknown path must fail its own request")
+            return
+        if not good_ok:
+            fail("the valid sibling must still complete")
+            return
+        succeed()
+
+    def on_good(result: ?value, error: ?Exception) -> None:
+        if got_good:
+            fail("valid callback fired twice")
+            return
+        got_good = True
+        good_ok = result is not None and error is None
+        if got_bad and got_good:
+            after 0.3: verify()
+
+    def on_bad(result: ?value, error: ?Exception) -> None:
+        if got_bad:
+            fail("unknown-path callback fired twice")
+            return
+        got_bad = True
+        bad_error = error
+        if got_bad and got_good:
+            after 0.3: verify()
+
+    def bind() -> None:
+        attempts += 1
+        p = random.randint(20000, 45000)
+        bind_port = p
+        server = MockEtcdServer(listen_cap, p, RANGE_BODY, on_ready)
+
+    def on_ready(error: ?str) -> None:
+        if error is not None:
+            if attempts < 10:
+                bind()
+            else:
+                fail("mock server could not bind after {attempts} attempts: {error}")
+            return
+        # Both posted before connect: the unknown path must fail on its own and
+        # not take the valid request queued behind it down with it.
+        c = swetcd.EtcdClient(connect_cap, "127.0.0.1", bind_port)
+        client = c
+        c.post("/v3/kv/bogus", {"key": RANGE_KEY_A}, on_bad)
+        c.post("/v3/kv/range", {"key": RANGE_KEY_A}, on_good)
+
+    def timeout() -> None:
+        if done:
+            return
+        fail("timed out: bad={got_bad} good={got_good}")
+
+    bind()
+    after 10.0: timeout()
