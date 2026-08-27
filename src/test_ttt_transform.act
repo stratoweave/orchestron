@@ -889,6 +889,9 @@ def _link_to_global_settings(conf: gdata.Node) -> list[ttt.TaggedPath]:
         gdata.FNode(q("global-settings")),
     ]))]
 
+class NoOutput(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        return gdata.Container(), None
 
 # When the subscriber lives in a list and a later tx touches only the
 # publisher, the list element transactions are not configured in that tx.
@@ -899,7 +902,7 @@ actor link_subscriber_in_list_re_runs_on_publisher_update(t: testing.AsyncT):
     stack = ttt.Layer("top",
         ttt.Container({
             q("network"): ttt.Container({
-                q("global-settings"): ttt.Transform(ttt.PassThrough),
+                q("global-settings"): ttt.Transform(NoOutput),
                 q("router"): ttt.List(
                     ttt.Transform(LinkedAsnSubscriber, None, _link_to_global_settings),
                     [q("name"), q("id")],
@@ -926,7 +929,6 @@ actor link_subscriber_in_list_re_runs_on_publisher_update(t: testing.AsyncT):
     })
 
     expected_after_bump = gdata.Container({
-        q("asn"): gdata.Leaf(22),
         q("id"): gdata.Leaf(1),
         q("name"): gdata.Leaf("r1"),
         q("seen_asn"): gdata.Leaf(22),
@@ -947,7 +949,6 @@ actor link_subscriber_in_list_re_runs_on_publisher_update(t: testing.AsyncT):
 
     sess1.edit_config(cfg_init, cont1)
 ########################
-
 
 # Commit fans out asynchronously through each session's container and list
 # transactions, so a following transaction can reach the shared transform
@@ -975,9 +976,9 @@ actor link_update_racing_subscriber_commit_is_kept(t: testing.AsyncT):
     r1_keystr = gdata.Container(r1_keys).key_str([q("name"), q("id")])
     r1_path = ttt.PathKey(r1_keystr, router_path, r1_keys)
 
-    gs_node = ttt.Transform(ttt.PassThrough) (gs_path, None)
+    gs_node = ttt.Transform(NoOutput) (gs_path, None)
     r1_node = ttt.Transform(LinkedAsnSubscriber, None, _link_to_global_settings) (r1_path, None)
-    sink_node = ttt.Transform(ttt.PassThrough) (ttt.PathRoot("sink"), None)
+    sink_node = ttt.Transform(NoOutput) (ttt.PathRoot("sink"), None)
     gs = gs_node.newtrans()
     r1 = r1_node.newtrans()
     sink = sink_node.newtrans()
@@ -991,13 +992,11 @@ actor link_update_racing_subscriber_commit_is_kept(t: testing.AsyncT):
     no_reqs: list[ttt.LinkRequest] = []
 
     expected_init = gdata.Container({
-        q("asn"): gdata.Leaf(11),
         q("id"): gdata.Leaf(1),
         q("name"): gdata.Leaf("r1"),
         q("seen_asn"): gdata.Leaf(11),
     })
     expected_after_bump = gdata.Container({
-        q("asn"): gdata.Leaf(22),
         q("id"): gdata.Leaf(1),
         q("name"): gdata.Leaf("r1"),
         q("seen_asn"): gdata.Leaf(22),
