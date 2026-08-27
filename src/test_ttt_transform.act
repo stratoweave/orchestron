@@ -889,6 +889,9 @@ def _link_to_global_settings(conf: gdata.Node) -> list[ttt.TaggedPath]:
         gdata.FNode(q("global-settings")),
     ]))]
 
+class NoOutput(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        return gdata.Container(), None
 
 # When the subscriber lives in a list and a later tx touches only the
 # publisher, the list element transactions are not configured in that tx.
@@ -899,7 +902,7 @@ actor link_subscriber_in_list_re_runs_on_publisher_update(t: testing.AsyncT):
     stack = ttt.Layer("top",
         ttt.Container({
             q("network"): ttt.Container({
-                q("global-settings"): ttt.Transform(ttt.PassThrough),
+                q("global-settings"): ttt.Transform(NoOutput),
                 q("router"): ttt.List(
                     ttt.Transform(LinkedAsnSubscriber, None, _link_to_global_settings),
                     [q("name"), q("id")],
@@ -926,7 +929,6 @@ actor link_subscriber_in_list_re_runs_on_publisher_update(t: testing.AsyncT):
     })
 
     expected_after_bump = gdata.Container({
-        q("asn"): gdata.Leaf(22),
         q("id"): gdata.Leaf(1),
         q("name"): gdata.Leaf("r1"),
         q("seen_asn"): gdata.Leaf(22),
@@ -946,6 +948,126 @@ actor link_subscriber_in_list_re_runs_on_publisher_update(t: testing.AsyncT):
         sess2.edit_config(cfg_bump_asn, complete=cont2)
 
     sess1.edit_config(cfg_init, cont1)
+########################
+
+# Commit fans out asynchronously through each session's container and list
+# transactions, so a following transaction can reach the shared transform
+# transactions while the previous transaction's commit is still in flight to
+# some of them. Config state survives such overlap: the commit invalidates
+# the candidate and the preserved diff re-configures at lock time against the
+# freshly committed base. The linked tree must survive it the same way: here
+# the publisher has seen tx1's commit when tx2 arrives, so it publishes an
+# update, but the subscriber has not, so the update reaches the subscriber
+# before the subscription it belongs to has committed there. The update must
+# still be in effect when the subscriber's lock-time re-configure recomputes
+# its output. Driving the transform transactions directly from the test actor
+# pins the delivery order (per-sender FIFO) that the production stack leaves
+# to scheduling. The container and list transactions route linkage messages
+# by peeling one path level per hop, so the test peels the same levels. The
+# sink transform stands in for the lower layer; the out sessions' apply
+# before it locks is the sweep of late output pushes that Session.lock
+# performs.
+actor link_update_racing_subscriber_commit_is_kept(t: testing.AsyncT):
+    root_path = ttt.PathRoot("top")
+    network_path = ttt.PathElem(q("network"), root_path)
+    gs_path = ttt.PathElem(q("global-settings"), network_path)
+    router_path = ttt.PathElem(q("router"), network_path)
+    r1_keys: dict[gdata.Id, gdata.Node] = {q("name"): gdata.Leaf("r1"), q("id"): gdata.Leaf(1)}
+    r1_keystr = gdata.Container(r1_keys).key_str([q("name"), q("id")])
+    r1_path = ttt.PathKey(r1_keystr, router_path, r1_keys)
+
+    gs_node = ttt.Transform(NoOutput) (gs_path, None)
+    r1_node = ttt.Transform(LinkedAsnSubscriber, None, _link_to_global_settings) (r1_path, None)
+    sink_node = ttt.Transform(NoOutput) (ttt.PathRoot("sink"), None)
+    gs = gs_node.newtrans()
+    r1 = r1_node.newtrans()
+    sink = sink_node.newtrans()
+
+    out1 = ttt.Session("out1", sink_node, None, None)
+    out2 = ttt.Session("out2", sink_node, None, None)
+
+    gs_asn11: gdata.Node = gdata.Container({q("asn"): gdata.Leaf(11)})
+    gs_asn22: gdata.Node = gdata.Container({q("asn"): gdata.Leaf(22)})
+    r1_cfg: gdata.Node = gdata.Container({q("name"): gdata.Leaf("r1"), q("id"): gdata.Leaf(1)})
+    no_reqs: list[ttt.LinkRequest] = []
+
+    expected_init = gdata.Container({
+        q("id"): gdata.Leaf(1),
+        q("name"): gdata.Leaf("r1"),
+        q("seen_asn"): gdata.Leaf(11),
+    })
+    expected_after_bump = gdata.Container({
+        q("id"): gdata.Leaf(1),
+        q("name"): gdata.Leaf("r1"),
+        q("seen_asn"): gdata.Leaf(22),
+    })
+
+    def cont7(_r: value):
+        testing.assertEqual(
+            sink.get().prsrc(deterministic=True),
+            expected_after_bump.prsrc(deterministic=True),
+        )
+        t.success()
+
+    def cont6(_r: value):
+        gs.commit("t2", True)
+        r1.commit("t2", True)
+        sink.commit("t2", True)
+        sink.wait_complete("t2", cont7)
+
+    # Output pushes are fire-and-forget messages into the out sessions, so
+    # each transaction waits a beat for in-flight pushes to land before the
+    # apply sweeps them into the sink, standing in for the scheduling
+    # distance the production stack provides. The interleaving under test
+    # stays pinned by per-sender FIFO ordering.
+    def cont5b():
+        await async out2.apply("t2")
+        sink.lock("t2", None, cont6)
+
+    def cont5(_r: value):
+        after 0.05: cont5b()
+
+    def cont4(_r: value):
+        r1.lock("t2", out2, cont5)
+
+    def cont3b(_r: value):
+        testing.assertEqual(
+            sink.get().prsrc(deterministic=True),
+            expected_init.prsrc(deterministic=True),
+        )
+        res = gs.configure("t2", {'_': gs_asn22}, out2)
+        upds = [u.tail().tail().tail() for u in res.updates]
+        r1.linkage("t2", no_reqs, upds, out2)
+        # Only now is tx1's commit delivered to the subscriber.
+        r1.commit("t1", True)
+        gs.lock("t2", out2, cont4)
+
+    def cont3(_r: value):
+        # tx1 commits, but only the publisher and the sink see it before tx2
+        # runs; the subscriber's commit is still in flight.
+        gs.commit("t1", True)
+        sink.commit("t1", True)
+        sink.wait_complete("t1", cont3b)
+
+    def cont2b():
+        await async out1.apply("t1")
+        sink.lock("t1", None, cont3)
+
+    def cont2(_r: value):
+        after 0.05: cont2b()
+
+    def cont1(_r: value):
+        r1.lock("t1", out1, cont2)
+
+    no_upds: list[ttt.LinkUpdate] = []
+    gs.configure("t1", {'_': gs_asn11}, out1)
+    res = r1.configure("t1", {'_': r1_cfg}, out1)
+    reqs = [r.tail().tail() for r in res.requests]
+    res = gs.linkage("t1", reqs, no_upds, out1)
+    upds = [u.tail().tail().tail() for u in res.updates]
+    r1.linkage("t1", no_reqs, upds, out1)
+    await async out1.apply("t1")
+    gs.lock("t1", out1, cont1)
 ########################
 
 
