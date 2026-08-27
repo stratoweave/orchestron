@@ -1516,10 +1516,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
         else:
             keys1 = set(elems.keys())
             #print('====', tid, path, 'acquire all keys:', keys1, actorid(), err=True)
-        if tid in active:
-            active[tid] |= keys1
-        else:
-            active[tid] = keys1
+        active[tid] = keys1
 
         return {k: elems[k] for k in keys1}
 
@@ -1544,7 +1541,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
             provisional = set()
 
     def all():
-        #print('====', 'all:', elems.keys(), 'provosional:', provisional, "active:", active)
+        #print('====', 'all:', elems.keys(), 'provisional:', provisional, "active:", active)
         if provisional:
             return {k: elems[k] for k in elems if k not in provisional}
         else:
@@ -1562,10 +1559,10 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
         elems[key] = node
         return node
 
-
 class _ListTransaction(_Transaction):
     liststate : ListState
     key_names : list[gdata.Id]
+    diffs : dict[str, gdata.Node]
     elems : dict[str, Transaction]
     accum : dict[str, CfgResult]
     state : ?YieldState[str]
@@ -1579,6 +1576,7 @@ class _ListTransaction(_Transaction):
         self.key_names = key_names
         self.ns = ns
         self.module = module
+        self.diffs = {}
         self.elems = {}
         self.accum = {}
         self.state = None
@@ -1587,10 +1585,12 @@ class _ListTransaction(_Transaction):
     def configure(self, tid, diff, out: ?Session, dbuf: ?swdb.Buffer=None):
         #print('####', tid, '(List)', _format_path(self.path), 'configure', actorid(), err=True)
         if self.reset:
+            self.diffs = {}
             self.elems = {}
             self.accum = {}
             self.reset = False
-        diff_by_key = transpose_list(diff)
+        self.diffs.update(diff.items())
+        diff_by_key = transpose_list(self.diffs)
         leaves_by_key = {}
         if len(diff_by_key) == 0:
             for key,node in self.liststate.acquire(tid, None).items():
@@ -1667,6 +1667,7 @@ class _ListTransaction(_Transaction):
         # linkage can now be a transaction entry point, so like configure()
         # it must clear the previous transaction stale state
         if self.reset:
+            self.diffs = {}
             self.elems = {}
             self.accum = {}
             self.reset = False
