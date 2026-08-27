@@ -340,3 +340,72 @@ actor lower_layer_linkage(t: testing.AsyncT):
         t.success()
 
     sess.edit_config(cfg, cont1)
+
+########################
+
+# Maps one element of the top list to one element in the things list
+# below, copying every leaf (including the key).
+class ThingCopy(ttt.TransformFunction):
+    def transform_wrapper(self, cfg, linked, memory, dynstate):
+        if isinstance(cfg, gdata.Container):
+            return gdata.Container({
+                q("things"): gdata.List([q("name")], [
+                    gdata.Container(dict(cfg.children.items()))
+                ])
+            }), None
+        return gdata.Container({}), None
+
+# Two sessions on the same stack commit concurrently, the way each
+# northbound request gets its own session today. Each session creates one
+# element of its own (p1 / p2) in the top list and both configure the
+# shared element s with disjoint leaves: sess1 sets s/a, sess2 sets s/b.
+# No leaf is written by more than one session, so all data merges
+# deterministically. Each top element maps to one element in the things
+# list below.
+#
+# After both sessions report success, the things list must hold the
+# merge of the two edits: all three elements, with s carrying both
+# sessions' leaves. The order of concurrently created elements is not
+# significant (keyed list equality compares elements by key).
+actor concurrent_thing_list(t: testing.AsyncT):
+    stack = ttt.Layer("top",
+                ttt.List(ttt.Transform(ThingCopy), [q("name")]),
+                ttt.Layer("low",
+                    ttt.Container({
+                        q("things"): ttt.List(ttt.Transform(ttt.PassThrough), [q("name")])
+                    }),
+                    None))
+
+    sess1 = stack.newsession()
+    sess2 = stack.newsession()
+
+    cfg1 = gdata.List([q("name")], [
+        gdata.Container({q("name"): gdata.Leaf("p1"), q("a"): gdata.Leaf(1)}),
+        gdata.Container({q("name"): gdata.Leaf("s"), q("a"): gdata.Leaf(8)})
+    ])
+
+    cfg2 = gdata.List([q("name")], [
+        gdata.Container({q("name"): gdata.Leaf("p2"), q("a"): gdata.Leaf(2)}),
+        gdata.Container({q("name"): gdata.Leaf("s"), q("b"): gdata.Leaf(9)})
+    ])
+
+    both = gdata.Container({q("things"): gdata.merge(cfg1, cfg2)})
+
+    var acks = 0
+
+    def cont(r: value):
+        if isinstance(r, Exception):
+            t.failure(r)
+            return
+        acks += 1
+        if acks == 2:
+            actual = sess1.below().get()
+            try:
+                if actual != both:
+                    testing.assertEqual(actual.prsrc(), both.prsrc())
+                t.success()
+            except Exception as e:
+                t.failure(e)
+
+    sess1.edit_config(cfg1, complete=cont)
+    sess2.edit_config(cfg2, complete=cont)
