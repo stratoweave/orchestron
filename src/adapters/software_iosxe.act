@@ -1,0 +1,190 @@
+#
+# IOS XE software adapter -- SKELETON.
+#
+# Enough of a real adapter to show the shape: each job issues one RPC, reads
+# the device back with a get to see that it took effect, and reports done. The
+# vendor detail is deliberately thin, and one simplification is load bearing:
+#
+#   The real IOS XE install RPCs are ASYNCHRONOUS. Every one of them takes a
+#   mandatory `uuid` which, in Cisco's words, "is replayed back in the install
+#   progress notifications to correlate them back to the original install
+#   operation", and none of them declares an output -- they all reply <ok/>
+#   meaning *accepted*, not *finished*. Completion arrives as an
+#   install-status notification (Cisco-IOS-XE-install-events).
+#
+#   This adapter instead treats a successful RPC plus a plausible get as done.
+#   Making it real means subscribing to install-status and correlating on the
+#   uuid, which also needs notification routing that does not exist yet: the
+#   device adapter's _on_notif only recognises yang-push push-updates and drops
+#   everything else.
+#
+# See src/test_software_iosxe.act for how the device side is mocked.
+#
+
+import logging
+import net
+import yang.gdata as ygdata
+
+import device as swdev
+from device_meta_config import stratoweave_rfs__device_entry as DeviceMetaConfig
+
+INSTALL_RPC_NS = "http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc"
+INSTALL_RPC_MODULE = "Cisco-IOS-XE-install-rpc"
+INSTALL_OPER_NS = "http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper"
+INSTALL_OPER_MODULE = "Cisco-IOS-XE-install-oper"
+
+
+def _rpc_q(name: str) -> ygdata.Id:
+    return ygdata.Id(INSTALL_RPC_NS, name)
+
+def oper_q(name: str) -> ygdata.Id:
+    """Qualified name in the install oper module. Used by mocks too."""
+    return ygdata.Id(INSTALL_OPER_NS, name)
+
+def _leaf(v: str) -> ygdata.Node:
+    return ygdata.Leaf(v, ns=INSTALL_RPC_NS, module=INSTALL_RPC_MODULE)
+
+def running_version_filter() -> ygdata.FNode:
+    """Filter selecting just the running software version."""
+    return ygdata.FNode(None, None, [
+        ygdata.FNode(oper_q("install-oper-data"), children=[
+            ygdata.FNode(oper_q("install-version-state"), children=[
+                ygdata.FNode(oper_q("version"))
+            ])
+        ])
+    ])
+
+
+actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler):
+    """Device interaction for IosXeSoftwareAdapter.
+
+    An actor rather than plain methods on the adapter class, matching how
+    NetconfAdapter delegates to NetconfDriver: the jobs chain an RPC into a get
+    into a callback, which needs somewhere to keep the intermediate state.
+    """
+    _log = logging.Logger(log_handler)
+
+    # Every install RPC needs a uuid to correlate progress notifications. Real
+    # ones are UUIDs; a counter keeps tests deterministic and is enough while
+    # nothing consumes the notifications.
+    var seq: int = 0
+
+    def _next_uuid() -> str:
+        seq += 1
+        return "sw-{seq}"
+
+    def _read_version(done: action(?str, ?Exception) -> None) -> None:
+        """Read the running version out of the install oper tree."""
+        def on_get(data: ?ygdata.Node, err: ?Exception) -> None:
+            if err is not None:
+                done(None, err)
+                return
+            if data is not None:
+                oper = data.get_opt_cnt(oper_q("install-oper-data"))
+                if oper is not None:
+                    state = oper.get_opt_cnt(oper_q("install-version-state"))
+                    if state is not None:
+                        done(state.get_opt_str(oper_q("version")), None)
+                        return
+            done(None, None)
+        dev.get(on_get, running_version_filter())
+
+    def _rpc(rpc_name: str, extra: dict[ygdata.Id, ygdata.Node],
+             done: action(?Exception) -> None) -> None:
+        """Issue one install RPC. Every one of them carries a uuid."""
+        input = {_rpc_q("uuid"): _leaf(_next_uuid())}
+        for k, v in extra.items():
+            input[k] = v
+
+        def on_rpc(out: ?ygdata.Node, err: ?Exception) -> None:
+            done(err)
+
+        dev.rpc(on_rpc, ygdata.Container({
+            _rpc_q(rpc_name): ygdata.Container(input, ns=INSTALL_RPC_NS, module=INSTALL_RPC_MODULE)
+        }))
+
+    def _rpc_then_verify(rpc_name: str, extra: dict[ygdata.Id, ygdata.Node],
+                         done: action(?Exception) -> None) -> None:
+        """One RPC, then read the device back to see that it took.
+
+        The verify step is what makes this worth doing at all: the mock changes
+        its operational data in response to the RPC, so a get afterwards
+        observes the effect rather than trusting the reply.
+        """
+        def on_verified(version: ?str, err: ?Exception) -> None:
+            if err is not None:
+                done(err)
+                return
+            _log.debug("IOS XE software job done", {"rpc": rpc_name, "version": str(version)})
+            done(None)
+
+        def on_rpc(err: ?Exception) -> None:
+            if err is not None:
+                done(err)
+                return
+            _read_version(on_verified)
+
+        _rpc(rpc_name, extra, on_rpc)
+
+    def check(done: action(?str, ?Exception) -> None) -> None:
+        _read_version(done)
+
+    def prepare(done: action(?Exception) -> None, release: str) -> None:
+        # `install` with a path downloads and adds the image to the device.
+        _rpc_then_verify("install", {_rpc_q("path"): _leaf("bootflash:{release}.bin")}, done)
+
+    def install(done: action(?Exception) -> None, release: str) -> None:
+        """Add the image, then activate it.
+
+        Both steps, every time, because the device refuses to activate an image
+        that was not added. That is why staging is never a precondition at the
+        fleet layer: prepare only means these first steps ran early, and an
+        image deleted since then is added again here rather than failing.
+        """
+        def on_added(err: ?Exception) -> None:
+            if err is not None:
+                done(err)
+                return
+            # `activate` is the impacting step; the real device reboots into it
+            # and reports progress by notification.
+            _rpc_then_verify("activate", {}, done)
+
+        _rpc("install", {_rpc_q("path"): _leaf("bootflash:{release}.bin")}, on_added)
+
+    def rollback(done: action(?Exception) -> None, previous: ?str) -> None:
+        _rpc_then_verify("rollback", {}, done)
+
+    def cleanup(done: action(?Exception) -> None) -> None:
+        # `remove` reclaims the space taken by superseded images.
+        _rpc_then_verify("remove", {}, done)
+
+
+class IosXeSoftwareAdapter(swdev.SoftwareAdapter):
+    """Software adapter for IOS XE. See the module docstring for what is real
+    and what is a placeholder."""
+
+    def __init__(self, dev: swdev.DeviceMgr, dmc: DeviceMetaConfig,
+                 log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap):
+        self._log_handler = log_handler
+        self._driver = IosXeSoftwareDriver(dev, log_handler)
+
+    def supports_mocking(self) -> bool:
+        return True
+
+    def check(self, done: action(?str, ?Exception) -> None) -> None:
+        self._driver.check(done)
+
+    def prepare(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.prepare(done, release)
+
+    def install(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.install(done, release)
+
+    def rollback(self, done: action(?Exception) -> None, previous: ?str) -> None:
+        self._driver.rollback(done, previous)
+
+    def cleanup(self, done: action(?Exception) -> None) -> None:
+        self._driver.cleanup(done)
+
+    def estimate(self, staged: bool) -> int:
+        return 15 * 60 if staged else 40 * 60
