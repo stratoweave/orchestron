@@ -1021,7 +1021,7 @@ actor link_update_racing_subscriber_commit_is_kept(t: testing.AsyncT):
     # distance the production stack provides. The interleaving under test
     # stays pinned by per-sender FIFO ordering.
     def cont5b():
-        out2.apply("t2")
+        await async out2.apply("t2")
         sink.lock("t2", None, cont6)
 
     def cont5(_r: value):
@@ -1050,7 +1050,7 @@ actor link_update_racing_subscriber_commit_is_kept(t: testing.AsyncT):
         sink.wait_complete("t1", cont3b)
 
     def cont2b():
-        out1.apply("t1")
+        await async out1.apply("t1")
         sink.lock("t1", None, cont3)
 
     def cont2(_r: value):
@@ -1066,7 +1066,7 @@ actor link_update_racing_subscriber_commit_is_kept(t: testing.AsyncT):
     res = gs.linkage("t1", reqs, no_upds, out1)
     upds = [u.tail().tail().tail() for u in res.updates]
     r1.linkage("t1", no_reqs, upds, out1)
-    out1.apply("t1")
+    await async out1.apply("t1")
     gs.lock("t1", out1, cont1)
 ########################
 
