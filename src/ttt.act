@@ -2513,7 +2513,15 @@ class RFSFunction(object):
 ################# Device #####################
 
 def Device(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(Path, ?Layer)->Node:
-    return lambda path, _lower: Node(_Device(path, dev_registry, log_handler))
+    proc def _create_device_node(path, _lower):
+        impl = _Device(path, dev_registry, log_handler)
+        # The DeviceMgr serves the whole device entry, so it gets the entry's
+        # update_oper at node creation and publishes its modeled oper state
+        # straight onto it: the current subtree on registration and every
+        # change after. Push-driven: no polling.
+        dev_registry.get_or_create(devname_from_device_path(path)).set_update_oper(impl.transaction.update_oper)
+        return Node(impl)
+    return _create_device_node
 
 class _Device(_TransformBase):
     def __init__(self, path, dev_registry, log_handler):

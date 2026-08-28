@@ -1,4 +1,4 @@
-GENERATED_ACT := src/device_meta_config.act src/ietf_restconf_monitoring.act src/ietf_yang_library.act
+GENERATED_ACT := src/device_meta_config.act src/device_oper.act src/ietf_restconf_monitoring.act src/ietf_yang_library.act
 
 .PHONY: build
 build: $(GENERATED_ACT)

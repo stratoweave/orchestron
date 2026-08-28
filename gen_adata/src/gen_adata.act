@@ -11,6 +11,15 @@ actor main(env):
     try:
         schema_yang = [swyang.rfs, swyang.stratoweave, swyang.ietf_inet_types, swyang.ietf_yang_types]
         y = yang.compile(schema_yang)
+
+        # Emit the oper view first: the config-only prdaclass below strips
+        # config-false nodes from the compiled tree as it prints.
+        oper_src = y.prdaclass(schema_yang=schema_yang, loose=True, include_state=True, root_path=["stratoweave-rfs:device"]).encode()
+
+        wfo = file.WriteFile(wfc, "src/device_oper.act")
+        await async wfo.write(oper_src)
+        await async wfo.close()
+
         src = y.prdaclass(schema_yang=schema_yang, root_path=["stratoweave-rfs:device"]).encode()
 
         wf = file.WriteFile(wfc, "src/device_meta_config.act")
