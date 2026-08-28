@@ -950,6 +950,89 @@ actor link_subscriber_in_list_re_runs_on_publisher_update(t: testing.AsyncT):
     sess1.edit_config(cfg_init, cont1)
 ########################
 
+actor link_subscription_survives_empty_publisher(t: testing.AsyncT):
+    stack = ttt.Layer("top",
+        ttt.Container({
+            q("network"): ttt.Container({
+                q("global-settings"): ttt.Transform(NoOutput),
+                q("router"): ttt.List(
+                    ttt.Transform(LinkedAsnSubscriber, None, _link_to_global_settings),
+                    [q("name"), q("id")],
+                ),
+            }),
+        }),
+        ttt.Sink())
+
+    cfg_init = gdata.Container({
+        q("network"): gdata.Container({
+            q("global-settings"): gdata.Container({q("asn"): gdata.Leaf(11)}),
+            q("router"): gdata.List([q("name"), q("id")], [
+                gdata.Container({
+                    q("name"): gdata.Leaf("r1"),
+                    q("id"): gdata.Leaf(1),
+                }),
+            ]),
+        }),
+    })
+    cfg_delete_asn = gdata.Container({
+        q("network"): gdata.Container({
+            q("global-settings"): gdata.Container({q("asn"): gdata.Absent()}),
+        }),
+    })
+    cfg_bump_asn = gdata.Container({
+        q("network"): gdata.Container({
+            q("global-settings"): gdata.Container({q("asn"): gdata.Leaf(22)}),
+        }),
+    })
+
+    expected_initially = gdata.Container({
+        q("id"): gdata.Leaf(1),
+        q("name"): gdata.Leaf("r1"),
+        q("seen_asn"): gdata.Leaf(11),
+    })
+
+    expected_after_delete = gdata.Container({
+        q("id"): gdata.Leaf(1),
+        q("name"): gdata.Leaf("r1")
+    })
+
+    expected_after_bump = gdata.Container({
+        q("id"): gdata.Leaf(1),
+        q("name"): gdata.Leaf("r1"),
+        q("seen_asn"): gdata.Leaf(22),
+    })
+
+    sess1 = stack.newsession()
+    sess2 = stack.newsession()
+    sess3 = stack.newsession()
+
+    def cont3(_r: value):
+        out3 = sess1.below().get().prsrc(deterministic=True)
+        testing.assertEqual(
+            out3,
+            expected_after_bump.prsrc(deterministic=True),
+        )
+        t.success()
+
+    def cont2(_r: value):
+        out2 = sess1.below().get().prsrc(deterministic=True)
+        testing.assertEqual(
+            out2,
+            expected_after_delete.prsrc(deterministic=True),
+        )
+        sess3.edit_config(cfg_bump_asn, complete=cont3)
+
+    def cont1(_r: value):
+        out1 = sess1.below().get().prsrc(deterministic=True)
+        testing.assertEqual(
+            out1,
+            expected_initially.prsrc(deterministic=True),
+        )
+        sess2.edit_config(cfg_delete_asn, complete=cont2)
+
+    sess1.edit_config(cfg_init, cont1)
+########################
+
 # Commit fans out asynchronously through each session's container and list
 # transactions, so a following transaction can reach the shared transform
 # transactions while the previous transaction's commit is still in flight to
