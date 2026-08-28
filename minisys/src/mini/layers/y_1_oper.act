@@ -79,15 +79,51 @@ SRC_DNODE_CHILD_10: DContainer = DContainer(module='stratoweave-rfs', namespace=
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='runtime-schema-fetch', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
 ])
 
-SRC_DNODE_CHILD_11: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, presence=False)
+SRC_DNODE_CHILD_12: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='upgrade-campaign', config=True, description='The upgrade campaign that currently owns this device. A device is\nowned by at most one campaign at a time, which is what stops two\ncampaigns from scheduling the same device.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_13: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='target-release', config=True, description="Name of the software release this device should be running, e.g.\n'17.18.03a'. Absent means no upgrade is intended and the manager\nstays idle.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_14: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='allow-staging', config=True, description='Whether the manager may run the non-impacting prepare job ahead of\nthe maintenance window. Set by the scheduler, which paces image\ntransfers across the fleet so they do not saturate the network.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+
+SRC_DNODE_CHILD_15: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='veto', key=['holder'], config=True, description="Any holder may block the impacting install step by adding an entry;\nabsence of entries means go. The fleet scheduler holds one until it\nis this device's turn, and monitoring systems may add their own.\nEach holder removes only its own entry, so there is no contention.\nA veto blocks starting work; it never aborts an install already\nin flight.", min_elements=0, ordered_by='system', children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='holder', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='reason', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+])
+
+SRC_DNODE_CHILD_16: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, presence=False, children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='status', config=False, description='Overall status, aggregated from the jobs and the install checks.', mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'unknown':0, 'up-to-date':1, 'upgrade-needed':2, 'in-progress':3, 'succeeded':4, 'failed':5, 'rolled-back':6})),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='running-release', config=False, description='Release the device was last observed to be running. Software is\ntreated as monolithic: one version name per device, as on IOS XE.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='job', key=['name'], config=False, description='One entry per job in the upgrade sequence. Jobs are idempotent and\nmay be re-run; prepare in particular may run long before install\nand is repeated as part of it.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=False, mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'check':0, 'prepare':1, 'install':2, 'rollback':3, 'cleanup':4})),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'idle':0, 'running':1, 'done':2, 'failed':3})),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='started', config=False, mandatory=False, type=DTypeString(name='yang:date-and-time', description="The date-and-time type is a profile of the ISO 8601\nstandard for representation of dates and times using the\nGregorian calendar.  The profile is defined by the\ndate-time production in Section 5.6 of RFC 3339 and the\nupdate defined in Section 2 of RFC 9557.  The value of\n60 for seconds is allowed only in the case of leap seconds.\n\nThe date-and-time type is compatible with the dateTime XML\nschema dateTime type with the following notable exceptions:\n\n(a) The date-and-time type does not allow negative years.\n\n(b) The time-offset Z indicates that the date-and-time\n    value is reported in UTC and that the local time zone\n    reference point is unknown.  The time-offset +00:00\n    indicates that the date-and-time value is reported in\n    UTC and that the local time zone reference point is UTC\n    (see Section 2 of RFC 9557).\n\nThis type is not equivalent to the DateAndTime textual\nconvention of the SMIv2 since RFC 3339 uses a different\nseparator between full-date and full-time and provides\nhigher resolution of time-secfrac.\n\nThe canonical format for date-and-time values with a known\ntime zone uses a numeric time zone offset that is calculated\nusing the device's configured known offset to UTC time.  A\nchange of the device's offset to UTC time will cause\ndate-and-time values to change accordingly.  Such changes\nmight happen periodically if a server automatically follows\ndaylight saving time (DST) time zone offset changes.  The\ncanonical format for date-and-time values reported in UTC\nwith an unknown local time zone offset SHOULD use the\ntime-offset Z and MAY use -00:00 for backwards\ncompatibility.", reference='ISO 8601: Data elements and interchange formats -- Information\n          interchange -- Representation of dates and times\nRFC 3339: Date and Time on the Internet: Timestamps\nRFC 9557: Date and Time on the Internet: Timestamps\n          with Additional Information\nRFC 2579: Textual Conventions for SMIv2\nXSD-TYPES: XML Schema Definition Language (XSD) 1.1\n           Part 2: Datatypes', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='[0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?', pcre='^([0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?)$', invert=False)])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='ended', config=False, mandatory=False, type=DTypeString(name='yang:date-and-time', description="The date-and-time type is a profile of the ISO 8601\nstandard for representation of dates and times using the\nGregorian calendar.  The profile is defined by the\ndate-time production in Section 5.6 of RFC 3339 and the\nupdate defined in Section 2 of RFC 9557.  The value of\n60 for seconds is allowed only in the case of leap seconds.\n\nThe date-and-time type is compatible with the dateTime XML\nschema dateTime type with the following notable exceptions:\n\n(a) The date-and-time type does not allow negative years.\n\n(b) The time-offset Z indicates that the date-and-time\n    value is reported in UTC and that the local time zone\n    reference point is unknown.  The time-offset +00:00\n    indicates that the date-and-time value is reported in\n    UTC and that the local time zone reference point is UTC\n    (see Section 2 of RFC 9557).\n\nThis type is not equivalent to the DateAndTime textual\nconvention of the SMIv2 since RFC 3339 uses a different\nseparator between full-date and full-time and provides\nhigher resolution of time-secfrac.\n\nThe canonical format for date-and-time values with a known\ntime zone uses a numeric time zone offset that is calculated\nusing the device's configured known offset to UTC time.  A\nchange of the device's offset to UTC time will cause\ndate-and-time values to change accordingly.  Such changes\nmight happen periodically if a server automatically follows\ndaylight saving time (DST) time zone offset changes.  The\ncanonical format for date-and-time values reported in UTC\nwith an unknown local time zone offset SHOULD use the\ntime-offset Z and MAY use -00:00 for backwards\ncompatibility.", reference='ISO 8601: Data elements and interchange formats -- Information\n          interchange -- Representation of dates and times\nRFC 3339: Date and Time on the Internet: Timestamps\nRFC 9557: Date and Time on the Internet: Timestamps\n          with Additional Information\nRFC 2579: Textual Conventions for SMIv2\nXSD-TYPES: XML Schema Definition Language (XSD) 1.1\n           Part 2: Datatypes', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='[0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?', pcre='^([0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?)$', invert=False)])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='progress', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint8', description=None, reference=None, exts=[], builtin_type='uint8', default=None, ranges=Ranges([(0, 255)]))),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='message', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='precheck', config=False, description='Gate evaluated immediately before install. A failed precheck stops\nthe install; the device is left untouched.', presence=False, children=[
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='verdict', config=False, mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'not-run':0, 'pass':1, 'fail':2})),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='detail', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='at', config=False, mandatory=False, type=DTypeString(name='yang:date-and-time', description="The date-and-time type is a profile of the ISO 8601\nstandard for representation of dates and times using the\nGregorian calendar.  The profile is defined by the\ndate-time production in Section 5.6 of RFC 3339 and the\nupdate defined in Section 2 of RFC 9557.  The value of\n60 for seconds is allowed only in the case of leap seconds.\n\nThe date-and-time type is compatible with the dateTime XML\nschema dateTime type with the following notable exceptions:\n\n(a) The date-and-time type does not allow negative years.\n\n(b) The time-offset Z indicates that the date-and-time\n    value is reported in UTC and that the local time zone\n    reference point is unknown.  The time-offset +00:00\n    indicates that the date-and-time value is reported in\n    UTC and that the local time zone reference point is UTC\n    (see Section 2 of RFC 9557).\n\nThis type is not equivalent to the DateAndTime textual\nconvention of the SMIv2 since RFC 3339 uses a different\nseparator between full-date and full-time and provides\nhigher resolution of time-secfrac.\n\nThe canonical format for date-and-time values with a known\ntime zone uses a numeric time zone offset that is calculated\nusing the device's configured known offset to UTC time.  A\nchange of the device's offset to UTC time will cause\ndate-and-time values to change accordingly.  Such changes\nmight happen periodically if a server automatically follows\ndaylight saving time (DST) time zone offset changes.  The\ncanonical format for date-and-time values reported in UTC\nwith an unknown local time zone offset SHOULD use the\ntime-offset Z and MAY use -00:00 for backwards\ncompatibility.", reference='ISO 8601: Data elements and interchange formats -- Information\n          interchange -- Representation of dates and times\nRFC 3339: Date and Time on the Internet: Timestamps\nRFC 9557: Date and Time on the Internet: Timestamps\n          with Additional Information\nRFC 2579: Textual Conventions for SMIv2\nXSD-TYPES: XML Schema Definition Language (XSD) 1.1\n           Part 2: Datatypes', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='[0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?', pcre='^([0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?)$', invert=False)]))
+    ]),
+    DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='postcheck', config=False, description='Evaluated after install to decide whether the upgrade actually\nlanded. A failing post-check triggers a rollback, which is why\ncleanup is sequenced last: on platforms without native rollback\nthe superseded image is the rollback path and must still be on\nthe device until the post-checks pass.', presence=False, children=[
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='verdict', config=False, mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'not-run':0, 'pass':1, 'fail':2})),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='detail', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='at', config=False, mandatory=False, type=DTypeString(name='yang:date-and-time', description="The date-and-time type is a profile of the ISO 8601\nstandard for representation of dates and times using the\nGregorian calendar.  The profile is defined by the\ndate-time production in Section 5.6 of RFC 3339 and the\nupdate defined in Section 2 of RFC 9557.  The value of\n60 for seconds is allowed only in the case of leap seconds.\n\nThe date-and-time type is compatible with the dateTime XML\nschema dateTime type with the following notable exceptions:\n\n(a) The date-and-time type does not allow negative years.\n\n(b) The time-offset Z indicates that the date-and-time\n    value is reported in UTC and that the local time zone\n    reference point is unknown.  The time-offset +00:00\n    indicates that the date-and-time value is reported in\n    UTC and that the local time zone reference point is UTC\n    (see Section 2 of RFC 9557).\n\nThis type is not equivalent to the DateAndTime textual\nconvention of the SMIv2 since RFC 3339 uses a different\nseparator between full-date and full-time and provides\nhigher resolution of time-secfrac.\n\nThe canonical format for date-and-time values with a known\ntime zone uses a numeric time zone offset that is calculated\nusing the device's configured known offset to UTC time.  A\nchange of the device's offset to UTC time will cause\ndate-and-time values to change accordingly.  Such changes\nmight happen periodically if a server automatically follows\ndaylight saving time (DST) time zone offset changes.  The\ncanonical format for date-and-time values reported in UTC\nwith an unknown local time zone offset SHOULD use the\ntime-offset Z and MAY use -00:00 for backwards\ncompatibility.", reference='ISO 8601: Data elements and interchange formats -- Information\n          interchange -- Representation of dates and times\nRFC 3339: Date and Time on the Internet: Timestamps\nRFC 9557: Date and Time on the Internet: Timestamps\n          with Additional Information\nRFC 2579: Textual Conventions for SMIv2\nXSD-TYPES: XML Schema Definition Language (XSD) 1.1\n           Part 2: Datatypes', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='[0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?', pcre='^([0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?)$', invert=False)]))
+    ])
+])
+
+SRC_DNODE_CHILD_11: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='software', config=True, description='Per-device software management. Input comes from the fleet upgrade\nscheduler (or an operator directly); everything under state/ is\nreported by the SoftwareManager.', presence=False, children=[SRC_DNODE_CHILD_12, SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15, SRC_DNODE_CHILD_16])
+
+SRC_DNODE_CHILD_17: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, presence=False)
 
 SRC_DNODE_CHILD_0: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='device', arg=None, exts=[])
-    ], children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11])
+    ], children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11, SRC_DNODE_CHILD_17])
 
-SRC_DNODE_CHILD_13: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+SRC_DNODE_CHILD_19: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_14: DContainer = DContainer(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='base-config', config=True, presence=False, exts=[
+SRC_DNODE_CHILD_20: DContainer = DContainer(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='base-config', config=True, presence=False, exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='mini.rfs.BaseConfig', exts=[])
     ], children=[
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='name', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -102,7 +138,7 @@ SRC_DNODE_CHILD_14: DContainer = DContainer(module='mini-rfs', namespace='http:/
     ])
 ])
 
-SRC_DNODE_CHILD_15: DList = DList(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='l3vpn-endpoint', key=['interface-name'], config=True, min_elements=0, ordered_by='system', exts=[
+SRC_DNODE_CHILD_21: DList = DList(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='l3vpn-endpoint', key=['interface-name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='mini.rfs.L3vpnEndpoint', exts=[])
     ], children=[
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='interface-name', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -120,13 +156,13 @@ SRC_DNODE_CHILD_15: DList = DList(module='mini-rfs', namespace='http://example.c
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='description', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 ])
 
-SRC_DNODE_CHILD_12: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15])
+SRC_DNODE_CHILD_18: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_19, SRC_DNODE_CHILD_20, SRC_DNODE_CHILD_21])
 
 SRC_DNODE: DRoot = DRoot(
-    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_12],
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_18],
     identities=[],
     rpcs=[],
-    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None), 'http://example.com/mini-rfs':('mini-rfs', None)},
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None), 'http://example.com/mini-rfs':('mini-rfs', None)},
 )
 
 SRC_YANG_0: str = r"""module mini-rfs {
@@ -320,8 +356,23 @@ SRC_YANG_2: str = r"""module stratoweave-rfs {
   import ietf-inet-types {
     prefix inet;
   }
+  import ietf-yang-types {
+    prefix yang;
+  }
 
   description "RFS services";
+
+  grouping check-result {
+    leaf verdict {
+      type enumeration {
+        enum not-run;
+        enum pass;
+        enum fail;
+      }
+    }
+    leaf detail { type string; }
+    leaf at     { type yang:date-and-time; }
+  }
 
   list device {
     key name;
@@ -439,6 +490,127 @@ SRC_YANG_2: str = r"""module stratoweave-rfs {
       leaf runtime-schema-fetch {
         type boolean;
         default false;
+      }
+    }
+
+
+    container software {
+      description
+        "Per-device software management. Input comes from the fleet upgrade
+         scheduler (or an operator directly); everything under state/ is
+         reported by the SoftwareManager.";
+
+      leaf upgrade-campaign {
+        description
+          "The upgrade campaign that currently owns this device. A device is
+           owned by at most one campaign at a time, which is what stops two
+           campaigns from scheduling the same device.";
+        type string;
+      }
+
+      leaf target-release {
+        description
+          "Name of the software release this device should be running, e.g.
+           '17.18.03a'. Absent means no upgrade is intended and the manager
+           stays idle.";
+        type string;
+      }
+
+      leaf allow-staging {
+        description
+          "Whether the manager may run the non-impacting prepare job ahead of
+           the maintenance window. Set by the scheduler, which paces image
+           transfers across the fleet so they do not saturate the network.";
+        type boolean;
+        default "false";
+      }
+
+      list veto {
+        description
+          "Any holder may block the impacting install step by adding an entry;
+           absence of entries means go. The fleet scheduler holds one until it
+           is this device's turn, and monitoring systems may add their own.
+           Each holder removes only its own entry, so there is no contention.
+           A veto blocks starting work; it never aborts an install already
+           in flight.";
+        key holder;
+        leaf holder {
+          type string;
+        }
+        leaf reason {
+          type string;
+        }
+      }
+
+      container state {
+        config false;
+
+        leaf status {
+          description
+            "Overall status, aggregated from the jobs and the install checks.";
+          type enumeration {
+            enum unknown;         // nothing known yet, check has not run
+            enum up-to-date;      // running software matches the target
+            enum upgrade-needed;  // differs from target, nothing running yet
+            enum in-progress;
+            enum succeeded;
+            enum failed;
+            enum rolled-back;
+          }
+        }
+
+        leaf running-release {
+          description
+            "Release the device was last observed to be running. Software is
+             treated as monolithic: one version name per device, as on IOS XE.";
+          type string;
+        }
+
+        list job {
+          description
+            "One entry per job in the upgrade sequence. Jobs are idempotent and
+             may be re-run; prepare in particular may run long before install
+             and is repeated as part of it.";
+          key name;
+          leaf name {
+            type enumeration {
+              enum check;
+              enum prepare;
+              enum install;
+              enum rollback;
+              enum cleanup;
+            }
+          }
+          leaf state {
+            type enumeration {
+              enum idle;
+              enum running;
+              enum done;
+              enum failed;
+            }
+          }
+          leaf started  { type yang:date-and-time; }
+          leaf ended    { type yang:date-and-time; }
+          leaf progress { type uint8; }
+          leaf message  { type string; }
+        }
+
+        container precheck {
+          description
+            "Gate evaluated immediately before install. A failed precheck stops
+             the install; the device is left untouched.";
+          uses check-result;
+        }
+
+        container postcheck {
+          description
+            "Evaluated after install to decide whether the upgrade actually
+             landed. A failing post-check triggers a rollback, which is why
+             cleanup is sequenced last: on platforms without native rollback
+             the superseded image is the rollback path and must still be on
+             the device until the post-checks pass.";
+          uses check-result;
+        }
       }
     }
 
@@ -920,12 +1092,779 @@ SRC_YANG_3: str = r"""module ietf-inet-types {
 }
 """
 
+SRC_YANG_4: str = r"""module ietf-yang-types {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-yang-types";
+  prefix yang;
+
+  organization
+    "IETF Network Modeling (NETMOD) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Editor:   JÃ¼rgen SchÃ¶nwÃ¤lder
+               <mailto:jschoenwaelder@constructor.university>";
+  description
+    "This module contains a collection of generally useful derived
+     YANG data types.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9911;
+     see the RFC itself for full legal notices.";
+
+  revision 2025-12-22 {
+    description
+      "This revision adds the following new data types:
+       - yang:date
+       - yang:date-no-zone
+       - yang:time
+       - yang:time-no-zone
+       - yang:hours32
+       - yang:minutes32
+       - yang:seconds32
+       - yang:centiseconds32
+       - yang:milliseconds32
+       - yang:microseconds32
+       - yang:microseconds64
+       - yang:nanoseconds32
+       - yang:nanoseconds64
+       - yang:language-tag
+       The yang-identifier definition has been aligned with YANG
+       1.1, and types representing time support the representation
+       of leap seconds.  The representation of time zone offsets
+       has been aligned with RFC 9557.  Several description and
+       pattern statements have been improved.";
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  revision 2013-07-15 {
+    description
+      "This revision adds the following new data types:
+       - yang:yang-identifier
+       - yang:hex-string
+       - yang:uuid
+       - yang:dotted-quad";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  revision 2010-09-24 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of counter and gauge types ***/
+
+  typedef counter32 {
+    type uint32;
+    description
+      "The counter32 type represents a non-negative integer
+       that monotonically increases until it reaches a
+       maximum value of 2^32-1 (4294967295 decimal), when it
+       wraps around and starts increasing again from zero.
+
+       Counters have no defined 'initial' value, and thus, a
+       single value of a counter has (in general) no information
+       content.  Discontinuities in the monotonically increasing
+       value normally occur at re-initialization of the
+       management system and at other times as specified in the
+       description of a schema node using this type.  If
+       discontinuities occur at times other than re-initialization
+       (for example, at the instantiation of a schema node of type
+       counter32), then a corresponding schema node should be
+       defined, with an appropriate type, to indicate the last
+       discontinuity.
+
+       The counter32 type should not be used for configuration
+       schema nodes.  A default statement SHOULD NOT be used in
+       combination with the type counter32.
+
+       In the value set and its semantics, this type is equivalent
+       to the Counter32 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef zero-based-counter32 {
+    type counter32;
+    default "0";
+    description
+      "The zero-based-counter32 type represents a counter32
+       that has the defined 'initial' value zero.
+
+       A data tree node using this type will be set to zero (0)
+       on creation and will thereafter increase monotonically until
+       it reaches a maximum value of 2^32-1 (4294967295 decimal),
+       when it wraps around and starts increasing again from zero.
+
+       Provided that an application discovers a new data tree node
+       using this type within the minimum time to wrap, it can use
+       the 'initial' value as a delta.  It is important for a
+       management station to be aware of this minimum time and the
+       actual time between polls, and to discard data if the actual
+       time is too long or there is no defined minimum time.
+
+       In the value set and its semantics, this type is equivalent
+       to the ZeroBasedCounter32 textual convention of the SMIv2.";
+    reference
+      "RFC 4502: Remote Network Monitoring Management Information
+                 Base Version 2";
+  }
+
+  typedef counter64 {
+    type uint64;
+    description
+      "The counter64 type represents a non-negative integer
+       that monotonically increases until it reaches a
+       maximum value of 2^64-1 (18446744073709551615 decimal),
+       when it wraps around and starts increasing again from zero.
+
+       Counters have no defined 'initial' value, and thus, a
+       single value of a counter has (in general) no information
+       content.  Discontinuities in the monotonically increasing
+       value normally occur at re-initialization of the
+       management system and at other times as specified in the
+       description of a schema node using this type.  If
+       discontinuities occur at times other than re-initialization
+       (for example, at the instantiation of a schema node of type
+       counter64), then a corresponding schema node should be
+       defined, with an appropriate type, to indicate the last
+       discontinuity.
+
+       The counter64 type should not be used for configuration
+       schema nodes.  A default statement SHOULD NOT be used in
+       combination with the type counter64.
+
+       In the value set and its semantics, this type is equivalent
+       to the Counter64 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef zero-based-counter64 {
+    type counter64;
+    default "0";
+    description
+      "The zero-based-counter64 type represents a counter64 that
+       has the defined 'initial' value zero.
+
+       A data tree node using this type will be set to zero (0)
+       on creation and will thereafter increase monotonically until
+       it reaches a maximum value of 2^64-1 (18446744073709551615
+       decimal), when it wraps around and starts increasing again
+       from zero.
+
+       Provided that an application discovers a new data tree node
+       using this type within the minimum time to wrap, it can use
+       the 'initial' value as a delta.  It is important for a
+       management station to be aware of this minimum time and the
+       actual time between polls, and to discard data if the actual
+       time is too long or there is no defined minimum time.
+
+       In the value set and its semantics, this type is equivalent
+       to the ZeroBasedCounter64 textual convention of the SMIv2.";
+    reference
+      "RFC 2856: Textual Conventions for Additional High Capacity
+                 Data Types";
+  }
+
+  typedef gauge32 {
+    type uint32;
+    description
+      "The gauge32 type represents a non-negative integer, which
+       may increase or decrease, but shall never exceed a maximum
+       value, nor fall below a minimum value.  The maximum value
+       cannot be greater than 2^32-1 (4294967295 decimal), and
+       the minimum value cannot be smaller than 0.  The value of
+       a gauge32 has its maximum value whenever the information
+       being modeled is greater than or equal to its maximum
+       value, and has its minimum value whenever the information
+       being modeled is smaller than or equal to its minimum value.
+       If the information being modeled subsequently decreases below
+       the maximum value, the gauge32 also decreases; likewise, if
+       the information increases above the minimum value, the
+       gauge32 also increases.
+
+       In the value set and its semantics, this type is equivalent
+       to the Gauge32 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef gauge64 {
+    type uint64;
+    description
+      "The gauge64 type represents a non-negative integer, which
+       may increase or decrease, but shall never exceed a maximum
+       value, nor fall below a minimum value.  The maximum value
+       cannot be greater than 2^64-1 (18446744073709551615), and
+       the minimum value cannot be smaller than 0.  The value of
+       a gauge64 has its maximum value whenever the information
+       being modeled is greater than or equal to its maximum
+       value, and has its minimum value whenever the information
+       being modeled is smaller than or equal to its minimum value.
+       If the information being modeled subsequently decreases
+       below (increases above) the maximum (minimum) value, the
+       gauge64 also decreases (increases).
+
+       In the value set and its semantics, this type is equivalent
+       to the CounterBasedGauge64 SMIv2 textual convention defined
+       in RFC 2856";
+    reference
+      "RFC 2856: Textual Conventions for Additional High Capacity
+                 Data Types";
+  }
+
+  /*** collection of identifier-related types ***/
+
+  typedef object-identifier {
+    type string {
+      pattern '(([0-1](\.[1-3]?[0-9]))|(2\.(0|([1-9][0-9]*))))'
+            + '(\.(0|([1-9][0-9]*)))*';
+    }
+    description
+      "The object-identifier type represents administratively
+       assigned names in a registration-hierarchical-name tree.
+
+       Values of this type are denoted as a sequence of numerical
+       non-negative sub-identifier values.  Each sub-identifier
+       value MUST NOT exceed 2^32-1 (4294967295).  Sub-identifiers
+       are separated by single dots and without any intermediate
+       whitespace.
+
+       The ASN.1 standard restricts the value space of the first
+       sub-identifier to 0, 1, or 2.  Furthermore, the value space
+       of the second sub-identifier is restricted to the range
+       0 to 39 if the first sub-identifier is 0 or 1.  Finally,
+       the ASN.1 standard requires that an object identifier
+       has always at least two sub-identifiers.  The pattern
+       captures these restrictions.
+
+       Although the number of sub-identifiers is not limited,
+       module designers should realize that there may be
+       implementations that stick with the SMIv2 limit of 128
+       sub-identifiers.
+
+       This type is a superset of the SMIv2 OBJECT IDENTIFIER type
+       since it is not restricted to 128 sub-identifiers.  Hence,
+       this type SHOULD NOT be used to represent the SMIv2 OBJECT
+       IDENTIFIER type; the object-identifier-128 type SHOULD be
+       used instead.";
+    reference
+      "ISO 9834-1: Information technology -- Procedures for the
+       operation of object identifier registration authorities --
+       Part 1: General procedures and top arcs of the international
+       object identifier tree";
+  }
+
+  typedef object-identifier-128 {
+    type object-identifier {
+      pattern '[0-9]*(\.[0-9]*){1,127}';
+    }
+    description
+      "This type represents object-identifiers restricted to 128
+       sub-identifiers.
+
+       In the value set and its semantics, this type is equivalent
+       to the OBJECT IDENTIFIER type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  /*** collection of types related to date and time ***/
+
+  typedef date-and-time {
+    type string {
+      pattern
+        '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])'
+      + 'T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?'
+      + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The date-and-time type is a profile of the ISO 8601
+       standard for representation of dates and times using the
+       Gregorian calendar.  The profile is defined by the
+       date-time production in Section 5.6 of RFC 3339 and the
+       update defined in Section 2 of RFC 9557.  The value of
+       60 for seconds is allowed only in the case of leap seconds.
+
+       The date-and-time type is compatible with the dateTime XML
+       schema dateTime type with the following notable exceptions:
+
+       (a) The date-and-time type does not allow negative years.
+
+       (b) The time-offset Z indicates that the date-and-time
+           value is reported in UTC and that the local time zone
+           reference point is unknown.  The time-offset +00:00
+           indicates that the date-and-time value is reported in
+           UTC and that the local time zone reference point is UTC
+           (see Section 2 of RFC 9557).
+
+       This type is not equivalent to the DateAndTime textual
+       convention of the SMIv2 since RFC 3339 uses a different
+       separator between full-date and full-time and provides
+       higher resolution of time-secfrac.
+
+       The canonical format for date-and-time values with a known
+       time zone uses a numeric time zone offset that is calculated
+       using the device's configured known offset to UTC time.  A
+       change of the device's offset to UTC time will cause
+       date-and-time values to change accordingly.  Such changes
+       might happen periodically if a server automatically follows
+       daylight saving time (DST) time zone offset changes.  The
+       canonical format for date-and-time values reported in UTC
+       with an unknown local time zone offset SHOULD use the
+       time-offset Z and MAY use -00:00 for backwards
+       compatibility.";
+    reference
+      "ISO 8601: Data elements and interchange formats -- Information
+                 interchange -- Representation of dates and times
+       RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       RFC 2579: Textual Conventions for SMIv2
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef date {
+    type string {
+      pattern '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])'
+            + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The date type represents a time-interval of the length
+       of a day, i.e., 24 hours.  It includes an optional time
+       zone offset.
+
+       The date type is compatible with the XML schema date
+       type with the following notable exceptions:
+
+       (a) The date type does not allow negative years.
+
+       (b) The time-offset Z indicates that the date value is
+           reported in UTC and that the local time zone reference
+           point is unknown.  The time-offset +00:00 indicates that
+           the date value is reported in UTC and that the local
+           time zone reference point is UTC (see Section 2 of
+           RFC 9557).
+
+       The canonical format for date values with a known time
+       zone uses a numeric time zone offset that is calculated using
+       the device's configured known offset to UTC time.  A change of
+       the device's offset to UTC time will cause date values
+       to change accordingly.  Such changes might happen periodically
+       if a server automatically follows daylight saving time
+       (DST) time zone offset changes.  The canonical format for
+       date values reported in UTC with an unknown local time zone
+       offset uses the time-offset Z.";
+    reference
+      "RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef date-no-zone {
+    type date {
+      pattern '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])';
+    }
+    description
+      "The date-no-zone type represents a date without the optional
+       time zone offset information.";
+  }
+
+  typedef time {
+    type string {
+      pattern
+        '(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?'
+      + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The time type represents an instance of time of zero duration
+       that recurs every day.  It includes an optional time zone
+       offset.  The value of 60 for seconds is allowed only in the
+       case of leap seconds.
+
+       The time type is compatible with the XML schema time
+       type with the following notable exception:
+
+       (a) The time-offset Z indicates that the time value is
+           reported in UTC and that the local time zone reference
+           point is unknown.  The time-offset +00:00 indicates that
+           the time value is reported in UTC and that the local
+           time zone reference point is UTC (see Section 2 of
+           RFC 9557).
+
+       The canonical format for time values with a known time
+       zone uses a numeric time zone offset that is calculated using
+       the device's configured known offset to UTC time.  A change of
+       the device's offset to UTC time will cause time values
+       to change accordingly.  Such changes might happen periodically
+       if a server automatically follows daylight saving time
+       (DST) time zone offset changes.  The canonical format for
+       time values reported in UTC with an unknown local time zone
+       offset uses the time-offset Z.";
+    reference
+      "RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef time-no-zone {
+    type time {
+      pattern
+        '(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?';
+    }
+    description
+      "The time-no-zone type represents a time without the optional
+       time zone offset information.";
+  }
+
+  typedef hours32 {
+    type int32;
+    units "hours";
+    description
+      "A period of time measured in units of hours.
+
+       The maximum time period that can be expressed is in the
+       range [-89478485 days 08:00:00 to 89478485 days 07:00:00].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef minutes32 {
+    type int32;
+    units "minutes";
+    description
+      "A period of time measured in units of minutes.
+
+       The maximum time period that can be expressed is in the
+       range [-1491308 days 2:08:00 to 1491308 days 2:07:00].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef seconds32 {
+    type int32;
+    units "seconds";
+    description
+      "A period of time measured in units of seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-24855 days 03:14:08 to 24855 days 03:14:07].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef centiseconds32 {
+    type int32;
+    units "centiseconds";
+    description
+      "A period of time measured in units of 10^-2 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-248 days 13:13:56 to 248 days 13:13:56].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef milliseconds32 {
+    type int32;
+    units "milliseconds";
+    description
+      "A period of time measured in units of 10^-3 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-24 days 20:31:23 to 24 days 20:31:23].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef microseconds32 {
+    type int32;
+    units "microseconds";
+    description
+      "A period of time measured in units of 10^-6 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-00:35:47 to 00:35:47].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef microseconds64 {
+    type int64;
+    units "microseconds";
+    description
+      "A period of time measured in units of 10^-6 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-106751991 days 04:00:54 to 106751991 days 04:00:54].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef nanoseconds32 {
+    type int32;
+    units "nanoseconds";
+    description
+      "A period of time measured in units of 10^-9 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-00:00:02 to 00:00:02].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef nanoseconds64 {
+    type int64;
+    units "nanoseconds";
+    description
+      "A period of time measured in units of 10^-9 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-106753 days 23:12:44 to 106752 days 0:47:16].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef timeticks {
+    type uint32;
+    description
+      "The timeticks type represents a non-negative integer that
+       represents the time, modulo 2^32 (4294967296 decimal), in
+       hundredths of a second between two epochs.  When a schema
+       node is defined that uses this type, the description of
+       the schema node identifies both of the reference epochs.
+
+       In the value set and its semantics, this type is equivalent
+       to the TimeTicks type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef timestamp {
+    type timeticks;
+    description
+      "The timestamp type represents the value of an associated
+       timeticks schema node instance at which a specific occurrence
+       happened.  The specific occurrence must be defined in the
+       description of any schema node defined using this type.  When
+       the specific occurrence occurred prior to the last time the
+       associated timeticks schema node instance was zero, then the
+       timestamp value is zero.
+
+       Note that this requires all timestamp values to be reset to
+       zero when the value of the associated timeticks schema node
+       instance reaches 497+ days and wraps around to zero.
+
+       The associated timeticks schema node must be specified
+       in the description of any schema node using this type.
+
+       In the value set and its semantics, this type is equivalent
+       to the TimeStamp textual convention of the SMIv2.";
+    reference
+      "RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  /*** collection of generic address types ***/
+
+  typedef phys-address {
+    type string {
+      pattern '([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?';
+    }
+    description
+      "Represents media- or physical-level addresses represented
+       as a sequence of octets, each octet represented by two
+       hexadecimal numbers.  Octets are separated by colons.  The
+       canonical representation uses lowercase characters.
+
+       In the value set and its semantics, this type is equivalent
+       to the PhysAddress textual convention of the SMIv2.";
+    reference
+      "RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  typedef mac-address {
+    type string {
+      pattern '[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}';
+    }
+    description
+      "The mac-address type represents a 48-bit IEEE 802 Media
+       Access Control (MAC) address.  The canonical representation
+       uses lowercase characters.  Note that there are IEEE 802 MAC
+       addresses with a different length that this type cannot
+       represent.  The phys-address type may be used to represent
+       physical addresses of varying length.
+
+       In the value set and its semantics, this type is equivalent
+       to the MacAddress textual convention of the SMIv2.";
+    reference
+      "IEEE 802: IEEE Standard for Local and Metropolitan Area
+                 Networks: Overview and Architecture
+       RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  /*** collection of XML-specific types ***/
+
+  typedef xpath1.0 {
+    type string;
+    description
+      "This type represents an XPATH 1.0 expression.
+
+       When a schema node is defined that uses this type, the
+       description of the schema node MUST specify the XPath
+       context in which the XPath expression is evaluated.";
+    reference
+      "XPATH: XML Path Language (XPath) Version 1.0";
+  }
+
+  /*** collection of string types ***/
+
+  typedef hex-string {
+    type string {
+      pattern '([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?';
+    }
+    description
+      "A hexadecimal string with octets represented as hex digits
+       separated by colons.  The canonical representation uses
+       lowercase characters.";
+  }
+
+  typedef uuid {
+    type string {
+      pattern '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+            + '[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+    }
+    description
+      "A Universally Unique IDentifier in the string representation
+       defined in RFC 9562.  The canonical representation uses
+       lowercase characters.
+
+       The following is an example of a UUID in string
+       representation:
+       f81d4fae-7dec-11d0-a765-00a0c91e6bf6.
+      ";
+    reference
+      "RFC 9562: Universally Unique IDentifiers (UUIDs)";
+  }
+
+  typedef dotted-quad {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      + '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])';
+    }
+    description
+      "An unsigned 32-bit number expressed in the dotted-quad
+       notation, i.e., four octets written as decimal numbers
+       and separated with the '.' (full stop) character.";
+  }
+
+  typedef language-tag {
+    type string;
+    description
+      "A language tag according to RFC 5646 (BCP 47).  The
+       canonical representation uses lowercase characters.
+
+       Values of this type must be well-formed language tags,
+       in conformance with the definition of well-formed tags
+       in BCP 47.  Implementations MAY further limit the values
+       they accept to those permitted by a 'validating'
+       processor, as defined in BCP 47.
+
+       The canonical representation of values of this type is
+       aligned with the SMIv2 LangTag textual convention for
+       language tags fitting the length constraints imposed
+       by the LangTag textual convention.";
+    reference
+      "RFC 5646: Tags for Identifying Languages
+       RFC 5131: A MIB Textual Convention for Language Tags";
+  }
+
+  /*** collection of YANG-specific types ***/
+
+  typedef yang-identifier {
+    type string {
+      length "1..max";
+      pattern '[a-zA-Z_][a-zA-Z0-9\-_.]*';
+    }
+    description
+      "A YANG identifier string as defined by the 'identifier'
+       rule in Section 14 of RFC 7950.  An identifier must
+       start with an alphabetic character or an underscore
+       followed by an arbitrary sequence of alphabetic or
+       numeric characters, underscores, hyphens, or dots.
+
+       This definition conforms to YANG 1.1 defined in RFC
+       7950.  In RFC 6991, this definition excluded
+       all identifiers starting with any possible combination
+       of the lowercase or uppercase character sequence 'xml',
+       as required by YANG 1 defined in RFC 6020.  If this type
+       is used in a YANG 1 context, then this restriction still
+       applies.";
+    reference
+      "RFC 7950: The YANG 1.1 Data Modeling Language
+       RFC 6991: Common YANG Data Types
+       RFC 6020: YANG - A Data Modeling Language for the
+                 Network Configuration Protocol (NETCONF)";
+  }
+}
+"""
+
 pure def src_yang() -> list[str]:
     return [
         SRC_YANG_0,
         SRC_YANG_1,
         SRC_YANG_2,
         SRC_YANG_3,
+        SRC_YANG_4,
     ]
 
 
@@ -933,6 +1872,7 @@ NS_mini_rfs: str = 'http://example.com/mini-rfs'
 NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
 NS_stratoweave_rfs: str = 'http://stratoweave.org/yang/stratoweave-rfs'
 NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+NS_ietf_yang_types: str = 'urn:ietf:params:xml:ns:yang:ietf-yang-types'
 
 
 _breaker1: None = None
@@ -1303,6 +2243,236 @@ class stratoweave_rfs__device__feature_flags(yadata.MNode):
 
 
 _breaker15: None = None
+class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
+    holder: str
+    reason: ?str
+
+    mut def __init__(self, holder: str, reason: ?str) -> None:
+        self.holder = holder
+        self.reason = reason
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'veto'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__software__veto_entry:
+        return stratoweave_rfs__device__software__veto_entry(holder=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'holder')), reason=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'reason')))
+
+    mut def copy(self) -> stratoweave_rfs__device__software__veto_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software__veto_entry.from_gdata(self.to_gdata())
+
+_breaker16: None = None
+class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave_rfs__device__software__veto_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.holder == k, elements)
+
+    mut def create(self, key: str, reason: ?str=None) -> stratoweave_rfs__device__software__veto_entry:
+        e = self.get(key)
+        if e is not None:
+            if reason is not None:
+                e.reason = reason
+            return e
+        holder = key
+        res = stratoweave_rfs__device__software__veto_entry(holder=holder, reason=reason)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__software__veto_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__software__veto_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__software__veto:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__software__veto(elements=copied_elements)
+
+
+_breaker17: None = None
+class stratoweave_rfs__device__software__state__job_entry(yadata.MNode):
+    name: str
+    state: ?str
+    started: ?str
+    ended: ?str
+    progress: ?u64
+    message: ?str
+
+    mut def __init__(self, name: str, state: ?str, started: ?str, ended: ?str, progress: ?u64, message: ?str) -> None:
+        self.name = name
+        self.state = state
+        self.started = started
+        self.ended = ended
+        self.progress = progress
+        self.message = message
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'state', 'job'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__software__state__job_entry:
+        return stratoweave_rfs__device__software__state__job_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), state=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'state')), started=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'started')), ended=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'ended')), progress=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'progress')), message=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'message')))
+
+    mut def copy(self) -> stratoweave_rfs__device__software__state__job_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software__state__job_entry.from_gdata(self.to_gdata())
+
+_breaker18: None = None
+class stratoweave_rfs__device__software__state__job(yadata.MKeyedList[str, stratoweave_rfs__device__software__state__job_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__software__state__job_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, state: ?str=None, started: ?str=None, ended: ?str=None, progress: ?u64=None, message: ?str=None) -> stratoweave_rfs__device__software__state__job_entry:
+        e = self.get(key)
+        if e is not None:
+            if state is not None:
+                e.state = state
+            if started is not None:
+                e.started = started
+            if ended is not None:
+                e.ended = ended
+            if progress is not None:
+                e.progress = progress
+            if message is not None:
+                e.message = message
+            return e
+        name = key
+        res = stratoweave_rfs__device__software__state__job_entry(name=name, state=state, started=started, ended=ended, progress=progress, message=message)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__software__state__job_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__software__state__job_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__software__state__job:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__software__state__job(elements=copied_elements)
+
+
+_breaker19: None = None
+class stratoweave_rfs__device__software__state__precheck(yadata.MNode):
+    verdict: ?str
+    detail: ?str
+    at: ?str
+
+    mut def __init__(self, verdict: ?str, detail: ?str, at: ?str) -> None:
+        self.verdict = verdict
+        self.detail = detail
+        self.at = at
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'state', 'precheck'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software__state__precheck:
+        if n is not None:
+            return stratoweave_rfs__device__software__state__precheck(verdict=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'verdict')), detail=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'detail')), at=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'at')))
+        return stratoweave_rfs__device__software__state__precheck()
+
+    mut def copy(self) -> stratoweave_rfs__device__software__state__precheck:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software__state__precheck.from_gdata(self.to_gdata())
+
+
+_breaker20: None = None
+class stratoweave_rfs__device__software__state__postcheck(yadata.MNode):
+    verdict: ?str
+    detail: ?str
+    at: ?str
+
+    mut def __init__(self, verdict: ?str, detail: ?str, at: ?str) -> None:
+        self.verdict = verdict
+        self.detail = detail
+        self.at = at
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'state', 'postcheck'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software__state__postcheck:
+        if n is not None:
+            return stratoweave_rfs__device__software__state__postcheck(verdict=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'verdict')), detail=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'detail')), at=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'at')))
+        return stratoweave_rfs__device__software__state__postcheck()
+
+    mut def copy(self) -> stratoweave_rfs__device__software__state__postcheck:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software__state__postcheck.from_gdata(self.to_gdata())
+
+
+_breaker21: None = None
+class stratoweave_rfs__device__software__state(yadata.MNode):
+    status: ?str
+    running_release: ?str
+    job: stratoweave_rfs__device__software__state__job
+    precheck: stratoweave_rfs__device__software__state__precheck
+    postcheck: stratoweave_rfs__device__software__state__postcheck
+
+    mut def __init__(self, status: ?str, running_release: ?str, job: list[stratoweave_rfs__device__software__state__job_entry]=[], precheck: ?stratoweave_rfs__device__software__state__precheck=None, postcheck: ?stratoweave_rfs__device__software__state__postcheck=None) -> None:
+        self.status = status
+        self.running_release = running_release
+        self.job = stratoweave_rfs__device__software__state__job(elements=job)
+        self.precheck = precheck if precheck is not None else stratoweave_rfs__device__software__state__precheck()
+        self.postcheck = postcheck if postcheck is not None else stratoweave_rfs__device__software__state__postcheck()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'state'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software__state:
+        if n is not None:
+            return stratoweave_rfs__device__software__state(status=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'status')), running_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'running-release')), job=stratoweave_rfs__device__software__state__job.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'job'))), precheck=stratoweave_rfs__device__software__state__precheck.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'precheck'))), postcheck=stratoweave_rfs__device__software__state__postcheck.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'postcheck'))))
+        return stratoweave_rfs__device__software__state()
+
+    mut def copy(self) -> stratoweave_rfs__device__software__state:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software__state.from_gdata(self.to_gdata())
+
+
+_breaker22: None = None
+class stratoweave_rfs__device__software(yadata.MNode):
+    upgrade_campaign: ?str
+    target_release: ?str
+    allow_staging: ?bool
+    veto: stratoweave_rfs__device__software__veto
+    state: stratoweave_rfs__device__software__state
+
+    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, allow_staging: ?bool, veto: list[stratoweave_rfs__device__software__veto_entry]=[], state: ?stratoweave_rfs__device__software__state=None) -> None:
+        self.upgrade_campaign = upgrade_campaign
+        self.target_release = target_release
+        self.allow_staging = allow_staging
+        self.veto = stratoweave_rfs__device__software__veto(elements=veto)
+        self.state = state if state is not None else stratoweave_rfs__device__software__state()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software:
+        if n is not None:
+            return stratoweave_rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'target-release')), allow_staging=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'allow-staging')), veto=stratoweave_rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'veto'))), state=stratoweave_rfs__device__software__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'state'))))
+        return stratoweave_rfs__device__software()
+
+    mut def copy(self) -> stratoweave_rfs__device__software:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software.from_gdata(self.to_gdata())
+
+
+_breaker23: None = None
 class stratoweave_rfs__device__state(yadata.MNode):
 
     mut def __init__(self) -> None:
@@ -1322,7 +2492,7 @@ class stratoweave_rfs__device__state(yadata.MNode):
         return stratoweave_rfs__device__state.from_gdata(self.to_gdata())
 
 
-_breaker16: None = None
+_breaker24: None = None
 class stratoweave_rfs__device_entry(yadata.MNode):
     name: str
     description: ?str
@@ -1334,9 +2504,10 @@ class stratoweave_rfs__device_entry(yadata.MNode):
     mock: stratoweave_rfs__device__mock
     debug: stratoweave_rfs__device__debug
     feature_flags: stratoweave_rfs__device__feature_flags
+    software: stratoweave_rfs__device__software
     state: stratoweave_rfs__device__state
 
-    mut def __init__(self, name: str, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, state: ?stratoweave_rfs__device__state=None) -> None:
+    mut def __init__(self, name: str, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, software: ?stratoweave_rfs__device__software=None, state: ?stratoweave_rfs__device__state=None) -> None:
         self.name = name
         self.description = description
         self.type = type
@@ -1347,6 +2518,7 @@ class stratoweave_rfs__device_entry(yadata.MNode):
         self.mock = mock if mock is not None else stratoweave_rfs__device__mock()
         self.debug = debug if debug is not None else stratoweave_rfs__device__debug()
         self.feature_flags = feature_flags if feature_flags is not None else stratoweave_rfs__device__feature_flags()
+        self.software = software if software is not None else stratoweave_rfs__device__software()
         self.state = state if state is not None else stratoweave_rfs__device__state()
 
     mut def to_gdata(self) -> ygdata.Node:
@@ -1354,13 +2526,13 @@ class stratoweave_rfs__device_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device_entry:
-        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), state=stratoweave_rfs__device__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'state'))))
+        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), software=stratoweave_rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'software'))), state=stratoweave_rfs__device__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'state'))))
 
     mut def copy(self) -> stratoweave_rfs__device_entry:
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__device_entry.from_gdata(self.to_gdata())
 
-_breaker17: None = None
+_breaker25: None = None
 class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -1397,7 +2569,7 @@ class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_ent
         return stratoweave_rfs__device(elements=copied_elements)
 
 
-_breaker18: None = None
+_breaker26: None = None
 class stratoweave_rfs__rfs__base_config__dynstate(yadata.MNode):
     current_datetime: ?str
 
@@ -1418,7 +2590,7 @@ class stratoweave_rfs__rfs__base_config__dynstate(yadata.MNode):
         return stratoweave_rfs__rfs__base_config__dynstate.from_gdata(self.to_gdata())
 
 
-_breaker19: None = None
+_breaker27: None = None
 class stratoweave_rfs__rfs__base_config__state(yadata.MNode):
     current_datetime: ?str
 
@@ -1439,7 +2611,7 @@ class stratoweave_rfs__rfs__base_config__state(yadata.MNode):
         return stratoweave_rfs__rfs__base_config__state.from_gdata(self.to_gdata())
 
 
-_breaker20: None = None
+_breaker28: None = None
 class stratoweave_rfs__rfs__base_config(yadata.MNode):
     name: ?str
     ipv4_address: ?str
@@ -1464,7 +2636,7 @@ class stratoweave_rfs__rfs__base_config(yadata.MNode):
         return stratoweave_rfs__rfs__base_config.from_gdata(self.to_gdata())
 
 
-_breaker21: None = None
+_breaker29: None = None
 class stratoweave_rfs__rfs__l3vpn_endpoint_entry(yadata.MNode):
     interface_name: str
     vpn_name: ?str
@@ -1506,7 +2678,7 @@ class stratoweave_rfs__rfs__l3vpn_endpoint_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__rfs__l3vpn_endpoint_entry.from_gdata(self.to_gdata())
 
-_breaker22: None = None
+_breaker30: None = None
 class stratoweave_rfs__rfs__l3vpn_endpoint(yadata.MKeyedList[str, stratoweave_rfs__rfs__l3vpn_endpoint_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs__l3vpn_endpoint_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.interface_name == k, elements)
@@ -1561,7 +2733,7 @@ class stratoweave_rfs__rfs__l3vpn_endpoint(yadata.MKeyedList[str, stratoweave_rf
         return stratoweave_rfs__rfs__l3vpn_endpoint(elements=copied_elements)
 
 
-_breaker23: None = None
+_breaker31: None = None
 class stratoweave_rfs__rfs_entry(yadata.MNode):
     name: str
     base_config: stratoweave_rfs__rfs__base_config
@@ -1583,7 +2755,7 @@ class stratoweave_rfs__rfs_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__rfs_entry.from_gdata(self.to_gdata())
 
-_breaker24: None = None
+_breaker32: None = None
 class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -1614,7 +2786,7 @@ class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
         return stratoweave_rfs__rfs(elements=copied_elements)
 
 
-_breaker25: None = None
+_breaker33: None = None
 class root(yadata.MNode):
     device: stratoweave_rfs__device
     rfs: stratoweave_rfs__rfs
@@ -1642,7 +2814,7 @@ actor rpc_root(tp: ygdata.TreeProvider):
 
 
 
-_breaker26: None = None
+_breaker34: None = None
 class stratoweave_rfs__device__address__initial_credentials_entry_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -1658,7 +2830,7 @@ class stratoweave_rfs__device__address__initial_credentials_entry_subs(Subscript
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker27: None = None
+_breaker35: None = None
 class stratoweave_rfs__device__address__initial_credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -1682,7 +2854,7 @@ class stratoweave_rfs__device__address__initial_credentials_subs(SubscriptionNod
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker28: None = None
+_breaker36: None = None
 class stratoweave_rfs__device__address_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     address: SubscriptionNode
@@ -1700,7 +2872,7 @@ class stratoweave_rfs__device__address_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.address, self.port, self.initial_credentials]
         return direct
 
-_breaker29: None = None
+_breaker37: None = None
 class stratoweave_rfs__device__address_subs(SubscriptionNode):
     name: SubscriptionNode
     address: SubscriptionNode
@@ -1724,7 +2896,7 @@ class stratoweave_rfs__device__address_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.address, self.port, self.initial_credentials]
         return direct
 
-_breaker30: None = None
+_breaker38: None = None
 class stratoweave_rfs__device__credentials__key_entry_subs(SubscriptionNode):
     key: SubscriptionNode
     private_key: SubscriptionNode
@@ -1738,7 +2910,7 @@ class stratoweave_rfs__device__credentials__key_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.key, self.private_key]
         return direct
 
-_breaker31: None = None
+_breaker39: None = None
 class stratoweave_rfs__device__credentials__key_subs(SubscriptionNode):
     key: SubscriptionNode
     private_key: SubscriptionNode
@@ -1758,7 +2930,7 @@ class stratoweave_rfs__device__credentials__key_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.key, self.private_key]
         return direct
 
-_breaker32: None = None
+_breaker40: None = None
 class stratoweave_rfs__device__credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -1774,7 +2946,7 @@ class stratoweave_rfs__device__credentials_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker33: None = None
+_breaker41: None = None
 class stratoweave_rfs__device__initial_credentials_entry_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -1790,7 +2962,7 @@ class stratoweave_rfs__device__initial_credentials_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker34: None = None
+_breaker42: None = None
 class stratoweave_rfs__device__initial_credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -1814,7 +2986,7 @@ class stratoweave_rfs__device__initial_credentials_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker35: None = None
+_breaker43: None = None
 class stratoweave_rfs__device__mock__module_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     namespace: SubscriptionNode
@@ -1832,7 +3004,7 @@ class stratoweave_rfs__device__mock__module_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.namespace, self.revision, self.feature]
         return direct
 
-_breaker36: None = None
+_breaker44: None = None
 class stratoweave_rfs__device__mock__module_subs(SubscriptionNode):
     name: SubscriptionNode
     namespace: SubscriptionNode
@@ -1856,7 +3028,7 @@ class stratoweave_rfs__device__mock__module_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.namespace, self.revision, self.feature]
         return direct
 
-_breaker37: None = None
+_breaker45: None = None
 class stratoweave_rfs__device__mock_subs(SubscriptionNode):
     enabled: SubscriptionNode
     module: stratoweave_rfs__device__mock__module_subs
@@ -1870,7 +3042,7 @@ class stratoweave_rfs__device__mock_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.enabled, self.module]
         return direct
 
-_breaker38: None = None
+_breaker46: None = None
 class stratoweave_rfs__device__debug_subs(SubscriptionNode):
     connection: SubscriptionNode
 
@@ -1882,7 +3054,7 @@ class stratoweave_rfs__device__debug_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.connection]
         return direct
 
-_breaker39: None = None
+_breaker47: None = None
 class stratoweave_rfs__device__feature_flags_subs(SubscriptionNode):
     runtime_schema_fetch: SubscriptionNode
 
@@ -1894,7 +3066,163 @@ class stratoweave_rfs__device__feature_flags_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.runtime_schema_fetch]
         return direct
 
-_breaker40: None = None
+_breaker48: None = None
+class stratoweave_rfs__device__software__veto_entry_subs(SubscriptionNode):
+    holder: SubscriptionNode
+    reason: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.holder = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'holder'), parent=path))
+        self.reason = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'reason'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.holder, self.reason]
+        return direct
+
+_breaker49: None = None
+class stratoweave_rfs__device__software__veto_subs(SubscriptionNode):
+    holder: SubscriptionNode
+    reason: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.holder = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'holder'), parent=path))
+        self.reason = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'reason'), parent=path))
+
+    pure def entry(self, holder: str) -> stratoweave_rfs__device__software__veto_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_stratoweave_rfs, 'holder'), value_match=holder),
+        ]
+        base_path = self._path!.parent
+        return stratoweave_rfs__device__software__veto_entry_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'veto'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.holder, self.reason]
+        return direct
+
+_breaker50: None = None
+class stratoweave_rfs__device__software__state__job_entry_subs(SubscriptionNode):
+    name: SubscriptionNode
+    state: SubscriptionNode
+    started: SubscriptionNode
+    ended: SubscriptionNode
+    progress: SubscriptionNode
+    message: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'name'), parent=path))
+        self.state = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'state'), parent=path))
+        self.started = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'started'), parent=path))
+        self.ended = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'ended'), parent=path))
+        self.progress = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'progress'), parent=path))
+        self.message = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'message'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.state, self.started, self.ended, self.progress, self.message]
+        return direct
+
+_breaker51: None = None
+class stratoweave_rfs__device__software__state__job_subs(SubscriptionNode):
+    name: SubscriptionNode
+    state: SubscriptionNode
+    started: SubscriptionNode
+    ended: SubscriptionNode
+    progress: SubscriptionNode
+    message: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'name'), parent=path))
+        self.state = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'state'), parent=path))
+        self.started = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'started'), parent=path))
+        self.ended = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'ended'), parent=path))
+        self.progress = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'progress'), parent=path))
+        self.message = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'message'), parent=path))
+
+    pure def entry(self, name: str) -> stratoweave_rfs__device__software__state__job_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_stratoweave_rfs, 'name'), value_match=name),
+        ]
+        base_path = self._path!.parent
+        return stratoweave_rfs__device__software__state__job_entry_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'job'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.state, self.started, self.ended, self.progress, self.message]
+        return direct
+
+_breaker52: None = None
+class stratoweave_rfs__device__software__state__precheck_subs(SubscriptionNode):
+    verdict: SubscriptionNode
+    detail: SubscriptionNode
+    at: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.verdict = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'verdict'), parent=path))
+        self.detail = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'detail'), parent=path))
+        self.at = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'at'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.verdict, self.detail, self.at]
+        return direct
+
+_breaker53: None = None
+class stratoweave_rfs__device__software__state__postcheck_subs(SubscriptionNode):
+    verdict: SubscriptionNode
+    detail: SubscriptionNode
+    at: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.verdict = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'verdict'), parent=path))
+        self.detail = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'detail'), parent=path))
+        self.at = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'at'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.verdict, self.detail, self.at]
+        return direct
+
+_breaker54: None = None
+class stratoweave_rfs__device__software__state_subs(SubscriptionNode):
+    status: SubscriptionNode
+    running_release: SubscriptionNode
+    job: stratoweave_rfs__device__software__state__job_subs
+    precheck: stratoweave_rfs__device__software__state__precheck_subs
+    postcheck: stratoweave_rfs__device__software__state__postcheck_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.status = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'status'), parent=path))
+        self.running_release = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'running-release'), parent=path))
+        self.job = stratoweave_rfs__device__software__state__job_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'job'), parent=path))
+        self.precheck = stratoweave_rfs__device__software__state__precheck_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'precheck'), parent=path))
+        self.postcheck = stratoweave_rfs__device__software__state__postcheck_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'postcheck'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.status, self.running_release, self.job, self.precheck, self.postcheck]
+        return direct
+
+_breaker55: None = None
+class stratoweave_rfs__device__software_subs(SubscriptionNode):
+    upgrade_campaign: SubscriptionNode
+    target_release: SubscriptionNode
+    allow_staging: SubscriptionNode
+    veto: stratoweave_rfs__device__software__veto_subs
+    state: stratoweave_rfs__device__software__state_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.upgrade_campaign = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign'), parent=path))
+        self.target_release = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'target-release'), parent=path))
+        self.allow_staging = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'allow-staging'), parent=path))
+        self.veto = stratoweave_rfs__device__software__veto_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'veto'), parent=path))
+        self.state = stratoweave_rfs__device__software__state_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'state'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.upgrade_campaign, self.target_release, self.allow_staging, self.veto, self.state]
+        return direct
+
+_breaker56: None = None
 class stratoweave_rfs__device__state_subs(SubscriptionNode):
 
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
@@ -1904,7 +3232,7 @@ class stratoweave_rfs__device__state_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = []
         return direct
 
-_breaker41: None = None
+_breaker57: None = None
 class stratoweave_rfs__device_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     description: SubscriptionNode
@@ -1916,6 +3244,7 @@ class stratoweave_rfs__device_entry_subs(SubscriptionNode):
     mock: stratoweave_rfs__device__mock_subs
     debug: stratoweave_rfs__device__debug_subs
     feature_flags: stratoweave_rfs__device__feature_flags_subs
+    software: stratoweave_rfs__device__software_subs
     state: stratoweave_rfs__device__state_subs
 
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
@@ -1930,13 +3259,14 @@ class stratoweave_rfs__device_entry_subs(SubscriptionNode):
         self.mock = stratoweave_rfs__device__mock_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'mock'), parent=path))
         self.debug = stratoweave_rfs__device__debug_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'debug'), parent=path))
         self.feature_flags = stratoweave_rfs__device__feature_flags_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'), parent=path))
+        self.software = stratoweave_rfs__device__software_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'software'), parent=path))
         self.state = stratoweave_rfs__device__state_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'state'), parent=path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.name, self.description, self.type, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags, self.state]
+        direct: list[SubscriptionNode] = [self.name, self.description, self.type, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags, self.software, self.state]
         return direct
 
-_breaker42: None = None
+_breaker58: None = None
 class stratoweave_rfs__device_subs(SubscriptionNode):
     name: SubscriptionNode
     description: SubscriptionNode
@@ -1948,6 +3278,7 @@ class stratoweave_rfs__device_subs(SubscriptionNode):
     mock: stratoweave_rfs__device__mock_subs
     debug: stratoweave_rfs__device__debug_subs
     feature_flags: stratoweave_rfs__device__feature_flags_subs
+    software: stratoweave_rfs__device__software_subs
     state: stratoweave_rfs__device__state_subs
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
         SubscriptionNode.__init__(self, path)
@@ -1961,6 +3292,7 @@ class stratoweave_rfs__device_subs(SubscriptionNode):
         self.mock = stratoweave_rfs__device__mock_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'mock'), parent=path))
         self.debug = stratoweave_rfs__device__debug_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'debug'), parent=path))
         self.feature_flags = stratoweave_rfs__device__feature_flags_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'), parent=path))
+        self.software = stratoweave_rfs__device__software_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'software'), parent=path))
         self.state = stratoweave_rfs__device__state_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'state'), parent=path))
 
     pure def entry(self, name: str) -> stratoweave_rfs__device_entry_subs:
@@ -1971,10 +3303,10 @@ class stratoweave_rfs__device_subs(SubscriptionNode):
         return stratoweave_rfs__device_entry_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'device'), predicates=predicates, parent=base_path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.name, self.description, self.type, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags, self.state]
+        direct: list[SubscriptionNode] = [self.name, self.description, self.type, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags, self.software, self.state]
         return direct
 
-_breaker43: None = None
+_breaker59: None = None
 class stratoweave_rfs__rfs__base_config__dynstate_subs(SubscriptionNode):
     current_datetime: SubscriptionNode
 
@@ -1986,7 +3318,7 @@ class stratoweave_rfs__rfs__base_config__dynstate_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.current_datetime]
         return direct
 
-_breaker44: None = None
+_breaker60: None = None
 class stratoweave_rfs__rfs__base_config__state_subs(SubscriptionNode):
     current_datetime: SubscriptionNode
 
@@ -1998,7 +3330,7 @@ class stratoweave_rfs__rfs__base_config__state_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.current_datetime]
         return direct
 
-_breaker45: None = None
+_breaker61: None = None
 class stratoweave_rfs__rfs__base_config_subs(SubscriptionNode):
     name: SubscriptionNode
     ipv4_address: SubscriptionNode
@@ -2016,7 +3348,7 @@ class stratoweave_rfs__rfs__base_config_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.ipv4_address, self.dynstate, self.state]
         return direct
 
-_breaker46: None = None
+_breaker62: None = None
 class stratoweave_rfs__rfs__l3vpn_endpoint_entry_subs(SubscriptionNode):
     interface_name: SubscriptionNode
     vpn_name: SubscriptionNode
@@ -2052,7 +3384,7 @@ class stratoweave_rfs__rfs__l3vpn_endpoint_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.interface_name, self.vpn_name, self.customer_name, self.route_distinguisher, self.import_rt, self.export_rt, self.ipv4_address, self.prefix_length, self.mtu, self.vlan_id, self.enabled, self.site_code, self.description]
         return direct
 
-_breaker47: None = None
+_breaker63: None = None
 class stratoweave_rfs__rfs__l3vpn_endpoint_subs(SubscriptionNode):
     interface_name: SubscriptionNode
     vpn_name: SubscriptionNode
@@ -2094,7 +3426,7 @@ class stratoweave_rfs__rfs__l3vpn_endpoint_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.interface_name, self.vpn_name, self.customer_name, self.route_distinguisher, self.import_rt, self.export_rt, self.ipv4_address, self.prefix_length, self.mtu, self.vlan_id, self.enabled, self.site_code, self.description]
         return direct
 
-_breaker48: None = None
+_breaker64: None = None
 class stratoweave_rfs__rfs_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     base_config: stratoweave_rfs__rfs__base_config_subs
@@ -2110,7 +3442,7 @@ class stratoweave_rfs__rfs_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.base_config, self.l3vpn_endpoint]
         return direct
 
-_breaker49: None = None
+_breaker65: None = None
 class stratoweave_rfs__rfs_subs(SubscriptionNode):
     name: SubscriptionNode
     base_config: stratoweave_rfs__rfs__base_config_subs
@@ -2132,7 +3464,7 @@ class stratoweave_rfs__rfs_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.base_config, self.l3vpn_endpoint]
         return direct
 
-_breaker50: None = None
+_breaker66: None = None
 class root_subs(SubscriptionNode):
     device: stratoweave_rfs__device_subs
     rfs: stratoweave_rfs__rfs_subs

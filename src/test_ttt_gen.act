@@ -190,12 +190,12 @@ ys_bad_transform_module_name = r"""module foo {
 """
 
 def _test_ttt_gen_rfs_base():
-    y = yang.compile([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, ys_rfs])
+    y = yang.compile([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types, ys_rfs])
     r = ttt_gen.ttt_prsrc(y, 'respnet.layers.y_1', '')
     return r.base
 
 def _test_ttt_gen_rfs_ttt():
-    y = yang.compile([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, ys_rfs])
+    y = yang.compile([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types, ys_rfs])
     r = ttt_gen.ttt_prsrc(y, 'respnet.layers.y_1', '')
     return r.ttt
 

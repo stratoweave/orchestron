@@ -1,0 +1,139 @@
+#
+# SoftwareManager install, driven against the loopback adapter.
+#
+# No device, no NETCONF, no schema: MockSoftwareAdapter answers in memory, so
+# these cover the manager's own behaviour rather than any platform's.
+#
+
+import logging
+import net
+import testing
+
+import device as swdev
+
+OLD = "17.15.01a"
+NEW = "17.18.03a"
+
+
+def _devmgr(t: testing.EnvT, on_reconf: action(str) -> None) -> swdev.DeviceMgr:
+    """The manager resyncs its DeviceMgr after installing, so it needs one.
+    This device has no type, so it never connects to anything."""
+    return swdev.DeviceMgr({}, net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+                           "test-device", t.log_handler, on_reconf, swdev.SchemaRegistry())
+
+
+actor _test_target_release_installs(t: testing.EnvT):
+    """Intent naming a target release is the only thing that starts an install."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+
+    def on_state(dev: str, status: str) -> None:
+        if status == "succeeded":
+            testing.assertEqual(adapter.calls(), ["install"],
+                                "manager should have installed once")
+            t.success()
+
+    mgr = swdev.SoftwareManager("d", t.log_handler, _devmgr(t, noop_on_reconf), on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_running_release_moves(t: testing.EnvT):
+    """The adapter reports the new release afterwards, as a device would."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+
+    def on_state(dev: str, status: str) -> None:
+        if status == "succeeded":
+            testing.assertEqual(adapter.running(), NEW,
+                                "device should be on the target release")
+            t.success()
+
+    mgr = swdev.SoftwareManager("d", t.log_handler, _devmgr(t, noop_on_reconf), on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_no_target_release_does_nothing(t: testing.EnvT):
+    """A device with no target is left alone."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+
+    def on_state(dev: str, status: str) -> None:
+        t.failure(ValueError("status should not have changed, got {status}"))
+
+    def verify() -> None:
+        testing.assertEqual(adapter.calls(), [], "nothing should have run")
+        t.success()
+
+    mgr = swdev.SoftwareManager("d", t.log_handler, _devmgr(t, noop_on_reconf), on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", None, False, {})
+    after 0.05: verify()
+
+
+actor _test_veto_blocks_the_install(t: testing.EnvT):
+    """A veto from any holder stops the impacting step before it starts."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+
+    def on_state(dev: str, status: str) -> None:
+        t.failure(ValueError("status should not have changed, got {status}"))
+
+    def verify() -> None:
+        testing.assertEqual(adapter.calls(), [], "install must not run under veto")
+        t.success()
+
+    mgr = swdev.SoftwareManager("d", t.log_handler, _devmgr(t, noop_on_reconf), on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {"noc-monitoring": "maintenance freeze"})
+    after 0.05: verify()
+
+
+actor _test_failed_install_is_reported(t: testing.EnvT):
+    """A device that refuses the install leaves the manager in failed."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD, "install")
+
+    def on_state(dev: str, status: str) -> None:
+        if status == "failed":
+            t.success()
+        elif status == "succeeded":
+            t.failure(ValueError("install failed but the manager reported success"))
+
+    mgr = swdev.SoftwareManager("d", t.log_handler, _devmgr(t, noop_on_reconf), on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_install_runs_once(t: testing.EnvT):
+    """Repeated config does not re-run an install already under way."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+
+    def on_state(dev: str, status: str) -> None:
+        pass
+
+    def verify() -> None:
+        testing.assertEqual(adapter.calls(), ["install"],
+                            "install should have run once")
+        t.success()
+
+    mgr = swdev.SoftwareManager("d", t.log_handler, _devmgr(t, noop_on_reconf), on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+    mgr.set_config("camp-1", NEW, False, {})
+    mgr.set_config("camp-1", NEW, False, {})
+    after 0.05: verify()

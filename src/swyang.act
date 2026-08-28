@@ -73,8 +73,23 @@ rfs = r"""module stratoweave-rfs {
   import ietf-inet-types {
     prefix inet;
   }
+  import ietf-yang-types {
+    prefix yang;
+  }
 
   description "RFS services";
+
+  grouping check-result {
+    leaf verdict {
+      type enumeration {
+        enum not-run;
+        enum pass;
+        enum fail;
+      }
+    }
+    leaf detail { type string; }
+    leaf at     { type yang:date-and-time; }
+  }
 
   list device {
     key name;
@@ -192,6 +207,127 @@ rfs = r"""module stratoweave-rfs {
       leaf runtime-schema-fetch {
         type boolean;
         default false;
+      }
+    }
+
+
+    container software {
+      description
+        "Per-device software management. Input comes from the fleet upgrade
+         scheduler (or an operator directly); everything under state/ is
+         reported by the SoftwareManager.";
+
+      leaf upgrade-campaign {
+        description
+          "The upgrade campaign that currently owns this device. A device is
+           owned by at most one campaign at a time, which is what stops two
+           campaigns from scheduling the same device.";
+        type string;
+      }
+
+      leaf target-release {
+        description
+          "Name of the software release this device should be running, e.g.
+           '17.18.03a'. Absent means no upgrade is intended and the manager
+           stays idle.";
+        type string;
+      }
+
+      leaf allow-staging {
+        description
+          "Whether the manager may run the non-impacting prepare job ahead of
+           the maintenance window. Set by the scheduler, which paces image
+           transfers across the fleet so they do not saturate the network.";
+        type boolean;
+        default "false";
+      }
+
+      list veto {
+        description
+          "Any holder may block the impacting install step by adding an entry;
+           absence of entries means go. The fleet scheduler holds one until it
+           is this device's turn, and monitoring systems may add their own.
+           Each holder removes only its own entry, so there is no contention.
+           A veto blocks starting work; it never aborts an install already
+           in flight.";
+        key holder;
+        leaf holder {
+          type string;
+        }
+        leaf reason {
+          type string;
+        }
+      }
+
+      container state {
+        config false;
+
+        leaf status {
+          description
+            "Overall status, aggregated from the jobs and the install checks.";
+          type enumeration {
+            enum unknown;         // nothing known yet, check has not run
+            enum up-to-date;      // running software matches the target
+            enum upgrade-needed;  // differs from target, nothing running yet
+            enum in-progress;
+            enum succeeded;
+            enum failed;
+            enum rolled-back;
+          }
+        }
+
+        leaf running-release {
+          description
+            "Release the device was last observed to be running. Software is
+             treated as monolithic: one version name per device, as on IOS XE.";
+          type string;
+        }
+
+        list job {
+          description
+            "One entry per job in the upgrade sequence. Jobs are idempotent and
+             may be re-run; prepare in particular may run long before install
+             and is repeated as part of it.";
+          key name;
+          leaf name {
+            type enumeration {
+              enum check;
+              enum prepare;
+              enum install;
+              enum rollback;
+              enum cleanup;
+            }
+          }
+          leaf state {
+            type enumeration {
+              enum idle;
+              enum running;
+              enum done;
+              enum failed;
+            }
+          }
+          leaf started  { type yang:date-and-time; }
+          leaf ended    { type yang:date-and-time; }
+          leaf progress { type uint8; }
+          leaf message  { type string; }
+        }
+
+        container precheck {
+          description
+            "Gate evaluated immediately before install. A failed precheck stops
+             the install; the device is left untouched.";
+          uses check-result;
+        }
+
+        container postcheck {
+          description
+            "Evaluated after install to decide whether the upgrade actually
+             landed. A failing post-check triggers a rollback, which is why
+             cleanup is sequenced last: on platforms without native rollback
+             the superseded image is the rollback path and must still be on
+             the device until the post-checks pass.";
+          uses check-result;
+        }
       }
     }
 
