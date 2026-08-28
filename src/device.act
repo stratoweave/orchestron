@@ -16,6 +16,10 @@ from device_meta_config import \
     stratoweave_rfs__device_entry as DeviceMetaConfig, \
     stratoweave_rfs__device__credentials as Credentials
 
+from device_oper import \
+    stratoweave_rfs__device_entry as DeviceOper, \
+    stratoweave_rfs__device__software__state as SoftwareState
+
 from device_schema import DeviceSchema, SchemaTreeTransform
 
 from adapters.adapter import \
@@ -208,9 +212,12 @@ ST_SUCCEEDED = "succeeded"
 ST_FAILED = "failed"
 
 
-actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr,
-                      on_state_change: action(str, str) -> None):
+actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr):
     """Per-device software manager, one per DeviceMgr.
+
+    Really one half of the DeviceMgr, split out only to keep the code
+    readable, so tight coupling is fine: status changes are pushed straight
+    to devmgr.on_software_state.
 
     Only the install step is implemented: given a target release and an
     adapter, it installs. The rest of the API below is still a stub.
@@ -257,7 +264,10 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
     var upgrade_campaign: ?str = None
     var allow_staging: bool = False
     var vetoes: dict[str, str] = {}
-    var status: str = ST_UNKNOWN
+
+    # The device/software/state oper tree this manager owns. Every change is
+    # pushed to the DeviceMgr, which fuses it into the device entry's oper.
+    var state: SoftwareState = SoftwareState(status=ST_UNKNOWN)
 
     #### configuration ######################################################
 
@@ -313,14 +323,17 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
 
     def get_status() -> str:
         """One of the ST_* values above."""
-        return status
+        s = state.status
+        return s if s is not None else ST_UNKNOWN
 
     #### install ############################################################
 
     def _set_status(s: str) -> None:
-        if s != status:
-            status = s
-            on_state_change(name, s)
+        if s != state.status:
+            state.status = s
+            # Push a copy: Acton does not copy local message arguments, and
+            # the DeviceMgr keeps what it receives in its oper tree.
+            devmgr.on_software_state(state.copy())
 
     def _reconcile() -> None:
         """Install when there is something to install and nothing blocking it.
@@ -329,7 +342,7 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
         gates, rollback and cleanup around this. For now a target release means
         install it, once.
         """
-        if status == ST_IN_PROGRESS:
+        if state.status == ST_IN_PROGRESS:
             return
         t = target_release
         if t is not None:
@@ -347,6 +360,9 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
         # re-discovered before anything trusts its schema again.
         devmgr.resync()
         _set_status(ST_SUCCEEDED)
+
+    # Report the initial state, so the DeviceMgr's entry oper starts complete.
+    devmgr.on_software_state(state.copy())
 
 
 ## DeviceType represents a type of device, i.e. a specific platform or
@@ -605,16 +621,51 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
     system_mock = True if connect_cap is None else False
     _log.debug("DeviceMgr starting up", {"name": name, "system_mock": system_mock})
 
+    # The device entry's oper tree, in the adata generated from the same
+    # YANG as the DeviceMetaConfig. Sub-components push their subtree; the
+    # DeviceMgr fuses it in and publishes the whole entry.
+    var oper: DeviceOper = DeviceOper(name)
+
+    # The device entry's true update_oper, handed over by TTT when the entry
+    # node is created.
+    var _update_oper: ?action(?ygdata.Node) -> None = None
+
+    def update_oper() -> None:
+        """Publish the device entry's oper tree.
+
+        Always safe to call after a change to oper: it sends the tree to the
+        entry's update_oper when TTT has registered one, and does nothing
+        before that.
+        """
+        cb = _update_oper
+        if cb is not None:
+            cb(oper.to_gdata())
+
+    def on_software_state(state: SoftwareState) -> None:
+        """SoftwareManager pushes its oper state: fuse and publish."""
+        _log.info("DeviceMgr: software status", {"device": name, "status": str(state.status)})
+        oper.software.state = state
+        update_oper()
+
     # Per-device software manager. Statically instantiated: every device has
     # one, whether or not its device type can actually install software. It
     # stays idle until it is given both an adapter and a target release.
-    def _on_software_state(dev: str, sw_status: str) -> None:
-        """SoftwareManager reports a new status. Republish device oper state so
-        it surfaces under device/software/state."""
-        _log.info("DeviceMgr: software status", {"device": dev, "status": sw_status})
-        on_reconf(dev)
+    swmgr = SoftwareManager(name, log_handler, self)
 
-    swmgr = SoftwareManager(name, log_handler, self, _on_software_state)
+    def set_update_oper(cb: action(?ygdata.Node) -> None) -> None:
+        """Hand the DeviceMgr the oper publication hook for its device entry.
+
+        The whole device/ entry is served by this DeviceMgr, so the hook
+        covers all of its oper state, not one sub-component's. It is a
+        setter and not a constructor argument because several TTT nodes
+        get-or-create the DeviceMgr and only the device entry has the hook
+        to give: whichever node asks first constructs the manager. A
+        re-created entry replaces its predecessor's hook. The current oper
+        state is pushed on registration, so a subscriber that arrives after
+        status changes still publishes the truth.
+        """
+        _update_oper = cb
+        update_oper()
 
     # The device's meta configuration, like address, credentials, etc.
     var dmc: DeviceMetaConfig = DeviceMetaConfig(name, Credentials("", None))

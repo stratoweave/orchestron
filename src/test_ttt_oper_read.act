@@ -1,5 +1,6 @@
 import testing
 
+import device as swdev
 import ttt as ttt
 import yang.gdata as gdata
 
@@ -7,6 +8,11 @@ TEST_NS = "urn:test-oper"
 
 def q(n: str) -> gdata.Id:
     return gdata.Id(TEST_NS, n)
+
+DEV_NS = "http://stratoweave.org/yang/stratoweave-rfs"
+
+def dq(n: str) -> gdata.Id:
+    return gdata.Id(DEV_NS, n)
 
 
 class OperTransform(ttt.TransformFunction):
@@ -352,3 +358,61 @@ actor read_data_merges_config_and_oper(t: testing.AsyncT):
         t.success()
 
     layer.edit_config(_service_cfg(), cont)
+
+
+def _device_status(data: ?gdata.Node, name: str) -> ?str:
+    """The published software status of one device entry, if any."""
+    if data is not None and isinstance(data, gdata.Container):
+        devs = data.children.get(dq("device"))
+        if isinstance(devs, gdata.List):
+            for e in devs.elements:
+                if isinstance(e, gdata.Container) and e.get_opt_str(dq("name")) == name:
+                    sw = e.children.get(dq("software"))
+                    if isinstance(sw, gdata.Container):
+                        st = sw.children.get(dq("state"))
+                        if isinstance(st, gdata.Container):
+                            return st.get_opt_str(dq("status"))
+    return None
+
+
+actor device_node_publishes_software_state(t: testing.EnvT):
+    """The device entry's oper state carries the SoftwareManager status.
+
+    Status changes are pushed through the DeviceMgr to the device node, which
+    publishes device/software/state — no transform and no polling involved.
+    """
+    registry = swdev.DeviceRegistry({}, None, t.log_handler)
+    layer = ttt.Layer("rfs", ttt.Container({
+        dq("device"): ttt.List(ttt.Device(registry, t.log_handler), [dq("name")]),
+    }), None)
+    var done = False
+
+    def check():
+        if done:
+            return
+        if _device_status(layer.get_data(), "d1") == "succeeded":
+            done = True
+            t.success()
+            return
+        after 0.01: check()
+
+    def fail():
+        if not done:
+            done = True
+            status = _device_status(layer.get_data(), "d1")
+            t.failure(ValueError("Timed out waiting for published software state, got {status}"))
+
+    def cont(_r: value):
+        # The device entry exists; drive its software manager to a new status
+        # and wait for the push to surface in the layer's oper view.
+        swmgr = registry.get_or_create("d1").get_swmgr()
+        swmgr.set_adapter(swdev.MockSoftwareAdapter(t.log_handler, "17.15.01a"))
+        swmgr.set_config("camp-1", "17.18.03a", False, {})
+        check()
+        after 2: fail()
+
+    layer.edit_config(gdata.Container({
+        dq("device"): gdata.List([dq("name")], [
+            gdata.Container({dq("name"): gdata.Leaf("d1")}),
+        ]),
+    }), cont)
