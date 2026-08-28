@@ -1,0 +1,1080 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+from yang.sdata import SubscriptionPath, SubscriptionNode
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='software', config=True, presence=False, children=[
+    DList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='fleetmgr.cfs.Device', exts=[])
+        ], children=[
+        DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='upgrade-campaign', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='fleetmgr.cfs.UpgradeCampaign', exts=[])
+        ], children=[
+        DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='target-release', config=True, description='Software release the selected devices should be running.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeafList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device', config=True, description='Devices this campaign upgrades.', min_elements=0, ordered_by='system', type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='admin-state', config=True, description='plan: the campaign is declared and inspectable but does nothing.\nrun: the campaign sets the software target on its devices.', default='plan', mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'plan':0, 'run':1})),
+        DContainer(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='state', config=False, presence=False, children=[
+            DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='total', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='in-progress', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='succeeded', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='failed', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
+            DList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device-status', key=['device'], config=False, min_elements=0, ordered_by='system', children=[
+                DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+                DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='status', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+            ])
+        ])
+    ])
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[],
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'urn:fleetmgr:software':('software', None)},
+)
+
+SRC_YANG_0: str = r"""module software {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:software";
+  prefix sw-cfs;
+
+  import stratoweave {
+    prefix sw;
+  }
+
+  container software {
+    list device {
+      key name;
+
+      sw:transform fleetmgr.cfs.Device;
+
+      leaf name {
+        type string;
+      }
+    }
+
+    list upgrade-campaign {
+      key name;
+
+      sw:transform fleetmgr.cfs.UpgradeCampaign;
+
+      leaf name {
+        type string;
+      }
+      leaf target-release {
+        description "Software release the selected devices should be running.";
+        type string;
+        mandatory true;
+      }
+      leaf-list device {
+        description "Devices this campaign upgrades.";
+        type string;
+      }
+      leaf admin-state {
+        description
+          "plan: the campaign is declared and inspectable but does nothing.
+           run: the campaign sets the software target on its devices.";
+        type enumeration {
+          enum plan;
+          enum run;
+        }
+        default plan;
+      }
+
+      container state {
+        config false;
+        leaf total {
+          type uint32;
+        }
+        leaf in-progress {
+          type uint32;
+        }
+        leaf succeeded {
+          type uint32;
+        }
+        leaf failed {
+          type uint32;
+        }
+        list device-status {
+          key device;
+          leaf device {
+            type string;
+          }
+          leaf status {
+            type string;
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+SRC_YANG_1: str = r"""module stratoweave {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave";
+  prefix "sw";
+
+  description
+    "This module defines Stratoweave YANG extensions.";
+
+  revision 2026-04-01;
+
+  extension device {
+    description
+      "Used internally in the list defining the device manager model.";
+  }
+  extension device-config {
+    description
+      "Used internally in the list defining the device configuration store.";
+  }
+  extension transform {
+    description
+      "Used in a list or container defining a transform model. Takes as an
+      argument the fully qualified name of the type implementing the transform
+      function in user code. Makes the code generator create the base type in
+      app.layers.base_X.";
+    argument "function";
+  }
+  extension rfs-transform {
+    description
+      "Used in a list or container defining an RFS transform model. Takes as an
+      argument the fully qualified name of the type implementing the RFS
+      transform function in user code. Makes the code generator create the base
+      type in app.layers.base_X.";
+    argument "function";
+  }
+  extension dynstate {
+    description
+      "Used in the dynstate container of a transform model. Enriches the
+      transform function inputs with an additional read-only structure. This
+      subtree is accessible for writes to the transform actor for async
+      (environmental) updates.";
+  }
+  extension memory {
+    description
+      "Used in the memory container of a transform model. Enriches the transform
+      function inputs with an additional read-only structure. The transform
+      function may update this subtree by returning new data.";
+  }
+  extension link {
+    description
+      "Declares a link demand from this transform towards another (linked)
+      transform. The argument is a tag that identifies the link. On a leafref
+      leaf, the link target is derived from the leafref path. On other nodes,
+      a nested sw:path substatement provides the target path.";
+    argument "tag";
+  }
+  extension path {
+    description
+      "Substatement of sw:link that provides an explicit absolute schema path
+      to the linked transform target.";
+    argument "path";
+  }
+}"""
+
+SRC_YANG_2: str = r"""module ietf-inet-types {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
+  prefix "inet";
+
+  organization
+   "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netmod/>
+    WG List:  <mailto:netmod@ietf.org>
+
+    WG Chair: David Kessens
+              <mailto:david.kessens@nsn.com>
+
+    WG Chair: Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>
+
+    Editor:   Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>";
+
+  description
+   "This module contains a collection of generally useful derived
+    YANG data types for Internet addresses and related things.
+
+    Copyright (c) 2013 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC 6991; see
+    the RFC itself for full legal notices.";
+
+  revision 2013-07-15 {
+    description
+     "This revision adds the following new data types:
+      - ip-address-no-zone
+      - ipv4-address-no-zone
+      - ipv6-address-no-zone";
+    reference
+     "RFC 6991: Common YANG Data Types";
+  }
+
+  revision 2010-09-24 {
+    description
+     "Initial revision.";
+    reference
+     "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of types related to protocol fields ***/
+
+  typedef ip-version {
+    type enumeration {
+      enum unknown {
+        value "0";
+        description
+         "An unknown or unspecified version of the Internet
+          protocol.";
+      }
+      enum ipv4 {
+        value "1";
+        description
+         "The IPv4 protocol as defined in RFC 791.";
+      }
+      enum ipv6 {
+        value "2";
+        description
+         "The IPv6 protocol as defined in RFC 2460.";
+      }
+    }
+    description
+     "This value represents the version of the IP protocol.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetVersion textual convention of the SMIv2.";
+    reference
+     "RFC  791: Internet Protocol
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  typedef dscp {
+    type uint8 {
+      range "0..63";
+    }
+    description
+     "The dscp type represents a Differentiated Services Code Point
+      that may be used for marking packets in a traffic stream.
+      In the value set and its semantics, this type is equivalent
+      to the Dscp textual convention of the SMIv2.";
+    reference
+     "RFC 3289: Management Information Base for the Differentiated
+                Services Architecture
+      RFC 2474: Definition of the Differentiated Services Field
+                (DS Field) in the IPv4 and IPv6 Headers
+      RFC 2780: IANA Allocation Guidelines For Values In
+                the Internet Protocol and Related Headers";
+  }
+
+  typedef ipv6-flow-label {
+    type uint32 {
+      range "0..1048575";
+    }
+    description
+     "The ipv6-flow-label type represents the flow identifier or Flow
+      Label in an IPv6 packet header that may be used to
+      discriminate traffic flows.
+
+      In the value set and its semantics, this type is equivalent
+      to the IPv6FlowLabel textual convention of the SMIv2.";
+    reference
+     "RFC 3595: Textual Conventions for IPv6 Flow Label
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification";
+  }
+
+  typedef port-number {
+    type uint16 {
+      range "0..65535";
+    }
+    description
+     "The port-number type represents a 16-bit port number of an
+      Internet transport-layer protocol such as UDP, TCP, DCCP, or
+      SCTP.  Port numbers are assigned by IANA.  A current list of
+      all assignments is available from <http://www.iana.org/>.
+
+      Note that the port number value zero is reserved by IANA.  In
+      situations where the value zero does not make sense, it can
+      be excluded by subtyping the port-number type.
+      In the value set and its semantics, this type is equivalent
+      to the InetPortNumber textual convention of the SMIv2.";
+    reference
+     "RFC  768: User Datagram Protocol
+      RFC  793: Transmission Control Protocol
+      RFC 4960: Stream Control Transmission Protocol
+      RFC 4340: Datagram Congestion Control Protocol (DCCP)
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  /*** collection of types related to autonomous systems ***/
+
+  typedef as-number {
+    type uint32;
+    description
+     "The as-number type represents autonomous system numbers
+      which identify an Autonomous System (AS).  An AS is a set
+      of routers under a single technical administration, using
+      an interior gateway protocol and common metrics to route
+      packets within the AS, and using an exterior gateway
+      protocol to route packets to other ASes.  IANA maintains
+      the AS number space and has delegated large parts to the
+      regional registries.
+
+      Autonomous system numbers were originally limited to 16
+      bits.  BGP extensions have enlarged the autonomous system
+      number space to 32 bits.  This type therefore uses an uint32
+      base type without a range restriction in order to support
+      a larger autonomous system number space.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetAutonomousSystemNumber textual convention of
+      the SMIv2.";
+    reference
+     "RFC 1930: Guidelines for creation, selection, and registration
+                of an Autonomous System (AS)
+      RFC 4271: A Border Gateway Protocol 4 (BGP-4)
+      RFC 4001: Textual Conventions for Internet Network Addresses
+      RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+                Number Space";
+  }
+
+  /*** collection of types related to IP addresses and hostnames ***/
+
+  typedef ip-address {
+    type union {
+      type inet:ipv4-address;
+      type inet:ipv6-address;
+    }
+    description
+     "The ip-address type represents an IP address and is IP
+      version neutral.  The format of the textual representation
+      implies the IP version.  This type supports scoped addresses
+      by allowing zone identifiers in the address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+      + '(%[\p{N}\p{L}]+)?';
+    }
+    description
+      "The ipv4-address type represents an IPv4 address in
+       dotted-quad notation.  The IPv4 address may include a zone
+       index, separated by a % sign.
+
+       The zone index is used to disambiguate identical address
+       values.  For link-local addresses, the zone index will
+       typically be the interface index number or the name of an
+       interface.  If the zone index is not present, the default
+       zone of the device will be used.
+
+       The canonical format for the zone index is the numerical
+       format";
+  }
+
+  typedef ipv6-address {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(%[\p{N}\p{L}]+)?';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(%.+)?';
+    }
+    description
+     "The ipv6-address type represents an IPv6 address in full,
+      mixed, shortened, and shortened-mixed notation.  The IPv6
+      address may include a zone index, separated by a % sign.
+
+      The zone index is used to disambiguate identical address
+      values.  For link-local addresses, the zone index will
+      typically be the interface index number or the name of an
+      interface.  If the zone index is not present, the default
+      zone of the device will be used.
+
+      The canonical format of IPv6 addresses uses the textual
+      representation defined in Section 4 of RFC 5952.  The
+      canonical format for the zone index is the numerical
+      format as described in Section 11.2 of RFC 4007.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-address-no-zone {
+    type union {
+      type inet:ipv4-address-no-zone;
+      type inet:ipv6-address-no-zone;
+    }
+    description
+     "The ip-address-no-zone type represents an IP address and is
+      IP version neutral.  The format of the textual representation
+      implies the IP version.  This type does not support scoped
+      addresses since it does not allow zone identifiers in the
+      address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address-no-zone {
+    type inet:ipv4-address {
+      pattern '[0-9\.]*';
+    }
+    description
+      "An IPv4 address without a zone index.  This type, derived from
+       ipv4-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+  }
+
+  typedef ipv6-address-no-zone {
+    type inet:ipv6-address {
+      pattern '[0-9a-fA-F:\.]*';
+    }
+    description
+      "An IPv6 address without a zone index.  This type, derived from
+       ipv6-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-prefix {
+    type union {
+      type inet:ipv4-prefix;
+      type inet:ipv6-prefix;
+    }
+    description
+     "The ip-prefix type represents an IP prefix and is IP
+      version neutral.  The format of the textual representations
+      implies the IP version.";
+  }
+
+  typedef ipv4-prefix {
+    type string {
+      pattern
+         '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+       +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+       + '/(([0-9])|([1-2][0-9])|(3[0-2]))';
+    }
+    description
+     "The ipv4-prefix type represents an IPv4 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 32.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The canonical format of an IPv4 prefix has all bits of
+      the IPv4 address set to zero that are not part of the
+      IPv4 prefix.";
+  }
+
+  typedef ipv6-prefix {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(/.+)';
+    }
+
+    description
+     "The ipv6-prefix type represents an IPv6 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 128.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The IPv6 address should have all bits that do not belong
+      to the prefix set to zero.
+
+      The canonical format of an IPv6 prefix has all bits of
+      the IPv6 address set to zero that are not part of the
+      IPv6 prefix.  Furthermore, the IPv6 address is represented
+      as defined in Section 4 of RFC 5952.";
+    reference
+     "RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  /*** collection of domain name and URI types ***/
+
+  typedef domain-name {
+    type string {
+      pattern
+        '((([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.)*'
+      + '([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.?)'
+      + '|\.';
+      length "1..253";
+    }
+    description
+     "The domain-name type represents a DNS domain name.  The
+      name SHOULD be fully qualified whenever possible.
+
+      Internet domain names are only loosely specified.  Section
+      3.5 of RFC 1034 recommends a syntax (modified in Section
+      2.1 of RFC 1123).  The pattern above is intended to allow
+      for current practice in domain name use, and some possible
+      future expansion.  It is designed to hold various types of
+      domain names, including names used for A or AAAA records
+      (host names) and other records, such as SRV records.  Note
+      that Internet host names have a stricter syntax (described
+      in RFC 952) than the DNS recommendations in RFCs 1034 and
+      1123, and that systems that want to store host names in
+      schema nodes using the domain-name type are recommended to
+      adhere to this stricter standard to ensure interoperability.
+
+      The encoding of DNS names in the DNS protocol is limited
+      to 255 characters.  Since the encoding consists of labels
+      prefixed by a length bytes and there is a trailing NULL
+      byte, only 253 characters can appear in the textual dotted
+      notation.
+
+      The description clause of schema nodes using the domain-name
+      type MUST describe when and how these names are resolved to
+      IP addresses.  Note that the resolution of a domain-name value
+      may require to query multiple DNS records (e.g., A for IPv4
+      and AAAA for IPv6).  The order of the resolution process and
+      which DNS record takes precedence can either be defined
+      explicitly or may depend on the configuration of the
+      resolver.
+
+      Domain-name values use the US-ASCII encoding.  Their canonical
+      format uses lowercase US-ASCII characters.  Internationalized
+      domain names MUST be A-labels as per RFC 5890.";
+    reference
+     "RFC  952: DoD Internet Host Table Specification
+      RFC 1034: Domain Names - Concepts and Facilities
+      RFC 1123: Requirements for Internet Hosts -- Application
+                and Support
+      RFC 2782: A DNS RR for specifying the location of services
+                (DNS SRV)
+      RFC 5890: Internationalized Domain Names in Applications
+                (IDNA): Definitions and Document Framework";
+  }
+
+  typedef host {
+    type union {
+      type inet:ip-address;
+      type inet:domain-name;
+    }
+    description
+     "The host type represents either an IP address or a DNS
+      domain name.";
+  }
+
+  typedef uri {
+    type string;
+    description
+     "The uri type represents a Uniform Resource Identifier
+      (URI) as defined by STD 66.
+
+      Objects using the uri type MUST be in US-ASCII encoding,
+      and MUST be normalized as described by RFC 3986 Sections
+      6.2.1, 6.2.2.1, and 6.2.2.2.  All unnecessary
+      percent-encoding is removed, and all case-insensitive
+      characters are set to lowercase except for hexadecimal
+      digits, which are normalized to uppercase as described in
+      Section 6.2.2.1.
+
+      The purpose of this normalization is to help provide
+      unique URIs.  Note that this normalization is not
+      sufficient to provide uniqueness.  Two URIs that are
+      textually distinct after this normalization may still be
+      equivalent.
+
+      Objects using the uri type may restrict the schemes that
+      they permit.  For example, 'data:' and 'urn:' schemes
+      might not be appropriate.
+
+      A zero-length URI is not a valid URI.  This can be used to
+      express 'URI absent' where required.
+
+      In the value set and its semantics, this type is equivalent
+      to the Uri SMIv2 textual convention defined in RFC 5017.";
+    reference
+     "RFC 3986: Uniform Resource Identifier (URI): Generic Syntax
+      RFC 3305: Report from the Joint W3C/IETF URI Planning Interest
+                Group: Uniform Resource Identifiers (URIs), URLs,
+                and Uniform Resource Names (URNs): Clarifications
+                and Recommendations
+      RFC 5017: MIB Textual Conventions for Uniform Resource
+                Identifiers (URIs)";
+  }
+
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+        SRC_YANG_2,
+    ]
+
+
+NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
+NS_software: str = 'urn:fleetmgr:software'
+NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+
+
+_breaker1: None = None
+class software__software__device_entry(yadata.MNode):
+    name: str
+
+    mut def __init__(self, name: str) -> None:
+        self.name = name
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['software:software', 'device'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> software__software__device_entry:
+        return software__software__device_entry(name=n.get_str(ygdata.Id(NS_software, 'name')))
+
+    mut def copy(self) -> software__software__device_entry:
+        """Create a deep copy of this adata object"""
+        return software__software__device_entry.from_gdata(self.to_gdata())
+
+_breaker2: None = None
+class software__software__device(yadata.MKeyedList[str, software__software__device_entry]):
+    mut def __init__(self, elements: list[software__software__device_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str) -> software__software__device_entry:
+        e = self.get(key)
+        if e is not None:
+            return e
+        name = key
+        res = software__software__device_entry(name=name)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[software__software__device_entry]:
+        if n is not None:
+            return [software__software__device_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> software__software__device:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return software__software__device(elements=copied_elements)
+
+
+_breaker3: None = None
+class software__software__upgrade_campaign__state__device_status_entry(yadata.MNode):
+    device: str
+    status: ?str
+
+    mut def __init__(self, device: str, status: ?str) -> None:
+        self.device = device
+        self.status = status
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['software:software', 'upgrade-campaign', 'state', 'device-status'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> software__software__upgrade_campaign__state__device_status_entry:
+        return software__software__upgrade_campaign__state__device_status_entry(device=n.get_str(ygdata.Id(NS_software, 'device')), status=n.get_opt_str(ygdata.Id(NS_software, 'status')))
+
+    mut def copy(self) -> software__software__upgrade_campaign__state__device_status_entry:
+        """Create a deep copy of this adata object"""
+        return software__software__upgrade_campaign__state__device_status_entry.from_gdata(self.to_gdata())
+
+_breaker4: None = None
+class software__software__upgrade_campaign__state__device_status(yadata.MKeyedList[str, software__software__upgrade_campaign__state__device_status_entry]):
+    mut def __init__(self, elements: list[software__software__upgrade_campaign__state__device_status_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.device == k, elements)
+
+    mut def create(self, key: str, status: ?str=None) -> software__software__upgrade_campaign__state__device_status_entry:
+        e = self.get(key)
+        if e is not None:
+            if status is not None:
+                e.status = status
+            return e
+        device = key
+        res = software__software__upgrade_campaign__state__device_status_entry(device=device, status=status)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[software__software__upgrade_campaign__state__device_status_entry]:
+        if n is not None:
+            return [software__software__upgrade_campaign__state__device_status_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> software__software__upgrade_campaign__state__device_status:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return software__software__upgrade_campaign__state__device_status(elements=copied_elements)
+
+
+_breaker5: None = None
+class software__software__upgrade_campaign__state(yadata.MNode):
+    total: ?u64
+    in_progress: ?u64
+    succeeded: ?u64
+    failed: ?u64
+    device_status: software__software__upgrade_campaign__state__device_status
+
+    mut def __init__(self, total: ?u64, in_progress: ?u64, succeeded: ?u64, failed: ?u64, device_status: list[software__software__upgrade_campaign__state__device_status_entry]=[]) -> None:
+        self.total = total
+        self.in_progress = in_progress
+        self.succeeded = succeeded
+        self.failed = failed
+        self.device_status = software__software__upgrade_campaign__state__device_status(elements=device_status)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['software:software', 'upgrade-campaign', 'state'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> software__software__upgrade_campaign__state:
+        if n is not None:
+            return software__software__upgrade_campaign__state(total=n.get_opt_u64(ygdata.Id(NS_software, 'total')), in_progress=n.get_opt_u64(ygdata.Id(NS_software, 'in-progress')), succeeded=n.get_opt_u64(ygdata.Id(NS_software, 'succeeded')), failed=n.get_opt_u64(ygdata.Id(NS_software, 'failed')), device_status=software__software__upgrade_campaign__state__device_status.from_gdata(n.get_opt_list(ygdata.Id(NS_software, 'device-status'))))
+        return software__software__upgrade_campaign__state()
+
+    mut def copy(self) -> software__software__upgrade_campaign__state:
+        """Create a deep copy of this adata object"""
+        return software__software__upgrade_campaign__state.from_gdata(self.to_gdata())
+
+
+_breaker6: None = None
+class software__software__upgrade_campaign_entry(yadata.MNode):
+    name: str
+    target_release: ?str
+    device: list[str]
+    admin_state: ?str
+    state: software__software__upgrade_campaign__state
+
+    mut def __init__(self, name: str, target_release: ?str, device: ?list[str]=None, admin_state: ?str, state: ?software__software__upgrade_campaign__state=None) -> None:
+        self.name = name
+        self.target_release = target_release
+        self.device = device if device is not None else []
+        self.admin_state = admin_state
+        self.state = state if state is not None else software__software__upgrade_campaign__state()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['software:software', 'upgrade-campaign'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> software__software__upgrade_campaign_entry:
+        return software__software__upgrade_campaign_entry(name=n.get_str(ygdata.Id(NS_software, 'name')), target_release=n.get_opt_str(ygdata.Id(NS_software, 'target-release')), device=n.get_opt_strs(ygdata.Id(NS_software, 'device')), admin_state=n.get_opt_str(ygdata.Id(NS_software, 'admin-state')), state=software__software__upgrade_campaign__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_software, 'state'))))
+
+    mut def copy(self) -> software__software__upgrade_campaign_entry:
+        """Create a deep copy of this adata object"""
+        return software__software__upgrade_campaign_entry.from_gdata(self.to_gdata())
+
+_breaker7: None = None
+class software__software__upgrade_campaign(yadata.MKeyedList[str, software__software__upgrade_campaign_entry]):
+    mut def __init__(self, elements: list[software__software__upgrade_campaign_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, target_release: ?str=None, admin_state: ?str=None) -> software__software__upgrade_campaign_entry:
+        e = self.get(key)
+        if e is not None:
+            if target_release is not None:
+                e.target_release = target_release
+            if admin_state is not None:
+                e.admin_state = admin_state
+            return e
+        name = key
+        res = software__software__upgrade_campaign_entry(name=name, target_release=target_release, admin_state=admin_state)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[software__software__upgrade_campaign_entry]:
+        if n is not None:
+            return [software__software__upgrade_campaign_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> software__software__upgrade_campaign:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return software__software__upgrade_campaign(elements=copied_elements)
+
+
+_breaker8: None = None
+class software__software(yadata.MNode):
+    device: software__software__device
+    upgrade_campaign: software__software__upgrade_campaign
+
+    mut def __init__(self, device: list[software__software__device_entry]=[], upgrade_campaign: list[software__software__upgrade_campaign_entry]=[]) -> None:
+        self.device = software__software__device(elements=device)
+        self.upgrade_campaign = software__software__upgrade_campaign(elements=upgrade_campaign)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['software:software'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> software__software:
+        if n is not None:
+            return software__software(device=software__software__device.from_gdata(n.get_opt_list(ygdata.Id(NS_software, 'device'))), upgrade_campaign=software__software__upgrade_campaign.from_gdata(n.get_opt_list(ygdata.Id(NS_software, 'upgrade-campaign'))))
+        return software__software()
+
+    mut def copy(self) -> software__software:
+        """Create a deep copy of this adata object"""
+        return software__software.from_gdata(self.to_gdata())
+
+
+_breaker9: None = None
+class root(yadata.MNode):
+    software: software__software
+
+    mut def __init__(self, software: ?software__software=None) -> None:
+        self.software = software if software is not None else software__software()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(software=software__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_software, 'software'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+
+
+
+_breaker10: None = None
+class software__software__device_entry_subs(SubscriptionNode):
+    name: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'name'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name]
+        return direct
+
+_breaker11: None = None
+class software__software__device_subs(SubscriptionNode):
+    name: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'name'), parent=path))
+
+    pure def entry(self, name: str) -> software__software__device_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_software, 'name'), value_match=name),
+        ]
+        base_path = self._path!.parent
+        return software__software__device_entry_subs(SubscriptionPath(ygdata.Id(NS_software, 'device'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name]
+        return direct
+
+_breaker12: None = None
+class software__software__upgrade_campaign__state__device_status_entry_subs(SubscriptionNode):
+    device: SubscriptionNode
+    status: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
+        self.status = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'status'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device, self.status]
+        return direct
+
+_breaker13: None = None
+class software__software__upgrade_campaign__state__device_status_subs(SubscriptionNode):
+    device: SubscriptionNode
+    status: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
+        self.status = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'status'), parent=path))
+
+    pure def entry(self, device: str) -> software__software__upgrade_campaign__state__device_status_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_software, 'device'), value_match=device),
+        ]
+        base_path = self._path!.parent
+        return software__software__upgrade_campaign__state__device_status_entry_subs(SubscriptionPath(ygdata.Id(NS_software, 'device-status'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device, self.status]
+        return direct
+
+_breaker14: None = None
+class software__software__upgrade_campaign__state_subs(SubscriptionNode):
+    total: SubscriptionNode
+    in_progress: SubscriptionNode
+    succeeded: SubscriptionNode
+    failed: SubscriptionNode
+    device_status: software__software__upgrade_campaign__state__device_status_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.total = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'total'), parent=path))
+        self.in_progress = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'in-progress'), parent=path))
+        self.succeeded = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'succeeded'), parent=path))
+        self.failed = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'failed'), parent=path))
+        self.device_status = software__software__upgrade_campaign__state__device_status_subs(SubscriptionPath(ygdata.Id(NS_software, 'device-status'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.total, self.in_progress, self.succeeded, self.failed, self.device_status]
+        return direct
+
+_breaker15: None = None
+class software__software__upgrade_campaign_entry_subs(SubscriptionNode):
+    name: SubscriptionNode
+    target_release: SubscriptionNode
+    device: SubscriptionNode
+    admin_state: SubscriptionNode
+    state: software__software__upgrade_campaign__state_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'name'), parent=path))
+        self.target_release = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'target-release'), parent=path))
+        self.device = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
+        self.admin_state = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'admin-state'), parent=path))
+        self.state = software__software__upgrade_campaign__state_subs(SubscriptionPath(ygdata.Id(NS_software, 'state'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.target_release, self.device, self.admin_state, self.state]
+        return direct
+
+_breaker16: None = None
+class software__software__upgrade_campaign_subs(SubscriptionNode):
+    name: SubscriptionNode
+    target_release: SubscriptionNode
+    device: SubscriptionNode
+    admin_state: SubscriptionNode
+    state: software__software__upgrade_campaign__state_subs
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'name'), parent=path))
+        self.target_release = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'target-release'), parent=path))
+        self.device = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
+        self.admin_state = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'admin-state'), parent=path))
+        self.state = software__software__upgrade_campaign__state_subs(SubscriptionPath(ygdata.Id(NS_software, 'state'), parent=path))
+
+    pure def entry(self, name: str) -> software__software__upgrade_campaign_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_software, 'name'), value_match=name),
+        ]
+        base_path = self._path!.parent
+        return software__software__upgrade_campaign_entry_subs(SubscriptionPath(ygdata.Id(NS_software, 'upgrade-campaign'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.target_release, self.device, self.admin_state, self.state]
+        return direct
+
+_breaker17: None = None
+class software__software_subs(SubscriptionNode):
+    device: software__software__device_subs
+    upgrade_campaign: software__software__upgrade_campaign_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device = software__software__device_subs(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
+        self.upgrade_campaign = software__software__upgrade_campaign_subs(SubscriptionPath(ygdata.Id(NS_software, 'upgrade-campaign'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device, self.upgrade_campaign]
+        return direct
+
+_breaker18: None = None
+class root_subs(SubscriptionNode):
+    software: software__software_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.software = software__software_subs(SubscriptionPath(ygdata.Id(NS_software, 'software'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.software]
+        return direct
+
+subs: root_subs = root_subs()
+
+actor DstAdapter(cb: action(?root, ?Exception) -> None):
+    on_update: action(?ygdata.Node, ?Exception) -> None
+    def on_update(n: ?ygdata.Node, err: ?Exception) -> None:
+        if err is not None:
+            cb(None, err)
+            return
+        if n is not None:
+            cb(root.from_gdata(n), None)
+            return
+        cb(None, None)
+
+proc def dst(cb: action(?root, ?Exception) -> None) -> ygdata.Dst:
+    adapter = DstAdapter(cb)
+    return ygdata.Dst(adapter.on_update)

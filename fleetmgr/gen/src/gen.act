@@ -1,0 +1,30 @@
+import file
+import process
+
+import stratoweave.build as swbuild
+import stratoweave.swyang as swyang
+
+actor main(env):
+    fc = file.FileCap(env.cap)
+
+    cfs_layer = swbuild.Layer.from_dir(fc, "yang/cfs")
+    cfs_layer.models.extend([swyang.stratoweave, swyang.ietf_inet_types])
+    # No app-level RFS models: the layer is just the stratoweave device list,
+    # whose entries publish device/software/state themselves.
+    rfs_layer = swbuild.Layer([])
+    rfs_layer.models.extend([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types])
+
+    spec = swbuild.SysSpec("fleetmgr", [
+        cfs_layer,
+        rfs_layer,
+    ], [
+        swbuild.DeviceType.from_dir(fc, "cpe", "yang/dev-cpe")
+    ])
+    try:
+        compiled_spec = spec.compile()
+        compiled_spec.gen_app(fc, "../src/")
+    except Exception as exc:
+        print(exc)
+        env.exit(1)
+    else:
+        env.exit(0)

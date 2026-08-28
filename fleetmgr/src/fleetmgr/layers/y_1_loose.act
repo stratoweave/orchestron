@@ -1,0 +1,2293 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_1: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_2: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='description', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_3: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='type', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+
+SRC_DNODE_CHILD_4: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='address', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description="Name of address, e.g. 'loopback' or 'OOB'", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='address', config=True, mandatory=True, type=DTypeUnion(name='inet:host', description='The host type represents either an IP address or a DNS\ndomain name.', reference=None, exts=[], builtin_type='union', default=None, types=[DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]), DTypeString(name='inet:ipv6-address', description='The ipv6-address type represents an IPv6 address in full,\nmixed, shortened, and shortened-mixed notation.  The IPv6\naddress may include a zone index, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format of IPv6 addresses uses the textual\nrepresentation defined in Section 4 of RFC 5952.  The\ncanonical format for the zone index is the numerical\nformat as described in Section 11.2 of RFC 4007.', reference='RFC 4291: IP Version 6 Addressing Architecture\nRFC 4007: IPv6 Scoped Address Architecture\nRFC 5952: A Recommendation for IPv6 Address Text\n          Representation', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='((:|[0-9a-fA-F]{{0,4}}):)([0-9a-fA-F]{{0,4}}:){{0,5}}((([0-9a-fA-F]{{0,4}}:)?(:|[0-9a-fA-F]{{0,4}}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){{3}}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{{N}}\\p{{L}}]+)?', pcre='^(((:|[0-9a-fA-F]{{0,4}}):)([0-9a-fA-F]{{0,4}}:){{0,5}}((([0-9a-fA-F]{{0,4}}:)?(:|[0-9a-fA-F]{{0,4}}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){{3}}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False), YangPattern(yang_regex='(([^:]+:){{6}}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?', pcre='^((([^\\:]+:){{6}}(([^\\:]+:[^\\:]+)|(.*\\..*)))|((([^\\:]+:)*[^\\:]+)?::(([^\\:]+:)*[^\\:]+)?)(%.+)?)$', invert=False)]), DTypeString(name='inet:domain-name', description='The domain-name type represents a DNS domain name.  The\nname SHOULD be fully qualified whenever possible.\n\nInternet domain names are only loosely specified.  Section\n3.5 of RFC 1034 recommends a syntax (modified in Section\n2.1 of RFC 1123).  The pattern above is intended to allow\nfor current practice in domain name use, and some possible\nfuture expansion.  It is designed to hold various types of\ndomain names, including names used for A or AAAA records\n(host names) and other records, such as SRV records.  Note\nthat Internet host names have a stricter syntax (described\nin RFC 952) than the DNS recommendations in RFCs 1034 and\n1123, and that systems that want to store host names in\nschema nodes using the domain-name type are recommended to\nadhere to this stricter standard to ensure interoperability.\n\nThe encoding of DNS names in the DNS protocol is limited\nto 255 characters.  Since the encoding consists of labels\nprefixed by a length bytes and there is a trailing NULL\nbyte, only 253 characters can appear in the textual dotted\nnotation.\n\nThe description clause of schema nodes using the domain-name\ntype MUST describe when and how these names are resolved to\nIP addresses.  Note that the resolution of a domain-name value\nmay require to query multiple DNS records (e.g., A for IPv4\nand AAAA for IPv6).  The order of the resolution process and\nwhich DNS record takes precedence can either be defined\nexplicitly or may depend on the configuration of the\nresolver.\n\nDomain-name values use the US-ASCII encoding.  Their canonical\nformat uses lowercase US-ASCII characters.  Internationalized\ndomain names MUST be A-labels as per RFC 5890.', reference='RFC  952: DoD Internet Host Table Specification\nRFC 1034: Domain Names - Concepts and Facilities\nRFC 1123: Requirements for Internet Hosts -- Application\n          and Support\nRFC 2782: A DNS RR for specifying the location of services\n          (DNS SRV)\nRFC 5890: Internationalized Domain Names in Applications\n          (IDNA): Definitions and Document Framework', exts=[], builtin_type='string', default=None, length=Ranges([(1, 253)]), patterns=[YangPattern(yang_regex='((([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.)*([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.?)|\\.', pcre='^(((([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.)*([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.?)|\\.)$', invert=False)])])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='port', config=True, mandatory=False, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
+    DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='initial-credentials', key=[
+'username',
+'password',
+'key'
+        ], config=True, min_elements=0, ordered_by='system', children=[
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='username', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='password', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_CHILD_5: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='credentials', config=True, presence=False, children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='username', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='password', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='key', key=['key'], config=True, min_elements=0, ordered_by='system', children=[
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='private-key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_CHILD_6: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='initial-credentials', key=[
+'username',
+'password',
+'key'
+    ], config=True, min_elements=0, ordered_by='system', children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='username', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='password', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+])
+
+SRC_DNODE_CHILD_7: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='approval-required', config=True, description='Require approval of each individual configuration change to this device', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+
+SRC_DNODE_CHILD_8: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='mock', config=True, presence=False, children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='enabled', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='module', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='namespace', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='revision', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='feature', config=True, min_elements=0, ordered_by='system', type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_CHILD_9: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='debug', config=True, presence=False, children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='connection', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+])
+
+SRC_DNODE_CHILD_10: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='feature-flags', config=True, presence=False, children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='runtime-schema-fetch', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+])
+
+SRC_DNODE_CHILD_11: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='software', config=True, description='Per-device software management. Input comes from the fleet upgrade\nscheduler (or an operator directly); everything under state/ is\nreported by the SoftwareManager.', presence=False, children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='upgrade-campaign', config=True, description='The upgrade campaign that currently owns this device. A device is\nowned by at most one campaign at a time, which is what stops two\ncampaigns from scheduling the same device.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='target-release', config=True, description="Name of the software release this device should be running, e.g.\n'17.18.03a'. Absent means no upgrade is intended and the manager\nstays idle.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='allow-staging', config=True, description='Whether the manager may run the non-impacting prepare job ahead of\nthe maintenance window. Set by the scheduler, which paces image\ntransfers across the fleet so they do not saturate the network.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='veto', key=['holder'], config=True, description="Any holder may block the impacting install step by adding an entry;\nabsence of entries means go. The fleet scheduler holds one until it\nis this device's turn, and monitoring systems may add their own.\nEach holder removes only its own entry, so there is no contention.\nA veto blocks starting work; it never aborts an install already\nin flight.", min_elements=0, ordered_by='system', children=[
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='holder', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='reason', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_CHILD_0: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='device', arg=None, exts=[])
+    ], children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11])
+
+SRC_DNODE_CHILD_12: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_12],
+    identities=[],
+    rpcs=[],
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None)},
+)
+
+SRC_YANG_0: str = r"""module stratoweave {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave";
+  prefix "sw";
+
+  description
+    "This module defines Stratoweave YANG extensions.";
+
+  revision 2026-04-01;
+
+  extension device {
+    description
+      "Used internally in the list defining the device manager model.";
+  }
+  extension device-config {
+    description
+      "Used internally in the list defining the device configuration store.";
+  }
+  extension transform {
+    description
+      "Used in a list or container defining a transform model. Takes as an
+      argument the fully qualified name of the type implementing the transform
+      function in user code. Makes the code generator create the base type in
+      app.layers.base_X.";
+    argument "function";
+  }
+  extension rfs-transform {
+    description
+      "Used in a list or container defining an RFS transform model. Takes as an
+      argument the fully qualified name of the type implementing the RFS
+      transform function in user code. Makes the code generator create the base
+      type in app.layers.base_X.";
+    argument "function";
+  }
+  extension dynstate {
+    description
+      "Used in the dynstate container of a transform model. Enriches the
+      transform function inputs with an additional read-only structure. This
+      subtree is accessible for writes to the transform actor for async
+      (environmental) updates.";
+  }
+  extension memory {
+    description
+      "Used in the memory container of a transform model. Enriches the transform
+      function inputs with an additional read-only structure. The transform
+      function may update this subtree by returning new data.";
+  }
+  extension link {
+    description
+      "Declares a link demand from this transform towards another (linked)
+      transform. The argument is a tag that identifies the link. On a leafref
+      leaf, the link target is derived from the leafref path. On other nodes,
+      a nested sw:path substatement provides the target path.";
+    argument "tag";
+  }
+  extension path {
+    description
+      "Substatement of sw:link that provides an explicit absolute schema path
+      to the linked transform target.";
+    argument "path";
+  }
+}"""
+
+SRC_YANG_1: str = r"""module stratoweave-rfs {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave-rfs";
+  prefix "sw-rfs";
+
+  import stratoweave {
+    prefix sw;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  description "RFS services";
+
+  grouping check-result {
+    leaf verdict {
+      type enumeration {
+        enum not-run;
+        enum pass;
+        enum fail;
+      }
+    }
+    leaf detail { type string; }
+    leaf at     { type yang:date-and-time; }
+  }
+
+  list device {
+    key name;
+
+    sw:device;
+
+    leaf name {
+      type string;
+    }
+
+    leaf description {
+      type string;
+    }
+
+    leaf type {
+      type string;
+    }
+
+    list address {
+      key name;
+      leaf name {
+        description "Name of address, e.g. 'loopback' or 'OOB'";
+        type string;
+      }
+      leaf address {
+        type inet:host;
+        mandatory true;
+      }
+      leaf port {
+        type uint16;
+      }
+      list initial-credentials {
+        key "username password key";
+        leaf username {
+          type string;
+        }
+        leaf password {
+          type string;
+        }
+        leaf key {
+          type string;
+        }
+      }
+    }
+
+    container credentials {
+      leaf username {
+        type string;
+        mandatory true;
+      }
+      leaf password {
+        type string;
+      }
+      list key {
+        key key;
+        leaf key {
+          type string;
+        }
+        leaf private-key {
+          type string;
+        }
+      }
+    }
+
+    list initial-credentials {
+      key "username password key";
+      leaf username {
+        type string;
+      }
+      leaf password {
+        type string;
+      }
+      leaf key {
+        type string;
+      }
+    }
+
+    leaf approval-required {
+      description "Require approval of each individual configuration change to this device";
+      type boolean;
+      default "false";
+    }
+
+    container mock {
+      leaf enabled {
+        type boolean;
+        default "false";
+      }
+      list module {
+        key "name";
+        leaf name {
+          type string;
+        }
+        leaf namespace {
+          type string;
+          mandatory true;
+        }
+        leaf revision {
+          type string;
+        }
+        leaf-list feature {
+          type string;
+        }
+      }
+    }
+
+    container debug {
+      leaf connection {
+        type boolean;
+        default "false";
+      }
+    }
+
+    container feature-flags {
+      leaf runtime-schema-fetch {
+        type boolean;
+        default false;
+      }
+    }
+
+
+    container software {
+      description
+        "Per-device software management. Input comes from the fleet upgrade
+         scheduler (or an operator directly); everything under state/ is
+         reported by the SoftwareManager.";
+
+      leaf upgrade-campaign {
+        description
+          "The upgrade campaign that currently owns this device. A device is
+           owned by at most one campaign at a time, which is what stops two
+           campaigns from scheduling the same device.";
+        type string;
+      }
+
+      leaf target-release {
+        description
+          "Name of the software release this device should be running, e.g.
+           '17.18.03a'. Absent means no upgrade is intended and the manager
+           stays idle.";
+        type string;
+      }
+
+      leaf allow-staging {
+        description
+          "Whether the manager may run the non-impacting prepare job ahead of
+           the maintenance window. Set by the scheduler, which paces image
+           transfers across the fleet so they do not saturate the network.";
+        type boolean;
+        default "false";
+      }
+
+      list veto {
+        description
+          "Any holder may block the impacting install step by adding an entry;
+           absence of entries means go. The fleet scheduler holds one until it
+           is this device's turn, and monitoring systems may add their own.
+           Each holder removes only its own entry, so there is no contention.
+           A veto blocks starting work; it never aborts an install already
+           in flight.";
+        key holder;
+        leaf holder {
+          type string;
+        }
+        leaf reason {
+          type string;
+        }
+      }
+
+      container state {
+        config false;
+
+        leaf status {
+          description
+            "Overall status, aggregated from the jobs and the install checks.";
+          type enumeration {
+            enum unknown;         // nothing known yet, check has not run
+            enum up-to-date;      // running software matches the target
+            enum upgrade-needed;  // differs from target, nothing running yet
+            enum in-progress;
+            enum succeeded;
+            enum failed;
+            enum rolled-back;
+          }
+        }
+
+        leaf running-release {
+          description
+            "Release the device was last observed to be running. Software is
+             treated as monolithic: one version name per device, as on IOS XE.";
+          type string;
+        }
+
+        list job {
+          description
+            "One entry per job in the upgrade sequence. Jobs are idempotent and
+             may be re-run; prepare in particular may run long before install
+             and is repeated as part of it.";
+          key name;
+          leaf name {
+            type enumeration {
+              enum check;
+              enum prepare;
+              enum install;
+              enum rollback;
+              enum cleanup;
+            }
+          }
+          leaf state {
+            type enumeration {
+              enum idle;
+              enum running;
+              enum done;
+              enum failed;
+            }
+          }
+          leaf started  { type yang:date-and-time; }
+          leaf ended    { type yang:date-and-time; }
+          leaf progress { type uint8; }
+          leaf message  { type string; }
+        }
+
+        container precheck {
+          description
+            "Gate evaluated immediately before install. A failed precheck stops
+             the install; the device is left untouched.";
+          uses check-result;
+        }
+
+        container postcheck {
+          description
+            "Evaluated after install to decide whether the upgrade actually
+             landed. A failing post-check triggers a rollback, which is why
+             cleanup is sequenced last: on platforms without native rollback
+             the superseded image is the rollback path and must still be on
+             the device until the post-checks pass.";
+          uses check-result;
+        }
+      }
+    }
+
+    container state {
+      config false;
+    }
+  }
+
+  list rfs {
+    key name;
+
+    leaf name {
+      description "Device name";
+      type string;
+    }
+
+    // Augment
+  }
+}
+"""
+
+SRC_YANG_2: str = r"""module ietf-inet-types {
+
+  namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
+  prefix "inet";
+
+  organization
+   "IETF NETMOD (NETCONF Data Modeling Language) Working Group";
+
+  contact
+   "WG Web:   <http://tools.ietf.org/wg/netmod/>
+    WG List:  <mailto:netmod@ietf.org>
+
+    WG Chair: David Kessens
+              <mailto:david.kessens@nsn.com>
+
+    WG Chair: Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>
+
+    Editor:   Juergen Schoenwaelder
+              <mailto:j.schoenwaelder@jacobs-university.de>";
+
+  description
+   "This module contains a collection of generally useful derived
+    YANG data types for Internet addresses and related things.
+
+    Copyright (c) 2013 IETF Trust and the persons identified as
+    authors of the code.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or
+    without modification, is permitted pursuant to, and subject
+    to the license terms contained in, the Simplified BSD License
+    set forth in Section 4.c of the IETF Trust's Legal Provisions
+    Relating to IETF Documents
+    (http://trustee.ietf.org/license-info).
+
+    This version of this YANG module is part of RFC 6991; see
+    the RFC itself for full legal notices.";
+
+  revision 2013-07-15 {
+    description
+     "This revision adds the following new data types:
+      - ip-address-no-zone
+      - ipv4-address-no-zone
+      - ipv6-address-no-zone";
+    reference
+     "RFC 6991: Common YANG Data Types";
+  }
+
+  revision 2010-09-24 {
+    description
+     "Initial revision.";
+    reference
+     "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of types related to protocol fields ***/
+
+  typedef ip-version {
+    type enumeration {
+      enum unknown {
+        value "0";
+        description
+         "An unknown or unspecified version of the Internet
+          protocol.";
+      }
+      enum ipv4 {
+        value "1";
+        description
+         "The IPv4 protocol as defined in RFC 791.";
+      }
+      enum ipv6 {
+        value "2";
+        description
+         "The IPv6 protocol as defined in RFC 2460.";
+      }
+    }
+    description
+     "This value represents the version of the IP protocol.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetVersion textual convention of the SMIv2.";
+    reference
+     "RFC  791: Internet Protocol
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  typedef dscp {
+    type uint8 {
+      range "0..63";
+    }
+    description
+     "The dscp type represents a Differentiated Services Code Point
+      that may be used for marking packets in a traffic stream.
+      In the value set and its semantics, this type is equivalent
+      to the Dscp textual convention of the SMIv2.";
+    reference
+     "RFC 3289: Management Information Base for the Differentiated
+                Services Architecture
+      RFC 2474: Definition of the Differentiated Services Field
+                (DS Field) in the IPv4 and IPv6 Headers
+      RFC 2780: IANA Allocation Guidelines For Values In
+                the Internet Protocol and Related Headers";
+  }
+
+  typedef ipv6-flow-label {
+    type uint32 {
+      range "0..1048575";
+    }
+    description
+     "The ipv6-flow-label type represents the flow identifier or Flow
+      Label in an IPv6 packet header that may be used to
+      discriminate traffic flows.
+
+      In the value set and its semantics, this type is equivalent
+      to the IPv6FlowLabel textual convention of the SMIv2.";
+    reference
+     "RFC 3595: Textual Conventions for IPv6 Flow Label
+      RFC 2460: Internet Protocol, Version 6 (IPv6) Specification";
+  }
+
+  typedef port-number {
+    type uint16 {
+      range "0..65535";
+    }
+    description
+     "The port-number type represents a 16-bit port number of an
+      Internet transport-layer protocol such as UDP, TCP, DCCP, or
+      SCTP.  Port numbers are assigned by IANA.  A current list of
+      all assignments is available from <http://www.iana.org/>.
+
+      Note that the port number value zero is reserved by IANA.  In
+      situations where the value zero does not make sense, it can
+      be excluded by subtyping the port-number type.
+      In the value set and its semantics, this type is equivalent
+      to the InetPortNumber textual convention of the SMIv2.";
+    reference
+     "RFC  768: User Datagram Protocol
+      RFC  793: Transmission Control Protocol
+      RFC 4960: Stream Control Transmission Protocol
+      RFC 4340: Datagram Congestion Control Protocol (DCCP)
+      RFC 4001: Textual Conventions for Internet Network Addresses";
+  }
+
+  /*** collection of types related to autonomous systems ***/
+
+  typedef as-number {
+    type uint32;
+    description
+     "The as-number type represents autonomous system numbers
+      which identify an Autonomous System (AS).  An AS is a set
+      of routers under a single technical administration, using
+      an interior gateway protocol and common metrics to route
+      packets within the AS, and using an exterior gateway
+      protocol to route packets to other ASes.  IANA maintains
+      the AS number space and has delegated large parts to the
+      regional registries.
+
+      Autonomous system numbers were originally limited to 16
+      bits.  BGP extensions have enlarged the autonomous system
+      number space to 32 bits.  This type therefore uses an uint32
+      base type without a range restriction in order to support
+      a larger autonomous system number space.
+
+      In the value set and its semantics, this type is equivalent
+      to the InetAutonomousSystemNumber textual convention of
+      the SMIv2.";
+    reference
+     "RFC 1930: Guidelines for creation, selection, and registration
+                of an Autonomous System (AS)
+      RFC 4271: A Border Gateway Protocol 4 (BGP-4)
+      RFC 4001: Textual Conventions for Internet Network Addresses
+      RFC 6793: BGP Support for Four-Octet Autonomous System (AS)
+                Number Space";
+  }
+
+  /*** collection of types related to IP addresses and hostnames ***/
+
+  typedef ip-address {
+    type union {
+      type inet:ipv4-address;
+      type inet:ipv6-address;
+    }
+    description
+     "The ip-address type represents an IP address and is IP
+      version neutral.  The format of the textual representation
+      implies the IP version.  This type supports scoped addresses
+      by allowing zone identifiers in the address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+      + '(%[\p{N}\p{L}]+)?';
+    }
+    description
+      "The ipv4-address type represents an IPv4 address in
+       dotted-quad notation.  The IPv4 address may include a zone
+       index, separated by a % sign.
+
+       The zone index is used to disambiguate identical address
+       values.  For link-local addresses, the zone index will
+       typically be the interface index number or the name of an
+       interface.  If the zone index is not present, the default
+       zone of the device will be used.
+
+       The canonical format for the zone index is the numerical
+       format";
+  }
+
+  typedef ipv6-address {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(%[\p{N}\p{L}]+)?';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(%.+)?';
+    }
+    description
+     "The ipv6-address type represents an IPv6 address in full,
+      mixed, shortened, and shortened-mixed notation.  The IPv6
+      address may include a zone index, separated by a % sign.
+
+      The zone index is used to disambiguate identical address
+      values.  For link-local addresses, the zone index will
+      typically be the interface index number or the name of an
+      interface.  If the zone index is not present, the default
+      zone of the device will be used.
+
+      The canonical format of IPv6 addresses uses the textual
+      representation defined in Section 4 of RFC 5952.  The
+      canonical format for the zone index is the numerical
+      format as described in Section 11.2 of RFC 4007.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-address-no-zone {
+    type union {
+      type inet:ipv4-address-no-zone;
+      type inet:ipv6-address-no-zone;
+    }
+    description
+     "The ip-address-no-zone type represents an IP address and is
+      IP version neutral.  The format of the textual representation
+      implies the IP version.  This type does not support scoped
+      addresses since it does not allow zone identifiers in the
+      address format.";
+    reference
+     "RFC 4007: IPv6 Scoped Address Architecture";
+  }
+
+  typedef ipv4-address-no-zone {
+    type inet:ipv4-address {
+      pattern '[0-9\.]*';
+    }
+    description
+      "An IPv4 address without a zone index.  This type, derived from
+       ipv4-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+  }
+
+  typedef ipv6-address-no-zone {
+    type inet:ipv6-address {
+      pattern '[0-9a-fA-F:\.]*';
+    }
+    description
+      "An IPv6 address without a zone index.  This type, derived from
+       ipv6-address, may be used in situations where the zone is
+       known from the context and hence no zone index is needed.";
+    reference
+     "RFC 4291: IP Version 6 Addressing Architecture
+      RFC 4007: IPv6 Scoped Address Architecture
+      RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  typedef ip-prefix {
+    type union {
+      type inet:ipv4-prefix;
+      type inet:ipv6-prefix;
+    }
+    description
+     "The ip-prefix type represents an IP prefix and is IP
+      version neutral.  The format of the textual representations
+      implies the IP version.";
+  }
+
+  typedef ipv4-prefix {
+    type string {
+      pattern
+         '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+       +  '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+       + '/(([0-9])|([1-2][0-9])|(3[0-2]))';
+    }
+    description
+     "The ipv4-prefix type represents an IPv4 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 32.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The canonical format of an IPv4 prefix has all bits of
+      the IPv4 address set to zero that are not part of the
+      IPv4 prefix.";
+  }
+
+  typedef ipv6-prefix {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+            + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+            + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+            + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+            + '(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|'
+            + '((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)'
+            + '(/.+)';
+    }
+
+    description
+     "The ipv6-prefix type represents an IPv6 address prefix.
+      The prefix length is given by the number following the
+      slash character and must be less than or equal to 128.
+
+      A prefix length value of n corresponds to an IP address
+      mask that has n contiguous 1-bits from the most
+      significant bit (MSB) and all other bits set to 0.
+
+      The IPv6 address should have all bits that do not belong
+      to the prefix set to zero.
+
+      The canonical format of an IPv6 prefix has all bits of
+      the IPv6 address set to zero that are not part of the
+      IPv6 prefix.  Furthermore, the IPv6 address is represented
+      as defined in Section 4 of RFC 5952.";
+    reference
+     "RFC 5952: A Recommendation for IPv6 Address Text
+                Representation";
+  }
+
+  /*** collection of domain name and URI types ***/
+
+  typedef domain-name {
+    type string {
+      pattern
+        '((([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.)*'
+      + '([a-zA-Z0-9_]([a-zA-Z0-9\-_]){0,61})?[a-zA-Z0-9]\.?)'
+      + '|\.';
+      length "1..253";
+    }
+    description
+     "The domain-name type represents a DNS domain name.  The
+      name SHOULD be fully qualified whenever possible.
+
+      Internet domain names are only loosely specified.  Section
+      3.5 of RFC 1034 recommends a syntax (modified in Section
+      2.1 of RFC 1123).  The pattern above is intended to allow
+      for current practice in domain name use, and some possible
+      future expansion.  It is designed to hold various types of
+      domain names, including names used for A or AAAA records
+      (host names) and other records, such as SRV records.  Note
+      that Internet host names have a stricter syntax (described
+      in RFC 952) than the DNS recommendations in RFCs 1034 and
+      1123, and that systems that want to store host names in
+      schema nodes using the domain-name type are recommended to
+      adhere to this stricter standard to ensure interoperability.
+
+      The encoding of DNS names in the DNS protocol is limited
+      to 255 characters.  Since the encoding consists of labels
+      prefixed by a length bytes and there is a trailing NULL
+      byte, only 253 characters can appear in the textual dotted
+      notation.
+
+      The description clause of schema nodes using the domain-name
+      type MUST describe when and how these names are resolved to
+      IP addresses.  Note that the resolution of a domain-name value
+      may require to query multiple DNS records (e.g., A for IPv4
+      and AAAA for IPv6).  The order of the resolution process and
+      which DNS record takes precedence can either be defined
+      explicitly or may depend on the configuration of the
+      resolver.
+
+      Domain-name values use the US-ASCII encoding.  Their canonical
+      format uses lowercase US-ASCII characters.  Internationalized
+      domain names MUST be A-labels as per RFC 5890.";
+    reference
+     "RFC  952: DoD Internet Host Table Specification
+      RFC 1034: Domain Names - Concepts and Facilities
+      RFC 1123: Requirements for Internet Hosts -- Application
+                and Support
+      RFC 2782: A DNS RR for specifying the location of services
+                (DNS SRV)
+      RFC 5890: Internationalized Domain Names in Applications
+                (IDNA): Definitions and Document Framework";
+  }
+
+  typedef host {
+    type union {
+      type inet:ip-address;
+      type inet:domain-name;
+    }
+    description
+     "The host type represents either an IP address or a DNS
+      domain name.";
+  }
+
+  typedef uri {
+    type string;
+    description
+     "The uri type represents a Uniform Resource Identifier
+      (URI) as defined by STD 66.
+
+      Objects using the uri type MUST be in US-ASCII encoding,
+      and MUST be normalized as described by RFC 3986 Sections
+      6.2.1, 6.2.2.1, and 6.2.2.2.  All unnecessary
+      percent-encoding is removed, and all case-insensitive
+      characters are set to lowercase except for hexadecimal
+      digits, which are normalized to uppercase as described in
+      Section 6.2.2.1.
+
+      The purpose of this normalization is to help provide
+      unique URIs.  Note that this normalization is not
+      sufficient to provide uniqueness.  Two URIs that are
+      textually distinct after this normalization may still be
+      equivalent.
+
+      Objects using the uri type may restrict the schemes that
+      they permit.  For example, 'data:' and 'urn:' schemes
+      might not be appropriate.
+
+      A zero-length URI is not a valid URI.  This can be used to
+      express 'URI absent' where required.
+
+      In the value set and its semantics, this type is equivalent
+      to the Uri SMIv2 textual convention defined in RFC 5017.";
+    reference
+     "RFC 3986: Uniform Resource Identifier (URI): Generic Syntax
+      RFC 3305: Report from the Joint W3C/IETF URI Planning Interest
+                Group: Uniform Resource Identifiers (URIs), URLs,
+                and Uniform Resource Names (URNs): Clarifications
+                and Recommendations
+      RFC 5017: MIB Textual Conventions for Uniform Resource
+                Identifiers (URIs)";
+  }
+
+}
+"""
+
+SRC_YANG_3: str = r"""module ietf-yang-types {
+  namespace "urn:ietf:params:xml:ns:yang:ietf-yang-types";
+  prefix yang;
+
+  organization
+    "IETF Network Modeling (NETMOD) Working Group";
+  contact
+    "WG Web:   <https://datatracker.ietf.org/wg/netmod/>
+     WG List:  <mailto:netmod@ietf.org>
+
+     Editor:   JÃ¼rgen SchÃ¶nwÃ¤lder
+               <mailto:jschoenwaelder@constructor.university>";
+  description
+    "This module contains a collection of generally useful derived
+     YANG data types.
+
+     The key words 'MUST', 'MUST NOT', 'REQUIRED', 'SHALL', 'SHALL
+     NOT', 'SHOULD', 'SHOULD NOT', 'RECOMMENDED', 'NOT RECOMMENDED',
+     'MAY', and 'OPTIONAL' in this document are to be interpreted as
+     described in BCP 14 (RFC 2119) (RFC 8174) when, and only when,
+     they appear in all capitals, as shown here.
+
+     Copyright (c) 2025 IETF Trust and the persons identified as
+     authors of the code.  All rights reserved.
+
+     Redistribution and use in source and binary forms, with or
+     without modification, is permitted pursuant to, and subject
+     to the license terms contained in, the Revised BSD License
+     set forth in Section 4.c of the IETF Trust's Legal Provisions
+     Relating to IETF Documents
+     (https://trustee.ietf.org/license-info).
+
+     This version of this YANG module is part of RFC 9911;
+     see the RFC itself for full legal notices.";
+
+  revision 2025-12-22 {
+    description
+      "This revision adds the following new data types:
+       - yang:date
+       - yang:date-no-zone
+       - yang:time
+       - yang:time-no-zone
+       - yang:hours32
+       - yang:minutes32
+       - yang:seconds32
+       - yang:centiseconds32
+       - yang:milliseconds32
+       - yang:microseconds32
+       - yang:microseconds64
+       - yang:nanoseconds32
+       - yang:nanoseconds64
+       - yang:language-tag
+       The yang-identifier definition has been aligned with YANG
+       1.1, and types representing time support the representation
+       of leap seconds.  The representation of time zone offsets
+       has been aligned with RFC 9557.  Several description and
+       pattern statements have been improved.";
+    reference
+      "RFC 9911: Common YANG Data Types";
+  }
+  revision 2013-07-15 {
+    description
+      "This revision adds the following new data types:
+       - yang:yang-identifier
+       - yang:hex-string
+       - yang:uuid
+       - yang:dotted-quad";
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+  revision 2010-09-24 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 6021: Common YANG Data Types";
+  }
+
+  /*** collection of counter and gauge types ***/
+
+  typedef counter32 {
+    type uint32;
+    description
+      "The counter32 type represents a non-negative integer
+       that monotonically increases until it reaches a
+       maximum value of 2^32-1 (4294967295 decimal), when it
+       wraps around and starts increasing again from zero.
+
+       Counters have no defined 'initial' value, and thus, a
+       single value of a counter has (in general) no information
+       content.  Discontinuities in the monotonically increasing
+       value normally occur at re-initialization of the
+       management system and at other times as specified in the
+       description of a schema node using this type.  If
+       discontinuities occur at times other than re-initialization
+       (for example, at the instantiation of a schema node of type
+       counter32), then a corresponding schema node should be
+       defined, with an appropriate type, to indicate the last
+       discontinuity.
+
+       The counter32 type should not be used for configuration
+       schema nodes.  A default statement SHOULD NOT be used in
+       combination with the type counter32.
+
+       In the value set and its semantics, this type is equivalent
+       to the Counter32 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef zero-based-counter32 {
+    type counter32;
+    default "0";
+    description
+      "The zero-based-counter32 type represents a counter32
+       that has the defined 'initial' value zero.
+
+       A data tree node using this type will be set to zero (0)
+       on creation and will thereafter increase monotonically until
+       it reaches a maximum value of 2^32-1 (4294967295 decimal),
+       when it wraps around and starts increasing again from zero.
+
+       Provided that an application discovers a new data tree node
+       using this type within the minimum time to wrap, it can use
+       the 'initial' value as a delta.  It is important for a
+       management station to be aware of this minimum time and the
+       actual time between polls, and to discard data if the actual
+       time is too long or there is no defined minimum time.
+
+       In the value set and its semantics, this type is equivalent
+       to the ZeroBasedCounter32 textual convention of the SMIv2.";
+    reference
+      "RFC 4502: Remote Network Monitoring Management Information
+                 Base Version 2";
+  }
+
+  typedef counter64 {
+    type uint64;
+    description
+      "The counter64 type represents a non-negative integer
+       that monotonically increases until it reaches a
+       maximum value of 2^64-1 (18446744073709551615 decimal),
+       when it wraps around and starts increasing again from zero.
+
+       Counters have no defined 'initial' value, and thus, a
+       single value of a counter has (in general) no information
+       content.  Discontinuities in the monotonically increasing
+       value normally occur at re-initialization of the
+       management system and at other times as specified in the
+       description of a schema node using this type.  If
+       discontinuities occur at times other than re-initialization
+       (for example, at the instantiation of a schema node of type
+       counter64), then a corresponding schema node should be
+       defined, with an appropriate type, to indicate the last
+       discontinuity.
+
+       The counter64 type should not be used for configuration
+       schema nodes.  A default statement SHOULD NOT be used in
+       combination with the type counter64.
+
+       In the value set and its semantics, this type is equivalent
+       to the Counter64 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef zero-based-counter64 {
+    type counter64;
+    default "0";
+    description
+      "The zero-based-counter64 type represents a counter64 that
+       has the defined 'initial' value zero.
+
+       A data tree node using this type will be set to zero (0)
+       on creation and will thereafter increase monotonically until
+       it reaches a maximum value of 2^64-1 (18446744073709551615
+       decimal), when it wraps around and starts increasing again
+       from zero.
+
+       Provided that an application discovers a new data tree node
+       using this type within the minimum time to wrap, it can use
+       the 'initial' value as a delta.  It is important for a
+       management station to be aware of this minimum time and the
+       actual time between polls, and to discard data if the actual
+       time is too long or there is no defined minimum time.
+
+       In the value set and its semantics, this type is equivalent
+       to the ZeroBasedCounter64 textual convention of the SMIv2.";
+    reference
+      "RFC 2856: Textual Conventions for Additional High Capacity
+                 Data Types";
+  }
+
+  typedef gauge32 {
+    type uint32;
+    description
+      "The gauge32 type represents a non-negative integer, which
+       may increase or decrease, but shall never exceed a maximum
+       value, nor fall below a minimum value.  The maximum value
+       cannot be greater than 2^32-1 (4294967295 decimal), and
+       the minimum value cannot be smaller than 0.  The value of
+       a gauge32 has its maximum value whenever the information
+       being modeled is greater than or equal to its maximum
+       value, and has its minimum value whenever the information
+       being modeled is smaller than or equal to its minimum value.
+       If the information being modeled subsequently decreases below
+       the maximum value, the gauge32 also decreases; likewise, if
+       the information increases above the minimum value, the
+       gauge32 also increases.
+
+       In the value set and its semantics, this type is equivalent
+       to the Gauge32 type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef gauge64 {
+    type uint64;
+    description
+      "The gauge64 type represents a non-negative integer, which
+       may increase or decrease, but shall never exceed a maximum
+       value, nor fall below a minimum value.  The maximum value
+       cannot be greater than 2^64-1 (18446744073709551615), and
+       the minimum value cannot be smaller than 0.  The value of
+       a gauge64 has its maximum value whenever the information
+       being modeled is greater than or equal to its maximum
+       value, and has its minimum value whenever the information
+       being modeled is smaller than or equal to its minimum value.
+       If the information being modeled subsequently decreases
+       below (increases above) the maximum (minimum) value, the
+       gauge64 also decreases (increases).
+
+       In the value set and its semantics, this type is equivalent
+       to the CounterBasedGauge64 SMIv2 textual convention defined
+       in RFC 2856";
+    reference
+      "RFC 2856: Textual Conventions for Additional High Capacity
+                 Data Types";
+  }
+
+  /*** collection of identifier-related types ***/
+
+  typedef object-identifier {
+    type string {
+      pattern '(([0-1](\.[1-3]?[0-9]))|(2\.(0|([1-9][0-9]*))))'
+            + '(\.(0|([1-9][0-9]*)))*';
+    }
+    description
+      "The object-identifier type represents administratively
+       assigned names in a registration-hierarchical-name tree.
+
+       Values of this type are denoted as a sequence of numerical
+       non-negative sub-identifier values.  Each sub-identifier
+       value MUST NOT exceed 2^32-1 (4294967295).  Sub-identifiers
+       are separated by single dots and without any intermediate
+       whitespace.
+
+       The ASN.1 standard restricts the value space of the first
+       sub-identifier to 0, 1, or 2.  Furthermore, the value space
+       of the second sub-identifier is restricted to the range
+       0 to 39 if the first sub-identifier is 0 or 1.  Finally,
+       the ASN.1 standard requires that an object identifier
+       has always at least two sub-identifiers.  The pattern
+       captures these restrictions.
+
+       Although the number of sub-identifiers is not limited,
+       module designers should realize that there may be
+       implementations that stick with the SMIv2 limit of 128
+       sub-identifiers.
+
+       This type is a superset of the SMIv2 OBJECT IDENTIFIER type
+       since it is not restricted to 128 sub-identifiers.  Hence,
+       this type SHOULD NOT be used to represent the SMIv2 OBJECT
+       IDENTIFIER type; the object-identifier-128 type SHOULD be
+       used instead.";
+    reference
+      "ISO 9834-1: Information technology -- Procedures for the
+       operation of object identifier registration authorities --
+       Part 1: General procedures and top arcs of the international
+       object identifier tree";
+  }
+
+  typedef object-identifier-128 {
+    type object-identifier {
+      pattern '[0-9]*(\.[0-9]*){1,127}';
+    }
+    description
+      "This type represents object-identifiers restricted to 128
+       sub-identifiers.
+
+       In the value set and its semantics, this type is equivalent
+       to the OBJECT IDENTIFIER type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  /*** collection of types related to date and time ***/
+
+  typedef date-and-time {
+    type string {
+      pattern
+        '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])'
+      + 'T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?'
+      + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The date-and-time type is a profile of the ISO 8601
+       standard for representation of dates and times using the
+       Gregorian calendar.  The profile is defined by the
+       date-time production in Section 5.6 of RFC 3339 and the
+       update defined in Section 2 of RFC 9557.  The value of
+       60 for seconds is allowed only in the case of leap seconds.
+
+       The date-and-time type is compatible with the dateTime XML
+       schema dateTime type with the following notable exceptions:
+
+       (a) The date-and-time type does not allow negative years.
+
+       (b) The time-offset Z indicates that the date-and-time
+           value is reported in UTC and that the local time zone
+           reference point is unknown.  The time-offset +00:00
+           indicates that the date-and-time value is reported in
+           UTC and that the local time zone reference point is UTC
+           (see Section 2 of RFC 9557).
+
+       This type is not equivalent to the DateAndTime textual
+       convention of the SMIv2 since RFC 3339 uses a different
+       separator between full-date and full-time and provides
+       higher resolution of time-secfrac.
+
+       The canonical format for date-and-time values with a known
+       time zone uses a numeric time zone offset that is calculated
+       using the device's configured known offset to UTC time.  A
+       change of the device's offset to UTC time will cause
+       date-and-time values to change accordingly.  Such changes
+       might happen periodically if a server automatically follows
+       daylight saving time (DST) time zone offset changes.  The
+       canonical format for date-and-time values reported in UTC
+       with an unknown local time zone offset SHOULD use the
+       time-offset Z and MAY use -00:00 for backwards
+       compatibility.";
+    reference
+      "ISO 8601: Data elements and interchange formats -- Information
+                 interchange -- Representation of dates and times
+       RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       RFC 2579: Textual Conventions for SMIv2
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef date {
+    type string {
+      pattern '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])'
+            + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The date type represents a time-interval of the length
+       of a day, i.e., 24 hours.  It includes an optional time
+       zone offset.
+
+       The date type is compatible with the XML schema date
+       type with the following notable exceptions:
+
+       (a) The date type does not allow negative years.
+
+       (b) The time-offset Z indicates that the date value is
+           reported in UTC and that the local time zone reference
+           point is unknown.  The time-offset +00:00 indicates that
+           the date value is reported in UTC and that the local
+           time zone reference point is UTC (see Section 2 of
+           RFC 9557).
+
+       The canonical format for date values with a known time
+       zone uses a numeric time zone offset that is calculated using
+       the device's configured known offset to UTC time.  A change of
+       the device's offset to UTC time will cause date values
+       to change accordingly.  Such changes might happen periodically
+       if a server automatically follows daylight saving time
+       (DST) time zone offset changes.  The canonical format for
+       date values reported in UTC with an unknown local time zone
+       offset uses the time-offset Z.";
+    reference
+      "RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef date-no-zone {
+    type date {
+      pattern '[0-9]{4}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])';
+    }
+    description
+      "The date-no-zone type represents a date without the optional
+       time zone offset information.";
+  }
+
+  typedef time {
+    type string {
+      pattern
+        '(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?'
+      + '(Z|[\+\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?';
+    }
+    description
+      "The time type represents an instance of time of zero duration
+       that recurs every day.  It includes an optional time zone
+       offset.  The value of 60 for seconds is allowed only in the
+       case of leap seconds.
+
+       The time type is compatible with the XML schema time
+       type with the following notable exception:
+
+       (a) The time-offset Z indicates that the time value is
+           reported in UTC and that the local time zone reference
+           point is unknown.  The time-offset +00:00 indicates that
+           the time value is reported in UTC and that the local
+           time zone reference point is UTC (see Section 2 of
+           RFC 9557).
+
+       The canonical format for time values with a known time
+       zone uses a numeric time zone offset that is calculated using
+       the device's configured known offset to UTC time.  A change of
+       the device's offset to UTC time will cause time values
+       to change accordingly.  Such changes might happen periodically
+       if a server automatically follows daylight saving time
+       (DST) time zone offset changes.  The canonical format for
+       time values reported in UTC with an unknown local time zone
+       offset uses the time-offset Z.";
+    reference
+      "RFC 3339: Date and Time on the Internet: Timestamps
+       RFC 9557: Date and Time on the Internet: Timestamps
+                 with Additional Information
+       XSD-TYPES: XML Schema Definition Language (XSD) 1.1
+                  Part 2: Datatypes";
+  }
+
+  typedef time-no-zone {
+    type time {
+      pattern
+        '(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)'
+      + '(\.[0-9]+)?';
+    }
+    description
+      "The time-no-zone type represents a time without the optional
+       time zone offset information.";
+  }
+
+  typedef hours32 {
+    type int32;
+    units "hours";
+    description
+      "A period of time measured in units of hours.
+
+       The maximum time period that can be expressed is in the
+       range [-89478485 days 08:00:00 to 89478485 days 07:00:00].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef minutes32 {
+    type int32;
+    units "minutes";
+    description
+      "A period of time measured in units of minutes.
+
+       The maximum time period that can be expressed is in the
+       range [-1491308 days 2:08:00 to 1491308 days 2:07:00].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef seconds32 {
+    type int32;
+    units "seconds";
+    description
+      "A period of time measured in units of seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-24855 days 03:14:08 to 24855 days 03:14:07].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef centiseconds32 {
+    type int32;
+    units "centiseconds";
+    description
+      "A period of time measured in units of 10^-2 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-248 days 13:13:56 to 248 days 13:13:56].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef milliseconds32 {
+    type int32;
+    units "milliseconds";
+    description
+      "A period of time measured in units of 10^-3 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-24 days 20:31:23 to 24 days 20:31:23].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef microseconds32 {
+    type int32;
+    units "microseconds";
+    description
+      "A period of time measured in units of 10^-6 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-00:35:47 to 00:35:47].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef microseconds64 {
+    type int64;
+    units "microseconds";
+    description
+      "A period of time measured in units of 10^-6 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-106751991 days 04:00:54 to 106751991 days 04:00:54].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef nanoseconds32 {
+    type int32;
+    units "nanoseconds";
+    description
+      "A period of time measured in units of 10^-9 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-00:00:02 to 00:00:02].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef nanoseconds64 {
+    type int64;
+    units "nanoseconds";
+    description
+      "A period of time measured in units of 10^-9 seconds.
+
+       The maximum time period that can be expressed is in the
+       range [-106753 days 23:12:44 to 106752 days 0:47:16].
+
+       This type should be range-restricted in situations
+       where only non-negative time periods are desirable
+       (i.e., range '0..max').";
+  }
+
+  typedef timeticks {
+    type uint32;
+    description
+      "The timeticks type represents a non-negative integer that
+       represents the time, modulo 2^32 (4294967296 decimal), in
+       hundredths of a second between two epochs.  When a schema
+       node is defined that uses this type, the description of
+       the schema node identifies both of the reference epochs.
+
+       In the value set and its semantics, this type is equivalent
+       to the TimeTicks type of the SMIv2.";
+    reference
+      "RFC 2578: Structure of Management Information Version 2
+                 (SMIv2)";
+  }
+
+  typedef timestamp {
+    type timeticks;
+    description
+      "The timestamp type represents the value of an associated
+       timeticks schema node instance at which a specific occurrence
+       happened.  The specific occurrence must be defined in the
+       description of any schema node defined using this type.  When
+       the specific occurrence occurred prior to the last time the
+       associated timeticks schema node instance was zero, then the
+       timestamp value is zero.
+
+       Note that this requires all timestamp values to be reset to
+       zero when the value of the associated timeticks schema node
+       instance reaches 497+ days and wraps around to zero.
+
+       The associated timeticks schema node must be specified
+       in the description of any schema node using this type.
+
+       In the value set and its semantics, this type is equivalent
+       to the TimeStamp textual convention of the SMIv2.";
+    reference
+      "RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  /*** collection of generic address types ***/
+
+  typedef phys-address {
+    type string {
+      pattern '([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?';
+    }
+    description
+      "Represents media- or physical-level addresses represented
+       as a sequence of octets, each octet represented by two
+       hexadecimal numbers.  Octets are separated by colons.  The
+       canonical representation uses lowercase characters.
+
+       In the value set and its semantics, this type is equivalent
+       to the PhysAddress textual convention of the SMIv2.";
+    reference
+      "RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  typedef mac-address {
+    type string {
+      pattern '[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}';
+    }
+    description
+      "The mac-address type represents a 48-bit IEEE 802 Media
+       Access Control (MAC) address.  The canonical representation
+       uses lowercase characters.  Note that there are IEEE 802 MAC
+       addresses with a different length that this type cannot
+       represent.  The phys-address type may be used to represent
+       physical addresses of varying length.
+
+       In the value set and its semantics, this type is equivalent
+       to the MacAddress textual convention of the SMIv2.";
+    reference
+      "IEEE 802: IEEE Standard for Local and Metropolitan Area
+                 Networks: Overview and Architecture
+       RFC 2579: Textual Conventions for SMIv2";
+  }
+
+  /*** collection of XML-specific types ***/
+
+  typedef xpath1.0 {
+    type string;
+    description
+      "This type represents an XPATH 1.0 expression.
+
+       When a schema node is defined that uses this type, the
+       description of the schema node MUST specify the XPath
+       context in which the XPath expression is evaluated.";
+    reference
+      "XPATH: XML Path Language (XPath) Version 1.0";
+  }
+
+  /*** collection of string types ***/
+
+  typedef hex-string {
+    type string {
+      pattern '([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?';
+    }
+    description
+      "A hexadecimal string with octets represented as hex digits
+       separated by colons.  The canonical representation uses
+       lowercase characters.";
+  }
+
+  typedef uuid {
+    type string {
+      pattern '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+            + '[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+    }
+    description
+      "A Universally Unique IDentifier in the string representation
+       defined in RFC 9562.  The canonical representation uses
+       lowercase characters.
+
+       The following is an example of a UUID in string
+       representation:
+       f81d4fae-7dec-11d0-a765-00a0c91e6bf6.
+      ";
+    reference
+      "RFC 9562: Universally Unique IDentifiers (UUIDs)";
+  }
+
+  typedef dotted-quad {
+    type string {
+      pattern
+        '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+      + '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])';
+    }
+    description
+      "An unsigned 32-bit number expressed in the dotted-quad
+       notation, i.e., four octets written as decimal numbers
+       and separated with the '.' (full stop) character.";
+  }
+
+  typedef language-tag {
+    type string;
+    description
+      "A language tag according to RFC 5646 (BCP 47).  The
+       canonical representation uses lowercase characters.
+
+       Values of this type must be well-formed language tags,
+       in conformance with the definition of well-formed tags
+       in BCP 47.  Implementations MAY further limit the values
+       they accept to those permitted by a 'validating'
+       processor, as defined in BCP 47.
+
+       The canonical representation of values of this type is
+       aligned with the SMIv2 LangTag textual convention for
+       language tags fitting the length constraints imposed
+       by the LangTag textual convention.";
+    reference
+      "RFC 5646: Tags for Identifying Languages
+       RFC 5131: A MIB Textual Convention for Language Tags";
+  }
+
+  /*** collection of YANG-specific types ***/
+
+  typedef yang-identifier {
+    type string {
+      length "1..max";
+      pattern '[a-zA-Z_][a-zA-Z0-9\-_.]*';
+    }
+    description
+      "A YANG identifier string as defined by the 'identifier'
+       rule in Section 14 of RFC 7950.  An identifier must
+       start with an alphabetic character or an underscore
+       followed by an arbitrary sequence of alphabetic or
+       numeric characters, underscores, hyphens, or dots.
+
+       This definition conforms to YANG 1.1 defined in RFC
+       7950.  In RFC 6991, this definition excluded
+       all identifiers starting with any possible combination
+       of the lowercase or uppercase character sequence 'xml',
+       as required by YANG 1 defined in RFC 6020.  If this type
+       is used in a YANG 1 context, then this restriction still
+       applies.";
+    reference
+      "RFC 7950: The YANG 1.1 Data Modeling Language
+       RFC 6991: Common YANG Data Types
+       RFC 6020: YANG - A Data Modeling Language for the
+                 Network Configuration Protocol (NETCONF)";
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+        SRC_YANG_2,
+        SRC_YANG_3,
+    ]
+
+
+NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
+NS_stratoweave_rfs: str = 'http://stratoweave.org/yang/stratoweave-rfs'
+NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+NS_ietf_yang_types: str = 'urn:ietf:params:xml:ns:yang:ietf-yang-types'
+
+
+_breaker1: None = None
+class stratoweave_rfs__device__address__initial_credentials_entry(yadata.MNode):
+    username: str
+    password: str
+    key: str
+
+    mut def __init__(self, username: str, password: str, key: str) -> None:
+        self.username = username
+        self.password = password
+        self.key = key
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address', 'initial-credentials'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__address__initial_credentials_entry:
+        return stratoweave_rfs__device__address__initial_credentials_entry(username=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'key')))
+
+    mut def copy(self) -> stratoweave_rfs__device__address__initial_credentials_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__address__initial_credentials_entry.from_gdata(self.to_gdata())
+
+_breaker2: None = None
+class stratoweave_rfs__device__address__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__address__initial_credentials_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+
+    mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__address__initial_credentials_entry:
+        e = self.get(key_)
+        if e is not None:
+            return e
+        (username=username, password=password, key=key) = key_
+        res = stratoweave_rfs__device__address__initial_credentials_entry(username=username, password=password, key=key)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__address__initial_credentials_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__address__initial_credentials_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__address__initial_credentials:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__address__initial_credentials(elements=copied_elements)
+
+
+_breaker3: None = None
+class stratoweave_rfs__device__address_entry(yadata.MNode):
+    name: str
+    address: ?str
+    port: ?u64
+    initial_credentials: stratoweave_rfs__device__address__initial_credentials
+
+    mut def __init__(self, name: str, address: ?str, port: ?u64, initial_credentials: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
+        self.name = name
+        self.address = address
+        self.port = port
+        self.initial_credentials = stratoweave_rfs__device__address__initial_credentials(elements=initial_credentials)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__address_entry:
+        return stratoweave_rfs__device__address_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), address=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'address')), port=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'port')), initial_credentials=stratoweave_rfs__device__address__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))))
+
+    mut def copy(self) -> stratoweave_rfs__device__address_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__address_entry.from_gdata(self.to_gdata())
+
+_breaker4: None = None
+class stratoweave_rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__device__address_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__address_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, address: ?str=None, port: ?u64=None) -> stratoweave_rfs__device__address_entry:
+        e = self.get(key)
+        if e is not None:
+            if address is not None:
+                e.address = address
+            if port is not None:
+                e.port = port
+            return e
+        name = key
+        res = stratoweave_rfs__device__address_entry(name=name, address=address, port=port)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__address_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__address_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__address:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__address(elements=copied_elements)
+
+
+_breaker5: None = None
+class stratoweave_rfs__device__credentials__key_entry(yadata.MNode):
+    key: str
+    private_key: ?str
+
+    mut def __init__(self, key: str, private_key: ?str) -> None:
+        self.key = key
+        self.private_key = private_key
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials', 'key'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__credentials__key_entry:
+        return stratoweave_rfs__device__credentials__key_entry(key=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'key')), private_key=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'private-key')))
+
+    mut def copy(self) -> stratoweave_rfs__device__credentials__key_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__credentials__key_entry.from_gdata(self.to_gdata())
+
+_breaker6: None = None
+class stratoweave_rfs__device__credentials__key(yadata.MKeyedList[str, stratoweave_rfs__device__credentials__key_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.key == k, elements)
+
+    mut def create(self, key_: str, private_key: ?str=None) -> stratoweave_rfs__device__credentials__key_entry:
+        e = self.get(key_)
+        if e is not None:
+            if private_key is not None:
+                e.private_key = private_key
+            return e
+        key = key_
+        res = stratoweave_rfs__device__credentials__key_entry(key=key, private_key=private_key)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__credentials__key_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__credentials__key_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__credentials__key:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__credentials__key(elements=copied_elements)
+
+
+_breaker7: None = None
+class stratoweave_rfs__device__credentials(yadata.MNode):
+    username: ?str
+    password: ?str
+    key: stratoweave_rfs__device__credentials__key
+
+    mut def __init__(self, username: ?str, password: ?str, key: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
+        self.username = username
+        self.password = password
+        self.key = stratoweave_rfs__device__credentials__key(elements=key)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__credentials:
+        if n is not None:
+            return stratoweave_rfs__device__credentials(username=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=stratoweave_rfs__device__credentials__key.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'key'))))
+        return stratoweave_rfs__device__credentials()
+
+    mut def copy(self) -> stratoweave_rfs__device__credentials:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__credentials.from_gdata(self.to_gdata())
+
+
+_breaker8: None = None
+class stratoweave_rfs__device__initial_credentials_entry(yadata.MNode):
+    username: str
+    password: str
+    key: str
+
+    mut def __init__(self, username: str, password: str, key: str) -> None:
+        self.username = username
+        self.password = password
+        self.key = key
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'initial-credentials'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__initial_credentials_entry:
+        return stratoweave_rfs__device__initial_credentials_entry(username=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'key')))
+
+    mut def copy(self) -> stratoweave_rfs__device__initial_credentials_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__initial_credentials_entry.from_gdata(self.to_gdata())
+
+_breaker9: None = None
+class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__initial_credentials_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__initial_credentials_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+
+    mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__initial_credentials_entry:
+        e = self.get(key_)
+        if e is not None:
+            return e
+        (username=username, password=password, key=key) = key_
+        res = stratoweave_rfs__device__initial_credentials_entry(username=username, password=password, key=key)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__initial_credentials_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__initial_credentials_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__initial_credentials:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__initial_credentials(elements=copied_elements)
+
+
+_breaker10: None = None
+class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
+    name: str
+    namespace: ?str
+    revision: ?str
+    feature: list[str]
+
+    mut def __init__(self, name: str, namespace: ?str, revision: ?str, feature: ?list[str]=None) -> None:
+        self.name = name
+        self.namespace = namespace
+        self.revision = revision
+        self.feature = feature if feature is not None else []
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock', 'module'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__mock__module_entry:
+        return stratoweave_rfs__device__mock__module_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), namespace=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'namespace')), revision=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'revision')), feature=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'feature')))
+
+    mut def copy(self) -> stratoweave_rfs__device__mock__module_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__mock__module_entry.from_gdata(self.to_gdata())
+
+_breaker11: None = None
+class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_rfs__device__mock__module_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, namespace: ?str=None, revision: ?str=None) -> stratoweave_rfs__device__mock__module_entry:
+        e = self.get(key)
+        if e is not None:
+            if namespace is not None:
+                e.namespace = namespace
+            if revision is not None:
+                e.revision = revision
+            return e
+        name = key
+        res = stratoweave_rfs__device__mock__module_entry(name=name, namespace=namespace, revision=revision)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__mock__module_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__mock__module_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__mock__module:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__mock__module(elements=copied_elements)
+
+
+_breaker12: None = None
+class stratoweave_rfs__device__mock(yadata.MNode):
+    enabled: ?bool
+    module: stratoweave_rfs__device__mock__module
+
+    mut def __init__(self, enabled: ?bool, module: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
+        self.enabled = enabled
+        self.module = stratoweave_rfs__device__mock__module(elements=module)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__mock:
+        if n is not None:
+            return stratoweave_rfs__device__mock(enabled=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'enabled')), module=stratoweave_rfs__device__mock__module.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'module'))))
+        return stratoweave_rfs__device__mock()
+
+    mut def copy(self) -> stratoweave_rfs__device__mock:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__mock.from_gdata(self.to_gdata())
+
+
+_breaker13: None = None
+class stratoweave_rfs__device__debug(yadata.MNode):
+    connection: ?bool
+
+    mut def __init__(self, connection: ?bool) -> None:
+        self.connection = connection
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'debug'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__debug:
+        if n is not None:
+            return stratoweave_rfs__device__debug(connection=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'connection')))
+        return stratoweave_rfs__device__debug()
+
+    mut def copy(self) -> stratoweave_rfs__device__debug:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__debug.from_gdata(self.to_gdata())
+
+
+_breaker14: None = None
+class stratoweave_rfs__device__feature_flags(yadata.MNode):
+    runtime_schema_fetch: ?bool
+
+    mut def __init__(self, runtime_schema_fetch: ?bool) -> None:
+        self.runtime_schema_fetch = runtime_schema_fetch
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'feature-flags'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__feature_flags:
+        if n is not None:
+            return stratoweave_rfs__device__feature_flags(runtime_schema_fetch=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'runtime-schema-fetch')))
+        return stratoweave_rfs__device__feature_flags()
+
+    mut def copy(self) -> stratoweave_rfs__device__feature_flags:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__feature_flags.from_gdata(self.to_gdata())
+
+
+_breaker15: None = None
+class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
+    holder: str
+    reason: ?str
+
+    mut def __init__(self, holder: str, reason: ?str) -> None:
+        self.holder = holder
+        self.reason = reason
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'veto'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__software__veto_entry:
+        return stratoweave_rfs__device__software__veto_entry(holder=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'holder')), reason=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'reason')))
+
+    mut def copy(self) -> stratoweave_rfs__device__software__veto_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software__veto_entry.from_gdata(self.to_gdata())
+
+_breaker16: None = None
+class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave_rfs__device__software__veto_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.holder == k, elements)
+
+    mut def create(self, key: str, reason: ?str=None) -> stratoweave_rfs__device__software__veto_entry:
+        e = self.get(key)
+        if e is not None:
+            if reason is not None:
+                e.reason = reason
+            return e
+        holder = key
+        res = stratoweave_rfs__device__software__veto_entry(holder=holder, reason=reason)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__software__veto_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__software__veto_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__software__veto:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__software__veto(elements=copied_elements)
+
+
+_breaker17: None = None
+class stratoweave_rfs__device__software(yadata.MNode):
+    upgrade_campaign: ?str
+    target_release: ?str
+    allow_staging: ?bool
+    veto: stratoweave_rfs__device__software__veto
+
+    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, allow_staging: ?bool, veto: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
+        self.upgrade_campaign = upgrade_campaign
+        self.target_release = target_release
+        self.allow_staging = allow_staging
+        self.veto = stratoweave_rfs__device__software__veto(elements=veto)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software:
+        if n is not None:
+            return stratoweave_rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'target-release')), allow_staging=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'allow-staging')), veto=stratoweave_rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'veto'))))
+        return stratoweave_rfs__device__software()
+
+    mut def copy(self) -> stratoweave_rfs__device__software:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software.from_gdata(self.to_gdata())
+
+
+_breaker18: None = None
+class stratoweave_rfs__device_entry(yadata.MNode):
+    name: str
+    description: ?str
+    type: ?str
+    address: stratoweave_rfs__device__address
+    credentials: stratoweave_rfs__device__credentials
+    initial_credentials: stratoweave_rfs__device__initial_credentials
+    approval_required: ?bool
+    mock: stratoweave_rfs__device__mock
+    debug: stratoweave_rfs__device__debug
+    feature_flags: stratoweave_rfs__device__feature_flags
+    software: stratoweave_rfs__device__software
+
+    mut def __init__(self, name: str, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, software: ?stratoweave_rfs__device__software=None) -> None:
+        self.name = name
+        self.description = description
+        self.type = type
+        self.address = stratoweave_rfs__device__address(elements=address)
+        self.credentials = credentials if credentials is not None else stratoweave_rfs__device__credentials()
+        self.initial_credentials = stratoweave_rfs__device__initial_credentials(elements=initial_credentials)
+        self.approval_required = approval_required
+        self.mock = mock if mock is not None else stratoweave_rfs__device__mock()
+        self.debug = debug if debug is not None else stratoweave_rfs__device__debug()
+        self.feature_flags = feature_flags if feature_flags is not None else stratoweave_rfs__device__feature_flags()
+        self.software = software if software is not None else stratoweave_rfs__device__software()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device_entry:
+        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), software=stratoweave_rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'software'))))
+
+    mut def copy(self) -> stratoweave_rfs__device_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device_entry.from_gdata(self.to_gdata())
+
+_breaker19: None = None
+class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, description: ?str=None, type: ?str=None, approval_required: ?bool=None) -> stratoweave_rfs__device_entry:
+        e = self.get(key)
+        if e is not None:
+            if description is not None:
+                e.description = description
+            if type is not None:
+                e.type = type
+            if approval_required is not None:
+                e.approval_required = approval_required
+            return e
+        name = key
+        res = stratoweave_rfs__device_entry(name=name, description=description, type=type, approval_required=approval_required)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device(elements=copied_elements)
+
+
+_breaker20: None = None
+class stratoweave_rfs__rfs_entry(yadata.MNode):
+    name: str
+
+    mut def __init__(self, name: str) -> None:
+        self.name = name
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs_entry:
+        return stratoweave_rfs__rfs_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')))
+
+    mut def copy(self) -> stratoweave_rfs__rfs_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__rfs_entry.from_gdata(self.to_gdata())
+
+_breaker21: None = None
+class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str) -> stratoweave_rfs__rfs_entry:
+        e = self.get(key)
+        if e is not None:
+            return e
+        name = key
+        res = stratoweave_rfs__rfs_entry(name=name)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs_entry]:
+        if n is not None:
+            return [stratoweave_rfs__rfs_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__rfs:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__rfs(elements=copied_elements)
+
+
+_breaker22: None = None
+class root(yadata.MNode):
+    device: stratoweave_rfs__device
+    rfs: stratoweave_rfs__rfs
+
+    mut def __init__(self, device: list[stratoweave_rfs__device_entry]=[], rfs: list[stratoweave_rfs__rfs_entry]=[]) -> None:
+        self.device = stratoweave_rfs__device(elements=device)
+        self.rfs = stratoweave_rfs__rfs(elements=rfs)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(device=stratoweave_rfs__device.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'device'))), rfs=stratoweave_rfs__rfs.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'rfs'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+

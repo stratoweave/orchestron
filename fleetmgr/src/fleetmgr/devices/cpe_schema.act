@@ -1,0 +1,42 @@
+import base64
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+
+# == This file is generated ==
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='cpe-device', namespace='urn:fleetmgr:cpe-device', prefix='cpe', name='system', config=True, presence=False, children=[
+    DLeaf(module='cpe-device', namespace='urn:fleetmgr:cpe-device', prefix='cpe', name='hostname', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[],
+    module_metadata={'urn:fleetmgr:cpe-device':('cpe-device', None)},
+)
+
+SRC_YANG_0: str = r"""module cpe-device {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:cpe-device";
+  prefix cpe;
+
+  container system {
+    leaf hostname {
+      type string;
+    }
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+    ]
+

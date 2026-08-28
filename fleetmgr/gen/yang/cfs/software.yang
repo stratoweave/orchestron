@@ -1,0 +1,75 @@
+module software {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:software";
+  prefix sw-cfs;
+
+  import stratoweave {
+    prefix sw;
+  }
+
+  container software {
+    list device {
+      key name;
+
+      sw:transform fleetmgr.cfs.Device;
+
+      leaf name {
+        type string;
+      }
+    }
+
+    list upgrade-campaign {
+      key name;
+
+      sw:transform fleetmgr.cfs.UpgradeCampaign;
+
+      leaf name {
+        type string;
+      }
+      leaf target-release {
+        description "Software release the selected devices should be running.";
+        type string;
+        mandatory true;
+      }
+      leaf-list device {
+        description "Devices this campaign upgrades.";
+        type string;
+      }
+      leaf admin-state {
+        description
+          "plan: the campaign is declared and inspectable but does nothing.
+           run: the campaign sets the software target on its devices.";
+        type enumeration {
+          enum plan;
+          enum run;
+        }
+        default plan;
+      }
+
+      container state {
+        config false;
+        leaf total {
+          type uint32;
+        }
+        leaf in-progress {
+          type uint32;
+        }
+        leaf succeeded {
+          type uint32;
+        }
+        leaf failed {
+          type uint32;
+        }
+        list device-status {
+          key device;
+          leaf device {
+            type string;
+          }
+          leaf status {
+            type string;
+          }
+        }
+      }
+    }
+  }
+}
