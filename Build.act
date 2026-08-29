@@ -3,8 +3,8 @@ fingerprint = 0x9ad673637ba15f05
 dependencies = {
     "actmf": (
         repo_url="https://github.com/stratoweave/actmf",
-        url="https://github.com/stratoweave/actmf/archive/ff703474b82174e3218e671b7869b892421bfc8d.zip",
-        hash="N-V-__8AANjlBQC14vqE7RV919LU7jz7gDw_Qx1Bn8mJYwx2"
+        url="https://github.com/stratoweave/actmf/archive/16a897f79e266e4ed2dbc07fa6d15d3be462b491.zip",
+        hash="N-V-__8AADMCBQAaEjc5--wrQy46EMiutRuQSehcHRvQaNEK"
     ),
     "http_router": (
         repo_url="https://github.com/stratoweave/http-router.git",
