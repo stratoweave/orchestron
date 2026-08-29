@@ -1,0 +1,18 @@
+name = "fleetmgr"
+fingerprint = 0x06beb4d801beae1a
+dependencies = {
+    "lmdb": (
+        repo_url="https://github.com/stratoweave/acton-lmdb",
+        url="https://github.com/stratoweave/acton-lmdb/archive/05c9a1ae51360443150e002a9f7effac5a0be884.zip",
+        hash="N-V-__8AAJ8BAQBaDaW6N50DeQxT7GngYhvgGmTTKZX93ttB"
+    ),
+    "stratoweave": (
+        path="../"
+    ),
+    "yang": (
+        repo_url="https://github.com/stratoweave/acton-yang.git",
+        url="https://github.com/stratoweave/acton-yang/archive/c00115cd07db0ee062c85090d4c85f32ef805baa.zip",
+        hash="N-V-__8AACP5JgBjkphmkpC0_Doep_M_Ji8P-z3_5_exsKvl"
+    )
+}
+zig_dependencies = {}

@@ -12,6 +12,7 @@ path = [
     "gen_adata/**",
     "test/**",
     "minisys/**",
+    "fleetmgr/**",
     "scripts/**",
     "**/snapshots/expected/**"
 ]

@@ -1,0 +1,7 @@
+import stratoweave
+
+import fleetmgr.sysspec as sysspec
+
+
+actor main(env):
+    stratoweave.main(sysspec.SYSSPEC, env)

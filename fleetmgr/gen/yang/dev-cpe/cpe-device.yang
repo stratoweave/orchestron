@@ -1,0 +1,11 @@
+module cpe-device {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:cpe-device";
+  prefix cpe;
+
+  container system {
+    leaf hostname {
+      type string;
+    }
+  }
+}

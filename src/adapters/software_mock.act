@@ -1,0 +1,115 @@
+"""Software adapter mocks.
+
+The real software machinery lives in device.act; this module only holds the
+in-memory stand-ins used by tests and demos, so anything that exists purely
+for pretending -- like install delays -- is confined to a file that says so.
+"""
+
+import logging
+import random
+
+from device import SoftwareAdapter
+
+
+actor MockSoftwareDriver(log_handler: logging.Handler, current: ?str, fail_job: ?str,
+                         install_delay: ?(float, float)):
+    """State behind MockSoftwareAdapter."""
+    var cur: ?str = current
+    var prev: ?str = current
+    var calls: list[str] = []
+
+    def _record(job: str) -> ?Exception:
+        """Note the job, and fail it if this mock was told to."""
+        calls.append(job)
+        if fail_job == job:
+            return ValueError("mock: {job} failed")
+        return None
+
+    def check(done: action(?str, ?Exception) -> None) -> None:
+        err = _record("check")
+        if err is None:
+            done(cur, None)
+        else:
+            done(None, err)
+
+    def prepare(done: action(?Exception) -> None, release: str) -> None:
+        done(_record("prepare"))
+
+    def _finish_install(done: action(?Exception) -> None, release: str) -> None:
+        prev = cur
+        cur = release
+        done(None)
+
+    def install(done: action(?Exception) -> None, release: str) -> None:
+        err = _record("install")
+        if err is not None:
+            done(err)
+            return
+        d = install_delay
+        if d is not None:
+            # uniform in [lo, hi), millisecond granularity
+            delay = d.0 + float(random.randint(0, 999)) * (d.1 - d.0) / 1000.0
+            after delay: _finish_install(done, release)
+        else:
+            _finish_install(done, release)
+
+    def rollback(done: action(?Exception) -> None, previous: ?str) -> None:
+        err = _record("rollback")
+        if err is None:
+            cur = prev
+        done(err)
+
+    def cleanup(done: action(?Exception) -> None) -> None:
+        done(_record("cleanup"))
+
+    def get_calls() -> list[str]:
+        return calls
+
+    def get_running() -> ?str:
+        return cur
+
+
+class MockSoftwareAdapter(SoftwareAdapter):
+    """Software adapter that loops back in memory instead of touching a device.
+
+    Installing sets the release the mock reports as running, so a manager
+    driving it sees the same before-and-after a real adapter would produce,
+    without a device, a NETCONF session or a schema. Any single job can be made
+    to fail, so the error paths are reachable.
+
+    Installs complete instantly by default, which is what tests want. Pass
+    install_delay=(lo, hi) seconds to make each install take a uniform random
+    time in that range, for demos and UIs where progress should be visible.
+    """
+    def __init__(self, log_handler: logging.Handler, current: ?str=None,
+                 fail_job: ?str=None, install_delay: ?(float, float)=None):
+        self._log_handler = log_handler
+        self._driver = MockSoftwareDriver(log_handler, current, fail_job, install_delay)
+
+    def check(self, done: action(?str, ?Exception) -> None) -> None:
+        self._driver.check(done)
+
+    def prepare(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.prepare(done, release)
+
+    def install(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.install(done, release)
+
+    def rollback(self, done: action(?Exception) -> None, previous: ?str) -> None:
+        self._driver.rollback(done, previous)
+
+    def cleanup(self, done: action(?Exception) -> None) -> None:
+        self._driver.cleanup(done)
+
+    def estimate(self, staged: bool) -> int:
+        return 600 if staged else 1200
+
+    # proc, not plain def: a pure-inferred method returning an actor call's
+    # value crashes the compiler's CPS pass.
+    proc def calls(self) -> list[str]:
+        """Jobs run so far, in order."""
+        return self._driver.get_calls()
+
+    proc def running(self) -> ?str:
+        """Release the mock currently reports."""
+        return self._driver.get_running()

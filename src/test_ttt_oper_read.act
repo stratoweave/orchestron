@@ -1,6 +1,7 @@
 import testing
 
 import device as swdev
+import adapters.software_mock as swmock
 import ttt as ttt
 import yang.gdata as gdata
 
@@ -406,7 +407,7 @@ actor device_node_publishes_software_state(t: testing.EnvT):
         # The device entry exists; drive its software manager to a new status
         # and wait for the push to surface in the layer's oper view.
         swmgr = registry.get_or_create("d1").get_swmgr()
-        swmgr.set_adapter(swdev.MockSoftwareAdapter(t.log_handler, "17.15.01a"))
+        swmgr.set_adapter(swmock.MockSoftwareAdapter(t.log_handler, "17.15.01a"))
         swmgr.set_config("camp-1", "17.18.03a", False, {})
         check()
         after 2: fail()

@@ -1,0 +1,13 @@
+name = "fleetmgr_gen"
+fingerprint = 0xffa02f49ba949b84
+dependencies = {
+    "stratoweave": (
+        path="../../"
+    ),
+    "yang": (
+        repo_url="https://github.com/stratoweave/acton-yang.git",
+        url="https://github.com/stratoweave/acton-yang/archive/c00115cd07db0ee062c85090d4c85f32ef805baa.zip",
+        hash="N-V-__8AACP5JgBjkphmkpC0_Doep_M_Ji8P-z3_5_exsKvl"
+    )
+}
+zig_dependencies = {}

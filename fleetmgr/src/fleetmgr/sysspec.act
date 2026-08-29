@@ -1,0 +1,58 @@
+# WARNING WARNING WARNING WARNING WARNING
+# DO NOT MODIFY THIS FILE!! This file is generated!
+# WARNING WARNING WARNING WARNING WARNING
+
+import logging
+
+import stratoweave.app as swapp
+import stratoweave.db as swdb
+import stratoweave.device as swdev
+import stratoweave.adapters.netconf as swna
+import stratoweave.ttt as ttt
+
+import fleetmgr.device_types as sw_device_types
+import fleetmgr.layers.t_2 as t_2
+import fleetmgr.layers.y_2 as y_2
+import fleetmgr.layers.t_1 as t_1
+import fleetmgr.layers.y_1 as y_1
+import fleetmgr.layers.t_0 as t_0
+import fleetmgr.layers.y_0 as y_0
+import fleetmgr.devices.cpe as dev_cpe
+import fleetmgr.devices.cpe_oper as dev_cpe_oper
+
+def get_layers(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None, db: ?swdb.Store=None):
+    layer2 = ttt.Layer('2', t_2.get_ttt(None, dev_registry, log_handler), None, db)
+    layer1 = ttt.Layer('1', t_1.get_ttt(layer2, dev_registry, log_handler), layer2, db)
+    layer0 = ttt.Layer('0', t_0.get_ttt(layer1, dev_registry, log_handler), layer1, db)
+    return layer0
+
+
+def schema_for_layer(layer):
+    if layer == 2:
+        # Layer 2 is a bit special, in that there is more than one schema:
+        # 1. The device manager, defined in stratoweave-device.yang
+        # 2. The device configuration, defined in the devices own YANG models
+        # and selected with the chosen device type.
+        # The contents of layer 2 (gdata) is a combination of both, here we
+        # return the device manager tree.
+        return y_2.SRC_DNODE
+    if layer == 1:
+        return y_1.SRC_DNODE
+    if layer == 0:
+        return y_0.SRC_DNODE
+    raise ValueError('Invalid layer: {layer}')
+
+
+generated_device_types: dict[str, swdev.DeviceType] = {
+    "cpe": swdev.DeviceType(name="cpe",
+            adapter_type=swna.NetconfAdapter,
+            src_dnode=dev_cpe.SRC_DNODE,
+            oper_src_dnode=dev_cpe_oper.SRC_DNODE,
+        ),
+}
+
+device_types: dict[str, swdev.DeviceType] = dict(
+    list(generated_device_types.items()) + list(sw_device_types.device_types.items())
+)
+
+SYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer)

@@ -1,0 +1,72 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+import fleetmgr.devices.cpe_schema
+
+# == This file is generated ==
+
+
+
+
+SRC_DNODE: DRoot = fleetmgr.devices.cpe_schema.SRC_DNODE
+
+pure def src_yang() -> list[str]:
+    return fleetmgr.devices.cpe_schema.src_yang()
+
+
+NS_cpe_device: str = 'urn:fleetmgr:cpe-device'
+
+
+_breaker1: None = None
+class cpe_device__system(yadata.MNode):
+    hostname: ?str
+
+    mut def __init__(self, hostname: ?str) -> None:
+        self.hostname = hostname
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['cpe-device:system'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> cpe_device__system:
+        if n is not None:
+            return cpe_device__system(hostname=n.get_opt_str(ygdata.Id(NS_cpe_device, 'hostname')))
+        return cpe_device__system()
+
+    mut def copy(self) -> cpe_device__system:
+        """Create a deep copy of this adata object"""
+        return cpe_device__system.from_gdata(self.to_gdata())
+
+
+_breaker2: None = None
+class root(yadata.MNode):
+    system: cpe_device__system
+
+    mut def __init__(self, system: ?cpe_device__system=None) -> None:
+        self.system = system if system is not None else cpe_device__system()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(system=cpe_device__system.from_gdata(n.get_opt_cnt(ygdata.Id(NS_cpe_device, 'system'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+

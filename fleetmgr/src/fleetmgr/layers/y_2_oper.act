@@ -1,0 +1,317 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+from yang.sdata import SubscriptionPath, SubscriptionNode
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='devices', config=True, presence=False, children=[
+    DList(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+            DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='device-config', arg=None, exts=[])
+        ], children=[
+        DLeaf(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='stratoweave-device', namespace='http://stratoweave.org/yang/stratoweave-device', prefix='sw-dev', name='modset_id', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[],
+    module_metadata={'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-device':('stratoweave-device', None)},
+)
+
+SRC_YANG_0: str = r"""module stratoweave {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave";
+  prefix "sw";
+
+  description
+    "This module defines Stratoweave YANG extensions.";
+
+  revision 2026-04-01;
+
+  extension device {
+    description
+      "Used internally in the list defining the device manager model.";
+  }
+  extension device-config {
+    description
+      "Used internally in the list defining the device configuration store.";
+  }
+  extension transform {
+    description
+      "Used in a list or container defining a transform model. Takes as an
+      argument the fully qualified name of the type implementing the transform
+      function in user code. Makes the code generator create the base type in
+      app.layers.base_X.";
+    argument "function";
+  }
+  extension rfs-transform {
+    description
+      "Used in a list or container defining an RFS transform model. Takes as an
+      argument the fully qualified name of the type implementing the RFS
+      transform function in user code. Makes the code generator create the base
+      type in app.layers.base_X.";
+    argument "function";
+  }
+  extension dynstate {
+    description
+      "Used in the dynstate container of a transform model. Enriches the
+      transform function inputs with an additional read-only structure. This
+      subtree is accessible for writes to the transform actor for async
+      (environmental) updates.";
+  }
+  extension memory {
+    description
+      "Used in the memory container of a transform model. Enriches the transform
+      function inputs with an additional read-only structure. The transform
+      function may update this subtree by returning new data.";
+  }
+  extension link {
+    description
+      "Declares a link demand from this transform towards another (linked)
+      transform. The argument is a tag that identifies the link. On a leafref
+      leaf, the link target is derived from the leafref path. On other nodes,
+      a nested sw:path substatement provides the target path.";
+    argument "tag";
+  }
+  extension path {
+    description
+      "Substatement of sw:link that provides an explicit absolute schema path
+      to the linked transform target.";
+    argument "path";
+  }
+}"""
+
+SRC_YANG_1: str = r"""module stratoweave-device {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave-device";
+  prefix "sw-dev";
+  import stratoweave {
+    prefix sw;
+  }
+
+  description "Device config";
+
+  container devices {
+    list device {
+      key name;
+
+      sw:device-config;
+
+      leaf name {
+        type string;
+      }
+
+      leaf modset_id {
+        type string;
+      }
+
+      //anydata config {
+      //  description "Device configuration";
+      //}
+    }
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+    ]
+
+
+NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
+NS_stratoweave_device: str = 'http://stratoweave.org/yang/stratoweave-device'
+
+
+_breaker1: None = None
+class stratoweave_device__devices__device_entry(yadata.MNode):
+    name: str
+    modset_id: ?str
+
+    mut def __init__(self, name: str, modset_id: ?str) -> None:
+        self.name = name
+        self.modset_id = modset_id
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-device:devices', 'device'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_device__devices__device_entry:
+        return stratoweave_device__devices__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_device, 'name')), modset_id=n.get_opt_str(ygdata.Id(NS_stratoweave_device, 'modset_id')))
+
+    mut def copy(self) -> stratoweave_device__devices__device_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_device__devices__device_entry.from_gdata(self.to_gdata())
+
+_breaker2: None = None
+class stratoweave_device__devices__device(yadata.MKeyedList[str, stratoweave_device__devices__device_entry]):
+    mut def __init__(self, elements: list[stratoweave_device__devices__device_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, modset_id: ?str=None) -> stratoweave_device__devices__device_entry:
+        e = self.get(key)
+        if e is not None:
+            if modset_id is not None:
+                e.modset_id = modset_id
+            return e
+        name = key
+        res = stratoweave_device__devices__device_entry(name=name, modset_id=modset_id)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_device__devices__device_entry]:
+        if n is not None:
+            return [stratoweave_device__devices__device_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_device__devices__device:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_device__devices__device(elements=copied_elements)
+
+
+_breaker3: None = None
+class stratoweave_device__devices(yadata.MNode):
+    device: stratoweave_device__devices__device
+
+    mut def __init__(self, device: list[stratoweave_device__devices__device_entry]=[]) -> None:
+        self.device = stratoweave_device__devices__device(elements=device)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-device:devices'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_device__devices:
+        if n is not None:
+            return stratoweave_device__devices(device=stratoweave_device__devices__device.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_device, 'device'))))
+        return stratoweave_device__devices()
+
+    mut def copy(self) -> stratoweave_device__devices:
+        """Create a deep copy of this adata object"""
+        return stratoweave_device__devices.from_gdata(self.to_gdata())
+
+
+_breaker4: None = None
+class root(yadata.MNode):
+    devices: stratoweave_device__devices
+
+    mut def __init__(self, devices: ?stratoweave_device__devices=None) -> None:
+        self.devices = devices if devices is not None else stratoweave_device__devices()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(devices=stratoweave_device__devices.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_device, 'devices'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+
+
+
+_breaker5: None = None
+class stratoweave_device__devices__device_entry_subs(SubscriptionNode):
+    name: SubscriptionNode
+    modset_id: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_device, 'name'), parent=path))
+        self.modset_id = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_device, 'modset_id'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.modset_id]
+        return direct
+
+_breaker6: None = None
+class stratoweave_device__devices__device_subs(SubscriptionNode):
+    name: SubscriptionNode
+    modset_id: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_device, 'name'), parent=path))
+        self.modset_id = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_device, 'modset_id'), parent=path))
+
+    pure def entry(self, name: str) -> stratoweave_device__devices__device_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_stratoweave_device, 'name'), value_match=name),
+        ]
+        base_path = self._path!.parent
+        return stratoweave_device__devices__device_entry_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_device, 'device'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name, self.modset_id]
+        return direct
+
+_breaker7: None = None
+class stratoweave_device__devices_subs(SubscriptionNode):
+    device: stratoweave_device__devices__device_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device = stratoweave_device__devices__device_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_device, 'device'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device]
+        return direct
+
+_breaker8: None = None
+class root_subs(SubscriptionNode):
+    devices: stratoweave_device__devices_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.devices = stratoweave_device__devices_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_device, 'devices'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.devices]
+        return direct
+
+subs: root_subs = root_subs()
+
+actor DstAdapter(cb: action(?root, ?Exception) -> None):
+    on_update: action(?ygdata.Node, ?Exception) -> None
+    def on_update(n: ?ygdata.Node, err: ?Exception) -> None:
+        if err is not None:
+            cb(None, err)
+            return
+        if n is not None:
+            cb(root.from_gdata(n), None)
+            return
+        cb(None, None)
+
+proc def dst(cb: action(?root, ?Exception) -> None) -> ygdata.Dst:
+    adapter = DstAdapter(cb)
+    return ygdata.Dst(adapter.on_update)

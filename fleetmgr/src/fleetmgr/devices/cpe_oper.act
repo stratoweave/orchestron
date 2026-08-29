@@ -1,0 +1,141 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+from yang.sdata import SubscriptionPath, SubscriptionNode
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='cpe-device', namespace='urn:fleetmgr:cpe-device', prefix='cpe', name='system', config=True, presence=False, children=[
+    DLeaf(module='cpe-device', namespace='urn:fleetmgr:cpe-device', prefix='cpe', name='hostname', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[],
+    module_metadata={'urn:fleetmgr:cpe-device':('cpe-device', None)},
+)
+
+SRC_YANG_0: str = r"""module cpe-device {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:cpe-device";
+  prefix cpe;
+
+  container system {
+    leaf hostname {
+      type string;
+    }
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+    ]
+
+
+NS_cpe_device: str = 'urn:fleetmgr:cpe-device'
+
+
+_breaker1: None = None
+class cpe_device__system(yadata.MNode):
+    hostname: ?str
+
+    mut def __init__(self, hostname: ?str) -> None:
+        self.hostname = hostname
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['cpe-device:system'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> cpe_device__system:
+        if n is not None:
+            return cpe_device__system(hostname=n.get_opt_str(ygdata.Id(NS_cpe_device, 'hostname')))
+        return cpe_device__system()
+
+    mut def copy(self) -> cpe_device__system:
+        """Create a deep copy of this adata object"""
+        return cpe_device__system.from_gdata(self.to_gdata())
+
+
+_breaker2: None = None
+class root(yadata.MNode):
+    system: cpe_device__system
+
+    mut def __init__(self, system: ?cpe_device__system=None) -> None:
+        self.system = system if system is not None else cpe_device__system()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(system=cpe_device__system.from_gdata(n.get_opt_cnt(ygdata.Id(NS_cpe_device, 'system'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+
+
+
+_breaker3: None = None
+class cpe_device__system_subs(SubscriptionNode):
+    hostname: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.hostname = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_cpe_device, 'hostname'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.hostname]
+        return direct
+
+_breaker4: None = None
+class root_subs(SubscriptionNode):
+    system: cpe_device__system_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.system = cpe_device__system_subs(SubscriptionPath(ygdata.Id(NS_cpe_device, 'system'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.system]
+        return direct
+
+subs: root_subs = root_subs()
+
+actor DstAdapter(cb: action(?root, ?Exception) -> None):
+    on_update: action(?ygdata.Node, ?Exception) -> None
+    def on_update(n: ?ygdata.Node, err: ?Exception) -> None:
+        if err is not None:
+            cb(None, err)
+            return
+        if n is not None:
+            cb(root.from_gdata(n), None)
+            return
+        cb(None, None)
+
+proc def dst(cb: action(?root, ?Exception) -> None) -> ygdata.Dst:
+    adapter = DstAdapter(cb)
+    return ygdata.Dst(adapter.on_update)

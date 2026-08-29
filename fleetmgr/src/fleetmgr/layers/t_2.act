@@ -1,0 +1,16 @@
+# WARNING WARNING WARNING WARNING WARNING
+# DO NOT MODIFY THIS FILE!! This file is generated!
+# WARNING WARNING WARNING WARNING WARNING
+
+import logging
+
+import stratoweave.device as swdev
+import stratoweave.ttt as ttt
+import yang.gdata as ygdata
+
+
+
+
+def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(ttt.Path,?ttt.Layer)->ttt.Node:
+    r = ttt.Container({ygdata.Id("http://stratoweave.org/yang/stratoweave-device", "devices"): ttt.Container({ygdata.Id("http://stratoweave.org/yang/stratoweave-device", "device"): ttt.List(ttt.DeviceConfig(dev_registry, log_handler), [ygdata.Id("http://stratoweave.org/yang/stratoweave-device", "name")])}, ns='http://stratoweave.org/yang/stratoweave-device', module='stratoweave-device')})
+    return r

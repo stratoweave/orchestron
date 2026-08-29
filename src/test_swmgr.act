@@ -14,6 +14,7 @@ import testing
 
 import device as swdev
 import device_oper as swdevoper
+import adapters.software_mock as swmock
 import yang.gdata as ygdata
 
 OLD = "17.15.01a"
@@ -39,7 +40,7 @@ actor _test_target_release_installs(t: testing.EnvT):
     def noop_on_reconf(name: str) -> None:
         pass
 
-    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
     dev = _devmgr(t, noop_on_reconf)
 
     def on_state(oper: ?ygdata.Node) -> None:
@@ -59,7 +60,7 @@ actor _test_running_release_moves(t: testing.EnvT):
     def noop_on_reconf(name: str) -> None:
         pass
 
-    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
     dev = _devmgr(t, noop_on_reconf)
 
     def on_state(oper: ?ygdata.Node) -> None:
@@ -79,7 +80,7 @@ actor _test_no_target_release_does_nothing(t: testing.EnvT):
     def noop_on_reconf(name: str) -> None:
         pass
 
-    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
     dev = _devmgr(t, noop_on_reconf)
 
     def on_state(oper: ?ygdata.Node) -> None:
@@ -104,7 +105,7 @@ actor _test_veto_blocks_the_install(t: testing.EnvT):
     def noop_on_reconf(name: str) -> None:
         pass
 
-    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
     dev = _devmgr(t, noop_on_reconf)
 
     def on_state(oper: ?ygdata.Node) -> None:
@@ -128,7 +129,7 @@ actor _test_failed_install_is_reported(t: testing.EnvT):
     def noop_on_reconf(name: str) -> None:
         pass
 
-    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD, "install")
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD, "install")
     dev = _devmgr(t, noop_on_reconf)
 
     def on_state(oper: ?ygdata.Node) -> None:
@@ -149,7 +150,7 @@ actor _test_late_registration_replays_state(t: testing.EnvT):
     def noop_on_reconf(name: str) -> None:
         pass
 
-    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
     dev = _devmgr(t, noop_on_reconf)
 
     def on_state(oper: ?ygdata.Node) -> None:
@@ -172,7 +173,7 @@ actor _test_install_runs_once(t: testing.EnvT):
     def noop_on_reconf(name: str) -> None:
         pass
 
-    adapter = swdev.MockSoftwareAdapter(t.log_handler, OLD)
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
     dev = _devmgr(t, noop_on_reconf)
 
     def verify() -> None:
