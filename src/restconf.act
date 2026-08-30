@@ -116,6 +116,25 @@ def _path_elements_to_fnode(path_elements: list[ydata.PathElement]) -> ygdata.FN
     return inner if inner is not None else ygdata.FNode()
 
 
+def _existence_path(path_elements: list[ydata.PathElement]) -> list[ydata.PathElement]:
+    """Trim a resolved path to the part that decides whether it exists.
+
+    Only a list entry, a P-container or a leaf can be absent while the node
+    holding it is there. An NP-container has no existence of its own
+    (RFC 7950 7.5.1), so it is there for as long as its parent is. Cutting the
+    path after the deepest node that can be absent asks the datastore the
+    smallest question that still answers RFC 8040, and keeps a check on an
+    NP-container from reading everything that container holds.
+    """
+    last = 0
+    for i in range(1, len(path_elements)):
+        node = path_elements[i].node
+        if isinstance(node, yschema.DContainer) and not node.presence:
+            continue
+        last = i
+    return path_elements[:last + 1]
+
+
 def _node_with_ns(node: ygdata.Node, snode: yschema.DNode) -> ygdata.Node:
     # `gdata.Node` is a `value`, so we cannot mutate fields in place.
     # Rebuild the node with namespace and module from the schema node so that
@@ -174,9 +193,10 @@ def _respond_restconf_subtree(path_elements: list[ydata.PathElement], data: ?ygd
 
 def _path_exists(current_config: ygdata.Node, path_elements: list[ydata.PathElement]) -> bool:
     """Whether the resource identified by path_elements exists in current_config."""
-    if len(path_elements) <= 1:
+    probe = _existence_path(path_elements)
+    if len(probe) <= 1:
         return True
-    fnode = _path_elements_to_fnode(path_elements)
+    fnode = _path_elements_to_fnode(probe)
     return ygdata.filter(current_config, fnode) is not None
 
 
