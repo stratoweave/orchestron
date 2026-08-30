@@ -1384,13 +1384,13 @@ class _List(_Node):
         filter_branches = exact_list_filter_branches(filters, self.key_names)
         scan_filters = list_element_filters(filters)
         res = []
-        # TODO: when filter_branches is not None, fetch only those exact keys
-        # from ListState instead of enumerating all committed entries.
-        for key, node in self.liststate.all().items():
+        if filter_branches is not None:
+            nodes = self.liststate.some(list(filter_branches.keys()))
+        else:
+            nodes = self.liststate.all()
+        for key, node in nodes.items():
             element_filters = scan_filters
             if filter_branches is not None:
-                if key not in filter_branches:
-                    continue
                 element_filters = filter_branches[key]
             if len(element_filters) == 0:
                 elem = node.get_data()
@@ -1546,6 +1546,28 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
             return {k: elems[k] for k in elems if k not in provisional}
         else:
             return {k: node for k, node in elems.items()}
+
+    # TODO: change the parameter to Iterable[str], so that a caller does not
+    # have to build a list. The Acton compiler does not accept a protocol type
+    # on an actor method parameter. The call then fails the back pass with
+    # "qInst [] ... => action(Iterable[E_1, str], E_1)".
+    def some(keys: list[str]):
+        """Get the committed node for each key in `keys`.
+
+        The result follows the order of `keys`. That order, and the order that
+        `all` gives, come from the structures that hold the keys. Both are
+        stable while the process runs, and neither means anything: TTT never
+        sets `user_order` on a list that it builds, and `acquire` takes new
+        keys from a set, so a list does not hold its entries in the order that
+        configured them. Give the caller the order that the structures give.
+        Do not sort to hide it.
+
+        The method omits a key that the list does not hold. It also omits a
+        provisional key, as `all` does. A read of the entries that a filter
+        names then costs as much as those entries, and not as much as the
+        whole list.
+        """
+        return {k: elems[k] for k in keys if k in elems and k not in provisional}
 
     def is_empty() -> bool:
         return len(elems) == 0 and len(active) == 0 and len(provisional) == 0
@@ -1795,13 +1817,13 @@ class _ListTransaction(_Transaction):
         filter_branches = exact_list_filter_branches(filters, self.key_names)
         scan_filters = list_element_filters(filters)
         res = []
-        # TODO: when filter_branches is not None, fetch only those exact keys
-        # from ListState instead of enumerating all committed entries.
-        for key, node in self.liststate.all().items():
+        if filter_branches is not None:
+            nodes = self.liststate.some(list(filter_branches.keys()))
+        else:
+            nodes = self.liststate.all()
+        for key, node in nodes.items():
             element_filters = scan_filters
             if filter_branches is not None:
-                if key not in filter_branches:
-                    continue
                 element_filters = filter_branches[key]
             if len(element_filters) == 0:
                 if key in self.elems:
