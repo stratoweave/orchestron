@@ -1,5 +1,5 @@
 <p align="left">
-  <img src="docs/images/stratoweave_blue.png" width="400"/>
+  <img src="docs/images/StratoWeaveTmpBlue.png" width="400"/>
 </p>
 
 [![REUSE Compliance Check](https://github.com/stratoweave/stratoweave/actions/workflows/reuse-compliance.yml/badge.svg)](https://github.com/stratoweave/stratoweave/actions/workflows/reuse-compliance.yml)
