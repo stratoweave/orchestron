@@ -1,0 +1,248 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_RPC_0: DRpc = DRpc(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='install', input=DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, description='Correlates the operation with its records in\ninstall-oper-data. The real module caps this at 128 characters on\nsome RPCs and not others.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='one-shot', config=False, mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='path', config=False, description="bootflash:<filename> to add an already-staged file. The\nreal module limits this to 256 characters, where xcopy's paths allow\n4096, so a URL xcopy accepts can be too long here.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, description='Correlates the operation with its records in\ninstall-oper-data. The real module caps this at 128 characters on\nsome RPCs and not others.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='one-shot', config=False, mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='path', config=False, description="bootflash:<filename> to add an already-staged file. The\nreal module limits this to 256 characters, where xcopy's paths allow\n4096, so a URL xcopy accepts can be too long here.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_1: DRpc = DRpc(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='xcopy', input=DInput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='source-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='destination-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), output=DOutput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='source-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='destination-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DOutput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[],
+    identities=[],
+    rpcs=[SRC_DNODE_RPC_0, SRC_DNODE_RPC_1],
+    module_metadata={'http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc':('Cisco-IOS-XE-install-rpc', None), 'http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc':('Cisco-IOS-XE-xcopy-rpc', None)},
+)
+
+SRC_YANG_0: str = r"""module Cisco-IOS-XE-xcopy-rpc {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc";
+  prefix xcopy-ios-xe-rpc;
+
+  description
+    "Pruned to the file copy that stages an image. The device fetches it
+     itself, over scp, ftp, http or https; the URL must therefore be reachable
+     from the device rather than from us.
+
+     The destination is a bare filename: the device prepends /bootflash itself,
+     so passing a path doubles it and the operation fails.
+
+     Unlike the install RPCs, which are input-only, xcopy declares an output. It
+     must be declared here too: the reply is parsed against this schema, and an
+     undeclared output fails the call with 'Unexpected rpc-reply' after the
+     device has already transferred the image. The output carries only the uuid
+     we sent, so it confirms nothing about the copy -- progress is read from
+     install-oper-data like everything else.";
+
+  rpc xcopy {
+    input {
+      leaf uuid { type string; }
+      leaf source-path { type string; }
+      leaf destination-path { type string; }
+    }
+    output {
+      leaf uuid { type string; }
+    }
+  }
+}
+"""
+
+SRC_YANG_1: str = r"""module Cisco-IOS-XE-install-rpc {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc";
+  prefix install-ios-xe-rpc;
+
+  description
+    "Pruned to `install`, which is the only install RPC the MVP sends. The real
+     module has ten, all of them input-only: they reply <ok/> meaning accepted,
+     and progress arrives in install-oper-data under the uuid.
+
+     With `one-shot` set, `install` adds the image, activates it, commits and
+     reloads. The adapter does not send a separate `activate` RPC.";
+
+  rpc install {
+    input {
+      leaf uuid {
+        description "Correlates the operation with its records in
+          install-oper-data. The real module caps this at 128 characters on
+          some RPCs and not others.";
+        type string;
+        mandatory true;
+      }
+      leaf one-shot { type boolean; }
+      leaf path {
+        description "bootflash:<filename> to add an already-staged file. The
+          real module limits this to 256 characters, where xcopy's paths allow
+          4096, so a URL xcopy accepts can be too long here.";
+        type string;
+      }
+    }
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+    ]
+
+
+NS_Cisco_IOS_XE_install_rpc: str = 'http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc'
+NS_Cisco_IOS_XE_xcopy_rpc: str = 'http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc'
+
+
+_breaker1: None = None
+class root(yadata.MNode):
+
+    mut def __init__(self) -> None:
+        pass
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root()
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+_breaker2: None = None
+class Cisco_IOS_XE_install_rpc__install__input(yadata.MNode):
+    uuid: str
+    one_shot: ?bool
+    path: ?str
+
+    mut def __init__(self, uuid: str, one_shot: ?bool, path: ?str) -> None:
+        self.uuid = uuid
+        self.one_shot = one_shot
+        self.path = path
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['Cisco-IOS-XE-install-rpc:install', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_rpc__install__input:
+        if n is not None:
+            return Cisco_IOS_XE_install_rpc__install__input(uuid=n.get_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'uuid')), one_shot=n.get_opt_bool(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'one-shot')), path=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'path')))
+        raise ValueError('Missing required subtree Cisco_IOS_XE_install_rpc__install__input')
+
+    mut def copy(self) -> Cisco_IOS_XE_install_rpc__install__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_rpc__install__input.from_gdata(self.to_gdata())
+
+
+_breaker3: None = None
+class Cisco_IOS_XE_xcopy_rpc__xcopy__input(yadata.MNode):
+    uuid: ?str
+    source_path: ?str
+    destination_path: ?str
+
+    mut def __init__(self, uuid: ?str, source_path: ?str, destination_path: ?str) -> None:
+        self.uuid = uuid
+        self.source_path = source_path
+        self.destination_path = destination_path
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['Cisco-IOS-XE-xcopy-rpc:xcopy', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_xcopy_rpc__xcopy__input:
+        if n is not None:
+            return Cisco_IOS_XE_xcopy_rpc__xcopy__input(uuid=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_xcopy_rpc, 'uuid')), source_path=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_xcopy_rpc, 'source-path')), destination_path=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_xcopy_rpc, 'destination-path')))
+        return Cisco_IOS_XE_xcopy_rpc__xcopy__input()
+
+    mut def copy(self) -> Cisco_IOS_XE_xcopy_rpc__xcopy__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_xcopy_rpc__xcopy__input.from_gdata(self.to_gdata())
+
+
+_breaker4: None = None
+class Cisco_IOS_XE_xcopy_rpc__xcopy__output(yadata.MNode):
+    uuid: ?str
+
+    mut def __init__(self, uuid: ?str) -> None:
+        self.uuid = uuid
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['Cisco-IOS-XE-xcopy-rpc:xcopy', 'output'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_xcopy_rpc__xcopy__output:
+        if n is not None:
+            return Cisco_IOS_XE_xcopy_rpc__xcopy__output(uuid=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_xcopy_rpc, 'uuid')))
+        return Cisco_IOS_XE_xcopy_rpc__xcopy__output()
+
+    mut def copy(self) -> Cisco_IOS_XE_xcopy_rpc__xcopy__output:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_xcopy_rpc__xcopy__output.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    install: action(cb: action(?Exception) -> None, inp: Cisco_IOS_XE_install_rpc__install__input) -> None
+    def install(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, False, ["Cisco-IOS-XE-install-rpc:install", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'install'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    xcopy: action(cb: action(?Cisco_IOS_XE_xcopy_rpc__xcopy__output, ?Exception) -> None, inp: ?Cisco_IOS_XE_xcopy_rpc__xcopy__input) -> None
+    def xcopy(cb, inp):
+        def cb_wrap(res: ?ygdata.Node, err: ?Exception):
+            if res is not None:
+                adata_res = Cisco_IOS_XE_xcopy_rpc__xcopy__output.from_gdata(res)
+                cb(adata_res, err)
+            else:
+                cb(None, err)
+
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, False, ["Cisco-IOS-XE-xcopy-rpc:xcopy", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', 'xcopy'): rpc_input})
+        tp.rpc(cb_wrap, rpc_gdata)

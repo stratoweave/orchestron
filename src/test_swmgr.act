@@ -35,6 +35,14 @@ def _pub_status(oper: ?ygdata.Node) -> ?str:
     return None
 
 
+def _pub_running(oper: ?ygdata.Node) -> ?str:
+    """The running-release leaf out of a published device entry oper tree."""
+    if oper is not None:
+        return swdevoper.stratoweave_rfs__device_entry.from_gdata(
+            oper).software.state.running_release
+    return None
+
+
 actor _test_target_release_installs(t: testing.EnvT):
     """Intent naming a target release is the only thing that starts an install."""
     def noop_on_reconf(name: str) -> None:
@@ -45,8 +53,11 @@ actor _test_target_release_installs(t: testing.EnvT):
 
     def on_state(oper: ?ygdata.Node) -> None:
         if _pub_status(oper) == "succeeded":
-            testing.assertEqual(adapter.calls(), ["install"],
-                                "manager should have installed once")
+            # Compare first, because install is impacting. Then two steps: the
+            # image has to be staged before it can be added. The trailing check
+            # reads the new release back for the oper tree.
+            testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "check"],
+                                "manager should have compared, staged, installed")
             t.success()
 
     dev.set_update_oper(on_state)
@@ -168,6 +179,113 @@ actor _test_late_registration_replays_state(t: testing.EnvT):
     after 0.05: register()
 
 
+actor _test_device_already_on_target_does_nothing(t: testing.EnvT):
+    """A device that already runs the target is never touched.
+
+    The comparison has to happen before the impacting step. Anything after it
+    is too late: the install has already run.
+    """
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, NEW)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        status = _pub_status(oper)
+        if status == "in-progress" or status == "succeeded":
+            t.failure(ValueError("nothing should have been installed, got {status}"))
+
+    def verify() -> None:
+        testing.assertEqual(adapter.calls(), ["check"],
+                            "only the comparison should have run")
+        testing.assertEqual("up-to-date", mgr.get_status(),
+                            "a device already on the target is up to date")
+        t.success()
+
+    dev.set_update_oper(on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+    after 0.05: verify()
+
+
+actor _test_reached_target_is_not_reinstalled(t: testing.EnvT):
+    """Intent restated after a successful upgrade must not install again.
+
+    Measured on a c8000v: sent the sequence a second time, it staged the image,
+    accepted the install and reported success -- having changed nothing, which
+    afterwards is indistinguishable from a real upgrade.
+    """
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def verify() -> None:
+        testing.assertEqual(adapter.calls(),
+                            ["check", "prepare", "install", "check", "check"],
+                            "the second round should have stopped at the check")
+        testing.assertEqual("up-to-date", mgr.get_status(),
+                            "the device is up to date, not freshly upgraded")
+        t.success()
+
+    def again() -> None:
+        mgr.set_config("camp-1", NEW, False, {})
+        after 0.05: verify()
+
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+    # The same intent again, once the first round has finished.
+    after 0.05: again()
+
+
+actor _test_unreadable_release_still_installs(t: testing.EnvT):
+    """A read that fails is not evidence that the device is up to date.
+
+    Blocking an upgrade on one failed read would be worse than a redundant
+    install, so the manager proceeds without the comparison and says so.
+    """
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD, "check")
+    dev = _devmgr(t, noop_on_reconf)
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        if _pub_status(oper) == "succeeded":
+            testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "check"],
+                                "a failed check should not stop the install")
+            t.success()
+
+    dev.set_update_oper(on_state)
+    mgr = dev.get_swmgr()
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_running_release_is_published(t: testing.EnvT):
+    """The oper tree reports what the device said, not what was asked for."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
+    dev = _devmgr(t, noop_on_reconf)
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        if _pub_status(oper) == "succeeded":
+            testing.assertEqual(NEW, _pub_running(oper),
+                                "running-release should hold the device's report")
+            t.success()
+
+    dev.set_update_oper(on_state)
+    mgr = dev.get_swmgr()
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
 actor _test_install_runs_once(t: testing.EnvT):
     """Repeated config does not re-run an install already under way."""
     def noop_on_reconf(name: str) -> None:
@@ -177,8 +295,8 @@ actor _test_install_runs_once(t: testing.EnvT):
     dev = _devmgr(t, noop_on_reconf)
 
     def verify() -> None:
-        testing.assertEqual(adapter.calls(), ["install"],
-                            "install should have run once")
+        testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "check"],
+                            "the sequence should have run once, not twice")
         t.success()
 
     mgr = dev.get_swmgr()

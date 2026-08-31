@@ -233,6 +233,17 @@ rfs = r"""module stratoweave-rfs {
         type string;
       }
 
+      leaf image-url {
+        description
+          "URL used by the device to fetch the target image. It must be reachable
+           from the device. Supported schemes are platform-specific; IOS XE
+           supports scp, ftp, http and https. scp and ftp URLs may contain
+           credentials and must not be logged. The adapter derives the staged
+           filename from the final path component. If this leaf is absent, an
+           adapter that requires an image URL reports prepare as failed.";
+        type string;
+      }
+
       leaf allow-staging {
         description
           "Whether the manager may run the non-impacting prepare job ahead of
@@ -322,10 +333,9 @@ rfs = r"""module stratoweave-rfs {
         container postcheck {
           description
             "Evaluated after install to decide whether the upgrade actually
-             landed. A failing post-check triggers a rollback, which is why
-             cleanup is sequenced last: on platforms without native rollback
-             the superseded image is the rollback path and must still be on
-             the device until the post-checks pass.";
+             landed. A failed post-check triggers rollback. Cleanup runs last so
+             the superseded image remains available for rollback until all
+             post-checks pass.";
           uses check-result;
         }
       }
