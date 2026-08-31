@@ -41,7 +41,7 @@ import netconf.yp as nyp
 import monitoring
 import yp
 import yp.mock_backend as mb
-import swyang
+
 
 class MockSchema(object):
     """The compiled mock data model plus everything the server needs to advertise and
@@ -62,31 +62,18 @@ class MockSchema(object):
 
 
 def build_mock_schema() -> MockSchema:
-    """Compile the mock interfaces module with the ietf-yang-library and ietf-yang-push
-    closures, so the server advertises + serves ietf-yang-library, lists ietf-yang-push
-    (which makes a client establish a real yang-push subscription rather than polling),
-    and answers get-schema for every module."""
-    modules: list[(name: str, src: str)] = [
-        (name="mock-interfaces", src=mb.INTERFACES_YANG),
-        (name="ietf-yang-library", src=swyang.ietf_yang_library),
-        (name="ietf-datastores", src=swyang.ietf_datastores),
-        (name="ietf-yang-types", src=swyang.ietf_yang_types),
-        (name="ietf-inet-types", src=swyang.ietf_inet_types),
-        (name="ietf-yang-push", src=swyang.ietf_yang_push),
-        (name="ietf-subscribed-notifications", src=swyang.ietf_subscribed_notifications),
-        (name="ietf-restconf", src=swyang.ietf_restconf),
-        (name="ietf-yang-patch", src=swyang.ietf_yang_patch),
-        (name="ietf-interfaces", src=swyang.ietf_interfaces),
-        (name="ietf-netconf-acm", src=swyang.ietf_netconf_acm),
-        (name="ietf-network-instance", src=swyang.ietf_network_instance),
-        (name="ietf-ip", src=swyang.ietf_ip),
-        (name="ietf-yang-schema-mount", src=swyang.ietf_yang_schema_mount),
-    ]
+    """Compile the mock interfaces module with the shared yang-push server closure
+    (monitoring.yang_push_server_closure: ietf-yang-library, the YANG-push family
+    and their imports), so the server advertises + serves ietf-yang-library, lists
+    ietf-yang-push (which makes a client establish a real yang-push subscription
+    rather than polling), and answers get-schema for every module."""
     sources: dict[str, str] = {}
     srcs: list[str] = []
-    for m in modules:
-        sources[m.name] = m.src
-        srcs.append(m.src)
+    for src in [mb.INTERFACES_YANG] + monitoring.yang_push_server_closure():
+        name = monitoring.yang_module_name(src)
+        if name is not None and name not in sources:
+            sources[name] = src
+            srcs.append(src)
     schema = yang.compile(srcs)
     yl_view = monitoring.build_yl_view([schema])
     capabilities = [netconf.CAP_NC_1_0, netconf.CAP_NC_1_1] + monitoring.module_capabilities([schema], yl_view)

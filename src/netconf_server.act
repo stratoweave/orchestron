@@ -6,7 +6,9 @@ import netconf
 import ssh
 import ssh.pipe as sshpipe
 
+import monitoring
 import ttt as ttt
+import yang
 import yang.gdata as ygdata
 import yang.schema as yschema
 import yang.xml as yxml
@@ -45,6 +47,57 @@ def build_capabilities(schema: yschema.DRoot) -> list[str]:
     return caps
 
 
+class SchemaServing(object):
+    """Everything the server needs to advertise and serve its module corpus.
+
+    `schema` is the compiled corpus, used to parse <get> filters -- unlike the
+    config-only top schema it carries config-false state and the yang-library
+    tree, so filters on those parse. `yl_view` is the ietf-yang-library view
+    (gdata tree + content-id) overlaid on <get> replies and advertised in
+    <hello>. `sources` maps module name -> YANG source for <get-schema>. The
+    library view and the source map are built from the same corpus, so every
+    module a client discovers is downloadable.
+    """
+    schema: yschema.DRoot
+    yl_view: ?(root: ygdata.Node, content_id: str)
+    sources: dict[str, str]
+
+    def __init__(self, schema: yschema.DRoot,
+                 yl_view: ?(root: ygdata.Node, content_id: str),
+                 sources: dict[str, str]):
+        self.schema = schema
+        self.yl_view = yl_view
+        self.sources = sources
+
+
+def build_schema_serving(app_yang_src: list[str]) -> SchemaServing:
+    """Assemble the served corpus from the app's own module sources plus the
+    protocol closure this server implements (yang-library discovery and the
+    YANG-push family). On a module-name collision the app's source wins -- it
+    is what the served data was actually built from. Compiled once, at server
+    startup."""
+    sources: dict[str, str] = {}
+    srcs: list[str] = []
+    for src in app_yang_src + monitoring.yang_push_server_closure():
+        name = monitoring.yang_module_name(src)
+        if name is not None and name not in sources:
+            sources[name] = src
+            srcs.append(src)
+    schema = yang.compile(srcs)
+    return SchemaServing(schema, monitoring.build_yl_view([schema]), sources)
+
+
+def build_serving_capabilities(serving: SchemaServing) -> list[str]:
+    """The <hello> capability list when the server serves its schemas: base
+    NETCONF and writable-running, with module discovery through a single
+    yang-library:1.1 capability carrying the content-id (module_capabilities
+    falls back to per-module URIs if the corpus somehow lacks
+    ietf-yang-library). The YANG-push modules are then discovered from the
+    library rather than from explicit hello capabilities."""
+    return [netconf.CAP_NC_1_0, netconf.CAP_NC_1_1, CAP_WRITABLE_RUNNING] + \
+        monitoring.module_capabilities([serving.schema], serving.yl_view)
+
+
 actor StaticAuthChecker(expected_user: str, expected_password: str):
     """An SSH authentication check for a single static username + password.
 
@@ -59,7 +112,7 @@ actor StaticAuthChecker(expected_user: str, expected_password: str):
         respond(user == expected_user and password == expected_password)
 
 
-actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRoot, cfs: ttt.Layer, capabilities: ?list[str]=None, on_close: ?action(NetconfSession) -> None=None, session_seq: int=0, subscription_schema: ?yschema.DRoot=None):
+actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRoot, cfs: ttt.Layer, capabilities: ?list[str]=None, serving: ?SchemaServing=None, on_close: ?action(NetconfSession) -> None=None, session_seq: int=0, subscription_schema: ?yschema.DRoot=None):
     """A single NETCONF session driving the configuration tree.
 
     Wraps a netconf.Server bound to `pipe` (one transport channel) and handles
@@ -69,6 +122,12 @@ actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRo
     lock/unlock -- is rejected with operation-not-supported rather than faked.
     Incoming <config> is parsed against `top_schema`, carrying per-node NETCONF
     operation= semantics (merge/create/delete/remove/replace) into the edit.
+
+    With a SchemaServing the session is schema-discoverable (RFC 8525 + 6022):
+    <get> replies carry the ietf-yang-library view alongside the datastore, and
+    <get-schema> answers with module source, so a client can list and download
+    every served module. Without one those are absent, and get-schema is
+    rejected like any other unimplemented RPC.
 
     YANG-push (RFC 8641) periodic subscriptions are served from the same cfs
     datastore via a per-session TttSubscriptionService, which drives TTT's native
@@ -119,14 +178,35 @@ actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRo
                         return ds.tag
         return None
 
-    def _read(filter_node: ?xml.Node) -> list[xml.Node]:
+    def _read(filter_node: ?xml.Node, include_yang_library: bool) -> list[xml.Node]:
+        # Filters parse against the serving corpus when there is one: unlike the
+        # config-only top schema it also knows config-false state and the
+        # yang-library tree. The datastore itself has no nodes outside the top
+        # schema, so the wider filter schema changes what parses, not what the
+        # datastore returns.
+        fschema = top_schema
+        sv = serving
+        if sv is not None:
+            fschema = sv.schema
         filt: ?ygdata.FNode = None
         if filter_node is not None:
-            filt = yxml.from_filter_xml(top_schema, filter_node)
+            filt = yxml.from_filter_xml(fschema, filter_node)
         data = cfs.newsession().get_data(filt)
+        children: list[xml.Node] = []
         if data is not None:
-            return data.to_xml(deterministic=True)
-        return []
+            children = data.to_xml(deterministic=True)
+        # Overlay the yang-library view (operational data, so <get> only),
+        # honoring the same filter, so a client can discover the served modules.
+        if sv is not None and include_yang_library:
+            ylv = sv.yl_view
+            if ylv is not None:
+                if filt is None:
+                    children = children + ylv.root.to_xml(deterministic=True)
+                else:
+                    yl_filtered = ygdata.filter(ylv.root, filt)
+                    if yl_filtered is not None:
+                        children = children + yl_filtered.to_xml(deterministic=True)
+        return children
 
     def _parse_config(config_node: xml.Node) -> ygdata.Container:
         # Wrap the <config> children in a <data> root and parse against the top
@@ -159,11 +239,19 @@ actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRo
                 return
             data_children: list[xml.Node] = []
             try:
-                data_children = _read(filter_node)
+                data_children = _read(filter_node, op.tag == "get")
             except Exception as e:
                 s.send_error(message_id, "invalid-value", "Failed to read datastore: {e}")
                 return
             s.send_reply(message_id, [xml.Node("data", [(None, NS_NC_1_0)], children=data_children)])
+        elif op.tag == "get-schema" and serving is not None:
+            sv = serving
+            if sv is not None:
+                reply = monitoring.get_schema_reply(op, sv.sources)
+                if reply is not None:
+                    s.send_reply(message_id, [reply])
+                else:
+                    s.send_error(message_id, "invalid-value", "unknown schema module")
         elif op.tag == "edit-config":
             if _datastore(op, "target") != "running":
                 s.send_error(message_id, "operation-not-supported", "Only the running datastore is writable")
@@ -230,6 +318,7 @@ actor NetconfServer(
     on_listen: ?action(?Exception) -> None = None,
     subscription_schema: ?yschema.DRoot = None,
     ssh_transport: ?ssh.TransportConfig = None,
+    yang_src: ?list[str] = None,
 ):
     """Northbound NETCONF server over SSH.
 
@@ -239,13 +328,29 @@ actor NetconfServer(
     OpenSSH text); when None the SSH library generates an ephemeral in-memory
     host key per run. Reading a key from disk is the caller's job.
 
+    `yang_src` is the app's YANG module sources (the texts `top_schema` was
+    compiled from). When given, the server is schema-discoverable: <hello>
+    advertises yang-library:1.1, <get> carries the ietf-yang-library view, and
+    <get-schema> serves module source for the whole corpus (the app modules
+    plus the YANG-push protocol closure), so a stock client can fetch the
+    schema and parse everything this server sends. When None, module discovery
+    stays hello-capability only and get-schema is not served.
+
     Authentication defaults to a static username/password check
     (StaticAuthChecker). Pass `auth_check` to plug in any checker with the same
     asynchronous shape -- e.g. one validating credentials against an external
     service over the network before responding.
     """
     _log = logging.Logger(log_handler)
-    _capabilities = build_capabilities(top_schema)
+    var _serving: ?SchemaServing = None
+    var _capabilities: list[str] = []
+    _ysrc = yang_src
+    if _ysrc is not None:
+        _sv = build_schema_serving(_ysrc)
+        _serving = _sv
+        _capabilities = build_serving_capabilities(_sv)
+    else:
+        _capabilities = build_capabilities(top_schema)
     _auth = auth_check if auth_check is not None else StaticAuthChecker(username, password).check
     var _sessions: list[NetconfSession] = []
     var _session_seq: int = 0
@@ -275,7 +380,7 @@ actor NetconfServer(
     def _on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
         _session_seq += 1
         _log.info("NETCONF session accepted", {"session": _session_seq})
-        _sessions.append(NetconfSession(p, log_handler, top_schema, cfs, _capabilities, on_close=_session_closed, session_seq=_session_seq, subscription_schema=subscription_schema))
+        _sessions.append(NetconfSession(p, log_handler, top_schema, cfs, _capabilities, serving=_serving, on_close=_session_closed, session_seq=_session_seq, subscription_schema=subscription_schema))
 
     listener = sshpipe.SshPipeListener(
         listen_cap,

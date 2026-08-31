@@ -2,12 +2,55 @@ import std.xml as xml
 import hash.wyhash as wyhash
 
 import ietf_yang_library as yl
+import swyang
 import yang.gdata as ygdata
 import yang.schema as yschema
 
 
 NS_YANG_LIBRARY = "urn:ietf:params:xml:ns:yang:ietf-yang-library"
 NS_NETCONF_MONITORING = "urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring"
+
+
+def yang_module_name(src: str) -> ?str:
+    """The module name from a YANG module source text's `module <name>` header.
+
+    Token-level, no compile: it reads the two tokens before the first opening
+    brace, so a server can key its get-schema source map straight from source
+    texts. Returns None for anything else (a submodule, or text preceded by a
+    comment) -- the corpora this serves (generated src_yang() lists and the
+    swyang constants) all start with the module statement.
+    """
+    head = src.split("{{", 1)[0].replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    tokens = []
+    for t in head.split(" ", -1):
+        if t != "":
+            tokens.append(t)
+    if len(tokens) == 2 and tokens[0] == "module":
+        return tokens[1]
+    return None
+
+
+def yang_push_server_closure() -> list[str]:
+    """The YANG sources a NETCONF server needs, beyond its own data modules, to
+    advertise and serve dynamic YANG-push with schema discovery: ietf-yang-library
+    (so a client can discover the corpus), the YANG-push family it implements
+    (RFC 8639/8641, plus the yang-patch that push-change-update carries), and
+    their transitive imports."""
+    return [
+        swyang.ietf_yang_library,
+        swyang.ietf_datastores,
+        swyang.ietf_yang_types,
+        swyang.ietf_inet_types,
+        swyang.ietf_subscribed_notifications,
+        swyang.ietf_yang_push,
+        swyang.ietf_restconf,
+        swyang.ietf_yang_patch,
+        swyang.ietf_interfaces,
+        swyang.ietf_netconf_acm,
+        swyang.ietf_network_instance,
+        swyang.ietf_ip,
+        swyang.ietf_yang_schema_mount,
+    ]
 
 
 def build_yang_library(schemas: list[yschema.DRoot]) -> (root: ygdata.Node, content_id: str):

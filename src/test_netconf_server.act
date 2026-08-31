@@ -20,6 +20,12 @@ device adapter emits); a filter outside the schema and an xpath filter are
 rejected without allocating an id; and two sessions on one TTT layer stay
 isolated, with a datastore change reaching both. A loopback-SSH test also checks
 that a session's subscriptions are released when it closes.
+
+Schema serving (a session given a SchemaServing) is covered over the pipe: the
+hello carries a single yang-library:1.1 capability, <get> overlays the
+ietf-yang-library view (<get-config> does not), <get-schema> answers with module
+source or an rpc-error, and a stock client's list_schemas discovers the whole
+corpus end to end.
 """
 
 import logging
@@ -29,6 +35,7 @@ import std.xml as xml
 
 import netconf
 
+import monitoring
 import ttt as ttt
 import yang
 import yang.gdata as gdata
@@ -936,3 +943,200 @@ actor _test_subscription_subtree_filter_keyed_entry_oper(t: testing.AsyncT):
 
     client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, _on_notif, True, lh, pipe=pipes.client)
     after 5.0: fail(ValueError("timed out waiting for the keyed entry's filtered push-update"))
+
+
+# ---------------------------------------------------------------------------
+# Schema serving (RFC 8525 yang-library discovery + RFC 6022 get-schema)
+# ---------------------------------------------------------------------------
+
+def _test_yang_module_name():
+    cases: list[(str, ?str)] = [
+        (DEMO_YANG, "demo"),
+        ("module  foo {{\n}}", "foo"),
+        ("submodule bar {{\n}}", None),
+        ("// comment first\nmodule baz {{\n}}", None),
+    ]
+    for src, want in cases:
+        testing.assertEqual(monitoring.yang_module_name(src), want, "module name of: {src}")
+
+
+def _test_serving_capabilities():
+    serving = swnetconf.build_schema_serving([DEMO_YANG])
+    if "demo" not in serving.sources:
+        raise ValueError("expected the app module 'demo' in the get-schema sources")
+    if "ietf-yang-push" not in serving.sources:
+        raise ValueError("expected the closure module 'ietf-yang-push' in the get-schema sources")
+    caps = swnetconf.build_serving_capabilities(serving)
+    yl_caps = [c for c in caps if c.startswith("urn:ietf:params:netconf:capability:yang-library:1.1?")]
+    testing.assertEqual(len(yl_caps), 1, "expected exactly one yang-library:1.1 capability, got: {caps}")
+    for c in caps:
+        if "?module=" in c:
+            raise ValueError("per-module capability alongside yang-library: {c}")
+
+
+def _reply_data_child_tags(reply: ?xml.Node) -> list[str]:
+    """The tags of the <data> children in an rpc-reply."""
+    tags = []
+    if reply is not None:
+        for data in reply.children:
+            if data.tag == "data":
+                for child in data.children:
+                    tags.append(child.tag)
+    return tags
+
+
+actor _test_get_schema_roundtrip(t: testing.AsyncT):
+    """get-schema answers with module source; an unknown module is an rpc-error."""
+    lh = logging.Handler("nctest")
+    schema = _demo_schema()
+    layer = _demo_layer()
+    serving = swnetconf.build_schema_serving([DEMO_YANG])
+    caps = swnetconf.build_serving_capabilities(serving)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps, serving=serving)
+
+    var done = False
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_unknown(c: netconf.Client, reply: ?xml.Node, err: ?netconf.NetconfError):
+        if err is None:
+            fail(ValueError("expected an rpc-error for an unknown module"))
+            return
+        if not done:
+            done = True
+            t.success()
+
+    def _on_schema(c: netconf.Client, reply: ?xml.Node, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        text: ?str = None
+        if reply is not None:
+            for data in reply.children:
+                if data.tag == "data":
+                    text = data.text
+        txt = text
+        if txt is not None and "module demo" in txt:
+            c.get_schema(_on_unknown, "no-such-module")
+        else:
+            fail(ValueError("get-schema reply did not carry the demo module source"))
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        c.get_schema(_on_schema, "demo")
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, None, True, lh, pipe=pipes.client)
+
+    after 5.0: fail(ValueError("timed out waiting for get-schema"))
+
+
+actor _test_get_carries_yang_library(t: testing.AsyncT):
+    """<get> overlays the ietf-yang-library view on the datastore; <get-config>,
+    being config only, does not."""
+    lh = logging.Handler("nctest")
+    schema = _demo_schema()
+    layer = _demo_layer()
+    serving = swnetconf.build_schema_serving([DEMO_YANG])
+    caps = swnetconf.build_serving_capabilities(serving)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps, serving=serving)
+
+    var done = False
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_get_config(c: netconf.Client, reply: ?xml.Node, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        tags = _reply_data_child_tags(reply)
+        if "yang-library" in tags:
+            fail(ValueError("get-config must not carry the yang-library view, got: {tags}"))
+            return
+        if "system" not in tags:
+            fail(ValueError("get-config lost the datastore contents, got: {tags}"))
+            return
+        if not done:
+            done = True
+            t.success()
+
+    def _on_get(c: netconf.Client, reply: ?xml.Node, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        tags = _reply_data_child_tags(reply)
+        if "system" not in tags or "yang-library" not in tags:
+            fail(ValueError("expected datastore contents and the yang-library view in get, got: {tags}"))
+            return
+        c.get_config(_on_get_config, "running")
+
+    def _on_edit(c: netconf.Client, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        c.get(_on_get)
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        seed = xml.decode('<system xmlns="urn:demo"><hostname>r1</hostname></system>')
+        c.edit_config([seed], _on_edit)
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, None, True, lh, pipe=pipes.client)
+
+    after 5.0: fail(ValueError("timed out waiting for get / get-config"))
+
+
+actor _test_list_schemas_discovery(t: testing.AsyncT):
+    """A stock client discovers the served corpus end to end: the hello's
+    yang-library:1.1 capability routes list_schemas to the yang-library query,
+    which the filtered <get> answers, so every served module is listed."""
+    lh = logging.Handler("nctest")
+    schema = _demo_schema()
+    layer = _demo_layer()
+    serving = swnetconf.build_schema_serving([DEMO_YANG])
+    caps = swnetconf.build_serving_capabilities(serving)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps, serving=serving)
+
+    var done = False
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_list(c: netconf.Client, schemas: list[(identifier: str, namespace: str, version: str, format: str)], err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        names = []
+        for s in schemas:
+            names.append(s.identifier)
+        for want in ["demo", "ietf-yang-push", "ietf-subscribed-notifications", "ietf-yang-library"]:
+            if want not in names:
+                fail(ValueError("expected module {want} in the discovered list, got: {names}"))
+                return
+        if not done:
+            done = True
+            t.success()
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        c.list_schemas(_on_list)
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, None, True, lh, pipe=pipes.client)
+
+    after 5.0: fail(ValueError("timed out waiting for list-schemas"))
