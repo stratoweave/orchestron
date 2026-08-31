@@ -1953,6 +1953,9 @@ class _TransformTransactionBase(_Transaction):
     essays: dict[str, (?gdata.Node, ?gdata.Node)]
     running: dict[str, gdata.Node]
     memory: ?gdata.Node
+    dynstate: ?gdata.Node
+    node: ?Node
+    lower: ?Layer
     output: ?gdata.Node
     oper: ?gdata.Node
     locker: ?str
@@ -1976,13 +1979,16 @@ class _TransformTransactionBase(_Transaction):
     clear : proc(tid: str, out: ?Session) -> None
     finalize : proc(tid: str) -> None
 
-    def __init__(self, path, build_links):
+    def __init__(self, path, build_links, lower):
         self.diffs = {}
         self.candidates = {}
         self.essays = {}
         self.path = path
         self.running = {}
         self.memory = None
+        self.dynstate = None
+        self.node = None
+        self.lower = lower
         self.output = None
         self.oper = None
         self.locker = None
@@ -2292,16 +2298,10 @@ def TransformTransaction(path, function, build_links, lower, log_handler):
 
 class _TransformTransaction(_TransformTransactionBase):
     function: TransformFunction
-    dynstate: ?gdata.Node
-    node: ?Node
-    lower: ?Layer
 
     def __init__(self, path, function: proc(?logging.Handler) -> TransformFunction, build_links, lower: ?Layer, log_handler):
-        self.dynstate = None
-        self.node = None
-        _TransformTransactionBase.__init__(self, path, build_links)
+        _TransformTransactionBase.__init__(self, path, build_links, lower)
         self.function = function(log_handler)
-        self.lower = lower
 
     def compute(self, tid, merged, linked, out):
         newoutmem = self.function.transform_wrapper(merged, linked, self.memory, self.dynstate)
@@ -2417,18 +2417,12 @@ class _RFSTransaction(_TransformTransactionBase):
     function: RFSFunction
     devname: str
     dev: swdev.DeviceMgr
-    dynstate: ?gdata.Node
-    node: ?Node
-    lower: ?Layer
 
     def __init__(self, path, function: proc(?logging.Handler) -> RFSFunction, dev_registry: swdev.DeviceRegistry, lower: ?Layer, log_handler):
-        self.dynstate = None
-        self.node = None
         self.devname = devname_from_rfs_path(path)
-        _TransformTransactionBase.__init__(self, path, None)
+        _TransformTransactionBase.__init__(self, path, None, lower)
         self.function = function(log_handler)
         self.dev = dev_registry.get_or_create(self.devname)
-        self.lower = lower
 
     def compute(self, tid, merged, linked, out):
         #print('####', tid, '(RFSTransform)', _format_path(self.path), 'compute', actorid(), err=True)
