@@ -157,6 +157,99 @@ def render_data_tree(data_node, use_color: bool=True) -> str:
     return "\n".join(lines)
 
 
+def _tbl_local(seg: str) -> str:
+    """The local name of a path segment, module prefix stripped."""
+    return seg.split(":", -1)[-1]
+
+def _tbl_child(node: ygdata.Node, name: str) -> ?ygdata.Node:
+    """A gdata node's child by local name (namespaces ignored: the table is a
+    human view, and a slash path without prefixes keeps the CLI ergonomic)."""
+    local = _tbl_local(name)
+    for cid, child in node.children.items():
+        if cid.name == local:
+            return child
+    return None
+
+def _tbl_walk(node: ygdata.Node, path: str) -> ?ygdata.Node:
+    """Resolve a slash path of local names from a gdata node."""
+    current: ygdata.Node = node
+    for seg in path.strip("/").split("/", -1):
+        if seg == "":
+            continue
+        nxt = _tbl_child(current, seg)
+        if nxt is not None:
+            current = nxt
+        else:
+            return None
+    return current
+
+def _tbl_cell(entry: ygdata.Node, col: str) -> str:
+    """One column value from a row entry: the leaf at a relative slash path."""
+    node = _tbl_walk(entry, col)
+    if node is not None:
+        leaf = node
+        if isinstance(leaf, ygdata.Leaf):
+            return str(leaf.val)
+    return "-"
+
+def _tbl_natural_key(s: str) -> str:
+    """A sort key where digit runs compare numerically (zero-padded), so peer
+    10.123.2.x orders before 10.123.16.x the way `sort -V` would."""
+    out: list[str] = []
+    digits = ""
+    for c in s:
+        if c >= "0" and c <= "9":
+            digits += c
+        else:
+            if digits != "":
+                out.append(("0" * (12 - len(digits)) if len(digits) < 12 else "") + digits)
+                digits = ""
+            out.append(c)
+    if digits != "":
+        out.append(("0" * (12 - len(digits)) if len(digits) < 12 else "") + digits)
+    return "".join(out)
+
+def render_data_table(tree: ygdata.Node, path: str, columns: list[str], use_color: bool) -> str:
+    """Render the entries of the list at `path` as a table, one row per entry.
+
+    Each column is a leaf path relative to a row entry; a missing leaf renders
+    as "-". Rows are natural-sorted by their column values left to right, so a
+    numbered series (VLANs, addresses) reads in numeric order."""
+    header_cells = [_tbl_local(c.strip("/").split("/", -1)[-1]) for c in columns]
+    rows: list[(key: str, cells: list[str])] = []
+    rows_node = _tbl_walk(tree, path)
+    if rows_node is not None:
+        rows_list = rows_node
+        if isinstance(rows_list, ygdata.List):
+            for e in rows_list.elements:
+                cells = [_tbl_cell(e, c) for c in columns]
+                rows.append((key="|".join([_tbl_natural_key(x) for x in cells]), cells=cells))
+    # Insertion sort by key: row counts here are human-scale.
+    ordered: list[(key: str, cells: list[str])] = []
+    for r in rows:
+        at = len(ordered)
+        for i in range(len(ordered)):
+            if r.key < ordered[i].key:
+                at = i
+                break
+        ordered.insert(at, r)
+    widths: list[int] = []
+    for i in range(len(header_cells)):
+        w = len(header_cells[i])
+        for r in ordered:
+            if len(r.cells[i]) > w:
+                w = len(r.cells[i])
+        widths.append(w)
+    lines = ["  ".join([header_cells[i].ljust(widths[i]) for i in range(len(header_cells))])]
+    for r in ordered:
+        cell_strs = []
+        for i in range(len(r.cells)):
+            cell = r.cells[i].ljust(widths[i])
+            cell_strs.append(_color_value(cell, use_color) if i == len(r.cells) - 1 else cell)
+        lines.append("  ".join(cell_strs))
+    return "\n".join(lines)
+
+
 def extract_rpc_content(request_xml: str) -> xml.Node:
     try:
         root = xml.decode(request_xml)
@@ -1023,6 +1116,12 @@ actor CmdMonitor(env, args, log_handler):
     filter_subtree = args.get_str("filter-subtree")
     format = args.get_str("format")
     on_change = args.get_bool("on-change")
+    table_path = args.get_str("table-path")
+    table_columns: list[str] = []
+    for _col in args.get_str("table-columns").split(",", -1):
+        _col_stripped = _col.strip()
+        if _col_stripped != "":
+            table_columns.append(_col_stripped)
 
     owner_id = "ncurl-monitor"
     var dev: ?swdev.DeviceMgr = None
@@ -1066,6 +1165,10 @@ actor CmdMonitor(env, args, log_handler):
         if n is not None:
             if format == "raw":
                 print(n.to_xmlstr())
+            elif format == "table":
+                # Live table: home + clear, then redraw in place like watch/top.
+                header = "ncurl monitor — {host}:{port}  ({status_str}, updates={received})"
+                print("\x1b[H\x1b[J{header}\n\n{render_data_table(n, table_path, table_columns, use_color=True)}")
             else:
                 # Live tree: home + clear, then redraw in place like watch/top.
                 wrapper = xml.Node("data", children=n.to_xml())
@@ -1108,6 +1211,9 @@ actor CmdMonitor(env, args, log_handler):
         env.exit(1)
     elif filter_error is not None:
         print("Error: invalid --filter-subtree XML: {filter_error}", err=True)
+        env.exit(1)
+    elif format == "table" and (table_path == "" or len(table_columns) == 0):
+        print("Error: --format table needs --table-path (the list to render) and --table-columns (comma-separated leaf paths)", err=True)
         env.exit(1)
     else:
         # Build a stratoweave DeviceAdapter pointed at the target device and
@@ -1263,7 +1369,9 @@ actor main(env):
         p_monitor.add_option("period", "str", "?", "1.0", "Poll period in seconds (periodic mode)")
         p_monitor.add_option("count", "int", "?", 0, "Stop after N updates (0 = run until interrupted)")
         p_monitor.add_option("filter-subtree", "str", "?", "", "XML subtree filter (limits what is monitored)")
-        p_monitor.add_option("format", "str", "?", "tree", "Output format: tree (live view) or raw (xml)")
+        p_monitor.add_option("format", "str", "?", "tree", "Output format: tree (live view), table (one row per list entry, see --table-path), or raw (xml)")
+        p_monitor.add_option("table-path", "str", "?", "", "Table mode: slash path to the list whose entries become rows (e.g. netinfra/ebgp-peer)")
+        p_monitor.add_option("table-columns", "str", "?", "", "Table mode: comma-separated leaf paths relative to a row (e.g. router,peer-address,state/session-state)")
         p_monitor.add_bool("on-change", "Subscribe on-change instead of periodic (RFC 8641); the device must support yang-push")
 
         return p.parse(env.argv)
