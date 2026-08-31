@@ -54,6 +54,25 @@ def _service_cfg() -> gdata.Node:
     })
 
 
+def _three_service_cfg() -> gdata.Node:
+    return gdata.Container({
+        q("service"): gdata.List([q("name")], [
+            gdata.Container({
+                q("name"): gdata.Leaf("svc-a"),
+                q("enabled"): gdata.Leaf(True),
+            }),
+            gdata.Container({
+                q("name"): gdata.Leaf("svc-b"),
+                q("enabled"): gdata.Leaf(True),
+            }),
+            gdata.Container({
+                q("name"): gdata.Leaf("svc-c"),
+                q("enabled"): gdata.Leaf(True),
+            }),
+        ]),
+    })
+
+
 def _service_oper_all() -> gdata.Node:
     return gdata.Container({
         q("service"): gdata.List([q("name")], [
@@ -307,6 +326,91 @@ actor get_data_scans_with_element_predicate(t: testing.AsyncT):
         t.success()
 
     layer.edit_config(_service_cfg(), cont)
+
+
+actor get_data_absent_exact_key_reads_nothing(t: testing.AsyncT):
+    """A key the list does not hold is absent, not the rest of the list.
+
+    An exact-key read looks its keys up instead of walking the list, so the
+    case worth pinning is the lookup that misses: it must answer None rather
+    than fall back to everything the list holds.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(OperTransform, OperPublisherCtor), [q("name")]),
+    }), None)
+
+    def cont(_r: value):
+        after 0: check()
+
+    def check():
+        filt = gdata.FNode(q("service"), children=[
+            gdata.FNode(q("name"), value_match="svc-nope"),
+            gdata.FNode(q("status")),
+        ])
+        testing.assertEqual(layer.newsession().get_data(filt), None)
+        t.success()
+
+    layer.edit_config(_service_cfg(), cont)
+
+
+def _service_names(data: ?gdata.Node) -> list[str]:
+    """Get the name of every service entry, in the order that the read gave."""
+    names = []
+    if data is not None:
+        lst = data.children.get(q("service"))
+        if isinstance(lst, gdata.List):
+            for elem in lst.elements:
+                name = elem.get_opt_str(q("name"))
+                if name is not None:
+                    names.append(name)
+    return names
+
+
+actor get_data_exact_keys_read_only_those_entries(t: testing.AsyncT):
+    """Read the two entries that the filter names, out of three.
+
+    The read routes straight to the entries that the filter names, so this
+    test names more than one key, and checks that the entry that nobody names
+    stays out of the result.
+
+    The test sorts before it compares, and asserts nothing about the order it
+    got. The order of the entries of a TTT list means nothing, and the read
+    passes on the order that its own structures give rather than sorting. Do
+    not add an order check here.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(OperTransform, OperPublisherCtor), [q("name")]),
+    }), None)
+    var attempts = 0
+
+    def cont(_r: value):
+        after 0: check()
+
+    def check():
+        attempts += 1
+        # The two branches select different children, so that the filter merge
+        # keeps them apart and the read gets two keys to route.
+        filt = gdata.FNode(children=[
+            gdata.FNode(q("service"), children=[
+                gdata.FNode(q("name"), value_match="svc-c"),
+                gdata.FNode(q("status")),
+            ]),
+            gdata.FNode(q("service"), children=[
+                gdata.FNode(q("name"), value_match="svc-a"),
+                gdata.FNode(q("metrics"), children=[gdata.FNode(q("rx"))]),
+            ]),
+        ])
+        got = sorted(_service_names(layer.newsession().get_data(filt)))
+        if got != ["svc-a", "svc-c"]:
+            if attempts > 100:
+                t.failure(ValueError("Timed out waiting for the two named services, got {got}"))
+                return
+            after 0.01: check()
+            return
+        testing.assertEqual(got, ["svc-a", "svc-c"])
+        t.success()
+
+    layer.edit_config(_three_service_cfg(), cont)
 
 
 actor read_data_merges_config_and_oper(t: testing.AsyncT):
