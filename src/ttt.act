@@ -1952,6 +1952,7 @@ class _TransformTransactionBase(_Transaction):
     candidates: dict[str, dict[str, gdata.Node]]
     essays: dict[str, (?gdata.Node, ?gdata.Node)]
     running: dict[str, gdata.Node]
+    memory: ?gdata.Node
     output: ?gdata.Node
     oper: ?gdata.Node
     locker: ?str
@@ -1981,6 +1982,7 @@ class _TransformTransactionBase(_Transaction):
         self.essays = {}
         self.path = path
         self.running = {}
+        self.memory = None
         self.output = None
         self.oper = None
         self.locker = None
@@ -2192,7 +2194,7 @@ class _TransformTransactionBase(_Transaction):
                 self.output = essay.0 if essay is not None else None
                 if candidate == {}:
                     self.oper = None
-                self.update_memory(essay.1 if essay is not None else None)
+                self.memory = essay.1 if essay is not None else None
                 self.linked = linked
                 self.subscriptions = subscriptions
                 self.subscribers = subscribers
@@ -2212,9 +2214,6 @@ class _TransformTransactionBase(_Transaction):
         else:
             #print('   #', tid, '(Transform)', _format_path(self.path), 'IGNORING', err=True)
             pass
-
-    mut def update_memory(self, newmem: ?gdata.Node):
-        pass
 
     def bind_db(self, db: ?swdb.Store) -> None:
         self.db = db
@@ -2293,13 +2292,11 @@ def TransformTransaction(path, function, build_links, lower, log_handler):
 
 class _TransformTransaction(_TransformTransactionBase):
     function: TransformFunction
-    memory: ?gdata.Node
     dynstate: ?gdata.Node
     node: ?Node
     lower: ?Layer
 
     def __init__(self, path, function: proc(?logging.Handler) -> TransformFunction, build_links, lower: ?Layer, log_handler):
-        self.memory = None
         self.dynstate = None
         self.node = None
         _TransformTransactionBase.__init__(self, path, build_links)
@@ -2321,9 +2318,6 @@ class _TransformTransaction(_TransformTransactionBase):
             res = difference(self.output, gdata.Container())
             if out is not None and res is not None:
                 out.configure(tid, {self.me: res})
-
-    def update_memory(self, newmem):
-        self.memory = newmem
 
     mut def db_ops(self, tid: str, essay) -> list[swdb.BufferOp]:
         return _TransformTransactionBase.db_ops(self, tid, essay) + swdb.opt_ops(_db_path(self.path), swdb.ATTR_MEMORY, essay.1) + swdb.opt_ops(_db_path(self.path), swdb.ATTR_DYNSTATE, self.dynstate)
@@ -2423,13 +2417,11 @@ class _RFSTransaction(_TransformTransactionBase):
     function: RFSFunction
     devname: str
     dev: swdev.DeviceMgr
-    memory: ?gdata.Node
     dynstate: ?gdata.Node
     node: ?Node
     lower: ?Layer
 
     def __init__(self, path, function: proc(?logging.Handler) -> RFSFunction, dev_registry: swdev.DeviceRegistry, lower: ?Layer, log_handler):
-        self.memory = None
         self.dynstate = None
         self.node = None
         self.devname = devname_from_rfs_path(path)
@@ -2483,9 +2475,6 @@ class _RFSTransaction(_TransformTransactionBase):
                 ])
             })
         }, ns=NS_stratoweave_device, module="stratoweave-device")
-
-    def update_memory(self, newmem):
-        self.memory = newmem
 
     mut def db_ops(self, tid: str, essay) -> list[swdb.BufferOp]:
         return _TransformTransactionBase.db_ops(self, tid, essay) + swdb.opt_ops(_db_path(self.path), swdb.ATTR_MEMORY, essay.1) + swdb.opt_ops(_db_path(self.path), swdb.ATTR_DYNSTATE, self.dynstate)
