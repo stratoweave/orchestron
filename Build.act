@@ -28,8 +28,9 @@ dependencies = {
     ),
     "yang": (
         repo_url="https://github.com/stratoweave/acton-yang.git",
-        url="https://github.com/stratoweave/acton-yang/archive/20c744c934dd7d76d501aec0b4d1cf2582a87476.zip",
-        hash="N-V-__8AAGDKJwBBv9yrhaAupRZabnJIMPIuB8MoKTPlARfR"
+        repo_ref="flapmusik",
+        url="https://github.com/stratoweave/acton-yang/archive/4280ab723f3e3a9ee9db09203286c747109b8be4.zip",
+        hash="N-V-__8AAFX9JwBWIiD2LPGyFt8OS4f-57Qghu9gu80BOQt3"
     )
 }
 zig_dependencies = {}

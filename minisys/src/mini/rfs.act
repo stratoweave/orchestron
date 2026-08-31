@@ -55,6 +55,9 @@ actor BaseConfigTransform(path, update_dynstate: proc(?BaseConfigDynstate)->None
         want: set[gdata.Delivery] = set()
         if "ietf-system" in dev.get_modules().0:
             state_dst = ietf_oper.dst(on_state)
+            # A device subscription, not a layer one: on-change needs the device
+            # to push natively (yang-push), so a device without it takes a
+            # period, which the adapter emulates by polling.
             want.add(state_dst.deliver({
                 ietf_oper.subs.system_state.clock.subscribe(period=0.01)
             }))

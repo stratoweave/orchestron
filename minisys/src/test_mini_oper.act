@@ -123,6 +123,7 @@ actor _test_oper_paths(t: testing.EnvT):
         period=1.0,
     )
     got_list = oper.interfaces.interface.subscribe(depth=1, period=1.0)
+    # No period: nothing to poll, so the builder asks for on-change delivery.
     expect_clock_on_change = gdata.SubscriptionSpec(
         gdata.FNode(q_sys("system-state"), children=[
             gdata.FNode(q_sys("clock"), children=[
@@ -130,6 +131,7 @@ actor _test_oper_paths(t: testing.EnvT):
                 gdata.FNode(q_sys("boot-datetime")),
             ]),
         ]),
+        on_change=True,
     )
     got_clock_on_change = clock.subscribe(depth=1)
 

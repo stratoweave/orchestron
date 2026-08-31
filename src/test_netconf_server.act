@@ -10,14 +10,16 @@ Two angles, both against a real TTT layer:
 
 YANG-push subscriptions are served per session by a TttSubscriptionService, and
 covered over the pipe: a periodic establish-subscription is accepted (returns a
-subscription-id), a raw on-change establish-subscription is rejected with an
-rpc-error (the client helper only builds periodic requests), a subtree filter
-narrows the push to the selected nodes (a container leaf, and one keyed list
-entry's oper subtree using the filter XML the device adapter emits), a filter
-outside the schema and an xpath filter are rejected without allocating an id,
-and two sessions on one TTT layer stay isolated, with a datastore change
-reaching both. A loopback-SSH test also
-checks that a session's subscriptions are released when it closes.
+subscription-id); a raw on-change establish-subscription is accepted and delivers
+a sync-on-start push-update followed by a push-change-update carrying a yang-patch
+of the change (the client helper only builds periodic requests, so on-change is
+sent as raw XML); an on-change request asking for a dampening-period is rejected
+with an rpc-error; a subtree filter narrows the push to the selected nodes (a
+container leaf, and one keyed list entry's oper subtree using the filter XML the
+device adapter emits); a filter outside the schema and an xpath filter are
+rejected without allocating an id; and two sessions on one TTT layer stay
+isolated, with a datastore change reaching both. A loopback-SSH test also checks
+that a session's subscriptions are released when it closes.
 """
 
 import logging
@@ -31,6 +33,7 @@ import ttt as ttt
 import yang
 import yang.gdata as gdata
 import yang.schema as yschema
+import yang.ypatch as ypatch
 
 import netconf_server as swnetconf
 import yp
@@ -294,9 +297,10 @@ actor _test_edit_config_rejects_nonrunning_target(t: testing.AsyncT):
     after 5.0: fail(ValueError("timed out waiting for edit-config rejection"))
 
 
-actor _test_subscription_rejects_on_change(t: testing.AsyncT):
-    """An on-change establish-subscription is rejected: v1 serves periodic only,
-    so the server fails closed rather than quietly serving full-tree pushes."""
+actor _test_subscription_rejects_dampening_period(t: testing.AsyncT):
+    """An on-change subscription asking for a dampening-period is rejected: the
+    server delivers changes as they happen, so it fails closed rather than
+    serving updates at a rate the subscriber did not ask for."""
     lh = logging.Handler("nctest")
     schema = _demo_schema()
     layer = _demo_layer()
@@ -312,24 +316,132 @@ actor _test_subscription_rejects_on_change(t: testing.AsyncT):
             t.failure(e)
 
     def _on_reply(c: netconf.Client, reply: ?xml.Node, err: ?netconf.NetconfError):
-        # The client helper only builds periodic requests, so send a raw on-change
-        # establish; the server must reject it with an rpc-error.
         if err is not None:
             if not done:
                 done = True
                 t.success()
         else:
-            fail(ValueError("expected on-change to be rejected, got a reply"))
+            fail(ValueError("expected a dampened on-change subscription to be rejected, got a reply"))
 
     def _on_connect(c: netconf.Client, e: ?Exception):
         if e is not None:
             fail(ValueError("client connect failed: {e}"))
             return
-        op = xml.decode('<establish-subscription xmlns="urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications"><datastore xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-push" xmlns:ds="urn:ietf:params:xml:ns:yang:ietf-datastores">ds:operational</datastore><on-change xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-push"><dampening-period>0</dampening-period></on-change></establish-subscription>')
+        # The client helper only builds periodic requests, so send raw XML.
+        op = xml.decode('<establish-subscription xmlns="urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications"><datastore xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-push" xmlns:ds="urn:ietf:params:xml:ns:yang:ietf-datastores">ds:operational</datastore><on-change xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-push"><dampening-period>100</dampening-period></on-change></establish-subscription>')
         c.rpc(op, _on_reply)
 
     client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, None, True, lh, pipe=pipes.client)
-    after 5.0: fail(ValueError("timed out waiting for on-change rejection"))
+    after 5.0: fail(ValueError("timed out waiting for the dampening-period rejection"))
+
+
+actor _test_subscription_on_change_pushes_patch(t: testing.AsyncT):
+    """An on-change subscription is accepted, syncs, then reports a change.
+
+    The first notification is a full push-update baseline (sync-on-start); after
+    the datastore changes, the next one is a push-change-update whose yang-patch
+    describes exactly that change. Walks establish -> baseline -> change ->
+    patch over the pipe.
+    """
+    lh = logging.Handler("nctest")
+    schema = _demo_schema()
+    layer = _demo_layer()
+    caps = swnetconf.build_capabilities(schema)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps)
+
+    var done = False
+    var synced = False
+    var client: ?netconf.Client = None
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_edited(c: netconf.Client, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+
+    def _change():
+        c = client
+        if c is not None:
+            cfg = xml.decode('<system xmlns="urn:demo"><location>lab</location></system>')
+            c.edit_config([cfg], _on_edited)
+
+    def _check_patch(yang_patch: xml.Node):
+        patch = ypatch.Patch.from_xml(yang_patch)
+        edits = patch.edits
+        if len(edits) != 1:
+            fail(ValueError("expected one edit for one changed leaf, got {len(edits)}"))
+            return
+        e = edits[0]
+        if not e.target.endswith("system/location"):
+            fail(ValueError("unexpected edit target: {e.target}"))
+            return
+        v = e.value
+        if v is not None:
+            if v.text != "lab":
+                fail(ValueError("unexpected edit value: {v.text}"))
+            elif not done:
+                done = True
+                t.success()
+        else:
+            fail(ValueError("expected the edit to carry the new value"))
+
+    def _on_notif(c: netconf.Client, n: xml.Node):
+        if done:
+            return
+        pu = yp.parse_push_update(n)
+        if pu is not None:
+            # Baseline: the whole datastore, carrying the seeded hostname.
+            if not synced:
+                synced = True
+                if len(pu.contents) == 0:
+                    fail(ValueError("sync-on-start baseline carried no datastore contents"))
+                else:
+                    _change()
+            return
+        pcu = yp.parse_push_change_update(n)
+        if pcu is not None:
+            if not synced:
+                fail(ValueError("a change was pushed before the sync-on-start baseline"))
+                return
+            yang_patch = pcu.yang_patch
+            if yang_patch is not None:
+                _check_patch(yang_patch)
+            else:
+                fail(ValueError("push-change-update carried no yang-patch"))
+
+    def _on_reply(c: netconf.Client, reply: ?xml.Node, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+        elif reply is not None:
+            if yp.parse_subscription_id(reply) is None:
+                fail(ValueError("expected a subscription id in the reply"))
+        else:
+            fail(ValueError("expected an establish-subscription reply"))
+
+    def _on_seed(c: netconf.Client, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        # The client helper only builds periodic requests, so send raw XML.
+        op = xml.decode('<establish-subscription xmlns="urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications"><datastore xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-push" xmlns:ds="urn:ietf:params:xml:ns:yang:ietf-datastores">ds:operational</datastore><on-change xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-push"/></establish-subscription>')
+        c.rpc(op, _on_reply)
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        # Seed config so the baseline is non-empty, and so the change under test
+        # is one added leaf rather than the whole subtree appearing.
+        seed = xml.decode('<system xmlns="urn:demo"><hostname>r1</hostname></system>')
+        c.edit_config([seed], _on_seed)
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, _on_notif, True, lh, pipe=pipes.client)
+    after 10.0: fail(ValueError("timed out waiting for the on-change push (synced={synced})"))
 
 
 actor _test_subscription_periodic_accepted(t: testing.AsyncT):

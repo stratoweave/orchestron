@@ -552,6 +552,15 @@ actor Node(impl: _Node):
         """
         impl.bind_db(db)
 
+    def bind_notify(notify: ?action(gdata.FNode) -> None):
+        """Attach this node's (and its children's) change sink.
+
+        A node calls the sink with its own path, in gdata filter form, when its
+        committed data changed. Bound after construction, like the DB handle,
+        because the sink belongs to the layer that owns this tree.
+        """
+        impl.bind_notify(notify)
+
     def restore_from_db(reader: swdb.Reader, codec: swdb.KeyCodec, window: RestoreWindow, done: action(?Exception) -> None) -> None:
         """Restore persisted state rooted at this node's path."""
         impl.restore_from_db(reader, codec, window, done)
@@ -566,6 +575,8 @@ class _Node(object):
     def get_data(self, filt: ?gdata.FNode=None) -> ?gdata.Node:
         return gdata.filter(self.get(), filt)
     def bind_db(self, db: ?swdb.Store) -> None:
+        pass
+    proc def bind_notify(self, notify: ?action(gdata.FNode) -> None) -> None:
         pass
     restore_from_db: proc(swdb.Reader, swdb.KeyCodec, RestoreWindow, action(?Exception) -> None) -> None
     def is_empty(self) -> bool:
@@ -604,6 +615,9 @@ actor Transaction(impl: _Transaction):
     def bind_db(db: ?swdb.Store):
         impl.bind_db(db)
 
+    def bind_notify(notify: ?action(gdata.FNode) -> None):
+        impl.bind_notify(notify)
+
     def restore(attr: str, qualifier: ?str, raw: bytes):
         impl.restore(attr, qualifier, raw)
 
@@ -634,6 +648,9 @@ class _Transaction(object):
         return gdata.filter(self.get(), filt)
 
     def bind_db(self, db: ?swdb.Store) -> None:
+        pass
+
+    proc def bind_notify(self, notify: ?action(gdata.FNode) -> None) -> None:
         pass
 
     def restore(self, attr: str, qualifier: ?str, raw: bytes) -> None:
@@ -750,6 +767,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     root.bind_db(db_arg)
     var subs: dict[gdata.SubscriptionSpec, LayerSharedSubscription] = {}
     var sub_owners: dict[str, LayerSubscriptionOwner] = {}
+    var pending_flush: bool = False
 
     def load_from_db(done: action(?Exception) -> None, top_only=False) -> None:
         db = db_arg
@@ -802,20 +820,13 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
             return
         after layer_subscription_delay(st.spec): _sub_tick(spec)
 
-    def _sub_tick(spec: gdata.SubscriptionSpec):
+    def _sample(spec: gdata.SubscriptionSpec):
         """Sample one shared spec and publish the result to interested owners."""
         if spec not in subs:
             return
         st = subs[spec]
         if not st.active:
             return
-        if st.spec.period is None:
-            err = ValueError("TTT layer TreeProvider only supports periodic subscriptions")
-            for owner_id in st.owners:
-                _owner_publish(owner_id, err)
-            _sub_cancel(spec)
-            return
-
         try:
             st.latest = get_data(st.spec.filt)
             subs[spec] = st
@@ -824,17 +835,58 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         except Exception as e:
             for owner_id in st.owners:
                 _owner_publish(owner_id, e)
+
+    def _sub_tick(spec: gdata.SubscriptionSpec):
+        """Sample a periodic spec, then schedule its next sample."""
+        _sample(spec)
         _sub_schedule_next(spec)
 
+    def _node_changed(fpath: gdata.FNode) -> None:
+        """A node in this layer reported that the data it serves changed.
+
+        One transaction commits many nodes, each reporting separately, so
+        resampling is deferred to a single flush per batch. fpath is the
+        reporting node's path in filter form; it is not used to narrow the
+        flush yet, and is what a changed-path/filter intersection would match
+        against.
+        """
+        if not pending_flush:
+            pending_flush = True
+            after 0: _flush_changed()
+
+    def _flush_changed() -> None:
+        """Resample the on-change subscriptions after a batch of changes.
+
+        A commit is not atomic across the node tree, so a flush can read a tree
+        where later nodes of the same transaction have yet to commit. Those
+        nodes report their own change, which schedules another flush, and
+        per-owner suppression drops the delivery if the tree ends up equal - so
+        a subscriber can see an intermediate state, but never misses the final
+        one.
+        """
+        pending_flush = False
+        for spec in [s for s in subs.keys() if s.on_change]:
+            _sample(spec)
+
     def _add_owner_spec(owner_id: str, spec: gdata.SubscriptionSpec):
-        """Attach an owner to a shared spec, creating and starting it if needed."""
+        """Attach an owner to a shared spec, creating and starting it if needed.
+
+        A periodic spec starts its sampling timer; an on-change spec is sampled
+        once for a baseline and then only when a node reports a change.
+        """
+        if spec.period is None and not spec.on_change:
+            _owner_publish(owner_id, ValueError("TTT layer subscriptions must be periodic or on-change"))
+            return
         if spec in subs:
             st = subs[spec]
         else:
             st = LayerSharedSubscription(spec)
         st.owners.add(owner_id)
         subs[spec] = st
-        if st.latest is None and len(st.owners) == 1:
+        if spec.on_change:
+            if len(st.owners) == 1:
+                _sample(spec)
+        elif st.latest is None and len(st.owners) == 1:
             _sub_tick(spec)
 
     def _remove_owner_spec(owner_id: str, spec: gdata.SubscriptionSpec):
@@ -883,6 +935,8 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         del sub_owners[owner_id]
         for spec in old_want:
             _remove_owner_spec(owner_id, spec)
+
+    root.bind_notify(_node_changed)
 
 
 actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, dbuf_arg: ?swdb.Buffer=None):
@@ -1179,6 +1233,10 @@ class _Container(_Node):
         for node in self.elems.values():
             node.bind_db(db)
 
+    proc def bind_notify(self, notify: ?action(gdata.FNode) -> None) -> None:
+        for node in self.elems.values():
+            node.bind_notify(notify)
+
     def restore_from_db(self, reader: swdb.Reader, codec: swdb.KeyCodec, window: RestoreWindow, done: action(?Exception) -> None) -> None:
         ContainerRestore(self.path, self.elems, reader, codec, window, done)
 
@@ -1427,6 +1485,9 @@ class _List(_Node):
     def bind_db(self, db: ?swdb.Store) -> None:
         self.liststate.bind_db(db)
 
+    proc def bind_notify(self, notify: ?action(gdata.FNode) -> None) -> None:
+        self.liststate.bind_notify(notify)
+
     def restore_from_db(self, reader: swdb.Reader, codec: swdb.KeyCodec, window: RestoreWindow, done: action(?Exception) -> None) -> None:
         self.liststate.restore_from_db(reader, codec, window, done)
 
@@ -1515,11 +1576,17 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
     var active = {}
     var provisional = set()
     var db = None
+    var notify: ?action(gdata.FNode) -> None = None
 
     def bind_db(db1: ?swdb.Store) -> None:
         db = db1
         for node in elems.values():
             node.bind_db(db1)
+
+    def bind_notify(notify1: ?action(gdata.FNode) -> None) -> None:
+        notify = notify1
+        for node in elems.values():
+            node.bind_notify(notify1)
 
     def acquire(tid: str, keys: ?dict[str, dict[gdata.Id, gdata.Leaf]], full: ?set[str]) -> dict[str, Node]:
         if keys is not None:
@@ -1528,6 +1595,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
             for k in new:
                 node = template(PathKey(k, path, keys[k]), lower)
                 node.bind_db(db)
+                node.bind_notify(notify)
                 elems[k] = node
             provisional |= new
             #print('====', tid, path, 'acquire keys:', keys, 'new:', new, 'provisional:', provisional, actorid(), err=True)
@@ -1598,6 +1666,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
     def create_restored(key: str, leaves: dict[gdata.Id, gdata.Node]) -> Node:
         node = template(PathKey(key, path, leaves), lower)
         node.bind_db(db)
+        node.bind_notify(notify)
         elems[key] = node
         return node
 
@@ -1940,6 +2009,9 @@ class _TransformBase(_Node):
     def bind_db(self, db: ?swdb.Store) -> None:
         self.transaction.bind_db(db)
 
+    proc def bind_notify(self, notify: ?action(gdata.FNode) -> None) -> None:
+        self.transaction.bind_notify(notify)
+
     def restore_from_db(self, reader: swdb.Reader, codec: swdb.KeyCodec, window: RestoreWindow, done: action(?Exception) -> None) -> None:
         TransformRestore(self.path, self.transaction, reader, codec, window, done)
 
@@ -1970,6 +2042,8 @@ class _TransformTransactionBase(_Transaction):
 
     me: str
     db: ?swdb.Store
+    @property
+    notify: ?action(gdata.FNode) -> None
 
     compute : proc(tid: str, merged: gdata.Node, linked: gdata.Node, out: ?Session) -> (gdata.Node, ?gdata.Node)
     clear : proc(tid: str, out: ?Session) -> None
@@ -1996,6 +2070,7 @@ class _TransformTransactionBase(_Transaction):
         self.filter_fpath = path_filter(path)
 
         self.db = None
+        self.notify = None
         self.me = ''  # Initialize first before any self reference
         self.me = '(src_' + str(self)[-10:-1] + ')'  # Now safe to use str(self)
 
@@ -2188,6 +2263,10 @@ class _TransformTransactionBase(_Transaction):
         subscribers = self.candidate_subscribers.pop_def(tid, self.subscribers)
         if tid == self.locker:
             if ok:
+                # Compare before overwriting: the config a transform serves
+                # changes only when its running config does, and going empty
+                # also drops any operational state it held.
+                changed = candidate != self.running or (candidate == {} and self.oper is not None)
                 self.running = candidate
                 self.output = essay.0 if essay is not None else None
                 if candidate == {}:
@@ -2201,6 +2280,8 @@ class _TransformTransactionBase(_Transaction):
                     #print('   #', tid, '(Transform)', _format_path(self.path), 'INVALIDATING', set(self.candidates.keys()), err=True)
                     self.candidates = {}
                 self.finalize(tid)
+                if changed:
+                    self._notify_changed()
             else:
                 #print('   #', tid, '(Transform)', _format_path(self.path), 'ABORTING', err=True)
                 pass
@@ -2218,6 +2299,19 @@ class _TransformTransactionBase(_Transaction):
 
     def bind_db(self, db: ?swdb.Store) -> None:
         self.db = db
+
+    proc def bind_notify(self, notify: ?action(gdata.FNode) -> None) -> None:
+        self.notify = notify
+
+    proc def _notify_changed(self) -> None:
+        """Tell the layer that the data this node serves has changed.
+
+        The layer is told which node changed, not what it changed to: it
+        re-reads the subscriptions that could be affected.
+        """
+        n = self.notify
+        if n is not None:
+            n(self.filter_fpath)
 
     def restore(self, attr: str, qualifier: ?str, raw: bytes) -> None:
         if attr == swdb.ATTR_RUNNING:
@@ -2259,7 +2353,10 @@ class _TransformTransactionBase(_Transaction):
         return None
 
     proc def update_oper(self, oper):
+        if self.oper == oper:
+            return
         self.oper = oper
+        self._notify_changed()
 
 class TransformActorParams:
     def __init__(self, path: Path, update_dynstate: proc(?gdata.Node) -> None, update_oper: proc(?gdata.Node) -> None, dev: ?swdev.DeviceMgr, lower: ?Layer=None):

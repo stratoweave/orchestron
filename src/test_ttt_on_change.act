@@ -1,0 +1,473 @@
+"""On-change subscriptions on a TTT layer.
+
+A layer delivers an on-change subscription when the data it serves actually
+changes: a commit that changed a transform's config, or an operational state
+push from a transform actor. These tests drive one layer and assert what a
+subscriber sees - including what it must not see, since an unchanged commit
+delivers nothing and an aborted transaction never publishes the config it
+rejected.
+
+Every test seeds the layer, declares its subscription in the seed's completion
+so the first delivery is a known baseline, and drives the rest of the scenario
+from inside the delivery callback. Deliveries and edits therefore stay ordered
+without waiting on wall-clock time.
+
+An empty datastore is delivered as no tree at all (the merge of an empty tree is
+None), so _is_empty accepts either form: these tests are about when a delivery
+happens, not about how emptiness is spelled.
+"""
+
+import testing
+
+import ttt as ttt
+import yang.gdata as gdata
+
+TEST_NS = "urn:test-on-change"
+
+def q(n: str) -> gdata.Id:
+    return gdata.Id(TEST_NS, n)
+
+
+class Noop(ttt.TransformFunction):
+    """Computes nothing: these tests read the config a layer serves."""
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+        return gdata.Container(), None
+
+
+class RejectBad(ttt.TransformFunction):
+    """Fails for the service named 'bad', so a transaction can be aborted."""
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+        if cfg.get_opt_str(q("name")) == "bad":
+            raise ValueError("bad service rejected")
+        return gdata.Container(), None
+
+
+actor OperPublisher(update_oper: proc(?gdata.Node) -> None):
+    """Publishes operational state derived from the config, on every commit."""
+    def on_conf(conf: gdata.Node, memory: ?gdata.Node):
+        name = conf.get_opt_str(q("name"))
+        if name is not None:
+            update_oper(gdata.Container({
+                q("status"): gdata.Leaf("up-{name}"),
+            }))
+
+
+def OperPublisherCtor(params: ttt.TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None:
+    act = OperPublisher(params.update_oper)
+    return act.on_conf
+
+
+ON_CHANGE = gdata.SubscriptionSpec(None, on_change=True)
+
+def _svc(name: str, enabled: bool) -> gdata.Node:
+    return gdata.Container({
+        q("service"): gdata.List([q("name")], [
+            gdata.Container({
+                q("name"): gdata.Leaf(name),
+                q("enabled"): gdata.Leaf(enabled),
+            }),
+        ]),
+    })
+
+def _svc_absent(name: str) -> gdata.Node:
+    return gdata.Container({
+        q("service"): gdata.List([q("name")], [
+            gdata.Absent({q("name"): gdata.Leaf(name)}),
+        ]),
+    })
+
+def _entry(name: str, enabled: bool) -> gdata.Node:
+    return gdata.Container({
+        q("name"): gdata.Leaf(name),
+        q("enabled"): gdata.Leaf(enabled),
+    })
+
+def _entry_up(name: str, enabled: bool) -> gdata.Node:
+    return gdata.Container({
+        q("name"): gdata.Leaf(name),
+        q("enabled"): gdata.Leaf(enabled),
+        q("status"): gdata.Leaf("up-{name}"),
+    })
+
+def _tree(elements: list[gdata.Node]) -> gdata.Node:
+    return gdata.Container({
+        q("service"): gdata.List([q("name")], elements),
+    })
+
+def _is_empty(data: ?gdata.Node) -> bool:
+    return data is None or data == _tree([])
+
+def _prs(data: ?gdata.Node) -> str:
+    return data.prsrc(deterministic=True) if data is not None else "None"
+
+
+actor baseline_carries_current_data(t: testing.AsyncT):
+    """Declaring an on-change subscription delivers the current tree once, so a
+    subscriber starts from a known state instead of waiting for a change."""
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    expected = _tree([_entry("svc-a", True)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == expected:
+                done = True
+                t.success()
+            else:
+                fail(ValueError("baseline should carry the committed config, got {_prs(data)}"))
+        else:
+            fail(ValueError("baseline should be delivered once, got {updates} deliveries"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("baseline", on_update, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor commit_is_delivered(t: testing.AsyncT):
+    """A commit that changes config wakes the subscription."""
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == first:
+                layer.edit_config(_svc("svc-a", False), None, None)
+            else:
+                fail(ValueError("baseline should carry the seeded config, got {_prs(data)}"))
+        elif updates == 2:
+            if data == second:
+                done = True
+                t.success()
+            else:
+                fail(ValueError("expected the changed config, got {_prs(data)}"))
+        else:
+            fail(ValueError("unexpected delivery {updates}: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("commit", on_update, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor unchanged_commit_is_not_delivered(t: testing.AsyncT):
+    """Re-committing identical config delivers nothing.
+
+    The next delivery a subscriber sees must be the following real change, not
+    a repeat of what it already holds.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def change_for_real(_r: value):
+        layer.edit_config(_svc("svc-a", False), None, None)
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == first:
+                # Re-commit the seeded config, then make a real change. Only
+                # the real change may be delivered.
+                layer.edit_config(_svc("svc-a", True), None, change_for_real)
+            else:
+                fail(ValueError("baseline should carry the seeded config, got {_prs(data)}"))
+        elif updates == 2:
+            if data == second:
+                done = True
+                t.success()
+            else:
+                fail(ValueError("the unchanged commit was delivered: expected the changed config, got {_prs(data)}"))
+        else:
+            fail(ValueError("unexpected delivery {updates}: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("unchanged", on_update, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor aborted_transaction_is_not_delivered(t: testing.AsyncT):
+    """A transaction that fails publishes nothing.
+
+    The config it tried to write is never committed, so it must not reach a
+    subscriber - not in a delivery of its own, and not carried along by the
+    next change either.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(RejectBad), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def bad_rejected(res: value):
+        if isinstance(res, Exception):
+            layer.edit_config(_svc("svc-a", False), None, None)
+        else:
+            fail(ValueError("the transform should have rejected the bad service"))
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == first:
+                layer.edit_config(_svc("bad", True), bad_rejected, None)
+            else:
+                fail(ValueError("baseline should carry the seeded config, got {_prs(data)}"))
+        elif updates == 2:
+            if data == second:
+                done = True
+                t.success()
+            else:
+                fail(ValueError("the aborted config reached the subscriber: {_prs(data)}"))
+        else:
+            fail(ValueError("unexpected delivery {updates}: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("aborted", on_update, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor two_owners_share_one_spec(t: testing.AsyncT):
+    """Two owners of the same spec are both delivered: the layer samples once
+    and publishes to every owner."""
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var based = 0
+    var seen_a = False
+    var seen_b = False
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def finish_if_ready():
+        if seen_a and seen_b and not done:
+            done = True
+            t.success()
+
+    def baseline_done():
+        based += 1
+        if based == 2:
+            layer.edit_config(_svc("svc-a", False), None, None)
+
+    def on_a(data: ?gdata.Node, err: ?Exception):
+        if err is not None:
+            fail(err)
+        elif data == first:
+            baseline_done()
+        elif data == second:
+            seen_a = True
+            finish_if_ready()
+        else:
+            fail(ValueError("owner a got unexpected data: {_prs(data)}"))
+
+    def on_b(data: ?gdata.Node, err: ?Exception):
+        if err is not None:
+            fail(err)
+        elif data == first:
+            baseline_done()
+        elif data == second:
+            seen_b = True
+            finish_if_ready()
+        else:
+            fail(ValueError("owner b got unexpected data: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("owner-a", on_a, {ON_CHANGE})
+        layer.declare_subscriptions("owner-b", on_b, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor removing_one_owner_keeps_the_other(t: testing.AsyncT):
+    """Releasing one owner of a shared spec leaves the other subscribed, and
+    stops delivering to the one that left."""
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var based = 0
+    var b_released = False
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def baseline_done():
+        based += 1
+        if based == 2:
+            b_released = True
+            layer.remove_subscriptions("owner-b")
+            layer.edit_config(_svc("svc-a", False), None, None)
+
+    def on_a(data: ?gdata.Node, err: ?Exception):
+        if err is not None:
+            fail(err)
+        elif data == first:
+            baseline_done()
+        elif data == second:
+            if not done:
+                done = True
+                t.success()
+        else:
+            fail(ValueError("the remaining owner got unexpected data: {_prs(data)}"))
+
+    def on_b(data: ?gdata.Node, err: ?Exception):
+        if err is not None:
+            fail(err)
+        elif b_released:
+            fail(ValueError("a released owner was still delivered: {_prs(data)}"))
+        elif data == first:
+            baseline_done()
+        else:
+            fail(ValueError("owner b got unexpected data: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("owner-a", on_a, {ON_CHANGE})
+        layer.declare_subscriptions("owner-b", on_b, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor oper_push_is_delivered(t: testing.AsyncT):
+    """Operational state pushed by a transform actor reaches a subscriber.
+
+    The commit and the actor's oper push are separate changes, so the config may
+    arrive on its own first; what matters is that the oper state arrives without
+    anything polling for it.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop, OperPublisherCtor), [q("name")]),
+    }), None)
+    expected = _tree([_entry_up("svc-a", True)])
+    var done = False
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        if done:
+            return
+        if err is not None:
+            done = True
+            t.failure(err)
+        elif data == expected:
+            done = True
+            t.success()
+
+    def declare(_r: value):
+        layer.declare_subscriptions("oper", on_update, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor list_element_delete_is_delivered(t: testing.AsyncT):
+    """Deleting a list element is a change: the element leaves the tree the
+    subscriber is given."""
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == first:
+                layer.edit_config(_svc_absent("svc-a"), None, None)
+            else:
+                fail(ValueError("baseline should carry the seeded config, got {_prs(data)}"))
+        elif updates == 2:
+            if _is_empty(data):
+                done = True
+                t.success()
+            else:
+                fail(ValueError("expected the element to be gone, got {_prs(data)}"))
+        else:
+            fail(ValueError("unexpected delivery {updates}: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("delete", on_update, {ON_CHANGE})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
+
+
+actor spec_without_a_mode_is_rejected(t: testing.AsyncT):
+    """A spec that is neither periodic nor on-change is answered with an error.
+
+    It would otherwise be accepted and then never delivered, which looks like a
+    working subscription that silently sees nothing.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    var done = False
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        if done:
+            return
+        done = True
+        if err is not None:
+            t.success()
+        else:
+            t.failure(ValueError("expected an error for a spec with no delivery mode, got {_prs(data)}"))
+
+    layer.declare_subscriptions("no-mode", on_update, {gdata.SubscriptionSpec(None)})

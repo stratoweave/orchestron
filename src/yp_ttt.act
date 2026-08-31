@@ -1,25 +1,34 @@
-"""TTT-backed YANG-push for the northbound NETCONF server (periodic).
+"""TTT-backed YANG-push for the northbound NETCONF server.
 
 TttSubscriptionService is the NETCONF binding that serves dynamic YANG-push
 (RFC 8641) subscriptions straight from a ttt.Layer datastore via TTT's native
 subscription mechanism (declare_subscriptions). On establish-subscription it
-declares a TTT subscription; TTT samples the datastore on the spec period and
-pushes the current merged tree to our callback, which we frame as a NETCONF
-push-update notification carrying the datastore-contents.
+declares a TTT subscription and frames what TTT delivers as NETCONF
+notifications:
 
-Supported v1 subset, enforced before a subscription is accepted (anything outside
+  - a periodic subscription samples the datastore on the spec period, and each
+    delivery becomes a push-update carrying the datastore-contents;
+  - an on-change subscription is delivered whenever the datastore changes. The
+    first delivery is a full push-update baseline (sync-on-start), and every
+    delivery after it is a push-change-update carrying an RFC 8072 yang-patch
+    of what changed since the last one this subscription was sent.
+
+Supported subset, enforced before a subscription is accepted (anything outside
 it gets an rpc-error rather than being silently served as something else):
 
-  - periodic subscriptions only; on-change is not supported;
   - the running or operational datastore;
   - no filter, or a datastore-subtree-filter (RFC 6241 subtree filtering). The
     filter is parsed against the served schema into a gdata filter and handed to
     TTT, which samples only the selected subtree, so each push carries just the
     filtered data. A datastore-xpath-filter is rejected.
+  - no dampening-period on an on-change subscription: updates are sent as they
+    happen, so a request asking for them to be rate-limited is rejected rather
+    than served unthrottled.
 
-Known deviation, still under discussion: TTT subscriptions are
-periodic-with-change-suppression, so a subscription only pushes when the datastore
-actually changes (at most once per period), not unconditionally every period.
+Known deviation, still under discussion: TTT periodic subscriptions are
+periodic-with-change-suppression, so a periodic subscription only pushes when the
+datastore actually changes (at most once per period), not unconditionally every
+period.
 
 This belongs at the app layer (it couples netconf to ttt); the mock server keeps
 the transport-only netconf.yp binding so it stays TTT-free.
@@ -32,6 +41,7 @@ import ttt
 import yang.gdata as gdata
 import yang.schema as yschema
 import yang.xml as yxml
+import yang.ypatch as ypatch
 
 from netconf import Server
 import yp
@@ -48,6 +58,29 @@ def parse_subtree_filter(schema: yschema.DRoot, nodes: list[xml.Node]) -> gdata.
     return yxml.from_filter_xml(schema, wrapper)
 
 
+class SubState(object):
+    """How one accepted subscription is delivered.
+
+    An on-change subscription frames each update as a yang-patch against the
+    tree it last sent, so it keeps that tree; a periodic one pushes the whole
+    tree every time and keeps no history. synced records whether the baseline
+    delivery has happened, which None cannot express: an empty datastore
+    delivers a None tree.
+    """
+    on_change: bool
+    sync_on_start: bool
+    synced: bool
+    last: ?gdata.Node
+    seq: int
+
+    def __init__(self, on_change: bool, sync_on_start: bool):
+        self.on_change = on_change
+        self.sync_on_start = sync_on_start
+        self.synced = False
+        self.last = None
+        self.seq = 0
+
+
 actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRoot,
                              owner_prefix: str="yp",
                              log_handler: ?logging.Handler=None):
@@ -61,7 +94,7 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
     must not collide."""
 
     _log = logging.Logger(log_handler)
-    var active: set[int] = set()
+    var subs: dict[int, SubState] = {}
     var next_id: int = 1
 
     def _owner_id(sub_id: int) -> str:
@@ -75,32 +108,58 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
             return local == "running" or local == "operational"
         return False
 
-    def _has_on_change(op: xml.Node) -> bool:
-        for c in op.children:
-            if c.tag == "on-change":
-                return True
-        return False
-
     def _contents(tree: ?gdata.Node) -> list[xml.Node]:
         if tree is not None:
             return tree.to_xml(deterministic=True)
         return []
 
+    def _push_update(sub_id: int, tree: ?gdata.Node) -> None:
+        server.send_notification(yp.build_notification(
+            yp.event_time_now(), yp.build_push_update(sub_id, _contents(tree))))
+
     def _on_tree(sub_id: int, tree: ?gdata.Node, err: ?Exception) -> None:
         """TTT subscription callback: a fresh merged tree (or an error).
-        Frame it as a push-update, unless the subscription is already gone."""
-        if sub_id in active:
-            if err is not None:
-                _log.error("subscription sample error id={sub_id} error={err}")
-            else:
-                server.send_notification(yp.build_notification(
-                    yp.event_time_now(), yp.build_push_update(sub_id, _contents(tree))))
 
-    def _establish(message_id: str, pp: int, subtree_filter: ?list[xml.Node]) -> None:
-        """Declare a periodic TTT subscription and reply with its id.
+        Frame it for this subscription's delivery mode, unless the subscription
+        is already gone."""
+        if sub_id not in subs:
+            return
+        st = subs[sub_id]
+        if err is not None:
+            _log.error("subscription sample error id={sub_id} error={err}")
+            return
+        if not st.on_change:
+            _push_update(sub_id, tree)
+            return
+        # An empty datastore arrives as None; diffing wants a tree either way.
+        new_tree = tree if tree is not None else gdata.Container()
+        if not st.synced:
+            # Nothing has been sent yet, so there is no state at the receiver to
+            # patch against: send the whole tree, or nothing if the subscriber
+            # asked for deltas only.
+            st.synced = True
+            st.last = new_tree
+            subs[sub_id] = st
+            if st.sync_on_start:
+                _push_update(sub_id, tree)
+            return
+        d = gdata.diff(st.last, new_tree)
+        st.last = new_tree
+        st.seq += 1
+        subs[sub_id] = st
+        if d is not None:
+            patch = ypatch.diff_to_patch(d, "s{sub_id}-{st.seq}")
+            server.send_notification(yp.build_notification(
+                yp.event_time_now(), yp.build_push_change_update(sub_id, patch.to_xml())))
+
+    def _establish(message_id: str, st: SubState, period_s: ?float,
+                   subtree_filter: ?list[xml.Node], mode: str) -> None:
+        """Accept a subscription: allocate an id, answer, then start delivery.
 
         A subtree filter that does not parse against the schema fails the RPC
-        with invalid-value, and no id is allocated."""
+        with invalid-value, and no id is allocated. The reply carries the id the
+        notifications will reference, so it is sent before the subscription is
+        declared and can push (ordering)."""
         filt: ?gdata.FNode = None
         if subtree_filter is not None:
             try:
@@ -111,13 +170,14 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
                 return
         sub_id = next_id
         next_id += 1
-        active.add(sub_id)
-        period_s = float(pp) / 100.0
+        subs[sub_id] = st
         scope = "filtered" if filt is not None else "full"
-        _log.info("establish-subscription id={sub_id} mode=periodic period={period_s}s scope={scope}")
-        # Reply with the id BEFORE the subscription can push (ordering).
+        _log.info("establish-subscription id={sub_id} mode={mode} scope={scope}")
         server.send_reply(message_id, [yp.build_subscription_id_reply(sub_id)])
-        spec = gdata.SubscriptionSpec(filt, period=period_s)
+        if st.on_change:
+            spec = gdata.SubscriptionSpec(filt, on_change=True)
+        else:
+            spec = gdata.SubscriptionSpec(filt, period=period_s)
         cfs.declare_subscriptions(_owner_id(sub_id),
             (lambda tree, err: _on_tree(sub_id, tree, err)), {spec})
 
@@ -126,33 +186,40 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
         if op.tag == "establish-subscription":
             params = yp.parse_establish_subscription(op)
             pp = params.periodic_period
-            # Enforce the v1 subset before allocating an id, so unsupported request
-            # shapes fail closed instead of being served as full-tree periodic.
-            if _has_on_change(op):
+            dp = params.dampening_period
+            # Enforce the supported subset before allocating an id, so unsupported
+            # request shapes fail closed instead of being served as something else.
+            if not _datastore_supported(params.datastore):
+                server.send_error(message_id, "invalid-value",
+                    "unsupported datastore; this server serves running and operational")
+            elif params.xpath_filter is not None:
                 server.send_error(message_id, "operation-not-supported",
-                    "on-change subscriptions are not supported; use a periodic subscription")
+                    "xpath filters are not supported; use a datastore-subtree-filter")
+            elif params.on_change:
+                if dp is not None and dp > 0:
+                    server.send_error(message_id, "operation-not-supported",
+                        "<dampening-period> is not supported; on-change updates are sent as they happen")
+                else:
+                    _establish(message_id, SubState(True, params.sync_on_start),
+                        None, params.subtree_filter, "on-change")
             elif pp is not None:
                 if pp <= 0:
                     server.send_error(message_id, "invalid-value",
                         "<period> must be a positive number of centiseconds")
-                elif not _datastore_supported(params.datastore):
-                    server.send_error(message_id, "invalid-value",
-                        "unsupported datastore; this server serves running and operational")
-                elif params.xpath_filter is not None:
-                    server.send_error(message_id, "operation-not-supported",
-                        "xpath filters are not supported; use a datastore-subtree-filter")
                 else:
-                    _establish(message_id, pp, params.subtree_filter)
+                    period_s = float(pp) / 100.0
+                    _establish(message_id, SubState(False, True), period_s,
+                        params.subtree_filter, "periodic period={period_s}s")
             else:
                 server.send_error(message_id, "missing-element",
-                    "a periodic <period> is required")
+                    "a periodic <period> or an <on-change> is required")
         elif op.tag == "delete-subscription":
             did = yp.parse_delete_subscription(op)
             ok = False
             if did is not None:
-                if did in active:
+                if did in subs:
                     cfs.remove_subscriptions(_owner_id(did))
-                    active.discard(did)
+                    del subs[did]
                     _log.info("delete-subscription id={did}")
                     ok = True
             if ok:
@@ -165,9 +232,9 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
     def shutdown() -> None:
         """Release every subscription for this session (call on disconnect) so
         TTT stops sampling on our behalf."""
-        n = len(active)
-        for sid in active:
+        n = len(subs)
+        for sid in subs.keys():
             cfs.remove_subscriptions(_owner_id(sid))
-        active = set()
+        subs = {}
         if n > 0:
             _log.info("stopping all subscriptions (count={n})")

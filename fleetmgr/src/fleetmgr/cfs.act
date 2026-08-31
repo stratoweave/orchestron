@@ -197,6 +197,6 @@ actor UpgradeCampaignTransform(path: ttt.Path,
             want: set[ygdata.Delivery] = set()
             if len(members) > 0:
                 want.add(destination!.deliver({
-                    ygdata.SubscriptionSpec(None, period=0.25),
+                    ygdata.SubscriptionSpec(None, on_change=True),
                 }))
             subscriptions!.declare(want)

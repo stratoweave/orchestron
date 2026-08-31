@@ -43,7 +43,7 @@ actor RouterTransform(path: ttt.Path, update_dynstate: proc(?y_0.netinfra__netin
         dst = y1_oper.dst(lambda r, e: on_rfs_state(r, e, router_name))
         rfs = y1_oper.subs.rfs.entry(router_name)
         want.add(dst.deliver({
-            rfs.base_config.state.current_datetime.subscribe(period=1.0)
+            rfs.base_config.state.current_datetime.subscribe()
         }))
         _subs.declare(want)
 
