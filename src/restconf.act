@@ -116,6 +116,25 @@ def _path_elements_to_fnode(path_elements: list[ydata.PathElement]) -> ygdata.FN
     return inner if inner is not None else ygdata.FNode()
 
 
+def _existence_path(path_elements: list[ydata.PathElement]) -> list[ydata.PathElement]:
+    """Trim a resolved path to the part that decides whether it exists.
+
+    Only a list entry, a P-container or a leaf can be absent while the node
+    holding it is there. An NP-container has no existence of its own
+    (RFC 7950 7.5.1), so it is there for as long as its parent is. Cutting the
+    path after the deepest node that can be absent asks the datastore the
+    smallest question that still answers RFC 8040, and keeps a check on an
+    NP-container from reading everything that container holds.
+    """
+    last = 0
+    for i in range(1, len(path_elements)):
+        node = path_elements[i].node
+        if isinstance(node, yschema.DContainer) and not node.presence:
+            continue
+        last = i
+    return path_elements[:last + 1]
+
+
 def _node_with_ns(node: ygdata.Node, snode: yschema.DNode) -> ygdata.Node:
     # `gdata.Node` is a `value`, so we cannot mutate fields in place.
     # Rebuild the node with namespace and module from the schema node so that
@@ -172,14 +191,6 @@ def _respond_restconf_subtree(path_elements: list[ydata.PathElement], data: ?ygd
     respond(404, {}, "No data at path")
 
 
-def _path_exists(current_config: ygdata.Node, path_elements: list[ydata.PathElement]) -> bool:
-    """Whether the resource identified by path_elements exists in current_config."""
-    if len(path_elements) <= 1:
-        return True
-    fnode = _path_elements_to_fnode(path_elements)
-    return ygdata.filter(current_config, fnode) is not None
-
-
 actor RestconfServer(
     root: http_router.Router,
     http_log: logging.Logger,
@@ -192,6 +203,27 @@ actor RestconfServer(
     # Msg[gdata.Node] at runtime, which must be awaited on
     def _top_data(filt: ?ygdata.FNode) -> ?ygdata.Node:
         return cfs.newsession().get_data(filt)
+
+    # TODO: the check is not transactional. It reads the datastore in one
+    # transaction, and the write that it guards happens in another. A target
+    # that goes away in between is created again by that write, which RFC 8040
+    # says a PATCH must not do. No read closes this window: a Session takes no
+    # lock until edit_config locks it, so there is no snapshot to hold. To
+    # close it the write must depend on what the check saw. Where that belongs
+    # is open: a condition that the transaction evaluates, a datastore lock
+    # that the northbound holds, or a version that the write carries back.
+    def _path_exists(path_elements: list[ydata.PathElement]) -> bool:
+        """Whether the resource identified by path_elements is there.
+
+        Reads only the part of the tree the path addresses. The layer answers
+        a filtered read directly, so this builds no session: a fresh one holds
+        no edits of its own and would reach the same committed tree through a
+        transaction on every layer.
+        """
+        probe = _existence_path(path_elements)
+        if len(probe) <= 1:
+            return True
+        return cfs.get_data(_path_elements_to_fnode(probe)) is not None
 
     _yang_library_gdata = monitoring.build_yang_library([top_schema, rcmon.SRC_DNODE, yl.SRC_DNODE]).root
     _restconf_views = [
@@ -291,7 +323,7 @@ actor RestconfServer(
             # Per RFC 8040 §4.5: PUT creates (201 + Location) if the target did
             # not exist, replaces (204) otherwise.
             path_elements = yang.restconf.resolve_path(top_schema, _split_restconf_path(ctx.param("rest_path")))
-            if _path_exists(cfs.newsession().get(), path_elements):
+            if _path_exists(path_elements):
                 _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 204))
             else:
                 _router_apply_write(ctx, input_config, _router_make_edit_done(respond, 201, {"Location": ctx.path}))
@@ -304,7 +336,7 @@ actor RestconfServer(
             return
         else:
             # RFC 8040 PATCH must not create the target resource instance.
-            if not _path_exists(cfs.newsession().get(), path_elements):
+            if not _path_exists(path_elements):
                 respond(404, {}, "No data at path")
                 return
 
