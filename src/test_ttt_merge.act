@@ -1,0 +1,229 @@
+# Tests for ttt.merge.
+#
+# ttt.merge folds a node's per-source trees together pairwise rather than
+# one source at a time. That is only correct because gdata.merge is
+# associative, so two properties are checked here: the pairwise fold gives
+# what the one-at-a-time fold gave, and gdata.merge associates. Both run
+# over one table of cases, one case per way sources can overlap.
+#
+# A transform's per-source dict is a set. The fold imposes no order on it,
+# so where gdata.merge is itself order-sensitive -- a user-ordered list or
+# leaf-list that several sources write -- the cross-source order of the
+# result is unspecified, and the insertion-order test stays away from it.
+
+import testing
+
+import ttt as ttt
+import yang.gdata as gdata
+
+TEST_NS = "urn:test-merge"
+
+def q(n: str) -> gdata.Id:
+    return gdata.Id(TEST_NS, n)
+
+NAME = q("name")
+NAME_KEYS = [NAME]
+
+def cont(children: dict[gdata.Id, gdata.Node]) -> gdata.Node:
+    return gdata.Container(children)
+
+def elem(key: str, children: dict[gdata.Id, gdata.Node]) -> gdata.Node:
+    """A list element: its key leaf, plus whatever else it carries."""
+    all_children: dict[gdata.Id, gdata.Node] = {NAME: gdata.Leaf(key)}
+    all_children.update(children.items())
+    return gdata.Container(all_children)
+
+def klist(elements: list[gdata.Node]) -> gdata.Node:
+    return gdata.List(NAME_KEYS, elements)
+
+def ulist(elements: list[gdata.Node]) -> gdata.Node:
+    return gdata.List(NAME_KEYS, elements, user_order=True)
+
+def llist(vals: list[int], user_order: bool=False) -> gdata.Node:
+    return gdata.LeafList([gdata.LeafListEntryMerge(v) for v in vals], user_order=user_order)
+
+def fold_left(cfg: dict[str, gdata.Node]) -> gdata.Node:
+    """The fold ttt.merge replaced: one source at a time, left to right."""
+    acc: ?gdata.Node = None
+    for conf in cfg.values():
+        if acc is not None:
+            acc = gdata.merge(acc, conf)
+        else:
+            acc = conf
+    if acc is not None:
+        return acc
+    raise ValueError("Nothing to merge")
+
+def cases() -> list[(str, dict[str, gdata.Node])]:
+    """One case per way sources can overlap, three sources each.
+
+    Three is the smallest number that tells a pairwise fold from a left
+    fold: only with three does the pairwise fold merge b into c first.
+    """
+    return [
+        ("disjoint children", {
+            "a": cont({q("x"): gdata.Leaf(1)}),
+            "b": cont({q("y"): gdata.Leaf(2)}),
+            "c": cont({q("z"): gdata.Leaf(3)}),
+        }),
+        ("one shared child, different leaves below it", {
+            "a": cont({q("sub"): cont({q("x"): gdata.Leaf(1)})}),
+            "b": cont({q("sub"): cont({q("y"): gdata.Leaf(2)})}),
+            "c": cont({q("sub"): cont({q("z"): gdata.Leaf(3)})}),
+        }),
+        ("the same leaf, at the same value", {
+            "a": cont({q("x"): gdata.Leaf(7), q("a"): gdata.Leaf(1)}),
+            "b": cont({q("x"): gdata.Leaf(7), q("b"): gdata.Leaf(2)}),
+            "c": cont({q("x"): gdata.Leaf(7), q("c"): gdata.Leaf(3)}),
+        }),
+        # The fan-in shape: every source owns one element of a shared list.
+        ("keyed list, one element per source", {
+            "a": cont({q("l"): klist([elem("k1", {q("v"): gdata.Leaf(1)})])}),
+            "b": cont({q("l"): klist([elem("k2", {q("v"): gdata.Leaf(2)})])}),
+            "c": cont({q("l"): klist([elem("k3", {q("v"): gdata.Leaf(3)})])}),
+        }),
+        ("keyed list, sources sharing one element", {
+            "a": cont({q("l"): klist([elem("k1", {q("x"): gdata.Leaf(1)})])}),
+            "b": cont({q("l"): klist([elem("k1", {q("y"): gdata.Leaf(2)})])}),
+            "c": cont({q("l"): klist([elem("k1", {q("z"): gdata.Leaf(3)})])}),
+        }),
+        ("keyed list, elements out of key order", {
+            "a": cont({q("l"): klist([elem("k9", {}), elem("k1", {})])}),
+            "b": cont({q("l"): klist([elem("k5", {})])}),
+            "c": cont({q("l"): klist([elem("k3", {}), elem("k7", {})])}),
+        }),
+        ("user-ordered list", {
+            "a": cont({q("l"): ulist([elem("k3", {}), elem("k1", {})])}),
+            "b": cont({q("l"): ulist([elem("k2", {})])}),
+            "c": cont({q("l"): ulist([elem("k1", {}), elem("k4", {})])}),
+        }),
+        ("leaf-list, overlapping values", {
+            "a": cont({q("ll"): llist([1, 2])}),
+            "b": cont({q("ll"): llist([2, 3])}),
+            "c": cont({q("ll"): llist([3, 4])}),
+        }),
+        ("user-ordered leaf-list", {
+            "a": cont({q("ll"): llist([3, 1], user_order=True)}),
+            "b": cont({q("ll"): llist([2], user_order=True)}),
+            "c": cont({q("ll"): llist([1, 4], user_order=True)}),
+        }),
+        ("a list inside an element of a list", {
+            "a": cont({q("l"): klist([elem("k1", {q("in"): klist([elem("i1", {})])})])}),
+            "b": cont({q("l"): klist([elem("k1", {q("in"): klist([elem("i2", {})])})])}),
+            "c": cont({q("l"): klist([elem("k2", {q("in"): klist([elem("i1", {})])})])}),
+        }),
+    ]
+
+actor merge_matches_the_one_at_a_time_fold(t: testing.AsyncT):
+    """The pairwise fold gives what folding one source at a time gave."""
+    try:
+        for case in cases():
+            name = case.0
+            cfg = case.1
+            testing.assertEqual(ttt.merge(cfg), fold_left(cfg),
+                                "pairwise fold differs for: {name}")
+        t.success()
+    except Exception as e:
+        t.failure(e)
+
+actor gdata_merge_is_associative(t: testing.AsyncT):
+    """merge(merge(a,b),c) == merge(a,merge(b,c)) -- what the fold rests on."""
+    try:
+        for case in cases():
+            name = case.0
+            cfg = case.1
+            a = cfg["a"]
+            b = cfg["b"]
+            c = cfg["c"]
+            testing.assertEqual(gdata.merge(gdata.merge(a, b), c),
+                                gdata.merge(a, gdata.merge(b, c)),
+                                "association order changes the result for: {name}")
+        t.success()
+    except Exception as e:
+        t.failure(e)
+
+actor merge_folds_any_number_of_sources(t: testing.AsyncT):
+    """Pairing has to cope with a leftover source at any level of the fold."""
+    try:
+        for n in range(1, 10):
+            cfg: dict[str, gdata.Node] = {}
+            for i in range(n):
+                cfg["s{i}"] = cont({q("c{i}"): gdata.Leaf(i)})
+            merged = ttt.merge(cfg)
+            testing.assertEqual(merged, fold_left(cfg), "{n} sources folded wrong")
+            testing.assertEqual(len(merged.children), n, "{n} sources lost a child")
+        t.success()
+    except Exception as e:
+        t.failure(e)
+
+actor merge_ignores_insertion_order(t: testing.AsyncT):
+    """The sources are a set: the dict's own order must not reach the result.
+
+    User-ordered nodes are skipped: several sources writing one of those
+    have no defined cross-source order to compare.
+    """
+    try:
+        for case in cases():
+            name = case.0
+            cfg = case.1
+            if "user-ordered" in name:
+                continue
+            backwards: dict[str, gdata.Node] = {}
+            for src in ["c", "b", "a"]:
+                backwards[src] = cfg[src]
+            testing.assertEqual(ttt.merge(cfg), ttt.merge(backwards),
+                                "insertion order reached the result for: {name}")
+        t.success()
+    except Exception as e:
+        t.failure(e)
+
+actor merge_of_nothing_raises(t: testing.AsyncT):
+    try:
+        r = ttt.merge({})
+        t.failure(ValueError("merge of no sources did not raise, returned {r.prsrc()}"))
+    except ValueError:
+        t.success()
+
+actor merge_of_one_source_is_that_source(t: testing.AsyncT):
+    try:
+        conf = cont({q("x"): gdata.Leaf(1)})
+        testing.assertEqual(ttt.merge({"only": conf}), conf)
+        t.success()
+    except Exception as e:
+        t.failure(e)
+
+actor merge_of_conflicting_leaves_raises(t: testing.AsyncT):
+    try:
+        r = ttt.merge({
+            "a": cont({q("x"): gdata.Leaf(1)}),
+            "b": cont({q("x"): gdata.Leaf(2)}),
+        })
+        t.failure(ValueError("conflicting leaves did not raise, returned {r.prsrc()}"))
+    except ValueError:
+        t.success()
+
+actor merge_of_different_node_types_raises(t: testing.AsyncT):
+    try:
+        r = ttt.merge({
+            "a": cont({q("x"): gdata.Leaf(1)}),
+            "b": klist([]),
+        })
+        t.failure(ValueError("mismatched node types did not raise, returned {r.prsrc()}"))
+    except ValueError:
+        t.success()
+
+actor merge_keeps_duplicate_leaflist_entries(t: testing.AsyncT):
+    """gdata.merge concatenates leaf-lists rather than taking their union."""
+    try:
+        merged = ttt.merge({
+            "a": cont({q("ll"): llist([1, 2])}),
+            "b": cont({q("ll"): llist([2, 3])}),
+        })
+        ll = merged.children[q("ll")]
+        if isinstance(ll, gdata.LeafList):
+            testing.assertEqual(len(ll.entries), 4, "duplicate leaf-list entries were dropped")
+            t.success()
+        else:
+            t.failure(ValueError("merged leaf-list came back as {type(ll)}"))
+    except Exception as e:
+        t.failure(e)

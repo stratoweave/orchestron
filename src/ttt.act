@@ -73,16 +73,34 @@ def assert_complete(conf: gdata.Node):
     return conf
 
 def merge(cfg_per_src: dict[str,gdata.Node]):
-    acc = None
-    for conf in cfg_per_src.values():
-        if acc is not None:
-            acc = gdata.merge(acc, conf)
-        else:
-            acc = conf
-    if acc is not None:
-        return acc
-    else:
-        raise ValueError("Nothing to merge")
+    """Merge the trees of all sources into one tree.
+
+    cfg_per_src is a set of contributions keyed by source: no meaning is
+    attached to the order the dict happens to hold them in, and none is
+    imposed. Where gdata.merge itself is order-sensitive -- a user-ordered
+    list or leaf-list that several sources write -- the cross-source order
+    of the result is therefore unspecified.
+
+    The fold is pairwise in a balanced tree, not left to right: gdata.merge
+    walks both of its arguments, so a left fold over S sources of size s
+    does O(s*S^2) work while the balanced fold does O(s*S*log S).
+    gdata.merge is associative, so the shape of the fold does not change
+    the result; test_ttt_merge.act holds the property tests.
+    """
+    work: list[gdata.Node] = list(cfg_per_src.values())
+    while len(work) > 1:
+        paired: list[gdata.Node] = []
+        i = 0
+        while i + 1 < len(work):
+            paired.append(gdata.merge(work[i], work[i+1]))
+            i += 2
+        if i < len(work):
+            paired.append(work[i])
+        work = paired
+    if len(work) == 1:
+        return work[0]
+    raise ValueError("Nothing to merge")
+
 
 def prune(data: gdata.Node, filt: gdata.FNode) -> gdata.Node:
     res =  gdata.prune(data, gdata.FNode(children=[filt]))
