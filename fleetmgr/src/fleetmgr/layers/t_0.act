@@ -14,7 +14,7 @@ import fleetmgr.cfs as cfs
 from fleetmgr.layers.y_0 import software__software__upgrade_campaign_entry
 
 def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(ttt.Path,?ttt.Layer)->ttt.Node:
-    r = ttt.Container({ygdata.Id("urn:fleetmgr:software", "software"): ttt.Container({ygdata.Id("urn:fleetmgr:software", "device"): ttt.List(ttt.Transform(cfs.Device, None, None, lower, log_handler), [ygdata.Id("urn:fleetmgr:software", "name")]), ygdata.Id("urn:fleetmgr:software", "upgrade-campaign"): ttt.List(ttt.Transform(cfs.UpgradeCampaign, UpgradeCampaignTransformCtor, None, lower, log_handler), [ygdata.Id("urn:fleetmgr:software", "name")])}, ns='urn:fleetmgr:software', module='software')})
+    r = ttt.Container({ygdata.Id("urn:fleetmgr:software", "software"): ttt.Container({ygdata.Id("urn:fleetmgr:software", "upgrade-campaign"): ttt.List(ttt.Transform(cfs.UpgradeCampaign, UpgradeCampaignTransformCtor, None, lower, log_handler), [ygdata.Id("urn:fleetmgr:software", "name")])}, ns='urn:fleetmgr:software', module='software'), ygdata.Id("urn:fleetmgr:fleetmgr", "fleet"): ttt.Container({ygdata.Id("urn:fleetmgr:fleetmgr", "device"): ttt.List(ttt.Transform(cfs.Device, None, None, lower, log_handler), [ygdata.Id("urn:fleetmgr:fleetmgr", "name")])}, ns='urn:fleetmgr:fleetmgr', module='fleetmgr')})
     return r
 
 def UpgradeCampaignTransformCtor(params: ttt.TransformActorParams) -> ?proc(ygdata.Node, ?ygdata.Node) -> None:

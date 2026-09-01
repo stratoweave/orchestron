@@ -8,16 +8,6 @@ module software {
   }
 
   container software {
-    list device {
-      key name;
-
-      sw:transform fleetmgr.cfs.Device;
-
-      leaf name {
-        type string;
-      }
-    }
-
     list upgrade-campaign {
       key name;
 

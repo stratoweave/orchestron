@@ -9,8 +9,8 @@ import yang.adata as yadata
 import yang.gdata as ygdata
 import yang.xml as yxml
 
-from fleetmgr.layers.y_0 import software__software__device_entry
 from fleetmgr.layers.y_0 import software__software__upgrade_campaign_entry
+from fleetmgr.layers.y_0 import fleetmgr__fleet__device_entry
 from fleetmgr.layers.y_0_oper import software__software__upgrade_campaign_entry as software__software__upgrade_campaign_entry__oper
 from fleetmgr.layers.y_0 import SRC_DNODE
 from fleetmgr.layers.y_1_loose import root as output_root
@@ -18,31 +18,6 @@ from fleetmgr.layers.y_1_loose import root as output_root
 def o_root():
     return output_root()
 
-
-class Device(ttt.TransformFunction):
-    transform: mut(software__software__device_entry) -> yadata.MNode
-
-    @staticmethod
-    def input_type():
-        """Return the modeled input type for this transform"""
-        return software__software__device_entry
-
-    mut def transform_wrapper(self, i: ygdata.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
-        """Wrap the user provided transform method to convert from gdata to
-        modeled input and back to gdata
-        """
-        modeled_input = software__software__device_entry.from_gdata(i)
-
-        return self.transform(modeled_input).to_gdata(), None
-
-    mut def transform_xml(self, i: xml.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
-        """Wrap the user provided transform method to convert from XML to
-        modeled input and return gdata
-        """
-        gdata_input = yxml.from_xml(SRC_DNODE, i, loose=False, root_path=['software:software', 'device'])
-        modeled_input = software__software__device_entry.from_gdata(gdata_input)
-
-        return self.transform(modeled_input).to_gdata(), None
 
 class UpgradeCampaign(ttt.TransformFunction):
     transform: mut(software__software__upgrade_campaign_entry) -> yadata.MNode
@@ -76,5 +51,30 @@ class UpgradeCampaign(ttt.TransformFunction):
         """
         gdata_input = yxml.from_xml(SRC_DNODE, i, loose=False, root_path=['software:software', 'upgrade-campaign'])
         modeled_input = software__software__upgrade_campaign_entry.from_gdata(gdata_input)
+
+        return self.transform(modeled_input).to_gdata(), None
+
+class Device(ttt.TransformFunction):
+    transform: mut(fleetmgr__fleet__device_entry) -> yadata.MNode
+
+    @staticmethod
+    def input_type():
+        """Return the modeled input type for this transform"""
+        return fleetmgr__fleet__device_entry
+
+    mut def transform_wrapper(self, i: ygdata.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from gdata to
+        modeled input and back to gdata
+        """
+        modeled_input = fleetmgr__fleet__device_entry.from_gdata(i)
+
+        return self.transform(modeled_input).to_gdata(), None
+
+    mut def transform_xml(self, i: xml.Node, linked: ygdata.Node, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from XML to
+        modeled input and return gdata
+        """
+        gdata_input = yxml.from_xml(SRC_DNODE, i, loose=False, root_path=['fleetmgr:fleet', 'device'])
+        modeled_input = fleetmgr__fleet__device_entry.from_gdata(gdata_input)
 
         return self.transform(modeled_input).to_gdata(), None

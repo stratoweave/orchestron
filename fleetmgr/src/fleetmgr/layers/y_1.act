@@ -81,6 +81,7 @@ SRC_DNODE_CHILD_10: DContainer = DContainer(module='stratoweave-rfs', namespace=
 SRC_DNODE_CHILD_11: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='software', config=True, description='Per-device software management. Input comes from the fleet upgrade\nscheduler (or an operator directly); everything under state/ is\nreported by the SoftwareManager.', presence=False, children=[
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='upgrade-campaign', config=True, description='The upgrade campaign that currently owns this device. A device is\nowned by at most one campaign at a time, which is what stops two\ncampaigns from scheduling the same device.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='target-release', config=True, description="Name of the software release this device should be running, e.g.\n'17.18.03a'. Absent means no upgrade is intended and the manager\nstays idle.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='image-url', config=True, description='URL used by the device to fetch the target image. It must be reachable\nfrom the device. Supported schemes are platform-specific; IOS XE\nsupports scp, ftp, http and https. scp and ftp URLs may contain\ncredentials and must not be logged. The adapter derives the staged\nfilename from the final path component. If this leaf is absent, an\nadapter that requires an image URL reports prepare as failed.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='allow-staging', config=True, description='Whether the manager may run the non-impacting prepare job ahead of\nthe maintenance window. Set by the scheduler, which paces image\ntransfers across the fleet so they do not saturate the network.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
     DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='veto', key=['holder'], config=True, description="Any holder may block the impacting install step by adding an entry;\nabsence of entries means go. The fleet scheduler holds one until it\nis this device's turn, and monitoring systems may add their own.\nEach holder removes only its own entry, so there is no contention.\nA veto blocks starting work; it never aborts an install already\nin flight.", min_elements=0, ordered_by='system', children=[
         DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='holder', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -337,6 +338,17 @@ SRC_YANG_1: str = r"""module stratoweave-rfs {
         type string;
       }
 
+      leaf image-url {
+        description
+          "URL used by the device to fetch the target image. It must be reachable
+           from the device. Supported schemes are platform-specific; IOS XE
+           supports scp, ftp, http and https. scp and ftp URLs may contain
+           credentials and must not be logged. The adapter derives the staged
+           filename from the final path component. If this leaf is absent, an
+           adapter that requires an image URL reports prepare as failed.";
+        type string;
+      }
+
       leaf allow-staging {
         description
           "Whether the manager may run the non-impacting prepare job ahead of
@@ -426,10 +438,9 @@ SRC_YANG_1: str = r"""module stratoweave-rfs {
         container postcheck {
           description
             "Evaluated after install to decide whether the upgrade actually
-             landed. A failing post-check triggers a rollback, which is why
-             cleanup is sequenced last: on platforms without native rollback
-             the superseded image is the rollback path and must still be on
-             the device until the post-checks pass.";
+             landed. A failed post-check triggers rollback. Cleanup runs last so
+             the superseded image remains available for rollback until all
+             post-checks pass.";
           uses check-result;
         }
       }
@@ -2116,12 +2127,14 @@ _breaker17: None = None
 class stratoweave_rfs__device__software(yadata.MNode):
     upgrade_campaign: ?str
     target_release: ?str
+    image_url: ?str
     allow_staging: bool
     veto: stratoweave_rfs__device__software__veto
 
-    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, allow_staging: ?bool=None, veto: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
+    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, image_url: ?str, allow_staging: ?bool=None, veto: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
         self.upgrade_campaign = upgrade_campaign
         self.target_release = target_release
+        self.image_url = image_url
         self.allow_staging = allow_staging if allow_staging is not None else False
         self.veto = stratoweave_rfs__device__software__veto(elements=veto)
 
@@ -2131,7 +2144,7 @@ class stratoweave_rfs__device__software(yadata.MNode):
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software:
         if n is not None:
-            return stratoweave_rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'target-release')), allow_staging=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'allow-staging')), veto=stratoweave_rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'veto'))))
+            return stratoweave_rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'allow-staging')), veto=stratoweave_rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'veto'))))
         return stratoweave_rfs__device__software()
 
     mut def copy(self) -> stratoweave_rfs__device__software:

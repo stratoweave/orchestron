@@ -5,7 +5,7 @@ device inventory plus software upgrade campaigns, with mock CPEs behind
 it. The logic is deliberately naive; the northbound YANG is the contract,
 so the machinery behind it can be replaced without the UI noticing.
 
-    cd gen && acton build && out/bin/gen     # regenerate after YANG changes
+    just gen                                 # regenerate after YANG changes
     acton build
     out/bin/fleetmgr --http-port 18200 --netconf-port 12900 demo.xml
 
@@ -14,19 +14,26 @@ leave it off to start empty.
 
 ## The UI contract
 
-Everything is RESTCONF on the `software` model: config is written with
-PATCH, progress is read from config-false `state` under each campaign.
+The app-specific `fleetmgr` model owns device inventory and connection
+settings. The reusable `software` model owns campaigns and their progress.
+Config is written with PATCH, and progress is read from config-false `state`
+under each campaign.
 
 Create devices and a campaign (campaigns start in `plan`: declared,
 inspectable, doing nothing):
 
     curl -X PATCH -H "Content-Type: application/yang-data+json" \
-      --data-binary '{"software:software": {
-        "device": [{"name": "cpe-1"}, {"name": "cpe-2"}],
-        "upgrade-campaign": [{"name": "xe-upgrade",
-                      "target-release": "17.18.03a",
-                      "device": ["cpe-1", "cpe-2"],
-                      "admin-state": "plan"}]}}' \
+      --data-binary '{
+        "fleetmgr:fleet": {"device": [
+          {"name": "cpe-1", "credentials": {
+             "username": "admin", "password": "admin"},
+           "mock": {"enabled": true}},
+          {"name": "cpe-2", "credentials": {
+             "username": "admin", "password": "admin"},
+           "mock": {"enabled": true}}]},
+        "software:software": {"upgrade-campaign": [
+          {"name": "xe-upgrade", "target-release": "17.18.03a",
+           "device": ["cpe-1", "cpe-2"], "admin-state": "plan"}]}}' \
       http://127.0.0.1:18200/restconf/data
 
 Launch it:

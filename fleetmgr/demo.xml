@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data>
-    <software xmlns="urn:fleetmgr:software">
-        <device><name>cpe-01</name></device>
-        <device><name>cpe-02</name></device>
-        <device><name>cpe-03</name></device>
-        <device><name>cpe-04</name></device>
-        <device><name>cpe-05</name></device>
-        <device><name>cpe-06</name></device>
-        <device><name>cpe-07</name></device>
-        <device><name>cpe-08</name></device>
-        <device><name>cpe-09</name></device>
-        <device><name>cpe-10</name></device>
-        <device><name>cpe-11</name></device>
-        <device><name>cpe-12</name></device>
-        <device><name>cpe-13</name></device>
-        <device><name>cpe-14</name></device>
-        <device><name>cpe-15</name></device>
-        <device><name>cpe-16</name></device>
-        <device><name>cpe-17</name></device>
-        <device><name>cpe-18</name></device>
-        <device><name>cpe-19</name></device>
-        <device><name>cpe-20</name></device>
-    </software>
+    <fleet xmlns="urn:fleetmgr:fleetmgr">
+        <device><name>cpe-01</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-02</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-03</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-04</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-05</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-06</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-07</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-08</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-09</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-10</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-11</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-12</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-13</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-14</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-15</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-16</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-17</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-18</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-19</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-20</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+    </fleet>
 </data>

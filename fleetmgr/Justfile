@@ -1,0 +1,2 @@
+gen:
+	cd spec && acton build && out/bin/gen
