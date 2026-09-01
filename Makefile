@@ -1,4 +1,4 @@
-GENERATED_ACT := src/device_meta_config.act src/device_oper.act src/ietf_restconf_monitoring.act src/ietf_yang_library.act
+GENERATED_ACT := src/device_meta_config.act src/device_oper.act src/ietf_restconf_monitoring.act src/ietf_yang_library.act src/adapters/software_iosxe_rpc.act src/adapters/software_iosxe_oper.act
 
 .PHONY: build
 build: $(GENERATED_ACT)
@@ -29,13 +29,15 @@ gen-ldep: $(GENERATED_ACT)
 	$(MAKE) --always-make gen DEP_OVERRIDES="--dep yang=../acton-yang"
 
 .NOTPARALLEL: $(GENERATED_ACT)
-$(GENERATED_ACT): gen_adata/out/bin/gen_adata src/swyang.act
-	@if [ ! -f "$@" ] || [ "$@" -ot gen_adata/out/bin/gen_adata ] || [ "$@" -ot src/swyang.act ]; then \
+$(GENERATED_ACT): gen_adata/out/bin/gen_adata src/swyang.act src/adapters/software_iosxe_yang.act
+	@if [ ! -f "$@" ] || [ "$@" -ot gen_adata/out/bin/gen_adata ] || [ "$@" -ot src/swyang.act ] || [ "$@" -ot src/adapters/software_iosxe_yang.act ]; then \
 		gen_adata/out/bin/gen_adata; \
 	fi
 
-gen_adata/out/bin/gen_adata: gen_adata/src/gen_adata.act src/swyang.act
+gen_adata/out/bin/gen_adata: gen_adata/src/gen_adata.act src/swyang.act src/adapters/software_iosxe_yang.act
 	cp -a src/swyang.act gen_adata/src/swyang.act
+	mkdir -p gen_adata/src/adapters
+	cp -a src/adapters/software_iosxe_yang.act gen_adata/src/adapters/software_iosxe_yang.act
 	cd gen_adata && acton build $(subst ../,../../,$(DEP_OVERRIDES))
 
 .PHONY: test

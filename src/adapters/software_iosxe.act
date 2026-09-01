@@ -1,0 +1,516 @@
+#
+# IOS XE software adapter.
+#
+# Current IOS XE workflow:
+#
+#   prepare  = xcopy   the image onto bootflash          non-impacting
+#   install  = install one-shot: add, activate, commit,
+#              and the device reloads                    impacting
+#
+# With `one-shot=true`, `install` adds, activates, commits, and reloads. The
+# adapter does not send a separate `activate` RPC.
+#
+# Rollback, cleanup, pre/post checks, retry, and abort are not implemented.
+# Recovery is manual. Cleanup leaves the previous image on the device.
+#
+# Install RPCs are asynchronous. An <ok/> reply means accepted, not complete.
+# The adapter polls operational state for completion.
+#
+# See src/adapters/test_software_iosxe.act for the device side, mocked.
+#
+
+import logging
+import net
+import time
+
+import yang.gdata as ygdata
+
+import device as swdev
+import adapters.software_iosxe_oper as ixoper
+import adapters.software_iosxe_rpc as ixrpc
+
+from device_meta_config import stratoweave_rfs__device_entry as DeviceMetaConfig
+
+# install-oper op-status. MARKED_SUCC means the device had nothing to do, which
+# is not confirmation that what we asked for happened -- but it is not a failure
+# either.
+OP_SUCC = "install-op-succ"
+OP_MARKED_SUCC = "install-op-marked-succ"
+OP_COMPLETE = "op-complete"
+
+# The stage an xcopy produces. A pure file copy really does report through the
+# install records.
+STAGE_DOWNLOAD = "install-txn-download"
+
+POLL_PERIOD = 10.0
+RELOAD_POLL_PERIOD = 20.0
+# Generous: the transfer and the add each take minutes, and a reload plus a late
+# NETCONF listener can take many more.
+MAX_POLLS = 180
+
+# Wall-clock estimates in seconds, measured on a c8000v with a 962 MB image.
+ESTIMATE_TRANSFER = 150
+ESTIMATE_INSTALL = 390
+
+
+#############################################################################
+# Pure: version handling
+#
+# The device spells one release three ways -- the operator writes 17.18.03a, the
+# banner says 17.18.3a, the inventory says 17.18.03a.0.5540 -- so none of this
+# can be a string compare.
+#############################################################################
+
+DIGITS = "0123456789"
+
+
+def _split_component(c: str) -> (num: ?int, suffix: str):
+    """Split a version component into its leading number and any suffix, so
+    "03a" becomes (3, "a")."""
+    digits = ""
+    i = 0
+    while i < len(c) and c[i] in DIGITS:
+        digits += c[i]
+        i += 1
+    num = None
+    if len(digits) > 0:
+        num = int(digits)
+    return (num=num, suffix=c[i:])
+
+
+def _component_eq(a: str, b: str) -> bool:
+    sa = _split_component(a)
+    sb = _split_component(b)
+    an = sa.num
+    bn = sb.num
+    if an is not None and bn is not None:
+        return an == bn and sa.suffix == sb.suffix
+    return a == b
+
+
+def releases_equal(a: ?str, b: ?str) -> bool:
+    """Compare two release names per component, not as strings.
+
+    The device reports 17.18.3a where the image file says 17.18.03a, so a string
+    comparison declares a successful upgrade a failure.
+    """
+    if a is None:
+        return False
+    if b is None:
+        return False
+    ap = a!.split(".")
+    bp = b!.split(".")
+    if len(ap) != len(bp):
+        return False
+    i = 0
+    while i < len(ap):
+        if not _component_eq(ap[i], bp[i]):
+            return False
+        i += 1
+    return True
+
+
+def running_release(root: ?ygdata.Node) -> ?str:
+    """The release the device reports running, from device-hardware-oper.
+
+    The leaf carries a whole banner line, so pull the version out of it.
+    """
+    oper = ixoper.root.from_gdata(root)
+    hardware = oper.device_hardware_data.device_hardware
+    text = hardware.device_system_data.software_version
+    if text is None:
+        return None
+    # "Cisco IOS XE Software, Version 17.18.02" -> "17.18.02"
+    marker = "Version "
+    body = text!
+    idx = body.find(marker)
+    if idx < 0:
+        return body
+    rest = body[idx + len(marker):]
+    end = rest.find(",")
+    if end >= 0:
+        rest = rest[:end]
+    return rest.strip()
+
+
+#############################################################################
+# Pure: operation records
+#############################################################################
+
+def records_for(root: ?ygdata.Node, uuid: str) -> list[(status: str,
+                                                        done: str,
+                                                        stages: list[str])]:
+    """Every record carrying this uuid, live and historical.
+
+    Both lists, because a record moves from install-oper to install-oper-hist
+    when it finishes and the move can happen between two polls.
+    """
+    out: list[(status: str, done: str, stages: list[str])] = []
+    iod = ixoper.root.from_gdata(root).install_oper_data
+    for e in iod.install_oper.elements:
+        if e.op_uuid != uuid:
+            continue
+        stages: list[str] = []
+        for t in e.install_txn_summary_op.elements:
+            cmd = t.txn_cmd
+            if cmd is not None:
+                stages.append(cmd!)
+        status = e.op_status
+        done = e.op_done
+        out.append((status=status! if status is not None else "",
+                    done=done! if done is not None else "",
+                    stages=stages))
+    for e in iod.install_oper_hist.elements:
+        if e.op_uuid != uuid:
+            continue
+        stages = []
+        for t in e.install_txn_sum_op_hist.elements:
+            cmd = t.txn_cmd
+            if cmd is not None:
+                stages.append(cmd!)
+        status = e.op_status
+        done = e.op_done
+        out.append((status=status! if status is not None else "",
+                    done=done! if done is not None else "",
+                    stages=stages))
+    return out
+
+
+def aggregate(root: ?ygdata.Node, uuid: str,
+              expect_stage: str) -> (done: bool, failed: bool, detail: str):
+    """Return completion and failure state for an operation UUID.
+
+    Completion requires terminal records and the expected final stage. A later
+    record may not have appeared yet even when all current records succeeded.
+    """
+    recs = records_for(root, uuid)
+    if len(recs) == 0:
+        return (done=False, failed=False, detail="no records yet")
+    saw_end = False
+    for r in recs:
+        finished = r.done == OP_COMPLETE
+        if finished and r.status != OP_SUCC and r.status != OP_MARKED_SUCC:
+            return (done=True, failed=True, detail="stage failed: {r.status}")
+        if not finished:
+            return (done=False, failed=False, detail="still running")
+        for s in r.stages:
+            if s == expect_stage:
+                saw_end = True
+    if not saw_end:
+        return (done=False, failed=False, detail="waiting for {expect_stage}")
+    return (done=True, failed=False, detail="")
+
+
+#############################################################################
+# Pure: filters and RPC bodies
+#############################################################################
+
+def version_filter() -> ygdata.FNode:
+    """Select the running software version."""
+    paths = ixoper.subs.device_hardware_data.device_hardware.device_system_data
+    return paths.software_version.filt()!
+
+
+def records_filter() -> ygdata.FNode:
+    """Select the active and finished operation lists.
+
+    Selecting complete lists avoids `ygdata.filter`'s keyless-list bug while
+    excluding large siblings such as `install-packages`.
+    """
+    # TODO: Select only the required leaves after acton-yang preserves every
+    # keyless-list entry and an empty selected list no longer drops matching
+    # sibling data.
+    paths = ixoper.subs.install_oper_data
+    return paths.subscribe(select=[paths.install_oper,
+                                   paths.install_oper_hist]).filt!
+
+
+def image_filename(url: str) -> str:
+    """The filename an image URL will land under on bootflash.
+
+    The last path component, which is right for every scheme the device
+    supports: an scp source is scp://user:password@host:/path/to/file, so the
+    credentials and the colon before the path fall to the left of the last
+    slash.
+    """
+    parts = url.split("/")
+    return parts[len(parts) - 1]
+
+
+def redact_url(url: str) -> str:
+    """A URL with any embedded credentials removed, for logging.
+
+    scp and ftp sources carry them in the URL itself, so it cannot be logged as
+    given. Everything between the scheme and the last `@` goes, which covers a
+    password containing `@` or `:` as well.
+    """
+    marker = "://"
+    at = url.rfind("@")
+    scheme_end = url.find(marker)
+    if at < 0 or scheme_end < 0 or at < scheme_end:
+        return url
+    return url[:scheme_end + len(marker)] + "***@" + url[at + 1:]
+
+
+def job_uuid(phase: str, release: str, token: str) -> str:
+    """The uuid one operation runs under.
+
+    The token is what keeps two attempts apart. The device keeps finished
+    operations in install-oper-hist and we find our records by uuid, so a uuid
+    that is only a function of the release makes a second attempt match the
+    first attempt's failure and give up before the device has begun.
+    """
+    return "swi-{phase}-{release}-{token}"
+
+
+def xcopy_input(uuid: str, url: str, filename: str) -> ixrpc.Cisco_IOS_XE_xcopy_rpc__xcopy__input:
+    """Stage an image. `destination_path` must be a bare filename: the device
+    prepends /bootflash itself, so passing a path doubles it and fails."""
+    return ixrpc.Cisco_IOS_XE_xcopy_rpc__xcopy__input(
+        uuid=uuid, source_path=url, destination_path=filename)
+
+
+def install_input(uuid: str, filename: str) -> ixrpc.Cisco_IOS_XE_install_rpc__install__input:
+    """Add the staged file and activate it in one call.
+
+    `one_shot` is what makes this the whole impacting step: the device adds,
+    activates, commits and reloads. `path` needs the `bootflash:` prefix, the
+    opposite convention to xcopy's destination.
+    """
+    return ixrpc.Cisco_IOS_XE_install_rpc__install__input(
+        uuid=uuid, one_shot=True, path="bootflash:" + filename)
+
+
+#############################################################################
+# The adapter
+#############################################################################
+
+actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
+                          poll_period: float=POLL_PERIOD,
+                          reload_poll_period: float=RELOAD_POLL_PERIOD):
+    """Serializes IOS XE software jobs and owns their polling state."""
+    _log = logging.Logger(log_handler)
+    # The adapter is built inside DeviceMgr.set_dmc. Calling dev.tree_provider()
+    # synchronously here would call back into the same actor and deadlock.
+    _rpcs = ixrpc.rpc_root(swdev.DeviceTreeProvider(dev))
+
+    var _phase = ""
+    var _gen = 0
+    var _polls = 0
+    var _release = ""
+    var _uuid = ""
+    var _filename = ""
+    var _done: ?action(?Exception) -> None = None
+
+    def _finish(err: ?Exception) -> None:
+        d = _done
+        _phase = ""
+        _done = None
+        _gen += 1
+        if d is not None:
+            d!(err)
+
+    def _busy() -> bool:
+        return _phase != ""
+
+    def _new_token() -> str:
+        """Return a timestamp token with microsecond resolution."""
+        secs, nanos = time.get_realtime()
+        return "{secs}-{nanos // 1000}"
+
+    def _image_url() -> ?str:
+        """Read the image URL at job start so configuration changes take effect."""
+        url = dev.get_dmc().software.image_url
+        if url is None or url! == "":
+            return None
+        return url
+
+    def _begin(phase: str, done: action(?Exception) -> None, release: str) -> ?str:
+        """Initialize a job and return its image URL, or report an error."""
+        if _busy():
+            done(ValueError("software job already running: {_phase}"))
+            return None
+        url = _image_url()
+        if url is None:
+            done(ValueError("no image-url configured for release {release}"))
+            return None
+        _done = done
+        _release = release
+        _filename = image_filename(url!)
+        _uuid = job_uuid(phase, release, _new_token())
+        _phase = phase
+        _polls = 0
+        return url
+
+    ####################################################################
+    # check
+    ####################################################################
+
+    def check(done: action(?str, ?Exception) -> None) -> None:
+        def on_reply(root: ?ygdata.Node, err: ?Exception) -> None:
+            if err is not None:
+                done(None, err)
+                return
+            done(running_release(root), None)
+        dev.get(on_reply, version_filter())
+
+    ####################################################################
+    # prepare: stage the image, touching no install state
+    ####################################################################
+
+    def prepare(done: action(?Exception) -> None, release: str) -> None:
+        url = _begin("stage", done, release)
+        if url is None:
+            return
+        gen = _gen
+        _log.info("software: staging image",
+                  {"url": redact_url(url!), "uuid": _uuid})
+        def on_rpc(out: ?ixrpc.Cisco_IOS_XE_xcopy_rpc__xcopy__output,
+                   err: ?Exception) -> None:
+            # The output echoes the uuid we sent and says nothing about the
+            # copy, so it is ignored: progress comes from install-oper-data.
+            if gen != _gen:
+                return
+            if err is not None:
+                _finish(err)
+                return
+            after poll_period: _poll(gen)
+        _rpcs.xcopy(on_rpc, xcopy_input(_uuid, url!, _filename))
+
+    ####################################################################
+    # install: add and activate in one call, device reloads
+    ####################################################################
+
+    def install(done: action(?Exception) -> None, release: str) -> None:
+        # TODO: Verify the image is still staged and repeat prepare if needed.
+        url = _begin("install", done, release)
+        if url is None:
+            return
+        gen = _gen
+        _log.info("software: installing, device will reload",
+                  {"file": _filename, "uuid": _uuid})
+        def on_rpc(err: ?Exception) -> None:
+            if gen != _gen:
+                return
+            if err is not None:
+                _finish(err)
+                return
+            after reload_poll_period: _poll(gen)
+        _rpcs.install(on_rpc, install_input(_uuid, _filename))
+
+    ####################################################################
+    # polling -- the only completion signal an accepted RPC gives
+    ####################################################################
+
+    def _poll(gen: int) -> None:
+        if gen != _gen or not _busy():
+            return
+        _polls += 1
+        if _polls > MAX_POLLS:
+            _finish(ValueError("software job {_phase} did not finish in time"))
+            return
+        if _phase == "install":
+            _poll_version(gen)
+        else:
+            _poll_records(gen)
+
+    def _poll_records(gen: int) -> None:
+        # Schedule the next poll before starting the read so a missing callback
+        # does not stop polling.
+        after poll_period: _poll(gen)
+        def on_oper(root: ?ygdata.Node, err: ?Exception) -> None:
+            if gen != _gen:
+                return
+            if err is not None:
+                return
+            v = aggregate(root, _uuid, STAGE_DOWNLOAD)
+            if not v.done:
+                return
+            if v.failed:
+                _finish(ValueError("staging failed: {v.detail}"))
+                return
+            _log.info("software: image staged", {"file": _filename})
+            _finish(None)
+        dev.get(on_oper, records_filter())
+
+    def _poll_version(gen: int) -> None:
+        after reload_poll_period: _poll(gen)
+        def on_version(root: ?ygdata.Node, err: ?Exception) -> None:
+            if gen != _gen:
+                return
+            if err is not None:
+                # The device is reloading. Not a failure.
+                return
+            got = running_release(root)
+            if got is None:
+                return
+            if releases_equal(got, _release):
+                _log.info("software: device booted the target release",
+                          {"release": got!})
+                _finish(None)
+        dev.get(on_version, version_filter())
+
+    ####################################################################
+    # not in the MVP -- these continue without acting
+    ####################################################################
+
+    def rollback(done: action(?Exception) -> None, previous: ?str) -> None:
+        _log.info("software: rollback is not implemented, continuing",
+                  {"previous": str(previous)})
+        done(None)
+
+    def cleanup(done: action(?Exception) -> None) -> None:
+        # Cleanup is not implemented. Keep the previous image for manual
+        # recovery.
+        _log.info("software: cleanup is not implemented, continuing")
+        done(None)
+
+
+class IosXeSoftwareAdapter(swdev.SoftwareAdapter):
+    """Software adapter for IOS XE. See the module header for the scope."""
+
+    _driver: IosXeSoftwareDriver
+
+    def __init__(self, dev: swdev.DeviceMgr, dmc: DeviceMetaConfig,
+                 log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap,
+                 poll_period: float=POLL_PERIOD,
+                 reload_poll_period: float=RELOAD_POLL_PERIOD):
+        # The poll periods are parameters only so a test can drive them fast.
+        #
+        # Because they are defaulted, a device type cannot name this class as its
+        # `software_adapter_type` -- the compiler wants every keyword the
+        # constructor declares, and the field's type has four parameters. So a
+        # device type names a small factory that calls this with the defaults;
+        # `_fast_adapter` in adapters.test_software_iosxe is the pattern,
+        # winding the periods down instead of leaving them.
+        self._log_handler = log_handler
+        self._driver = IosXeSoftwareDriver(dev, log_handler, poll_period,
+                                          reload_poll_period)
+
+    def supports_mocking(self) -> bool:
+        return True
+
+    def check(self, done: action(?str, ?Exception) -> None) -> None:
+        self._driver.check(done)
+
+    def matches_release(self, running: ?str, target: str) -> bool:
+        # Per component, not as strings: the device says 17.18.3a where the
+        # image is called 17.18.03a.
+        return releases_equal(running, target)
+
+    def prepare(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.prepare(done, release)
+
+    def install(self, done: action(?Exception) -> None, release: str) -> None:
+        self._driver.install(done, release)
+
+    def rollback(self, done: action(?Exception) -> None, previous: ?str) -> None:
+        self._driver.rollback(done, previous)
+
+    def cleanup(self, done: action(?Exception) -> None) -> None:
+        self._driver.cleanup(done)
+
+    def estimate(self, staged: bool) -> int:
+        if staged:
+            return ESTIMATE_INSTALL
+        return ESTIMATE_TRANSFER + ESTIMATE_INSTALL

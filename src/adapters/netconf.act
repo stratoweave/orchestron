@@ -884,9 +884,11 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         _log.debug("Notification from device (no matching push-update subscription)")
 
     def set_dmc(new_dmc: DeviceMetaConfig):
-        _log.debug("Device.set_dmc", {"dmc": dmc.to_gdata().to_yang_jsonstr(), "new_dmc": new_dmc.to_gdata().to_yang_jsonstr()})
+        old_g = dmc.to_gdata()
+        new_g = new_dmc.to_gdata()
+        _log.debug("Device.set_dmc", {"dmc": old_g.to_yang_jsonstr(), "new_dmc": new_g.to_yang_jsonstr()})
         # TODO: implement Eq for adata so we can compare without going via gdata
-        if dmc.to_gdata() == new_dmc.to_gdata():
+        if old_g == new_g:
             _log.debug("Device.set_dmc: ignoring new device meta-config identical to current device meta-config")
             return
 
@@ -894,10 +896,11 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         _con_log_handler.set_output_level(con_log_level)
 
         # Reconnect only when session parameters / feature-flags change
-        if not (dmc.credentials.to_gdata() == new_dmc.credentials.to_gdata()
-                and dmc.address.to_gdata() == new_dmc.address.to_gdata()
-                and dmc.mock.to_gdata() == new_dmc.mock.to_gdata()
-                and dmc.feature_flags.to_gdata() == new_dmc.feature_flags.to_gdata()):
+        ns = "http://stratoweave.org/yang/stratoweave-rfs"
+        if not (old_g.get_opt_cnt(ygdata.Id(ns, "credentials")) == new_g.get_opt_cnt(ygdata.Id(ns, "credentials"))
+                and old_g.get_opt_list(ygdata.Id(ns, "address")) == new_g.get_opt_list(ygdata.Id(ns, "address"))
+                and old_g.get_opt_cnt(ygdata.Id(ns, "mock")) == new_g.get_opt_cnt(ygdata.Id(ns, "mock"))
+                and old_g.get_opt_cnt(ygdata.Id(ns, "feature-flags")) == new_g.get_opt_cnt(ygdata.Id(ns, "feature-flags"))):
             _log.debug("Device.set_dmc: reconnect required, reconnecting")
             _connect(new_dmc)
         else:

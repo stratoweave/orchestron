@@ -2,6 +2,7 @@ import file
 
 import swyang
 import yang
+import adapters.software_iosxe_yang as swxe_yang
 from yang.transform_filter_schema import filter_schema
 
 
@@ -25,6 +26,32 @@ actor main(env):
         wf = file.WriteFile(wfc, "src/device_meta_config.act")
         await async wf.write(src)
         await async wf.close()
+
+        # Typed bindings for the RPCs the IOS-XE software adapter sends. Built
+        # from the same module text the device type gets, so the adapter cannot
+        # drift from the schema it is validated against. include_state, because
+        # xcopy declares an output and the generated callback has to carry it.
+        iosxe_rpc_schema = [swxe_yang.xcopy_rpc, swxe_yang.install_rpc]
+        yi = yang.compile(iosxe_rpc_schema)
+        iosxe_src = (yi.prdaclass(schema_yang=iosxe_rpc_schema,
+                                  include_state=True).strip() + "\n").encode()
+
+        wfi = file.WriteFile(wfc, "src/adapters/software_iosxe_rpc.act")
+        await async wfi.write(iosxe_src)
+        await async wfi.close()
+
+        # Typed operational data and schema-safe filter paths for the state the
+        # IOS-XE software adapter polls.
+        iosxe_oper_schema = [swxe_yang.install_oper, swxe_yang.device_hardware_oper]
+        yo = yang.compile(iosxe_oper_schema)
+        iosxe_oper_src = (yo.prdaclass(schema_yang=iosxe_oper_schema,
+                                      loose=True,
+                                      include_state=True,
+                                      include_subs=True).strip() + "\n").encode()
+
+        wfio = file.WriteFile(wfc, "src/adapters/software_iosxe_oper.act")
+        await async wfio.write(iosxe_oper_src)
+        await async wfio.close()
 
         rcmon_schema = [swyang.ietf_restconf_monitoring, swyang.ietf_yang_types, swyang.ietf_inet_types]
         yr = yang.compile(rcmon_schema)

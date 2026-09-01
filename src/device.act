@@ -57,6 +57,19 @@ class SoftwareAdapter(object):
     ## Read the release the device is currently running.
     check: proc(done: action(?str, ?Exception) -> None) -> None
 
+    def matches_release(self, running: ?str, target: str) -> bool:
+        """Whether what the device reports running is the release intended.
+
+        A method on the adapter rather than `==` in the manager, because how a
+        device spells a release is the platform's business: IOS XE reports
+        17.18.3a for an image called 17.18.03a, so a string comparison there
+        calls a finished upgrade unfinished.
+
+        `running` is None when the device did not say. That is not a match: the
+        manager then does the work rather than assume none is needed.
+        """
+        return running is not None and running! == target
+
     ## Stage the release: upload the image, verify the checksum. Non-impacting,
     ## so it can run well ahead of the maintenance window, but only when the
     ## scheduler has allowed it, since image transfers across a whole fleet are
@@ -65,6 +78,8 @@ class SoftwareAdapter(object):
 
     ## Activate and reboot: the impacting step, and the only one that must
     ## happen inside a maintenance window. Re-runs the prepare steps first.
+    ## Call `done(None)` only after the device is reachable again and the
+    ## requested release is running.
     install: proc(done: action(?Exception) -> None, release: str) -> None
 
     ## Return the device to the release it was running before install.
@@ -119,6 +134,7 @@ class NoSoftwareAdapter(SoftwareAdapter):
 
 
 ST_UNKNOWN = "unknown"
+ST_UP_TO_DATE = "up-to-date"
 ST_IN_PROGRESS = "in-progress"
 ST_SUCCEEDED = "succeeded"
 ST_FAILED = "failed"
@@ -131,8 +147,9 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
     readable, so tight coupling is fine: status changes are pushed straight
     to devmgr.on_software_state.
 
-    Only the install step is implemented: given a target release and an
-    adapter, it installs. The rest of the API below is still a stub.
+    Implemented so far: check, prepare, install, then a check to read the
+    release back, and a resync. Pre-checks, post-checks, rollback, cleanup
+    and early staging are still stubs.
 
     Declarative like the rest of StratoWeave: the manager is told a target
     release and reconciles toward it, rather than being handed a command to
@@ -176,6 +193,12 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
     var upgrade_campaign: ?str = None
     var allow_staging: bool = False
     var vetoes: dict[str, str] = {}
+
+    # Set from the moment a reconcile starts reading the device until the
+    # sequence it started has finished, so repeated config does not stack
+    # sequences on top of each other. Wider than `status == in-progress`,
+    # because the comparison happens before there is any work to report.
+    var busy: bool = False
 
     # The device/software/state oper tree this manager owns. Every change is
     # pushed to the DeviceMgr, which fuses it into the device entry's oper.
@@ -240,38 +263,91 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
 
     #### install ############################################################
 
-    def _set_status(s: str) -> None:
-        if s != state.status:
-            state.status = s
+    def _record(running: ?str, status: ?str) -> None:
+        """Update operational state and publish at most one change."""
+        changed = False
+        if running is not None and running != state.running_release:
+            state.running_release = running
+            changed = True
+        if status is not None and status != state.status:
+            state.status = status
+            changed = True
+        if changed:
             # Push a copy: Acton does not copy local message arguments, and
             # the DeviceMgr keeps what it receives in its oper tree.
             devmgr.on_software_state(state.copy())
 
-    def _reconcile() -> None:
-        """Install when there is something to install and nothing blocking it.
+    def _set_status(s: str) -> None:
+        _record(None, s)
 
-        The full contract in the docstring above adds check, prepare, the check
-        gates, rollback and cleanup around this. For now a target release means
-        install it, once.
-        """
-        if state.status == ST_IN_PROGRESS:
+    def _reconcile() -> None:
+        """Check the running release and prepare and install it if it differs."""
+        if busy:
             return
         t = target_release
-        if t is not None:
-            if len(vetoes) > 0:
-                return
-            _set_status(ST_IN_PROGRESS)
-            adapter.install(_on_install_done, t)
+        if t is None:
+            return
+        if len(vetoes) > 0:
+            return
+        busy = True
+        adapter.check(_on_check_done)
+
+    def _on_check_done(running: ?str, err: ?Exception) -> None:
+        """Decide whether there is anything to do, from what the device reports."""
+        t = target_release
+        if t is None:
+            # The intent was withdrawn while we were reading.
+            busy = False
+            return
+        if err is not None:
+            # Not knowing what the device runs is not the same as it being up to
+            # date. Refusing to upgrade because one read failed is worse than a
+            # redundant install, so carry on and let the install report.
+            _log.warning("software: could not read the running release, "
+                         "continuing without the comparison",
+                         {"device": name, "error": str(err)})
+        elif adapter.matches_release(running, t!):
+            _log.info("software: already on the target release, nothing to do",
+                      {"device": name, "release": running, "target": t!})
+            _record(running, ST_UP_TO_DATE)
+            busy = False
+            return
+        _record(running, ST_IN_PROGRESS)
+        adapter.prepare(_on_prepare_done, t!)
+
+    def _on_prepare_done(err: ?Exception) -> None:
+        if err is not None:
+            _log.error("software staging failed", {"device": name, "error": str(err)})
+            busy = False
+            _set_status(ST_FAILED)
+            return
+        t = target_release
+        if t is None:
+            busy = False
+            _set_status(ST_FAILED)
+            return
+        adapter.install(_on_install_done, t!)
 
     def _on_install_done(err: ?Exception) -> None:
         if err is not None:
             _log.error("software install failed", {"device": name, "error": str(err)})
+            busy = False
             _set_status(ST_FAILED)
             return
+        # Refresh running-release with the value reported by the device.
+        adapter.check(_on_final_check)
+
+    def _on_final_check(running: ?str, err: ?Exception) -> None:
+        busy = False
+        if err is not None:
+            # Install already confirmed the target release. Preserve success if
+            # this final read fails.
+            _log.warning("software: installed, but could not read the release back",
+                         {"device": name, "error": str(err)})
         # New software may mean a different modset, so the device has to be
         # re-discovered before anything trusts its schema again.
         devmgr.resync()
-        _set_status(ST_SUCCEEDED)
+        _record(running, ST_SUCCEEDED)
 
     # Report the initial state, so the DeviceMgr's entry oper starts complete.
     devmgr.on_software_state(state.copy())

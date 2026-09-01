@@ -1,0 +1,594 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+from yang.sdata import SubscriptionPath, SubscriptionNode
+
+# == This file is generated ==
+
+
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='Cisco-IOS-XE-device-hardware-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper', prefix='device-hardware-ios-xe-oper', name='device-hardware-data', config=False, presence=False, children=[
+    DContainer(module='Cisco-IOS-XE-device-hardware-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper', prefix='device-hardware-ios-xe-oper', name='device-hardware', config=False, presence=False, children=[
+        DContainer(module='Cisco-IOS-XE-device-hardware-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper', prefix='device-hardware-ios-xe-oper', name='device-system-data', config=False, presence=False, children=[
+            DLeaf(module='Cisco-IOS-XE-device-hardware-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper', prefix='device-hardware-ios-xe-oper', name='software-version', config=False, description="Carries a whole banner line, not a bare version:\n'Cisco IOS XE Software, Version 17.18.02'.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+        ])
+    ])
+])
+
+SRC_DNODE_CHILD_1: DContainer = DContainer(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='install-oper-data', config=False, presence=False, children=[
+    DList(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='install-oper', config=False, description='Operations currently executing.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-id', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-status', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-done', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DList(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='install-txn-summary-op', config=False, min_elements=0, ordered_by='system', children=[
+            DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='txn-cmd', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='txn-status', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+        ])
+    ]),
+    DList(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='install-oper-hist', config=False, description='Finished operations retained by the device. Each attempt\nneeds a new uuid.', min_elements=0, ordered_by='system', children=[
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-id', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-status', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='op-done', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DList(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='install-txn-sum-op-hist', config=False, min_elements=0, ordered_by='system', children=[
+            DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='txn-cmd', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+            DLeaf(module='Cisco-IOS-XE-install-oper', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper', prefix='install-ios-xe-oper', name='txn-status', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+        ])
+    ])
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_1],
+    identities=[],
+    rpcs=[],
+    module_metadata={'http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper':('Cisco-IOS-XE-device-hardware-oper', None), 'http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper':('Cisco-IOS-XE-install-oper', None)},
+)
+
+SRC_YANG_0: str = r"""module Cisco-IOS-XE-install-oper {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper";
+  prefix install-ios-xe-oper;
+
+  description
+    "Pruned to the operation records, which are how an asynchronous install
+     reports progress. One RPC produces several records sharing an op-uuid and
+     differing in op-id, and a record moves from install-oper to
+     install-oper-hist when it finishes -- so both lists have to be read.";
+
+  container install-oper-data {
+    config false;
+
+    list install-oper {
+      description "Operations currently executing.";
+      leaf op-uuid   { type string; }
+      leaf op-id     { type string; }
+      leaf op-status { type string; }
+      leaf op-done   { type string; }
+      list install-txn-summary-op {
+        leaf txn-cmd    { type string; }
+        leaf txn-status { type string; }
+      }
+    }
+
+    list install-oper-hist {
+      description "Finished operations retained by the device. Each attempt
+        needs a new uuid.";
+      leaf op-uuid   { type string; }
+      leaf op-id     { type string; }
+      leaf op-status { type string; }
+      leaf op-done   { type string; }
+      list install-txn-sum-op-hist {
+        leaf txn-cmd    { type string; }
+        leaf txn-status { type string; }
+      }
+    }
+  }
+}
+"""
+
+SRC_YANG_1: str = r"""module Cisco-IOS-XE-device-hardware-oper {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper";
+  prefix device-hardware-ios-xe-oper;
+
+  description
+    "Pruned to the running release, which is how the impacting step is known to
+     have landed.";
+
+  container device-hardware-data {
+    config false;
+    container device-hardware {
+      container device-system-data {
+        leaf software-version {
+          description "Carries a whole banner line, not a bare version:
+            'Cisco IOS XE Software, Version 17.18.02'.";
+          type string;
+        }
+      }
+    }
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+    ]
+
+
+NS_Cisco_IOS_XE_device_hardware_oper: str = 'http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper'
+NS_Cisco_IOS_XE_install_oper: str = 'http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper'
+
+
+_breaker1: None = None
+class Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data(yadata.MNode):
+    software_version: ?str
+
+    mut def __init__(self, software_version: ?str) -> None:
+        self.software_version = software_version
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-device-hardware-oper:device-hardware-data', 'device-hardware', 'device-system-data'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data:
+        if n is not None:
+            return Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data(software_version=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'software-version')))
+        return Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data()
+
+    mut def copy(self) -> Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data.from_gdata(self.to_gdata())
+
+
+_breaker2: None = None
+class Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware(yadata.MNode):
+    device_system_data: Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data
+
+    mut def __init__(self, device_system_data: ?Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data=None) -> None:
+        self.device_system_data = device_system_data if device_system_data is not None else Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-device-hardware-oper:device-hardware-data', 'device-hardware'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware:
+        if n is not None:
+            return Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware(device_system_data=Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data.from_gdata(n.get_opt_cnt(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'device-system-data'))))
+        return Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware()
+
+    mut def copy(self) -> Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware.from_gdata(self.to_gdata())
+
+
+_breaker3: None = None
+class Cisco_IOS_XE_device_hardware_oper__device_hardware_data(yadata.MNode):
+    device_hardware: Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware
+
+    mut def __init__(self, device_hardware: ?Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware=None) -> None:
+        self.device_hardware = device_hardware if device_hardware is not None else Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-device-hardware-oper:device-hardware-data'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_device_hardware_oper__device_hardware_data:
+        if n is not None:
+            return Cisco_IOS_XE_device_hardware_oper__device_hardware_data(device_hardware=Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware.from_gdata(n.get_opt_cnt(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'device-hardware'))))
+        return Cisco_IOS_XE_device_hardware_oper__device_hardware_data()
+
+    mut def copy(self) -> Cisco_IOS_XE_device_hardware_oper__device_hardware_data:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_device_hardware_oper__device_hardware_data.from_gdata(self.to_gdata())
+
+
+_breaker4: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry(yadata.MNode):
+    txn_cmd: ?str
+    txn_status: ?str
+
+    mut def __init__(self, txn_cmd: ?str, txn_status: ?str) -> None:
+        self.txn_cmd = txn_cmd
+        self.txn_status = txn_status
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-oper:install-oper-data', 'install-oper', 'install-txn-summary-op'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry:
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry(txn_cmd=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-cmd')), txn_status=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-status')))
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry.from_gdata(self.to_gdata())
+
+_breaker5: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry]):
+    mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry]=[]) -> None:
+        self.elements = elements
+
+    mut def create(self, txn_cmd: ?str=None, txn_status: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry:
+        res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry(txn_cmd=txn_cmd, txn_status=txn_status)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry]:
+        if n is not None:
+            return [Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op(elements=copied_elements)
+
+
+_breaker6: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry(yadata.MNode):
+    op_uuid: ?str
+    op_id: ?str
+    op_status: ?str
+    op_done: ?str
+    install_txn_summary_op: Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op
+
+    mut def __init__(self, op_uuid: ?str, op_id: ?str, op_status: ?str, op_done: ?str, install_txn_summary_op: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry]=[]) -> None:
+        self.op_uuid = op_uuid
+        self.op_id = op_id
+        self.op_status = op_status
+        self.op_done = op_done
+        self.install_txn_summary_op = Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op(elements=install_txn_summary_op)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-oper:install-oper-data', 'install-oper'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry:
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry(op_uuid=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-uuid')), op_id=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-id')), op_status=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-status')), op_done=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-done')), install_txn_summary_op=Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op.from_gdata(n.get_opt_list(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-txn-summary-op'))))
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry.from_gdata(self.to_gdata())
+
+_breaker7: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry]):
+    mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry]=[]) -> None:
+        self.elements = elements
+
+    mut def create(self, op_uuid: ?str=None, op_id: ?str=None, op_status: ?str=None, op_done: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry:
+        res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry(op_uuid=op_uuid, op_id=op_id, op_status=op_status, op_done=op_done)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry]:
+        if n is not None:
+            return [Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper(elements=copied_elements)
+
+
+_breaker8: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry(yadata.MNode):
+    txn_cmd: ?str
+    txn_status: ?str
+
+    mut def __init__(self, txn_cmd: ?str, txn_status: ?str) -> None:
+        self.txn_cmd = txn_cmd
+        self.txn_status = txn_status
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-oper:install-oper-data', 'install-oper-hist', 'install-txn-sum-op-hist'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry:
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry(txn_cmd=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-cmd')), txn_status=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-status')))
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry.from_gdata(self.to_gdata())
+
+_breaker9: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry]):
+    mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry]=[]) -> None:
+        self.elements = elements
+
+    mut def create(self, txn_cmd: ?str=None, txn_status: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry:
+        res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry(txn_cmd=txn_cmd, txn_status=txn_status)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry]:
+        if n is not None:
+            return [Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist(elements=copied_elements)
+
+
+_breaker10: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry(yadata.MNode):
+    op_uuid: ?str
+    op_id: ?str
+    op_status: ?str
+    op_done: ?str
+    install_txn_sum_op_hist: Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist
+
+    mut def __init__(self, op_uuid: ?str, op_id: ?str, op_status: ?str, op_done: ?str, install_txn_sum_op_hist: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry]=[]) -> None:
+        self.op_uuid = op_uuid
+        self.op_id = op_id
+        self.op_status = op_status
+        self.op_done = op_done
+        self.install_txn_sum_op_hist = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist(elements=install_txn_sum_op_hist)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-oper:install-oper-data', 'install-oper-hist'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry:
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry(op_uuid=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-uuid')), op_id=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-id')), op_status=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-status')), op_done=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-done')), install_txn_sum_op_hist=Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist.from_gdata(n.get_opt_list(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-txn-sum-op-hist'))))
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry.from_gdata(self.to_gdata())
+
+_breaker11: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry]):
+    mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry]=[]) -> None:
+        self.elements = elements
+
+    mut def create(self, op_uuid: ?str=None, op_id: ?str=None, op_status: ?str=None, op_done: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry:
+        res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry(op_uuid=op_uuid, op_id=op_id, op_status=op_status, op_done=op_done)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry]:
+        if n is not None:
+            return [Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist(elements=copied_elements)
+
+
+_breaker12: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data(yadata.MNode):
+    install_oper: Cisco_IOS_XE_install_oper__install_oper_data__install_oper
+    install_oper_hist: Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist
+
+    mut def __init__(self, install_oper: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry]=[], install_oper_hist: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry]=[]) -> None:
+        self.install_oper = Cisco_IOS_XE_install_oper__install_oper_data__install_oper(elements=install_oper)
+        self.install_oper_hist = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist(elements=install_oper_hist)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-oper:install-oper-data'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_oper__install_oper_data:
+        if n is not None:
+            return Cisco_IOS_XE_install_oper__install_oper_data(install_oper=Cisco_IOS_XE_install_oper__install_oper_data__install_oper.from_gdata(n.get_opt_list(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-oper'))), install_oper_hist=Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist.from_gdata(n.get_opt_list(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-oper-hist'))))
+        return Cisco_IOS_XE_install_oper__install_oper_data()
+
+    mut def copy(self) -> Cisco_IOS_XE_install_oper__install_oper_data:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_oper__install_oper_data.from_gdata(self.to_gdata())
+
+
+_breaker13: None = None
+class root(yadata.MNode):
+    device_hardware_data: Cisco_IOS_XE_device_hardware_oper__device_hardware_data
+    install_oper_data: Cisco_IOS_XE_install_oper__install_oper_data
+
+    mut def __init__(self, device_hardware_data: ?Cisco_IOS_XE_device_hardware_oper__device_hardware_data=None, install_oper_data: ?Cisco_IOS_XE_install_oper__install_oper_data=None) -> None:
+        self.device_hardware_data = device_hardware_data if device_hardware_data is not None else Cisco_IOS_XE_device_hardware_oper__device_hardware_data()
+        self.install_oper_data = install_oper_data if install_oper_data is not None else Cisco_IOS_XE_install_oper__install_oper_data()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(device_hardware_data=Cisco_IOS_XE_device_hardware_oper__device_hardware_data.from_gdata(n.get_opt_cnt(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'device-hardware-data'))), install_oper_data=Cisco_IOS_XE_install_oper__install_oper_data.from_gdata(n.get_opt_cnt(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-oper-data'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+
+
+
+_breaker14: None = None
+class Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data_subs(SubscriptionNode):
+    software_version: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.software_version = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'software-version'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.software_version]
+        return direct
+
+_breaker15: None = None
+class Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware_subs(SubscriptionNode):
+    device_system_data: Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device_system_data = Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware__device_system_data_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'device-system-data'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device_system_data]
+        return direct
+
+_breaker16: None = None
+class Cisco_IOS_XE_device_hardware_oper__device_hardware_data_subs(SubscriptionNode):
+    device_hardware: Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device_hardware = Cisco_IOS_XE_device_hardware_oper__device_hardware_data__device_hardware_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'device-hardware'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device_hardware]
+        return direct
+
+_breaker17: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_subs(SubscriptionNode):
+    txn_cmd: SubscriptionNode
+    txn_status: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.txn_cmd = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-cmd'), parent=path))
+        self.txn_status = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-status'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.txn_cmd, self.txn_status]
+        return direct
+
+_breaker18: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_subs(SubscriptionNode):
+    op_uuid: SubscriptionNode
+    op_id: SubscriptionNode
+    op_status: SubscriptionNode
+    op_done: SubscriptionNode
+    install_txn_summary_op: Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_subs
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.op_uuid = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-uuid'), parent=path))
+        self.op_id = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-id'), parent=path))
+        self.op_status = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-status'), parent=path))
+        self.op_done = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-done'), parent=path))
+        self.install_txn_summary_op = Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-txn-summary-op'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.op_uuid, self.op_id, self.op_status, self.op_done, self.install_txn_summary_op]
+        return direct
+
+_breaker19: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_subs(SubscriptionNode):
+    txn_cmd: SubscriptionNode
+    txn_status: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.txn_cmd = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-cmd'), parent=path))
+        self.txn_status = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'txn-status'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.txn_cmd, self.txn_status]
+        return direct
+
+_breaker20: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_subs(SubscriptionNode):
+    op_uuid: SubscriptionNode
+    op_id: SubscriptionNode
+    op_status: SubscriptionNode
+    op_done: SubscriptionNode
+    install_txn_sum_op_hist: Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_subs
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.op_uuid = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-uuid'), parent=path))
+        self.op_id = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-id'), parent=path))
+        self.op_status = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-status'), parent=path))
+        self.op_done = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'op-done'), parent=path))
+        self.install_txn_sum_op_hist = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-txn-sum-op-hist'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.op_uuid, self.op_id, self.op_status, self.op_done, self.install_txn_sum_op_hist]
+        return direct
+
+_breaker21: None = None
+class Cisco_IOS_XE_install_oper__install_oper_data_subs(SubscriptionNode):
+    install_oper: Cisco_IOS_XE_install_oper__install_oper_data__install_oper_subs
+    install_oper_hist: Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.install_oper = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-oper'), parent=path))
+        self.install_oper_hist = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-oper-hist'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.install_oper, self.install_oper_hist]
+        return direct
+
+_breaker22: None = None
+class root_subs(SubscriptionNode):
+    device_hardware_data: Cisco_IOS_XE_device_hardware_oper__device_hardware_data_subs
+    install_oper_data: Cisco_IOS_XE_install_oper__install_oper_data_subs
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.device_hardware_data = Cisco_IOS_XE_device_hardware_oper__device_hardware_data_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_device_hardware_oper, 'device-hardware-data'), parent=path))
+        self.install_oper_data = Cisco_IOS_XE_install_oper__install_oper_data_subs(SubscriptionPath(ygdata.Id(NS_Cisco_IOS_XE_install_oper, 'install-oper-data'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.device_hardware_data, self.install_oper_data]
+        return direct
+
+subs: root_subs = root_subs()
+
+actor DstAdapter(cb: action(?root, ?Exception) -> None):
+    on_update: action(?ygdata.Node, ?Exception) -> None
+    def on_update(n: ?ygdata.Node, err: ?Exception) -> None:
+        if err is not None:
+            cb(None, err)
+            return
+        if n is not None:
+            cb(root.from_gdata(n), None)
+            return
+        cb(None, None)
+
+proc def dst(cb: action(?root, ?Exception) -> None) -> ygdata.Dst:
+    adapter = DstAdapter(cb)
+    return ygdata.Dst(adapter.on_update)

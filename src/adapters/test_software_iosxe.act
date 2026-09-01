@@ -1,0 +1,673 @@
+#
+# IOS XE software adapter tests.
+#
+# The mock reproduces the IOS XE behavior used by the adapter:
+#
+#   * RPCs reply <ok/> *before* the state moves. Every install RPC returns
+#     within a second meaning "accepted" and then works for minutes, so an
+#     adapter that treats the reply as completion has to fail.
+#   * `xcopy` -- a pure file copy -- reports through install-oper-data, as an
+#     operation record carrying `install-txn-download`. There is no separate
+#     copy-progress tree.
+#   * The running release comes back as a whole banner line, not a bare
+#     version, and it is spelled differently from the release that was asked
+#     for: 17.18.3a for an image called 17.18.03a.
+#   * `xcopy` declares an output where `install` does not.
+#
+#
+
+import logging
+import net
+import testing
+import std.xml as xml
+import yang
+import yang.gdata as ygdata
+
+import device as swdev
+import adapters.netconf as swna
+import adapters.software_iosxe as swxe
+import adapters.software_iosxe_oper as ixoper
+import adapters.software_iosxe_yang as swxe_yang
+
+from device_meta_config import \
+    stratoweave_rfs__device_entry as DeviceMetaConfig, \
+    stratoweave_rfs__device__credentials as Credentials, \
+    stratoweave_rfs__device__software as Software
+
+# What the operator asks for, and what the device calls the same release. The
+# difference is not cosmetic: it is why the adapter compares per component.
+OLD_RELEASE = "17.18.02"
+NEW_REQUESTED = "17.18.03a"
+NEW_REPORTED = "17.18.3a"
+
+IMAGE_FILE = "c8000v-universalk9.17.18.03a.SPA.bin"
+IMAGE_URL = "scp://root:labpass@10.0.0.9:/images/" + IMAGE_FILE
+
+
+def _banner(version: str) -> str:
+    """A release as the device reports it: a whole line, with the version in the
+    middle."""
+    return "Cisco IOS XE Software, Version {version}, RELEASE SOFTWARE (fc1)"
+
+
+def _hw_ds(version: str) -> ygdata.Node:
+    """device-hardware-oper, where the running release lives."""
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id(ixoper.NS_Cisco_IOS_XE_device_hardware_oper, n)
+    ns = ixoper.NS_Cisco_IOS_XE_device_hardware_oper
+    mod = "Cisco-IOS-XE-device-hardware-oper"
+    return ygdata.Container({
+        q("device-hardware-data"): ygdata.Container({
+            q("device-hardware"): ygdata.Container({
+                q("device-system-data"): ygdata.Container({
+                    q("software-version"): ygdata.Leaf(_banner(version),
+                                                       ns=ns, module=mod)
+                }, ns=ns, module=mod)
+            }, ns=ns, module=mod)
+        }, ns=ns, module=mod)
+    })
+
+
+def _record(uuid: str, op_id: str, status: str, done: str,
+            stages: list[str]) -> ygdata.Node:
+    """One finished operation record, shaped like the device's."""
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id(ixoper.NS_Cisco_IOS_XE_install_oper, n)
+    ns = ixoper.NS_Cisco_IOS_XE_install_oper
+    mod = "Cisco-IOS-XE-install-oper"
+    txns: list[ygdata.Node] = []
+    for st in stages:
+        txns.append(ygdata.Container({
+            q("txn-cmd"): ygdata.Leaf(st, ns=ns, module=mod),
+            q("txn-status"): ygdata.Leaf("install-txn-sts-succ", ns=ns, module=mod),
+        }, ns=ns, module=mod))
+    return ygdata.Container({
+        q("op-uuid"): ygdata.Leaf(uuid, ns=ns, module=mod),
+        q("op-id"): ygdata.Leaf(op_id, ns=ns, module=mod),
+        q("op-status"): ygdata.Leaf(status, ns=ns, module=mod),
+        q("op-done"): ygdata.Leaf(done, ns=ns, module=mod),
+        q("install-txn-sum-op-hist"): ygdata.List([], txns),
+    }, ns=ns, module=mod)
+
+
+def _oper_ds(version: str, hist: list[ygdata.Node]) -> ygdata.Node:
+    """The whole operational datastore the mock serves."""
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id(ixoper.NS_Cisco_IOS_XE_install_oper, n)
+    ns = ixoper.NS_Cisco_IOS_XE_install_oper
+    mod = "Cisco-IOS-XE-install-oper"
+    install_oper = ygdata.Container({
+        q("install-oper-data"): ygdata.Container({
+            q("install-oper"): ygdata.List([], []),
+            q("install-oper-hist"): ygdata.List([], hist),
+        }, ns=ns, module=mod)
+    })
+    return ygdata.merge(install_oper, _hw_ds(version))
+
+
+def _uuid_of(request: xml.Node) -> ?str:
+    for child in request.children:
+        if child.tag == "uuid":
+            return child.text
+    return None
+
+
+def _leaf_of(request: xml.Node, name: str) -> ?str:
+    for child in request.children:
+        if child.tag == name:
+            return child.text
+    return None
+
+
+actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
+                        log_handler: logging.Handler,
+                        fail_rpc: ?str=None,
+                        complete_after: float=0.05,
+                        start_release: str=OLD_RELEASE):
+    """Model the staged image, running release, and install history.
+
+    RPC replies are sent before state changes so the tests require the adapter
+    to poll for completion.
+    """
+    _log = logging.Logger(log_handler)
+
+    var running: str = start_release
+    var staged: ?str = None
+    var hist: list[ygdata.Node] = []
+    var rpcs: list[str] = []
+    # What the RPCs were given, so a test can assert the wire inputs.
+    var last_source: ?str = None
+    var last_destination: ?str = None
+    var last_path: ?str = None
+    var last_one_shot: ?str = None
+
+    def _publish() -> None:
+        mock_server.set_oper_ds(_oper_ds(running, hist))
+
+    def _finish_xcopy(uuid: str) -> None:
+        """Complete xcopy and publish its install-txn-download record."""
+        staged = IMAGE_FILE
+        hist = hist + [_record(uuid, "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                               ["install-txn-dwnld-precheck",
+                                "install-txn-download"])]
+        _publish()
+
+    def _finish_install(uuid: str) -> None:
+        """one-shot: add, activate, commit, reload. The version the device
+        reports moves to the device's own spelling of the release."""
+        hist = hist + [_record(uuid, "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                               ["install-txn-add-prechk", "install-txn-copy",
+                                "install-txn-verify", "install-txn-extract",
+                                "install-txn-add-postchk"]),
+                       _record(uuid, "2", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                               ["install-txn-act-prechk", "install-txn-img-act",
+                                "install-txn-commit", "install-txn-reload"])]
+        running = NEW_REPORTED
+        _publish()
+
+    def _on_rpc(request: xml.Node,
+                respond: action(children: ?list[xml.Node], tag: ?str,
+                                message: ?str) -> None) -> None:
+        rpcs.append(request.tag)
+        uuid = _uuid_of(request)
+
+        if fail_rpc == request.tag:
+            respond(tag="operation-failed", message="mock: {request.tag} failed")
+            return
+
+        if uuid is None:
+            # Every install RPC carries one, and the device would refuse.
+            respond(tag="missing-element", message="no uuid in request")
+            return
+
+        if request.tag == "xcopy":
+            last_source = _leaf_of(request, "source-path")
+            last_destination = _leaf_of(request, "destination-path")
+            # xcopy is the one RPC here with an output, and it carries only the
+            # uuid back -- it confirms nothing about the copy.
+            respond([xml.Node("uuid", nsdefs=[(None, swxe_yang_xcopy_ns())],
+                              text=uuid!)])
+            after complete_after: _finish_xcopy(uuid!)
+            return
+
+        if request.tag == "install":
+            last_path = _leaf_of(request, "path")
+            last_one_shot = _leaf_of(request, "one-shot")
+            if staged is None:
+                # The device refuses to activate an image that was not added.
+                respond(tag="operation-failed",
+                        message="no image has been staged")
+                return
+            respond([])
+            after complete_after: _finish_install(uuid!)
+            return
+
+        respond(tag="operation-not-supported",
+                message="IOS XE software mock does not do {request.tag}")
+
+    def attach() -> None:
+        """Install the callback and seed the datastore with the running image."""
+        _publish()
+        mock_server.set_rpc_cb(_on_rpc)
+
+    def get_rpcs() -> list[str]:
+        """RPCs the device was asked to run, in order."""
+        return rpcs
+
+    def get_running() -> str:
+        return running
+
+    def get_inputs() -> (source: ?str, destination: ?str, path: ?str, one_shot: ?str):
+        return (source=last_source, destination=last_destination,
+                path=last_path, one_shot=last_one_shot)
+
+
+def swxe_yang_xcopy_ns() -> str:
+    return "http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc"
+
+
+#############################################################################
+# Pure-layer tests -- everything the adapter decides from a readout
+#############################################################################
+
+def _test_releases_equal_ignores_zero_padding():
+    """The device says 17.18.3a where the image file says 17.18.03a. Comparing
+    as strings would call a successful upgrade a failure."""
+    testing.assertTrue(swxe.releases_equal(NEW_REPORTED, NEW_REQUESTED),
+                       "padded and unpadded forms must match")
+    testing.assertTrue(swxe.releases_equal("17.18.02", "17.18.2"),
+                       "padded and unpadded numerics must match")
+    testing.assertFalse(swxe.releases_equal("17.18.3a", "17.18.3b"),
+                        "different suffixes are different releases")
+    testing.assertFalse(swxe.releases_equal("17.18.3a", "17.16.3a"),
+                        "different minors are different releases")
+    testing.assertFalse(swxe.releases_equal(None, NEW_REQUESTED),
+                        "an unknown release equals nothing")
+
+
+def _test_running_release_comes_out_of_the_banner():
+    """The leaf carries a whole line, not a version."""
+    got = swxe.running_release(_hw_ds(OLD_RELEASE))
+    testing.assertEqual(OLD_RELEASE, got, "version not extracted from banner")
+    testing.assertEqual(None, swxe.running_release(None),
+                        "absent tree has no release")
+
+
+def _test_aggregate_waits_for_the_terminal_stage():
+    """The absence of failures is not completion: a later stage's record may not
+    have appeared yet."""
+    empty = _oper_ds(OLD_RELEASE, [])
+    v0 = swxe.aggregate(empty, "job-1", "install-txn-download")
+    testing.assertFalse(v0.done, "no records means not done")
+    testing.assertFalse(v0.failed, "and not a failure")
+
+    other = _oper_ds(OLD_RELEASE, [
+        _record("job-1", "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                ["install-txn-dwnld-precheck"])])
+    v1 = swxe.aggregate(other, "job-1", "install-txn-download")
+    testing.assertFalse(v1.done, "must wait for the stage that ends the job")
+
+    full = _oper_ds(OLD_RELEASE, [
+        _record("job-1", "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                ["install-txn-dwnld-precheck", "install-txn-download"])])
+    v2 = swxe.aggregate(full, "job-1", "install-txn-download")
+    testing.assertTrue(v2.done, "done once the stage is there and terminal")
+    testing.assertFalse(v2.failed, "and not a failure")
+
+
+def _test_aggregate_fails_on_a_failed_record():
+    root = _oper_ds(OLD_RELEASE, [
+        _record("job-1", "1", "install-op-fail", swxe.OP_COMPLETE,
+                ["install-txn-add-prechk"])])
+    v = swxe.aggregate(root, "job-1", "install-txn-download")
+    testing.assertTrue(v.done, "a failed operation is finished")
+    testing.assertTrue(v.failed, "and must be reported failed")
+
+
+def _test_aggregate_treats_marked_succ_as_not_a_failure():
+    """`install-op-marked-succ` means the device had nothing to do. Not
+    confirmation, but not an error either."""
+    root = _oper_ds(OLD_RELEASE, [
+        _record("job-1", "1", swxe.OP_MARKED_SUCC, swxe.OP_COMPLETE,
+                ["install-txn-download"])])
+    v = swxe.aggregate(root, "job-1", "install-txn-download")
+    testing.assertFalse(v.failed, "marked-succ must not read as failure")
+
+
+def _test_aggregate_ignores_another_uuid():
+    """The device keeps finished operations, so a run must not read someone
+    else's -- or its own previous attempt's."""
+    root = _oper_ds(OLD_RELEASE, [
+        _record("someone-else", "1", "install-op-fail", swxe.OP_COMPLETE,
+                ["install-txn-download"])])
+    v = swxe.aggregate(root, "job-1", "install-txn-download")
+    testing.assertFalse(v.failed, "another run's failure is not ours")
+    testing.assertFalse(v.done, "and gives us no records")
+
+
+def _test_records_filter_preserves_keyless_history():
+    """The mock must return every record from the keyless history list."""
+    root = _oper_ds(OLD_RELEASE, [
+        _record("job-1", "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                ["install-txn-download"]),
+        _record("job-2", "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                ["install-txn-download"]),
+    ])
+    # NetconfMockServer parses the wire filter into an unnamed root FNode.
+    filt = ygdata.FNode(children=[swxe.records_filter()])
+    got = ygdata.filter(root, filt)
+    testing.assertTrue(got is not None, "record filter returned no data")
+    oper = ixoper.root.from_gdata(got).install_oper_data
+    testing.assertEqual(0, len(oper.install_oper.elements),
+                        "empty active list was not preserved")
+    testing.assertEqual(2, len(oper.install_oper_hist.elements),
+                        "keyless history entries were collapsed")
+    hardware = ixoper.root.from_gdata(got).device_hardware_data.device_hardware
+    version = hardware.device_system_data.software_version
+    testing.assertEqual(None, version,
+                        "filter returned an unrelated subtree")
+
+
+def _test_job_uuid_separates_two_attempts():
+    a = swxe.job_uuid("stage", NEW_REQUESTED, "1787835372-104512")
+    b = swxe.job_uuid("stage", NEW_REQUESTED, "1787835372-981004")
+    testing.assertNotEqual(a, b, "two attempts in one second must differ")
+    testing.assertNotEqual(swxe.job_uuid("install", NEW_REQUESTED, "t"),
+                           swxe.job_uuid("stage", NEW_REQUESTED, "t"),
+                           "the two stages are separate operations")
+
+
+def _test_image_filename_and_paths():
+    """Two conventions one stage apart: xcopy wants a bare filename, install
+    wants the bootflash: prefix."""
+    testing.assertEqual(IMAGE_FILE, swxe.image_filename(IMAGE_URL),
+                        "filename must be the last path component of the URL")
+    x = swxe.xcopy_input("u", IMAGE_URL, IMAGE_FILE)
+    testing.assertEqual(IMAGE_FILE, x.destination_path,
+                        "xcopy destination must be a bare filename")
+    testing.assertEqual(IMAGE_URL, x.source_path, "source must be the URL")
+    i = swxe.install_input("u", IMAGE_FILE)
+    testing.assertEqual("bootflash:" + IMAGE_FILE, i.path,
+                        "install path must carry the bootflash: prefix")
+    testing.assertEqual(True, i.one_shot,
+                        "install must be one-shot: add, activate and commit")
+
+
+def _test_redact_url_strips_credentials():
+    """scp sources carry a password in the URL, and the URL gets logged."""
+    testing.assertEqual("scp://***@10.0.0.9:/images/" + IMAGE_FILE,
+                        swxe.redact_url(IMAGE_URL),
+                        "credentials must not survive")
+    testing.assertEqual("http://images/x.bin",
+                        swxe.redact_url("http://images/x.bin"),
+                        "a URL with no credentials is left alone")
+
+
+#############################################################################
+# Device-level tests, through the mock
+#############################################################################
+
+def _fast_adapter(dev: swdev.DeviceMgr, dmc: DeviceMetaConfig,
+                  log_handler: logging.Handler,
+                  connect_cap: ?net.TCPConnectCap) -> swdev.SoftwareAdapter:
+    """The adapter with the poll periods wound down.
+
+    Production polls every 10 s and 20 s because a transfer and a reload take
+    minutes. A test that waited for those would take a minute per assertion, so
+    the device type here names a factory instead of the class.
+    """
+    return swxe.IosXeSoftwareAdapter(dev, dmc, log_handler, connect_cap,
+                                     0.02, 0.02)
+
+
+def new_iosxe_mock_device_mgr(t: testing.EnvT, name: str,
+                              on_reconf: action(str) -> None) -> swdev.DeviceMgr:
+    schema = yang.compile(swxe_yang.models)
+    dev_types = {
+        "iosxe": swdev.DeviceType(
+            name="iosxe",
+            adapter_type=swna.NetconfAdapter,
+            src_dnode=schema,
+            oper_src_dnode=schema,
+            software_adapter_type=_fast_adapter)
+    }
+    dev = swdev.DeviceMgr(dev_types,
+                          net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+                          name, t.log_handler, on_reconf, swdev.SchemaRegistry())
+    dmc = DeviceMetaConfig(name, Credentials("admin", "admin"), type="iosxe")
+    dmc.mock.enabled = True
+    dev.set_dmc(dmc)
+    return dev
+
+
+actor _test_iosxe_upgrade_through_the_software_manager(t: testing.EnvT):
+    """Run an IOS XE upgrade from software intent through the NETCONF mock."""
+    var dev_ref: ?swdev.DeviceMgr = None
+    var mock: ?IosXeSoftwareMock = None
+    var finished = False
+
+    def fail(e: Exception) -> None:
+        if not finished:
+            finished = True
+            t.failure(e)
+
+    def on_reconf(n: str) -> None:
+        pass
+
+    def assess() -> None:
+        m = mock
+        d = dev_ref
+        if finished or m is None or d is None:
+            return
+        if m!.get_running() != NEW_REPORTED:
+            return
+        if d!.get_swmgr().get_status() == "in-progress":
+            # The manager marks the run succeeded one poll after the mock
+            # reports the new release; keep polling until it catches up.
+            return
+        finished = True
+        testing.assertEqual(["xcopy", "install"], m!.get_rpcs(),
+                            "unexpected RPCs on the device")
+        inp = m!.get_inputs()
+        testing.assertEqual(IMAGE_URL, inp.source,
+                            "xcopy source must be image-url verbatim")
+        testing.assertEqual(IMAGE_FILE, inp.destination,
+                            "xcopy destination must be the bare filename")
+        testing.assertEqual("bootflash:" + IMAGE_FILE, inp.path,
+                            "install path must carry the bootflash: prefix")
+        testing.assertEqual("true", inp.one_shot,
+                            "install must be sent one-shot")
+        testing.assertEqual("succeeded", d!.get_swmgr().get_status(),
+                            "the run must end succeeded")
+        t.success()
+
+    def poll() -> None:
+        if finished:
+            return
+        assess()
+        if not finished:
+            after 0.05: poll()
+
+    def start() -> None:
+        d = dev_ref
+        if d is None:
+            return
+        if "Cisco-IOS-XE-install-oper" not in d!.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async d!.get_adapter()
+        dev_adapter = await msg
+        if isinstance(dev_adapter, swna.NetconfAdapter):
+            ms = dev_adapter.get_mock_server()
+            if ms is not None:
+                m = IosXeSoftwareMock(ms!, t.log_handler)
+                mock = m
+                m.attach()
+                # Intent: the release, and where the device fetches it from.
+                dmc = DeviceMetaConfig("d1", Credentials("admin", "admin"),
+                                       type="iosxe",
+                                       software=Software("camp-1", NEW_REQUESTED,
+                                                         IMAGE_URL))
+                dmc.mock.enabled = True
+                d!.set_dmc(dmc)
+                after 0.05: poll()
+                return
+        fail(ValueError("no mock server on the device adapter"))
+
+    dev_ref = new_iosxe_mock_device_mgr(t, "d1", on_reconf)
+    after 0.01: start()
+    def report_timeout() -> None:
+        m = mock
+        d = dev_ref
+        rpcs = m!.get_rpcs() if m is not None else []
+        run = m!.get_running() if m is not None else "?"
+        st = d!.get_swmgr().get_status() if d is not None else "?"
+        fail(ValueError("timed out: rpcs={rpcs} running={run} status={st}"))
+
+    after 2.5: report_timeout()
+
+
+actor _test_iosxe_device_already_on_target_sends_nothing(t: testing.EnvT):
+    """Send no RPCs when the reported and requested releases are equivalent."""
+    var dev_ref: ?swdev.DeviceMgr = None
+    var mock: ?IosXeSoftwareMock = None
+    var finished = False
+
+    def fail(e: Exception) -> None:
+        if not finished:
+            finished = True
+            t.failure(e)
+
+    def on_reconf(n: str) -> None:
+        pass
+
+    def poll() -> None:
+        m = mock
+        d = dev_ref
+        if finished or m is None or d is None:
+            return
+        st = d!.get_swmgr().get_status()
+        if st == "up-to-date":
+            finished = True
+            testing.assertEqual([], m!.get_rpcs(),
+                                "a device already on target must get no RPCs")
+            testing.assertEqual(NEW_REPORTED, m!.get_running(),
+                                "the device must not have been touched")
+            t.success()
+            return
+        if st == "in-progress" or st == "succeeded":
+            fail(ValueError("ran an upgrade on a device already on target, "
+                            "status={st} rpcs={m!.get_rpcs()}"))
+            return
+        after 0.05: poll()
+
+    def start() -> None:
+        d = dev_ref
+        if d is None:
+            return
+        if "Cisco-IOS-XE-install-oper" not in d!.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async d!.get_adapter()
+        dev_adapter = await msg
+        if isinstance(dev_adapter, swna.NetconfAdapter):
+            ms = dev_adapter.get_mock_server()
+            if ms is not None:
+                # The device is already there, in its own spelling.
+                m = IosXeSoftwareMock(ms!, t.log_handler,
+                                      start_release=NEW_REPORTED)
+                mock = m
+                m.attach()
+                dmc = DeviceMetaConfig("d1", Credentials("admin", "admin"),
+                                       type="iosxe",
+                                       software=Software("camp-1", NEW_REQUESTED,
+                                                         IMAGE_URL))
+                dmc.mock.enabled = True
+                d!.set_dmc(dmc)
+                after 0.05: poll()
+                return
+        fail(ValueError("no mock server on the device adapter"))
+
+    dev_ref = new_iosxe_mock_device_mgr(t, "d1", on_reconf)
+    after 0.01: start()
+
+    def report_timeout() -> None:
+        m = mock
+        d = dev_ref
+        rpcs = m!.get_rpcs() if m is not None else []
+        st = d!.get_swmgr().get_status() if d is not None else "?"
+        fail(ValueError("timed out: rpcs={rpcs} status={st}"))
+
+    after 2.5: report_timeout()
+
+
+actor _test_iosxe_reply_is_not_completion(t: testing.EnvT):
+    """The mock replies <ok/> before it moves any state, as the device does.
+
+    So immediately after the RPCs are accepted the device still reports the old
+    release. An adapter that treated the reply as completion would report the
+    upgrade done here.
+    """
+    var dev_ref: ?swdev.DeviceMgr = None
+    var mock: ?IosXeSoftwareMock = None
+    var finished = False
+
+    def on_reconf(n: str) -> None:
+        pass
+
+    def check_then_succeed() -> None:
+        m = mock
+        if finished or m is None:
+            return
+        if "xcopy" not in m!.get_rpcs():
+            after 0.01: check_then_succeed()
+            return
+        finished = True
+        # The xcopy has been accepted. The mock holds its completion for a whole
+        # second, so nothing can have changed yet -- and would not have on a
+        # device either, where the transfer takes minutes.
+        testing.assertEqual(OLD_RELEASE, m!.get_running(),
+                            "an accepted RPC must not have moved the release")
+        t.success()
+
+    def start() -> None:
+        d = dev_ref
+        if d is None:
+            return
+        if "Cisco-IOS-XE-install-oper" not in d!.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async d!.get_adapter()
+        dev_adapter = await msg
+        if isinstance(dev_adapter, swna.NetconfAdapter):
+            ms = dev_adapter.get_mock_server()
+            if ms is not None:
+                m = IosXeSoftwareMock(ms!, t.log_handler, None, 1.0)
+                mock = m
+                m.attach()
+                dmc = DeviceMetaConfig("d2", Credentials("admin", "admin"),
+                                       type="iosxe",
+                                       software=Software("camp-1", NEW_REQUESTED,
+                                                         IMAGE_URL))
+                dmc.mock.enabled = True
+                d!.set_dmc(dmc)
+                after 0.01: check_then_succeed()
+                return
+        t.failure(ValueError("no mock server on the device adapter"))
+
+    dev_ref = new_iosxe_mock_device_mgr(t, "d2", on_reconf)
+    after 0.01: start()
+    after 2.5: t.failure(ValueError("timed out"))
+
+
+actor _test_iosxe_device_refusal_is_reported(t: testing.EnvT):
+    """A device-side refusal on the impacting RPC surfaces as a failed run,
+    and the manager never claims success."""
+    var dev_ref: ?swdev.DeviceMgr = None
+    var finished = False
+
+    def on_reconf(n: str) -> None:
+        pass
+
+    def assess() -> None:
+        d = dev_ref
+        if finished or d is None:
+            return
+        st = d!.get_swmgr().get_status()
+        if st == "failed":
+            finished = True
+            t.success()
+            return
+        if st == "succeeded":
+            finished = True
+            t.failure(ValueError("a refused install must not report succeeded"))
+            return
+        after 0.05: assess()
+
+    def start() -> None:
+        d = dev_ref
+        if d is None:
+            return
+        if "Cisco-IOS-XE-install-oper" not in d!.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async d!.get_adapter()
+        dev_adapter = await msg
+        if isinstance(dev_adapter, swna.NetconfAdapter):
+            ms = dev_adapter.get_mock_server()
+            if ms is not None:
+                m = IosXeSoftwareMock(ms!, t.log_handler, "install")
+                m.attach()
+                dmc = DeviceMetaConfig("d3", Credentials("admin", "admin"),
+                                       type="iosxe",
+                                       software=Software("camp-1", NEW_REQUESTED,
+                                                         IMAGE_URL))
+                dmc.mock.enabled = True
+                d!.set_dmc(dmc)
+                after 0.05: assess()
+                return
+        t.failure(ValueError("no mock server on the device adapter"))
+
+    dev_ref = new_iosxe_mock_device_mgr(t, "d3", on_reconf)
+    after 0.01: start()
+    after 2.5: t.failure(ValueError("timed out"))

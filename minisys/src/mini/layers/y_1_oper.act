@@ -83,14 +83,16 @@ SRC_DNODE_CHILD_12: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://st
 
 SRC_DNODE_CHILD_13: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='target-release', config=True, description="Name of the software release this device should be running, e.g.\n'17.18.03a'. Absent means no upgrade is intended and the manager\nstays idle.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_14: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='allow-staging', config=True, description='Whether the manager may run the non-impacting prepare job ahead of\nthe maintenance window. Set by the scheduler, which paces image\ntransfers across the fleet so they do not saturate the network.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+SRC_DNODE_CHILD_14: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='image-url', config=True, description='URL used by the device to fetch the target image. It must be reachable\nfrom the device. Supported schemes are platform-specific; IOS XE\nsupports scp, ftp, http and https. scp and ftp URLs may contain\ncredentials and must not be logged. The adapter derives the staged\nfilename from the final path component. If this leaf is absent, an\nadapter that requires an image URL reports prepare as failed.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_15: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='veto', key=['holder'], config=True, description="Any holder may block the impacting install step by adding an entry;\nabsence of entries means go. The fleet scheduler holds one until it\nis this device's turn, and monitoring systems may add their own.\nEach holder removes only its own entry, so there is no contention.\nA veto blocks starting work; it never aborts an install already\nin flight.", min_elements=0, ordered_by='system', children=[
+SRC_DNODE_CHILD_15: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='allow-staging', config=True, description='Whether the manager may run the non-impacting prepare job ahead of\nthe maintenance window. Set by the scheduler, which paces image\ntransfers across the fleet so they do not saturate the network.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+
+SRC_DNODE_CHILD_16: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='veto', key=['holder'], config=True, description="Any holder may block the impacting install step by adding an entry;\nabsence of entries means go. The fleet scheduler holds one until it\nis this device's turn, and monitoring systems may add their own.\nEach holder removes only its own entry, so there is no contention.\nA veto blocks starting work; it never aborts an install already\nin flight.", min_elements=0, ordered_by='system', children=[
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='holder', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='reason', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 ])
 
-SRC_DNODE_CHILD_16: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, presence=False, children=[
+SRC_DNODE_CHILD_17: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, presence=False, children=[
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='status', config=False, description='Overall status, aggregated from the jobs and the install checks.', mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'unknown':0, 'up-to-date':1, 'upgrade-needed':2, 'in-progress':3, 'succeeded':4, 'failed':5, 'rolled-back':6})),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='running-release', config=False, description='Release the device was last observed to be running. Software is\ntreated as monolithic: one version name per device, as on IOS XE.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='job', key=['name'], config=False, description='One entry per job in the upgrade sequence. Jobs are idempotent and\nmay be re-run; prepare in particular may run long before install\nand is repeated as part of it.', min_elements=0, ordered_by='system', children=[
@@ -106,24 +108,24 @@ SRC_DNODE_CHILD_16: DContainer = DContainer(module='stratoweave-rfs', namespace=
         DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='detail', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='at', config=False, mandatory=False, type=DTypeString(name='yang:date-and-time', description="The date-and-time type is a profile of the ISO 8601\nstandard for representation of dates and times using the\nGregorian calendar.  The profile is defined by the\ndate-time production in Section 5.6 of RFC 3339 and the\nupdate defined in Section 2 of RFC 9557.  The value of\n60 for seconds is allowed only in the case of leap seconds.\n\nThe date-and-time type is compatible with the dateTime XML\nschema dateTime type with the following notable exceptions:\n\n(a) The date-and-time type does not allow negative years.\n\n(b) The time-offset Z indicates that the date-and-time\n    value is reported in UTC and that the local time zone\n    reference point is unknown.  The time-offset +00:00\n    indicates that the date-and-time value is reported in\n    UTC and that the local time zone reference point is UTC\n    (see Section 2 of RFC 9557).\n\nThis type is not equivalent to the DateAndTime textual\nconvention of the SMIv2 since RFC 3339 uses a different\nseparator between full-date and full-time and provides\nhigher resolution of time-secfrac.\n\nThe canonical format for date-and-time values with a known\ntime zone uses a numeric time zone offset that is calculated\nusing the device's configured known offset to UTC time.  A\nchange of the device's offset to UTC time will cause\ndate-and-time values to change accordingly.  Such changes\nmight happen periodically if a server automatically follows\ndaylight saving time (DST) time zone offset changes.  The\ncanonical format for date-and-time values reported in UTC\nwith an unknown local time zone offset SHOULD use the\ntime-offset Z and MAY use -00:00 for backwards\ncompatibility.", reference='ISO 8601: Data elements and interchange formats -- Information\n          interchange -- Representation of dates and times\nRFC 3339: Date and Time on the Internet: Timestamps\nRFC 9557: Date and Time on the Internet: Timestamps\n          with Additional Information\nRFC 2579: Textual Conventions for SMIv2\nXSD-TYPES: XML Schema Definition Language (XSD) 1.1\n           Part 2: Datatypes', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='[0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?', pcre='^([0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?)$', invert=False)]))
     ]),
-    DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='postcheck', config=False, description='Evaluated after install to decide whether the upgrade actually\nlanded. A failing post-check triggers a rollback, which is why\ncleanup is sequenced last: on platforms without native rollback\nthe superseded image is the rollback path and must still be on\nthe device until the post-checks pass.', presence=False, children=[
+    DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='postcheck', config=False, description='Evaluated after install to decide whether the upgrade actually\nlanded. A failed post-check triggers rollback. Cleanup runs last so\nthe superseded image remains available for rollback until all\npost-checks pass.', presence=False, children=[
         DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='verdict', config=False, mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'not-run':0, 'pass':1, 'fail':2})),
         DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='detail', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='at', config=False, mandatory=False, type=DTypeString(name='yang:date-and-time', description="The date-and-time type is a profile of the ISO 8601\nstandard for representation of dates and times using the\nGregorian calendar.  The profile is defined by the\ndate-time production in Section 5.6 of RFC 3339 and the\nupdate defined in Section 2 of RFC 9557.  The value of\n60 for seconds is allowed only in the case of leap seconds.\n\nThe date-and-time type is compatible with the dateTime XML\nschema dateTime type with the following notable exceptions:\n\n(a) The date-and-time type does not allow negative years.\n\n(b) The time-offset Z indicates that the date-and-time\n    value is reported in UTC and that the local time zone\n    reference point is unknown.  The time-offset +00:00\n    indicates that the date-and-time value is reported in\n    UTC and that the local time zone reference point is UTC\n    (see Section 2 of RFC 9557).\n\nThis type is not equivalent to the DateAndTime textual\nconvention of the SMIv2 since RFC 3339 uses a different\nseparator between full-date and full-time and provides\nhigher resolution of time-secfrac.\n\nThe canonical format for date-and-time values with a known\ntime zone uses a numeric time zone offset that is calculated\nusing the device's configured known offset to UTC time.  A\nchange of the device's offset to UTC time will cause\ndate-and-time values to change accordingly.  Such changes\nmight happen periodically if a server automatically follows\ndaylight saving time (DST) time zone offset changes.  The\ncanonical format for date-and-time values reported in UTC\nwith an unknown local time zone offset SHOULD use the\ntime-offset Z and MAY use -00:00 for backwards\ncompatibility.", reference='ISO 8601: Data elements and interchange formats -- Information\n          interchange -- Representation of dates and times\nRFC 3339: Date and Time on the Internet: Timestamps\nRFC 9557: Date and Time on the Internet: Timestamps\n          with Additional Information\nRFC 2579: Textual Conventions for SMIv2\nXSD-TYPES: XML Schema Definition Language (XSD) 1.1\n           Part 2: Datatypes', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='[0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?', pcre='^([0-9]{{4}}-(1[0-2]|0[1-9])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[\\+\\-]((1[0-3]|0[0-9]):([0-5][0-9])|14:00))?)$', invert=False)]))
     ])
 ])
 
-SRC_DNODE_CHILD_11: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='software', config=True, description='Per-device software management. Input comes from the fleet upgrade\nscheduler (or an operator directly); everything under state/ is\nreported by the SoftwareManager.', presence=False, children=[SRC_DNODE_CHILD_12, SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15, SRC_DNODE_CHILD_16])
+SRC_DNODE_CHILD_11: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='software', config=True, description='Per-device software management. Input comes from the fleet upgrade\nscheduler (or an operator directly); everything under state/ is\nreported by the SoftwareManager.', presence=False, children=[SRC_DNODE_CHILD_12, SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15, SRC_DNODE_CHILD_16, SRC_DNODE_CHILD_17])
 
-SRC_DNODE_CHILD_17: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, presence=False)
+SRC_DNODE_CHILD_18: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='state', config=False, presence=False)
 
 SRC_DNODE_CHILD_0: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='device', arg=None, exts=[])
-    ], children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11, SRC_DNODE_CHILD_17])
+    ], children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11, SRC_DNODE_CHILD_18])
 
-SRC_DNODE_CHILD_19: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+SRC_DNODE_CHILD_20: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_20: DContainer = DContainer(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='base-config', config=True, presence=False, exts=[
+SRC_DNODE_CHILD_21: DContainer = DContainer(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='base-config', config=True, presence=False, exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='mini.rfs.BaseConfig', exts=[])
     ], children=[
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='name', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -138,7 +140,7 @@ SRC_DNODE_CHILD_20: DContainer = DContainer(module='mini-rfs', namespace='http:/
     ])
 ])
 
-SRC_DNODE_CHILD_21: DList = DList(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='l3vpn-endpoint', key=['interface-name'], config=True, min_elements=0, ordered_by='system', exts=[
+SRC_DNODE_CHILD_22: DList = DList(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='l3vpn-endpoint', key=['interface-name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='mini.rfs.L3vpnEndpoint', exts=[])
     ], children=[
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='interface-name', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -156,10 +158,10 @@ SRC_DNODE_CHILD_21: DList = DList(module='mini-rfs', namespace='http://example.c
     DLeaf(module='mini-rfs', namespace='http://example.com/mini-rfs', prefix='mini-rfs', name='description', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 ])
 
-SRC_DNODE_CHILD_18: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_19, SRC_DNODE_CHILD_20, SRC_DNODE_CHILD_21])
+SRC_DNODE_CHILD_19: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_20, SRC_DNODE_CHILD_21, SRC_DNODE_CHILD_22])
 
 SRC_DNODE: DRoot = DRoot(
-    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_18],
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_19],
     identities=[],
     rpcs=[],
     module_metadata={'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None), 'http://example.com/mini-rfs':('mini-rfs', None)},
@@ -516,6 +518,17 @@ SRC_YANG_2: str = r"""module stratoweave-rfs {
         type string;
       }
 
+      leaf image-url {
+        description
+          "URL used by the device to fetch the target image. It must be reachable
+           from the device. Supported schemes are platform-specific; IOS XE
+           supports scp, ftp, http and https. scp and ftp URLs may contain
+           credentials and must not be logged. The adapter derives the staged
+           filename from the final path component. If this leaf is absent, an
+           adapter that requires an image URL reports prepare as failed.";
+        type string;
+      }
+
       leaf allow-staging {
         description
           "Whether the manager may run the non-impacting prepare job ahead of
@@ -605,10 +618,9 @@ SRC_YANG_2: str = r"""module stratoweave-rfs {
         container postcheck {
           description
             "Evaluated after install to decide whether the upgrade actually
-             landed. A failing post-check triggers a rollback, which is why
-             cleanup is sequenced last: on platforms without native rollback
-             the superseded image is the rollback path and must still be on
-             the device until the post-checks pass.";
+             landed. A failed post-check triggers rollback. Cleanup runs last so
+             the superseded image remains available for rollback until all
+             post-checks pass.";
           uses check-result;
         }
       }
@@ -2447,13 +2459,15 @@ _breaker22: None = None
 class stratoweave_rfs__device__software(yadata.MNode):
     upgrade_campaign: ?str
     target_release: ?str
+    image_url: ?str
     allow_staging: ?bool
     veto: stratoweave_rfs__device__software__veto
     state: stratoweave_rfs__device__software__state
 
-    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, allow_staging: ?bool, veto: list[stratoweave_rfs__device__software__veto_entry]=[], state: ?stratoweave_rfs__device__software__state=None) -> None:
+    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, image_url: ?str, allow_staging: ?bool, veto: list[stratoweave_rfs__device__software__veto_entry]=[], state: ?stratoweave_rfs__device__software__state=None) -> None:
         self.upgrade_campaign = upgrade_campaign
         self.target_release = target_release
+        self.image_url = image_url
         self.allow_staging = allow_staging
         self.veto = stratoweave_rfs__device__software__veto(elements=veto)
         self.state = state if state is not None else stratoweave_rfs__device__software__state()
@@ -2464,7 +2478,7 @@ class stratoweave_rfs__device__software(yadata.MNode):
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software:
         if n is not None:
-            return stratoweave_rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'target-release')), allow_staging=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'allow-staging')), veto=stratoweave_rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'veto'))), state=stratoweave_rfs__device__software__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'state'))))
+            return stratoweave_rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'allow-staging')), veto=stratoweave_rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'veto'))), state=stratoweave_rfs__device__software__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'state'))))
         return stratoweave_rfs__device__software()
 
     mut def copy(self) -> stratoweave_rfs__device__software:
@@ -3206,6 +3220,7 @@ _breaker55: None = None
 class stratoweave_rfs__device__software_subs(SubscriptionNode):
     upgrade_campaign: SubscriptionNode
     target_release: SubscriptionNode
+    image_url: SubscriptionNode
     allow_staging: SubscriptionNode
     veto: stratoweave_rfs__device__software__veto_subs
     state: stratoweave_rfs__device__software__state_subs
@@ -3214,12 +3229,13 @@ class stratoweave_rfs__device__software_subs(SubscriptionNode):
         SubscriptionNode.__init__(self, path)
         self.upgrade_campaign = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign'), parent=path))
         self.target_release = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'target-release'), parent=path))
+        self.image_url = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'image-url'), parent=path))
         self.allow_staging = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'allow-staging'), parent=path))
         self.veto = stratoweave_rfs__device__software__veto_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'veto'), parent=path))
         self.state = stratoweave_rfs__device__software__state_subs(SubscriptionPath(ygdata.Id(NS_stratoweave_rfs, 'state'), parent=path))
 
     pure def _direct_children(self) -> list[SubscriptionNode]:
-        direct: list[SubscriptionNode] = [self.upgrade_campaign, self.target_release, self.allow_staging, self.veto, self.state]
+        direct: list[SubscriptionNode] = [self.upgrade_campaign, self.target_release, self.image_url, self.allow_staging, self.veto, self.state]
         return direct
 
 _breaker56: None = None
