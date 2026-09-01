@@ -198,10 +198,13 @@ actor _test_device_already_on_target_does_nothing(t: testing.EnvT):
             t.failure(ValueError("nothing should have been installed, got {status}"))
 
     def verify() -> None:
+        # Under load the manager may not have run yet; wait for the terminal
+        # status. The on_state hook still fails the test if an install starts.
+        if mgr.get_status() != "up-to-date":
+            after 0.05: verify()
+            return
         testing.assertEqual(adapter.calls(), ["check"],
                             "only the comparison should have run")
-        testing.assertEqual("up-to-date", mgr.get_status(),
-                            "a device already on the target is up to date")
         t.success()
 
     dev.set_update_oper(on_state)
@@ -225,20 +228,25 @@ actor _test_reached_target_is_not_reinstalled(t: testing.EnvT):
     mgr = dev.get_swmgr()
 
     def verify() -> None:
+        # The second round ends in up-to-date; wait for it under load.
+        if mgr.get_status() != "up-to-date":
+            after 0.05: verify()
+            return
         testing.assertEqual(adapter.calls(),
                             ["check", "prepare", "install", "check", "check"],
                             "the second round should have stopped at the check")
-        testing.assertEqual("up-to-date", mgr.get_status(),
-                            "the device is up to date, not freshly upgraded")
         t.success()
 
     def again() -> None:
+        # The same intent again, once the first round has finished.
+        if mgr.get_status() != "succeeded":
+            after 0.05: again()
+            return
         mgr.set_config("camp-1", NEW, False, {})
         after 0.05: verify()
 
     mgr.set_adapter(adapter)
     mgr.set_config("camp-1", NEW, False, {})
-    # The same intent again, once the first round has finished.
     after 0.05: again()
 
 
@@ -293,13 +301,17 @@ actor _test_install_runs_once(t: testing.EnvT):
 
     adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
     dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
 
     def verify() -> None:
+        # Wait for the run to finish before counting its calls.
+        if mgr.get_status() != "succeeded":
+            after 0.05: verify()
+            return
         testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "check"],
                             "the sequence should have run once, not twice")
         t.success()
 
-    mgr = dev.get_swmgr()
     mgr.set_adapter(adapter)
     mgr.set_config("camp-1", NEW, False, {})
     mgr.set_config("camp-1", NEW, False, {})

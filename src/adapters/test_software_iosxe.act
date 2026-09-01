@@ -421,6 +421,10 @@ actor _test_iosxe_upgrade_through_the_software_manager(t: testing.EnvT):
             return
         if m!.get_running() != NEW_REPORTED:
             return
+        if d!.get_swmgr().get_status() == "in-progress":
+            # The manager marks the run succeeded one poll after the mock
+            # reports the new release; keep polling until it catches up.
+            return
         finished = True
         testing.assertEqual(["xcopy", "install"], m!.get_rpcs(),
                             "unexpected RPCs on the device")
