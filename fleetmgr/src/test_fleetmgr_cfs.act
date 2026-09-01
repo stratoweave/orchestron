@@ -1,19 +1,74 @@
 import testing
 
 import fleetmgr.cfs as cfs
+import fleetmgr.layers.y_0 as y_0
 import fleetmgr.layers.y_1_loose as y_1
 from fleetmgr.layers.y_0 import \
     fleetmgr__fleet__device__address_entry as InputAddress, \
     fleetmgr__fleet__device__credentials as InputCredentials, \
     fleetmgr__fleet__device__mock__module_entry as InputMockModule, \
-    fleetmgr__fleet__device_entry as InputDevice
+    fleetmgr__fleet__device_entry as InputDevice, \
+    fleetmgr__fleet__node__credentials as NodeCredentials, \
+    fleetmgr__fleet__node_entry as InputNode, \
+    software__software__upgrade_campaign_entry as InputCampaign
 from fleetmgr.layers.y_1_loose import \
-    stratoweave_rfs__device__address__initial_credentials_entry as AddressCredentials, \
-    stratoweave_rfs__device__address_entry as OutputAddress, \
-    stratoweave_rfs__device__credentials__key_entry as OutputKey, \
-    stratoweave_rfs__device__initial_credentials_entry as DeviceCredentials, \
-    stratoweave_rfs__device__mock__module_entry as OutputMockModule, \
-    stratoweave_rfs__device_entry as OutputDevice
+    stratoweave_rfs__device_entry as OutputNode, \
+    stratoweave_rfs__rfs__device__address__initial_credentials_entry as AddressCredentials, \
+    stratoweave_rfs__rfs__device__address_entry as OutputAddress, \
+    stratoweave_rfs__rfs__device__credentials__key_entry as OutputKey, \
+    stratoweave_rfs__rfs__device__initial_credentials_entry as DeviceCredentials, \
+    stratoweave_rfs__rfs__device__mock__module_entry as OutputMockModule, \
+    stratoweave_rfs__rfs__device_entry as OutputDevice
+
+
+actor _test_node_transform(t: testing.AsyncT):
+    i = InputNode(
+        name="flotilla-1",
+        description="Stockholm flotilla",
+        credentials=NodeCredentials(username="admin", password="admin"),
+    )
+    address = i.address.create("primary", address="127.0.0.1", port=u64(12031))
+
+    transform: cfs.Node = cfs.Node()
+    o: y_1.root = y_1.root.from_gdata(transform.transform(i).to_gdata())
+    dev: OutputNode = o.device.get("flotilla-1")!
+    out_address = dev.address.get("primary")!
+
+    if dev.type != "flotilla" or dev.description != "Stockholm flotilla":
+        t.failure(ValueError("flotilla identity was not preserved"))
+    elif out_address.address != "127.0.0.1" or out_address.port != 12031:
+        t.failure(ValueError("flotilla address was not preserved"))
+    elif dev.credentials.username != "admin" or dev.credentials.password != "admin":
+        t.failure(ValueError("flotilla credentials were not preserved"))
+    else:
+        t.success()
+
+
+actor _test_campaign_transform(t: testing.AsyncT):
+    inventory = y_0.root()
+    inventory.fleet.device.create(
+        "cpe-1",
+        shard="flotilla-1",
+        credentials=InputCredentials(username="admin"),
+    )
+    campaign = InputCampaign(
+        name="xe-upgrade",
+        target_release="17.18.03a",
+        device=["cpe-1"],
+        admin_state="run",
+    )
+
+    transform: cfs.UpgradeCampaign = cfs.UpgradeCampaign()
+    o: y_1.root = y_1.root.from_gdata(
+        transform.transform(campaign, inventory.to_gdata()).to_gdata()
+    )
+    dev = o.rfs.get("flotilla-1")!.device.get("cpe-1")!
+
+    if dev.software.target_release != "17.18.03a" or \
+       dev.software.upgrade_campaign != "xe-upgrade":
+        t.failure(ValueError("campaign was not routed through the device shard"))
+    else:
+        t.success()
 
 
 actor _test_device_transform(t: testing.AsyncT):
@@ -25,6 +80,7 @@ actor _test_device_transform(t: testing.AsyncT):
 
     i: InputDevice = InputDevice(
         name="cpe-1",
+        shard="flotilla-1",
         description="Lab CPE",
         credentials=credentials,
         approval_required=True,
@@ -56,7 +112,8 @@ actor _test_device_transform(t: testing.AsyncT):
 
     transform: cfs.Device = cfs.Device()
     o: y_1.root = y_1.root.from_gdata(transform.transform(i).to_gdata())
-    dev: OutputDevice = o.device.get("cpe-1")!
+    shard = o.rfs.get("flotilla-1")!
+    dev: OutputDevice = shard.device.get("cpe-1")!
     out_address: OutputAddress = dev.address.get("oob")!
     address_credentials: ?AddressCredentials = out_address.initial_credentials.get((
         username="address-bootstrap",
@@ -71,8 +128,8 @@ actor _test_device_transform(t: testing.AsyncT):
     out_key: OutputKey = dev.credentials.key.get("ssh-ed25519 public")!
     out_module: OutputMockModule = dev.mock.module.get("ietf-system")!
 
-    if dev.type != "cpe" or dev.description != "Lab CPE":
-        t.failure(ValueError("device identity fields were not preserved"))
+    if dev.description != "Lab CPE":
+        t.failure(ValueError("device description was not preserved"))
     elif out_address.address != "192.0.2.1" or out_address.port != 830:
         t.failure(ValueError("device address fields were not preserved"))
     elif address_credentials is None or device_credentials is None:

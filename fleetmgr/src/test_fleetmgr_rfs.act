@@ -1,0 +1,83 @@
+import testing
+
+import stratoweave.adapters.adapter as swadapt
+import stratoweave.ttt as ttt
+
+import fleetmgr.rfs as rfs
+import fleetmgr.devices.flotilla as flotilla
+from fleetmgr.layers.y_1 import \
+    stratoweave_rfs__rfs__device__address_entry as InputAddress, \
+    stratoweave_rfs__rfs__device__credentials as InputCredentials, \
+    stratoweave_rfs__rfs__device__mock__module_entry as InputMockModule, \
+    stratoweave_rfs__rfs__device_entry as InputDevice
+
+
+actor _test_device_transform(t: testing.AsyncT):
+    credentials = InputCredentials(username="netops", password="secret")
+    credentials.key.create("public-key", private_key="private-key")
+    i = InputDevice(
+        name="cpe-1",
+        description="Lab CPE",
+        credentials=credentials,
+        approval_required=True,
+    )
+    address: InputAddress = i.address.create(
+        "oob",
+        address="192.0.2.1",
+        port=u64(830),
+    )
+    address.initial_credentials.create((
+        username="bootstrap",
+        password="bootstrap-secret",
+        key="bootstrap-key",
+    ))
+    i.initial_credentials.create((
+        username="fallback",
+        password="fallback-secret",
+        key="fallback-key",
+    ))
+    i.mock.enabled = True
+    module: InputMockModule = i.mock.module.create(
+        "cpe-device",
+        namespace="urn:fleetmgr:cpe-device",
+    )
+    module.feature = ["feature-a", "feature-b"]
+    i.debug.connection = True
+    i.feature_flags.runtime_schema_fetch = True
+    i.software.upgrade_campaign = "xe-upgrade"
+    i.software.target_release = "17.18.03a"
+    i.software.image_url = "https://images.example/xe.bin"
+    i.software.allow_staging = True
+    i.software.veto.create("scheduler", reason="waiting for window")
+
+    di = ttt.DeviceInfo("flotilla-1", {
+        "stratoweave-rfs": swadapt.ModCap(
+            "stratoweave-rfs",
+            "http://stratoweave.org/yang/stratoweave-rfs",
+        )
+    })
+    transform: rfs.Device = rfs.Device()
+    o = flotilla.root.from_gdata(transform.transform(i, di).to_gdata())
+    dev = o.device.get("cpe-1")!
+
+    if dev.type != "cpe" or dev.description != "Lab CPE":
+        t.failure(ValueError("device identity was not rendered"))
+    elif dev.address.get("oob")!.address != "192.0.2.1":
+        t.failure(ValueError("device address was not rendered"))
+    elif dev.credentials.key.get("public-key")!.private_key != "private-key":
+        t.failure(ValueError("device credentials were not rendered"))
+    elif not dev.approval_required! or not dev.mock.enabled!:
+        t.failure(ValueError("device policy was not rendered"))
+    elif dev.mock.module.get("cpe-device")!.feature != ["feature-a", "feature-b"]:
+        t.failure(ValueError("mock features were not rendered"))
+    elif not dev.debug.connection! or not dev.feature_flags.runtime_schema_fetch!:
+        t.failure(ValueError("debug or feature flags were not rendered"))
+    elif dev.software.upgrade_campaign != "xe-upgrade" or \
+         dev.software.target_release != "17.18.03a" or \
+         dev.software.image_url != "https://images.example/xe.bin" or \
+         not dev.software.allow_staging!:
+        t.failure(ValueError("software intent was not rendered"))
+    elif dev.software.veto.get("scheduler")!.reason != "waiting for window":
+        t.failure(ValueError("software veto was not rendered"))
+    else:
+        t.success()

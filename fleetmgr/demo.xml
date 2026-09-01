@@ -1,25 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data>
     <fleet xmlns="urn:fleetmgr:fleetmgr">
-        <device><name>cpe-01</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-02</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-03</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-04</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-05</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-06</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-07</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-08</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-09</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-10</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-11</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-12</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-13</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-14</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-15</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-16</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-17</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-18</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-19</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
-        <device><name>cpe-20</name><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <node>
+            <name>flotilla-1</name>
+            <address><name>primary</name><address>127.0.0.1</address><port>12901</port></address>
+            <credentials><username>admin</username><password>admin</password></credentials>
+        </node>
+        <device><name>cpe-01</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-02</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-03</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-04</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-05</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-06</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-07</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-08</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-09</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-10</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-11</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-12</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-13</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-14</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-15</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-16</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-17</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-18</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-19</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-20</name><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
     </fleet>
 </data>

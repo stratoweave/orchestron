@@ -9,17 +9,17 @@ from yang.identityref import Identityref, PartialIdentityref
 from yang.pattern import YangPattern
 from yang.schema import *
 from yang.type import Decimal, Ranges
-import fleetmgr.devices.cpe_schema
+import flotilla.devices.cpe_schema
 
 # == This file is generated ==
 
 
 
 
-SRC_DNODE: DRoot = fleetmgr.devices.cpe_schema.SRC_DNODE
+SRC_DNODE: DRoot = flotilla.devices.cpe_schema.SRC_DNODE
 
 pure def src_yang() -> list[str]:
-    return fleetmgr.devices.cpe_schema.src_yang()
+    return flotilla.devices.cpe_schema.src_yang()
 
 
 NS_cpe_device: str = 'urn:fleetmgr:cpe-device'

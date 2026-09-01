@@ -6,12 +6,18 @@ module software {
   import stratoweave {
     prefix sw;
   }
+  import fleetmgr {
+    prefix fleetmgr;
+  }
 
   container software {
     list upgrade-campaign {
       key name;
 
       sw:transform fleetmgr.cfs.UpgradeCampaign;
+      sw:link inventory {
+        sw:path /fleetmgr:fleet/fleetmgr:device;
+      }
 
       leaf name {
         type string;
@@ -23,7 +29,9 @@ module software {
       }
       leaf-list device {
         description "Devices this campaign upgrades.";
-        type string;
+        type leafref {
+          path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+        }
       }
       leaf admin-state {
         description

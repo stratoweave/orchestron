@@ -1,76 +1,84 @@
-# fleetmgr — minimal fleet manager
+# fleetmgr — layered fleet management
 
-A StratoWeave app just functional enough to build a web UI against:
-device inventory plus software upgrade campaigns, with mock CPEs behind
-it. The logic is deliberately naive; the northbound YANG is the contract,
-so the machinery behind it can be replaced without the UI noticing.
+`fleetmgr` is the top of the layered deployment. It owns the complete
+per-device inventory and generic software upgrade campaigns, and assigns each
+device to a manually named shard.
 
-    just gen                                 # regenerate after YANG changes
-    acton build
-    out/bin/fleetmgr --http-port 18200 --netconf-port 12900 demo.xml
+`flotilla` is the bottom. It has no application CFS layer: its northbound is
+the standard StratoWeave RFS, and every `/device` entry is managed directly as
+a CPE.
 
-demo.xml seeds 20 CPEs at startup so there is a fleet to play with;
-leave it off to start empty.
+    fleetmgr CFS /fleet/device{cpe, shard=flotilla-1}
+        -> fleetmgr RFS /rfs{flotilla-1}/device{cpe}
+        -> NETCONF
+        -> flotilla RFS /device{cpe}
+        -> physical CPE
 
-## The UI contract
+There is no range expansion. A flotilla assigned 500 devices receives 500
+complete `/device` entries, including addresses, credentials, policy, mock and
+debug settings, feature flags, and software intent.
 
-The app-specific `fleetmgr` model owns device inventory and connection
-settings. The reusable `software` model owns campaigns and their progress.
-Config is written with PATCH, and progress is read from config-false `state`
-under each campaign.
+## Build and regenerate
 
-Create devices and a campaign (campaigns start in `plan`: declared,
-inspectable, doing nothing):
+    just gen
+    just build
 
-    curl -X PATCH -H "Content-Type: application/yang-data+json" \
-      --data-binary '{
-        "fleetmgr:fleet": {"device": [
-          {"name": "cpe-1", "credentials": {
-             "username": "admin", "password": "admin"},
-           "mock": {"enabled": true}},
-          {"name": "cpe-2", "credentials": {
-             "username": "admin", "password": "admin"},
-           "mock": {"enabled": true}}]},
-        "software:software": {"upgrade-campaign": [
-          {"name": "xe-upgrade", "target-release": "17.18.03a",
-           "device": ["cpe-1", "cpe-2"], "admin-state": "plan"}]}}' \
+Set `ACTON=/path/to/acton` when the compiler is not on `PATH`. Regeneration
+produces both generated system-spec packages from `spec/`; the build produces
+both binaries.
+
+## Manual two-process demo
+
+Start the bottom first:
+
+    just flotilla
+
+Then start the top in another terminal:
+
+    just demo
+
+The demo declares `flotilla-1` at `127.0.0.1:12901` and assigns 20 complete
+mock CPE entries to it. The processes use these ports:
+
+    process    HTTP   NETCONF
+    fleetmgr   18200  12900
+    flotilla   18201  12901
+
+Inspect the top CFS and the bottom RFS independently:
+
+    curl -H "Accept: application/yang-data+json" \
       http://127.0.0.1:18200/restconf/data
 
-Launch it:
+    curl -H "Accept: application/yang-data+json" \
+      http://127.0.0.1:18201/restconf/data
 
-    curl -X PATCH -H "Content-Type: application/yang-data+json" \
-      --data-binary '{"software:software": {"upgrade-campaign": [
-        {"name": "xe-upgrade", "admin-state": "run"}]}}' \
-      http://127.0.0.1:18200/restconf/data
+The second response should contain the 20 `stratoweave-rfs:device` entries
+rendered by the top.
 
-Poll progress (GET /restconf/data merges oper state):
+## Models and transforms
 
-    "state": {
-      "total": 2, "in-progress": 0, "succeeded": 2, "failed": 0,
-      "device-status": [
-        {"device": "cpe-1", "status": "succeeded"},
-        {"device": "cpe-2", "status": "succeeded"}]}
+The `fleetmgr` CFS has two inventory lists:
 
-## How it hangs together
+- `/fleet/node`: connection configuration for a flotilla. Its transform creates
+  the top's managed `/device` entry with device type `flotilla`.
+- `/fleet/device`: complete CPE configuration plus a string `shard`. Its
+  transform writes the entry under `/rfs{shard}/device`.
 
-    campaign (run)  --CFS Campaign transform---> device software target
-    device          --CFS Device transform-----> device entry (mock)
-    SoftwareManager --pushes status------------> device/software/state oper
-    campaign actor  --subscribes device state--> campaign state counts
+The generic `software` model remains separate from inventory. Its campaign
+transform links to `/fleet/device` only to resolve each member's shard, then
+merges software intent into the same RFS device entry.
 
-Two CFS transforms write the same device entry (Device the base fields,
-Campaign the software container); TTT merges them. The device entry
-publishes its SoftwareManager's status itself (stratoweave core), so the
-app carries no status-publishing machinery of its own.
+The RFS transform renders that entry directly into the flotilla's standard
+`/device` schema. Operational fan-in from the flotilla is deliberately left for
+a later change; campaign members remain `pending` at the top for now.
 
-## Deliberately naive
+`flotilla` supplies only one modeled layer, the standard RFS. StratoWeave adds
+the implicit device layer beneath it.
 
-- Installs are MockSoftwareAdapter and always succeed; here they take a
-  random 1-4s each so progress is visible. Everywhere else the mock
-  defaults to instant, which is what the tests want.
-- The campaign's subscription samples device state once a second.
-- No maintenance windows, scheduling, waves, vetoes or redundancy
-  constraints -- the campaign fires everything at once on `run`.
-- No plan preview, no pause/abort, no campaign completion latching:
-  status reflects the devices' current SoftwareManager state.
-- Devices are mock CPEs declared northbound; no real inventory.
+## Tests
+
+    just test
+
+The focused tests cover node creation, per-device sharding, campaign routing,
+the parent RFS-to-flotilla render, and direct `/device` configuration at the
+RFS-only bottom.

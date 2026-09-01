@@ -1,0 +1,40 @@
+import testing
+
+import stratoweave
+
+import flotilla.layers.y_0 as rfs
+import flotilla.sysspec as sysspec
+from flotilla.layers.y_0 import \
+    stratoweave_rfs__device__credentials as Credentials
+
+
+actor _test_direct_device_config(t: testing.AsyncT):
+    """The flotilla northbound is RFS: /device is its top-level intent."""
+    root = rfs.root()
+    root.device.create(
+        "cpe-1",
+        type="cpe",
+        credentials=Credentials(username="admin", password="admin"),
+    ).mock.enabled = True
+
+    tr = stratoweave.test_main(sysspec.SYSSPEC, t.log_handler)
+    var attempts = 0
+
+    def check_device():
+        attempts += 1
+        mgr = tr.dev_registry.get("cpe-1")
+        config = mgr!.get_dmc() if mgr is not None else None
+        if config is not None and config!.type == "cpe" and config!.mock.enabled!:
+            t.success()
+        elif attempts >= 100:
+            t.failure(ValueError("direct /device config was not retained"))
+        else:
+            after 0.01: check_device()
+
+    def cont(result):
+        if isinstance(result, Exception):
+            t.failure(result)
+            return
+        check_device()
+
+    tr.edit_config(root.to_gdata(), cont)

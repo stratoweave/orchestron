@@ -9,6 +9,7 @@ import yang.adata as yadata
 import yang.gdata as ygdata
 import yang.xml as yxml
 
+from fleetmgr.layers.y_1 import stratoweave_rfs__rfs__device_entry
 from fleetmgr.layers.y_1 import SRC_DNODE
 from fleetmgr.layers.y_2_loose import root as output_root
 
@@ -16,3 +17,27 @@ def o_root():
     return output_root()
 
 
+class Device(ttt.RFSFunction):
+    transform: mut(stratoweave_rfs__rfs__device_entry, ttt.DeviceInfo) -> yadata.MNode
+
+    @staticmethod
+    def input_type():
+        """Return the modeled input type for this transform"""
+        return stratoweave_rfs__rfs__device_entry
+
+    mut def transform_wrapper(self, i: ygdata.Node, device_info: ttt.DeviceInfo, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from gdata to
+        modeled input and back to gdata
+        """
+        modeled_input = stratoweave_rfs__rfs__device_entry.from_gdata(i)
+
+        return self.transform(modeled_input, device_info).to_gdata(), None
+
+    mut def transform_xml(self, i: xml.Node, device_info: ttt.DeviceInfo, memory: ?ygdata.Node, dynstate: ?ygdata.Node) -> (ygdata.Node, ?ygdata.Node):
+        """Wrap the user provided transform method to convert from XML to
+        modeled input and return gdata
+        """
+        gdata_input = yxml.from_xml(SRC_DNODE, i, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device'])
+        modeled_input = stratoweave_rfs__rfs__device_entry.from_gdata(gdata_input)
+
+        return self.transform(modeled_input, device_info).to_gdata(), None

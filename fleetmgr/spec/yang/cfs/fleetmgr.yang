@@ -6,11 +6,23 @@ module fleetmgr {
   import stratoweave {
     prefix sw;
   }
-  import ietf-inet-types {
-    prefix inet;
+  import fleetmgr-types {
+    prefix fleetmgr-types;
   }
 
   container fleet {
+    list node {
+      key name;
+
+      sw:transform fleetmgr.cfs.Node;
+
+      leaf name {
+        type string;
+      }
+
+      uses fleetmgr-types:device-options;
+    }
+
     list device {
       key name;
 
@@ -20,111 +32,13 @@ module fleetmgr {
         type string;
       }
 
-      leaf description {
+      leaf shard {
+        description "Name of the flotilla node that owns this device.";
         type string;
+        mandatory true;
       }
 
-      list address {
-        key name;
-        leaf name {
-          description "Name of address, e.g. 'loopback' or 'OOB'";
-          type string;
-        }
-        leaf address {
-          type inet:host;
-          mandatory true;
-        }
-        leaf port {
-          type uint16;
-        }
-        list initial-credentials {
-          key "username password key";
-          leaf username {
-            type string;
-          }
-          leaf password {
-            type string;
-          }
-          leaf key {
-            type string;
-          }
-        }
-      }
-
-      container credentials {
-        leaf username {
-          type string;
-          mandatory true;
-        }
-        leaf password {
-          type string;
-        }
-        list key {
-          key key;
-          leaf key {
-            type string;
-          }
-          leaf private-key {
-            type string;
-          }
-        }
-      }
-
-      list initial-credentials {
-        key "username password key";
-        leaf username {
-          type string;
-        }
-        leaf password {
-          type string;
-        }
-        leaf key {
-          type string;
-        }
-      }
-
-      leaf approval-required {
-        description "Require approval of each individual configuration change to this device";
-        type boolean;
-        default "false";
-      }
-
-      container mock {
-        leaf enabled {
-          type boolean;
-          default "false";
-        }
-        list module {
-          key "name";
-          leaf name {
-            type string;
-          }
-          leaf namespace {
-            type string;
-            mandatory true;
-          }
-          leaf revision {
-            type string;
-          }
-          leaf-list feature {
-            type string;
-          }
-        }
-      }
-
-      container debug {
-        leaf connection {
-          type boolean;
-          default "false";
-        }
-      }
-
-      container feature-flags {
-        leaf runtime-schema-fetch {
-          type boolean;
-          default false;
-        }
-      }
+      uses fleetmgr-types:device-options;
     }
   }
 }

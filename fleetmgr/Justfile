@@ -1,2 +1,21 @@
+acton := env_var_or_default("ACTON", "acton")
+
+# Regenerate both system specifications from YANG.
 gen:
-	cd spec && acton build && out/bin/gen
+	cd spec && {{acton}} build && out/bin/gen
+
+build:
+	{{acton}} build
+
+# Start the RFS-only bottom node.
+flotilla:
+	out/bin/flotilla --http-port 18201 --netconf-port 12901
+
+# Start the top node with the 20-device, one-flotilla demo.
+demo:
+	out/bin/fleetmgr --http-port 18200 --netconf-port 12900 demo.xml
+
+test:
+	{{acton}} test --module test_fleetmgr_cfs
+	{{acton}} test --module test_fleetmgr_rfs
+	{{acton}} test --module test_flotilla_rfs

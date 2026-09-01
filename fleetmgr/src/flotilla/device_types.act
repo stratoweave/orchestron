@@ -1,0 +1,35 @@
+# This file is generated only when missing.
+# Edit it to register package-provided device types for this app.
+
+import logging
+import net
+
+import stratoweave.device as swdev
+import stratoweave.adapters.adapter as swad
+import stratoweave.adapters.software_mock as swmock
+
+import flotilla.devices.cpe as cpe_dev
+import flotilla.devices.cpe_oper as cpe_oper
+
+
+def _cpe_adapter(dev: swdev.DeviceMgr, schema, dmc, registry, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap):
+    # An adapter that does not support mocking, so mock/enabled=true falls
+    # back to the generic MockAdapter: the cheapest per-CPE configuration
+    # that still receives TTT-delivered config.
+    return swad.NoAdapter(schema, log_handler, connect_cap)
+
+
+def _cpe_software(dev: swdev.DeviceMgr, dmc, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap) -> swdev.SoftwareAdapter:
+    # Installs take a visible 1-4s here so a UI shows real progress;
+    # tests elsewhere construct the mock without a delay and stay instant.
+    return swmock.MockSoftwareAdapter(log_handler, "17.15.01a", install_delay=(1.0, 4.0))
+
+
+device_types: dict[str, swdev.DeviceType] = {
+    "cpe": swdev.DeviceType(
+        name="cpe",
+        adapter_type=_cpe_adapter,
+        src_dnode=cpe_dev.SRC_DNODE,
+        oper_src_dnode=cpe_oper.SRC_DNODE,
+        software_adapter_type=_cpe_software)
+}

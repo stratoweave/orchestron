@@ -1,0 +1,30 @@
+module fleetmgr-rfs {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:rfs";
+  prefix fleetmgr-rfs;
+
+  import stratoweave {
+    prefix sw;
+  }
+  import stratoweave-rfs {
+    prefix sw-rfs;
+  }
+  import fleetmgr-types {
+    prefix fleetmgr-types;
+  }
+
+  augment "/sw-rfs:rfs" {
+    list device {
+      key name;
+
+      sw:rfs-transform fleetmgr.rfs.Device;
+
+      leaf name {
+        type string;
+      }
+
+      uses fleetmgr-types:device-options;
+      uses fleetmgr-types:software-options;
+    }
+  }
+}

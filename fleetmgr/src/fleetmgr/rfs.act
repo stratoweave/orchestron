@@ -1,0 +1,65 @@
+from stratoweave.exception import UnsupportedDevice
+
+import fleetmgr.layers.base_1 as base
+import fleetmgr.devices.flotilla as flotilla
+# TODO: required by the compiler, see acton issue #2390
+import yang.identityref
+
+
+class Device(base.Device):
+    def transform(self, i, di):
+        if "stratoweave-rfs" not in di.modules:
+            raise UnsupportedDevice()
+
+        o = flotilla.root()
+        dev = o.device.create(i.name)
+        dev.type = "cpe"
+        dev.description = i.description
+        dev.approval_required = i.approval_required
+
+        for address in i.address:
+            out_address = dev.address.create(
+                address.name,
+                address=address.address,
+                port=address.port,
+            )
+            for credentials in address.initial_credentials:
+                out_address.initial_credentials.create((
+                    username=credentials.username,
+                    password=credentials.password,
+                    key=credentials.key,
+                ))
+
+        dev.credentials.username = i.credentials.username
+        dev.credentials.password = i.credentials.password
+        for key in i.credentials.key:
+            dev.credentials.key.create(key.key, private_key=key.private_key)
+
+        for credentials in i.initial_credentials:
+            dev.initial_credentials.create((
+                username=credentials.username,
+                password=credentials.password,
+                key=credentials.key,
+            ))
+
+        dev.mock.enabled = i.mock.enabled
+        for module in i.mock.module:
+            out_module = dev.mock.module.create(
+                module.name,
+                namespace=module.namespace,
+                revision=module.revision,
+            )
+            for feature in module.feature:
+                out_module.feature.append(feature)
+
+        dev.debug.connection = i.debug.connection
+        dev.feature_flags.runtime_schema_fetch = i.feature_flags.runtime_schema_fetch
+
+        dev.software.upgrade_campaign = i.software.upgrade_campaign
+        dev.software.target_release = i.software.target_release
+        dev.software.image_url = i.software.image_url
+        dev.software.allow_staging = i.software.allow_staging
+        for veto in i.software.veto:
+            dev.software.veto.create(veto.holder, reason=veto.reason)
+
+        return o

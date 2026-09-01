@@ -1,0 +1,144 @@
+module fleetmgr-types {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:types";
+  prefix fleetmgr-types;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  grouping device-options {
+    leaf description {
+      type string;
+    }
+
+    list address {
+      key name;
+      leaf name {
+        description "Name of address, e.g. 'loopback' or 'OOB'";
+        type string;
+      }
+      leaf address {
+        type inet:host;
+        mandatory true;
+      }
+      leaf port {
+        type uint16;
+      }
+      list initial-credentials {
+        key "username password key";
+        leaf username {
+          type string;
+        }
+        leaf password {
+          type string;
+        }
+        leaf key {
+          type string;
+        }
+      }
+    }
+
+    container credentials {
+      leaf username {
+        type string;
+        mandatory true;
+      }
+      leaf password {
+        type string;
+      }
+      list key {
+        key key;
+        leaf key {
+          type string;
+        }
+        leaf private-key {
+          type string;
+        }
+      }
+    }
+
+    list initial-credentials {
+      key "username password key";
+      leaf username {
+        type string;
+      }
+      leaf password {
+        type string;
+      }
+      leaf key {
+        type string;
+      }
+    }
+
+    leaf approval-required {
+      description "Require approval of each individual configuration change to this device";
+      type boolean;
+      default "false";
+    }
+
+    container mock {
+      leaf enabled {
+        type boolean;
+        default "false";
+      }
+      list module {
+        key "name";
+        leaf name {
+          type string;
+        }
+        leaf namespace {
+          type string;
+          mandatory true;
+        }
+        leaf revision {
+          type string;
+        }
+        leaf-list feature {
+          type string;
+        }
+      }
+    }
+
+    container debug {
+      leaf connection {
+        type boolean;
+        default "false";
+      }
+    }
+
+    container feature-flags {
+      leaf runtime-schema-fetch {
+        type boolean;
+        default false;
+      }
+    }
+  }
+
+  grouping software-options {
+    container software {
+      leaf upgrade-campaign {
+        type string;
+      }
+      leaf target-release {
+        type string;
+      }
+      leaf image-url {
+        type string;
+      }
+      leaf allow-staging {
+        type boolean;
+        default "false";
+      }
+      list veto {
+        key holder;
+        leaf holder {
+          type string;
+        }
+        leaf reason {
+          type string;
+        }
+      }
+    }
+  }
+}
