@@ -1,7 +1,11 @@
 import stratoweave
 
+import fleetmgr.supervisor as supervisor
 import fleetmgr.sysspec as sysspec
 
 
 actor main(env):
-    stratoweave.main(sysspec.SYSSPEC, env)
+    def start_top() -> None:
+        stratoweave.main(sysspec.SYSSPEC, env)
+
+    supervisor.Supervisor(env, start_top)

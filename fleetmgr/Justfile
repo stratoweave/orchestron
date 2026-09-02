@@ -8,11 +8,11 @@ gen:
 build:
 	{{acton}} build
 
-# Start the RFS-only bottom node.
+# Start one RFS-only bottom node without the fleet manager supervisor.
 flotilla:
 	out/bin/flotilla --http-port 18201 --netconf-port 12901
 
-# Start the top node with the 20-device, one-flotilla demo.
+# Start the top, which spawns ten flotillas, with the 20-device demo.
 demo:
 	out/bin/fleetmgr --http-port 18200 --netconf-port 12900 demo.xml
 

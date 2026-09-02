@@ -1,0 +1,72 @@
+import process
+
+
+FLOTILLA_COUNT = 10
+FLOTILLA_BIN = "out/bin/flotilla"
+BASE_HTTP_PORT = 18201
+BASE_NETCONF_PORT = 12901
+
+
+def flotilla_command(index: int) -> list[str]:
+    return [
+        FLOTILLA_BIN,
+        "--rts-wthreads", "2",
+        "--http-port", str(BASE_HTTP_PORT + index),
+        "--netconf-port", str(BASE_NETCONF_PORT + index),
+    ]
+
+
+actor Supervisor(env, on_ready: action() -> None):
+    """Start the ten local flotillas and report when all accept NETCONF."""
+    pcap = process.ProcessCap(env.cap)
+
+    var children: list[process.Process] = []
+    var pending: dict[int, str] = {}
+    var ready: set[int] = set()
+
+    def mark_ready(index: int) -> None:
+        if index not in ready:
+            ready.add(index)
+            if index in pending:
+                del pending[index]
+            print("fleetmgr: flotilla-{index + 1} ready")
+            if len(ready) == FLOTILLA_COUNT:
+                print("fleetmgr: all {FLOTILLA_COUNT} flotillas ready")
+                on_ready()
+
+    def spawn(index: int) -> None:
+        pending[index] = ""
+
+        def on_stdout(p: process.Process, data: ?bytes) -> None:
+            if data is not None and index not in ready:
+                buf = pending.get_def(index, "") + data.decode()
+                if "NETCONF server listening" in buf:
+                    mark_ready(index)
+                else:
+                    pending[index] = buf[-4096:]
+
+        def on_stderr(p: process.Process, data: ?bytes) -> None:
+            if data is not None:
+                print("flotilla-{index + 1}: {data.decode()}", err=True)
+
+        def on_exit(p: process.Process, exit_code: int, signal: int) -> None:
+            print(
+                "fleetmgr: flotilla-{index + 1} exited "
+                + "code={exit_code} signal={signal}",
+                err=True,
+            )
+
+        def on_error(p: process.Process, error: str) -> None:
+            print("fleetmgr: flotilla-{index + 1} error: {error}", err=True)
+
+        children.append(process.Process(
+            pcap,
+            flotilla_command(index),
+            on_stdout,
+            on_stderr,
+            on_exit,
+            on_error,
+        ))
+
+    for index in range(FLOTILLA_COUNT):
+        spawn(index)
