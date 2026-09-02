@@ -125,7 +125,7 @@ SRC_DNODE_CHILD_0: DList = DList(module='stratoweave-rfs', namespace='http://str
 
 SRC_DNODE_CHILD_20: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_21: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='flotilla-status', config=True, description='One whole-datastore operational feed from this flotilla. Device\nstatus is normalized here before CFS campaigns aggregate it.', presence=False, exts=[
+SRC_DNODE_CHILD_21: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='flotilla-status', config=True, description='One subtree-filtered operational feed from this flotilla. Per-device\nsoftware state is normalized here before CFS campaigns aggregate it.', presence=False, exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='fleetmgr.rfs.FlotillaStatus', exts=[])
     ], children=[
     DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='enabled', config=True, default='true', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
@@ -240,8 +240,8 @@ SRC_YANG_0: str = r"""module fleetmgr-rfs {
   augment "/sw-rfs:rfs" {
     container flotilla-status {
       description
-        "One whole-datastore operational feed from this flotilla. Device
-         status is normalized here before CFS campaigns aggregate it.";
+        "One subtree-filtered operational feed from this flotilla. Per-device
+         software state is normalized here before CFS campaigns aggregate it.";
 
       sw:rfs-transform fleetmgr.rfs.FlotillaStatus;
 
