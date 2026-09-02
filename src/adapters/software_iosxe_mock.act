@@ -1,0 +1,195 @@
+"""Reusable IOS XE device behavior for mock-mode software upgrades.
+
+The mock sits behind NetconfAdapter's in-process NETCONF server. It replies to
+RPCs before their asynchronous operation records complete, just like IOS XE,
+and publishes both install history and the running software banner.
+"""
+
+import logging
+import std.xml as xml
+
+import yang.gdata as ygdata
+
+import adapters.netconf as swna
+import adapters.software_iosxe as swxe
+import adapters.software_iosxe_oper as ixoper
+
+
+OLD_RELEASE = "17.18.02"
+NEW_REQUESTED = "17.18.03a"
+NEW_REPORTED = "17.18.3a"
+
+IMAGE_FILE = "c8000v-universalk9.17.18.03a.SPA.bin"
+IMAGE_URL = "scp://root:labpass@10.0.0.9:/images/" + IMAGE_FILE
+
+
+def _banner(version: str) -> str:
+    return "Cisco IOS XE Software, Version {version}, RELEASE SOFTWARE (fc1)"
+
+
+def hardware_datastore(version: str) -> ygdata.Node:
+    """Return device-hardware-oper containing the running release."""
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id(ixoper.NS_Cisco_IOS_XE_device_hardware_oper, n)
+    ns = ixoper.NS_Cisco_IOS_XE_device_hardware_oper
+    mod = "Cisco-IOS-XE-device-hardware-oper"
+    return ygdata.Container({
+        q("device-hardware-data"): ygdata.Container({
+            q("device-hardware"): ygdata.Container({
+                q("device-system-data"): ygdata.Container({
+                    q("software-version"): ygdata.Leaf(_banner(version),
+                                                       ns=ns, module=mod)
+                }, ns=ns, module=mod)
+            }, ns=ns, module=mod)
+        }, ns=ns, module=mod)
+    })
+
+
+def operation_record(uuid: str, op_id: str, status: str, done: str,
+                     stages: list[str]) -> ygdata.Node:
+    """Return one finished IOS XE install operation record."""
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id(ixoper.NS_Cisco_IOS_XE_install_oper, n)
+    ns = ixoper.NS_Cisco_IOS_XE_install_oper
+    mod = "Cisco-IOS-XE-install-oper"
+    txns: list[ygdata.Node] = []
+    for stage in stages:
+        txns.append(ygdata.Container({
+            q("txn-cmd"): ygdata.Leaf(stage, ns=ns, module=mod),
+            q("txn-status"): ygdata.Leaf("install-txn-sts-succ",
+                                          ns=ns, module=mod),
+        }, ns=ns, module=mod))
+    return ygdata.Container({
+        q("op-uuid"): ygdata.Leaf(uuid, ns=ns, module=mod),
+        q("op-id"): ygdata.Leaf(op_id, ns=ns, module=mod),
+        q("op-status"): ygdata.Leaf(status, ns=ns, module=mod),
+        q("op-done"): ygdata.Leaf(done, ns=ns, module=mod),
+        q("install-txn-sum-op-hist"): ygdata.List([], txns),
+    }, ns=ns, module=mod)
+
+
+def operational_datastore(version: str,
+                          history: list[ygdata.Node]) -> ygdata.Node:
+    """Return the complete operational datastore served by the mock."""
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id(ixoper.NS_Cisco_IOS_XE_install_oper, n)
+    ns = ixoper.NS_Cisco_IOS_XE_install_oper
+    mod = "Cisco-IOS-XE-install-oper"
+    install_oper = ygdata.Container({
+        q("install-oper-data"): ygdata.Container({
+            q("install-oper"): ygdata.List([], []),
+            q("install-oper-hist"): ygdata.List([], history),
+        }, ns=ns, module=mod)
+    })
+    return ygdata.merge(install_oper, hardware_datastore(version))
+
+
+def _uuid_of(request: xml.Node) -> ?str:
+    for child in request.children:
+        if child.tag == "uuid":
+            return child.text
+    return None
+
+
+def _leaf_of(request: xml.Node, name: str) -> ?str:
+    for child in request.children:
+        if child.tag == name:
+            return child.text
+    return None
+
+
+actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
+                        log_handler: logging.Handler,
+                        fail_rpc: ?str=None,
+                        complete_after: float=0.05,
+                        start_release: str=OLD_RELEASE,
+                        target_release: str=NEW_REPORTED):
+    """Model staged images, running release, and install history."""
+    _log = logging.Logger(log_handler)
+
+    var running: str = start_release
+    var staged: ?str = None
+    var history: list[ygdata.Node] = []
+    var rpcs: list[str] = []
+    var last_source: ?str = None
+    var last_destination: ?str = None
+    var last_path: ?str = None
+    var last_one_shot: ?str = None
+
+    def _publish() -> None:
+        mock_server.set_oper_ds(operational_datastore(running, history))
+
+    def _finish_xcopy(uuid: str) -> None:
+        staged = last_destination
+        history = history + [operation_record(
+            uuid, "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+            ["install-txn-dwnld-precheck", "install-txn-download"])]
+        _publish()
+
+    def _finish_install(uuid: str) -> None:
+        history = history + [
+            operation_record(
+                uuid, "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                ["install-txn-add-prechk", "install-txn-copy",
+                 "install-txn-verify", "install-txn-extract",
+                 "install-txn-add-postchk"]),
+            operation_record(
+                uuid, "2", swxe.OP_SUCC, swxe.OP_COMPLETE,
+                ["install-txn-act-prechk", "install-txn-img-act",
+                 "install-txn-commit", "install-txn-reload"]),
+        ]
+        running = target_release
+        _publish()
+
+    def _on_rpc(request: xml.Node,
+                respond: action(children: ?list[xml.Node], tag: ?str,
+                                message: ?str) -> None) -> None:
+        rpcs.append(request.tag)
+        uuid = _uuid_of(request)
+
+        if fail_rpc == request.tag:
+            respond(tag="operation-failed", message="mock: {request.tag} failed")
+            return
+
+        if uuid is None:
+            respond(tag="missing-element", message="no uuid in request")
+            return
+
+        if request.tag == "xcopy":
+            last_source = _leaf_of(request, "source-path")
+            last_destination = _leaf_of(request, "destination-path")
+            respond([xml.Node(
+                "uuid",
+                nsdefs=[(None, "http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc")],
+                text=uuid!,
+            )])
+            after complete_after: _finish_xcopy(uuid!)
+            return
+
+        if request.tag == "install":
+            last_path = _leaf_of(request, "path")
+            last_one_shot = _leaf_of(request, "one-shot")
+            if staged is None:
+                respond(tag="operation-failed", message="no image has been staged")
+                return
+            respond([])
+            after complete_after: _finish_install(uuid!)
+            return
+
+        respond(tag="operation-not-supported",
+                message="IOS XE software mock does not do {request.tag}")
+
+    def attach() -> None:
+        _publish()
+        mock_server.set_rpc_cb(_on_rpc)
+
+    def get_rpcs() -> list[str]:
+        return rpcs
+
+    def get_running() -> str:
+        return running
+
+    def get_inputs() -> (source: ?str, destination: ?str,
+                         path: ?str, one_shot: ?str):
+        return (source=last_source, destination=last_destination,
+                path=last_path, one_shot=last_one_shot)
