@@ -156,9 +156,11 @@ SRC_DNODE_CHILD_23: DContainer = DContainer(module='software', namespace='urn:fl
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='target-release', config=True, description='Software release the selected devices should be running.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='image-url', config=True, description='Image URL used by devices that pull their own software.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='allow-staging', config=True, description='Allow the image to be staged before the impacting step.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-        DLeafList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device', config=True, description='Devices this campaign upgrades.', min_elements=0, ordered_by='system', type=DTypeLeafref(name='leafref', description=None, reference=None, exts=[], builtin_type='leafref', default=None, path=yxpath.AbsoluteLocationPath([yxpath.NodeTestStep('fleetmgr', 'fleet', []), yxpath.NodeTestStep('fleetmgr', 'device', []), yxpath.NodeTestStep('fleetmgr', 'name', [])]), require_instance=False, target_type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])), exts=[
-                DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='inventory', exts=[])
-            ]),
+        DList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device', key=['name'], config=True, description='Devices this campaign upgrades.', min_elements=0, ordered_by='system', children=[
+            DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='name', config=True, mandatory=False, type=DTypeLeafref(name='leafref', description=None, reference=None, exts=[], builtin_type='leafref', default=None, path=yxpath.AbsoluteLocationPath([yxpath.NodeTestStep('fleetmgr', 'fleet', []), yxpath.NodeTestStep('fleetmgr', 'device', []), yxpath.NodeTestStep('fleetmgr', 'name', [])]), require_instance=False, target_type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])), exts=[
+                    DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='inventory', exts=[])
+                ])
+        ]),
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='admin-state', config=True, description='plan: the campaign is declared and inspectable but does nothing.\nrun: the campaign sets the software target on its devices.', default='plan', mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'plan':0, 'run':1}))
     ])
 ])
@@ -256,11 +258,14 @@ SRC_YANG_1: str = r"""module software {
         type boolean;
         default "false";
       }
-      leaf-list device {
+      list device {
+        key name;
         description "Devices this campaign upgrades.";
-        sw:link inventory;
-        type leafref {
-          path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+        leaf name {
+          sw:link inventory;
+          type leafref {
+            path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+          }
         }
       }
       leaf admin-state {
@@ -1896,20 +1901,69 @@ class fleetmgr__fleet(yadata.MNode):
 
 
 _breaker34: None = None
+class software__software__upgrade_campaign__device_entry(yadata.MNode):
+    name: str
+
+    mut def __init__(self, name: str) -> None:
+        self.name = name
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['software:software', 'upgrade-campaign', 'device'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> software__software__upgrade_campaign__device_entry:
+        return software__software__upgrade_campaign__device_entry(name=n.get_str(ygdata.Id(NS_software, 'name')))
+
+    mut def copy(self) -> software__software__upgrade_campaign__device_entry:
+        """Create a deep copy of this adata object"""
+        return software__software__upgrade_campaign__device_entry.from_gdata(self.to_gdata())
+
+_breaker35: None = None
+class software__software__upgrade_campaign__device(yadata.MKeyedList[str, software__software__upgrade_campaign__device_entry]):
+    mut def __init__(self, elements: list[software__software__upgrade_campaign__device_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str) -> software__software__upgrade_campaign__device_entry:
+        e = self.get(key)
+        if e is not None:
+            return e
+        name = key
+        res = software__software__upgrade_campaign__device_entry(name=name)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[software__software__upgrade_campaign__device_entry]:
+        if n is not None:
+            return [software__software__upgrade_campaign__device_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> software__software__upgrade_campaign__device:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return software__software__upgrade_campaign__device(elements=copied_elements)
+
+
+_breaker36: None = None
 class software__software__upgrade_campaign_entry(yadata.MNode):
     name: str
     target_release: ?str
     image_url: ?str
     allow_staging: ?bool
-    device: list[str]
+    device: software__software__upgrade_campaign__device
     admin_state: ?str
 
-    mut def __init__(self, name: str, target_release: ?str, image_url: ?str, allow_staging: ?bool, device: ?list[str]=None, admin_state: ?str) -> None:
+    mut def __init__(self, name: str, target_release: ?str, image_url: ?str, allow_staging: ?bool, device: list[software__software__upgrade_campaign__device_entry]=[], admin_state: ?str) -> None:
         self.name = name
         self.target_release = target_release
         self.image_url = image_url
         self.allow_staging = allow_staging
-        self.device = device if device is not None else []
+        self.device = software__software__upgrade_campaign__device(elements=device)
         self.admin_state = admin_state
 
     mut def to_gdata(self) -> ygdata.Node:
@@ -1917,13 +1971,13 @@ class software__software__upgrade_campaign_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> software__software__upgrade_campaign_entry:
-        return software__software__upgrade_campaign_entry(name=n.get_str(ygdata.Id(NS_software, 'name')), target_release=n.get_opt_str(ygdata.Id(NS_software, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_software, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_software, 'allow-staging')), device=n.get_opt_strs(ygdata.Id(NS_software, 'device')), admin_state=n.get_opt_str(ygdata.Id(NS_software, 'admin-state')))
+        return software__software__upgrade_campaign_entry(name=n.get_str(ygdata.Id(NS_software, 'name')), target_release=n.get_opt_str(ygdata.Id(NS_software, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_software, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_software, 'allow-staging')), device=software__software__upgrade_campaign__device.from_gdata(n.get_opt_list(ygdata.Id(NS_software, 'device'))), admin_state=n.get_opt_str(ygdata.Id(NS_software, 'admin-state')))
 
     mut def copy(self) -> software__software__upgrade_campaign_entry:
         """Create a deep copy of this adata object"""
         return software__software__upgrade_campaign_entry.from_gdata(self.to_gdata())
 
-_breaker35: None = None
+_breaker37: None = None
 class software__software__upgrade_campaign(yadata.MKeyedList[str, software__software__upgrade_campaign_entry]):
     mut def __init__(self, elements: list[software__software__upgrade_campaign_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -1962,7 +2016,7 @@ class software__software__upgrade_campaign(yadata.MKeyedList[str, software__soft
         return software__software__upgrade_campaign(elements=copied_elements)
 
 
-_breaker36: None = None
+_breaker38: None = None
 class software__software(yadata.MNode):
     upgrade_campaign: software__software__upgrade_campaign
 
@@ -1983,7 +2037,7 @@ class software__software(yadata.MNode):
         return software__software.from_gdata(self.to_gdata())
 
 
-_breaker37: None = None
+_breaker39: None = None
 class root(yadata.MNode):
     fleet: fleetmgr__fleet
     software: software__software

@@ -157,9 +157,11 @@ SRC_DNODE_CHILD_23: DContainer = DContainer(module='software', namespace='urn:fl
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='target-release', config=True, description='Software release the selected devices should be running.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='image-url', config=True, description='Image URL used by devices that pull their own software.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='allow-staging', config=True, description='Allow the image to be staged before the impacting step.', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-        DLeafList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device', config=True, description='Devices this campaign upgrades.', min_elements=0, ordered_by='system', type=DTypeLeafref(name='leafref', description=None, reference=None, exts=[], builtin_type='leafref', default=None, path=yxpath.AbsoluteLocationPath([yxpath.NodeTestStep('fleetmgr', 'fleet', []), yxpath.NodeTestStep('fleetmgr', 'device', []), yxpath.NodeTestStep('fleetmgr', 'name', [])]), require_instance=False, target_type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])), exts=[
-                DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='inventory', exts=[])
-            ]),
+        DList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='device', key=['name'], config=True, description='Devices this campaign upgrades.', min_elements=0, ordered_by='system', children=[
+            DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='name', config=True, mandatory=False, type=DTypeLeafref(name='leafref', description=None, reference=None, exts=[], builtin_type='leafref', default=None, path=yxpath.AbsoluteLocationPath([yxpath.NodeTestStep('fleetmgr', 'fleet', []), yxpath.NodeTestStep('fleetmgr', 'device', []), yxpath.NodeTestStep('fleetmgr', 'name', [])]), require_instance=False, target_type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])), exts=[
+                    DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='link', arg='inventory', exts=[])
+                ])
+        ]),
         DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='admin-state', config=True, description='plan: the campaign is declared and inspectable but does nothing.\nrun: the campaign sets the software target on its devices.', default='plan', mandatory=False, type=DTypeEnum(name='enumeration', description=None, reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'plan':0, 'run':1})),
         DContainer(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='state', config=False, presence=False, children=[
             DLeaf(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='total', config=False, mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967295)]))),
@@ -268,11 +270,14 @@ SRC_YANG_1: str = r"""module software {
         type boolean;
         default "false";
       }
-      leaf-list device {
+      list device {
+        key name;
         description "Devices this campaign upgrades.";
-        sw:link inventory;
-        type leafref {
-          path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+        leaf name {
+          sw:link inventory;
+          type leafref {
+            path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+          }
         }
       }
       leaf admin-state {
@@ -1908,6 +1913,55 @@ class fleetmgr__fleet(yadata.MNode):
 
 
 _breaker34: None = None
+class software__software__upgrade_campaign__device_entry(yadata.MNode):
+    name: str
+
+    mut def __init__(self, name: str) -> None:
+        self.name = name
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['software:software', 'upgrade-campaign', 'device'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> software__software__upgrade_campaign__device_entry:
+        return software__software__upgrade_campaign__device_entry(name=n.get_str(ygdata.Id(NS_software, 'name')))
+
+    mut def copy(self) -> software__software__upgrade_campaign__device_entry:
+        """Create a deep copy of this adata object"""
+        return software__software__upgrade_campaign__device_entry.from_gdata(self.to_gdata())
+
+_breaker35: None = None
+class software__software__upgrade_campaign__device(yadata.MKeyedList[str, software__software__upgrade_campaign__device_entry]):
+    mut def __init__(self, elements: list[software__software__upgrade_campaign__device_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str) -> software__software__upgrade_campaign__device_entry:
+        e = self.get(key)
+        if e is not None:
+            return e
+        name = key
+        res = software__software__upgrade_campaign__device_entry(name=name)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[software__software__upgrade_campaign__device_entry]:
+        if n is not None:
+            return [software__software__upgrade_campaign__device_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> software__software__upgrade_campaign__device:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return software__software__upgrade_campaign__device(elements=copied_elements)
+
+
+_breaker36: None = None
 class software__software__upgrade_campaign__state__device_status_entry(yadata.MNode):
     device: str
     status: ?str
@@ -1929,7 +1983,7 @@ class software__software__upgrade_campaign__state__device_status_entry(yadata.MN
         """Create a deep copy of this adata object"""
         return software__software__upgrade_campaign__state__device_status_entry.from_gdata(self.to_gdata())
 
-_breaker35: None = None
+_breaker37: None = None
 class software__software__upgrade_campaign__state__device_status(yadata.MKeyedList[str, software__software__upgrade_campaign__state__device_status_entry]):
     mut def __init__(self, elements: list[software__software__upgrade_campaign__state__device_status_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.device == k, elements)
@@ -1964,7 +2018,7 @@ class software__software__upgrade_campaign__state__device_status(yadata.MKeyedLi
         return software__software__upgrade_campaign__state__device_status(elements=copied_elements)
 
 
-_breaker36: None = None
+_breaker38: None = None
 class software__software__upgrade_campaign__state(yadata.MNode):
     total: ?u64
     in_progress: ?u64
@@ -1993,22 +2047,22 @@ class software__software__upgrade_campaign__state(yadata.MNode):
         return software__software__upgrade_campaign__state.from_gdata(self.to_gdata())
 
 
-_breaker37: None = None
+_breaker39: None = None
 class software__software__upgrade_campaign_entry(yadata.MNode):
     name: str
     target_release: ?str
     image_url: ?str
     allow_staging: ?bool
-    device: list[str]
+    device: software__software__upgrade_campaign__device
     admin_state: ?str
     state: software__software__upgrade_campaign__state
 
-    mut def __init__(self, name: str, target_release: ?str, image_url: ?str, allow_staging: ?bool, device: ?list[str]=None, admin_state: ?str, state: ?software__software__upgrade_campaign__state=None) -> None:
+    mut def __init__(self, name: str, target_release: ?str, image_url: ?str, allow_staging: ?bool, device: list[software__software__upgrade_campaign__device_entry]=[], admin_state: ?str, state: ?software__software__upgrade_campaign__state=None) -> None:
         self.name = name
         self.target_release = target_release
         self.image_url = image_url
         self.allow_staging = allow_staging
-        self.device = device if device is not None else []
+        self.device = software__software__upgrade_campaign__device(elements=device)
         self.admin_state = admin_state
         self.state = state if state is not None else software__software__upgrade_campaign__state()
 
@@ -2017,13 +2071,13 @@ class software__software__upgrade_campaign_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> software__software__upgrade_campaign_entry:
-        return software__software__upgrade_campaign_entry(name=n.get_str(ygdata.Id(NS_software, 'name')), target_release=n.get_opt_str(ygdata.Id(NS_software, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_software, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_software, 'allow-staging')), device=n.get_opt_strs(ygdata.Id(NS_software, 'device')), admin_state=n.get_opt_str(ygdata.Id(NS_software, 'admin-state')), state=software__software__upgrade_campaign__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_software, 'state'))))
+        return software__software__upgrade_campaign_entry(name=n.get_str(ygdata.Id(NS_software, 'name')), target_release=n.get_opt_str(ygdata.Id(NS_software, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_software, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_software, 'allow-staging')), device=software__software__upgrade_campaign__device.from_gdata(n.get_opt_list(ygdata.Id(NS_software, 'device'))), admin_state=n.get_opt_str(ygdata.Id(NS_software, 'admin-state')), state=software__software__upgrade_campaign__state.from_gdata(n.get_opt_cnt(ygdata.Id(NS_software, 'state'))))
 
     mut def copy(self) -> software__software__upgrade_campaign_entry:
         """Create a deep copy of this adata object"""
         return software__software__upgrade_campaign_entry.from_gdata(self.to_gdata())
 
-_breaker38: None = None
+_breaker40: None = None
 class software__software__upgrade_campaign(yadata.MKeyedList[str, software__software__upgrade_campaign_entry]):
     mut def __init__(self, elements: list[software__software__upgrade_campaign_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -2062,7 +2116,7 @@ class software__software__upgrade_campaign(yadata.MKeyedList[str, software__soft
         return software__software__upgrade_campaign(elements=copied_elements)
 
 
-_breaker39: None = None
+_breaker41: None = None
 class software__software(yadata.MNode):
     upgrade_campaign: software__software__upgrade_campaign
 
@@ -2083,7 +2137,7 @@ class software__software(yadata.MNode):
         return software__software.from_gdata(self.to_gdata())
 
 
-_breaker40: None = None
+_breaker42: None = None
 class root(yadata.MNode):
     fleet: fleetmgr__fleet
     software: software__software
@@ -2111,7 +2165,7 @@ actor rpc_root(tp: ygdata.TreeProvider):
 
 
 
-_breaker41: None = None
+_breaker43: None = None
 class fleetmgr__fleet__node__address__initial_credentials_entry_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2127,7 +2181,7 @@ class fleetmgr__fleet__node__address__initial_credentials_entry_subs(Subscriptio
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker42: None = None
+_breaker44: None = None
 class fleetmgr__fleet__node__address__initial_credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2151,7 +2205,7 @@ class fleetmgr__fleet__node__address__initial_credentials_subs(SubscriptionNode)
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker43: None = None
+_breaker45: None = None
 class fleetmgr__fleet__node__address_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     address: SubscriptionNode
@@ -2169,7 +2223,7 @@ class fleetmgr__fleet__node__address_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.address, self.port, self.initial_credentials]
         return direct
 
-_breaker44: None = None
+_breaker46: None = None
 class fleetmgr__fleet__node__address_subs(SubscriptionNode):
     name: SubscriptionNode
     address: SubscriptionNode
@@ -2193,7 +2247,7 @@ class fleetmgr__fleet__node__address_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.address, self.port, self.initial_credentials]
         return direct
 
-_breaker45: None = None
+_breaker47: None = None
 class fleetmgr__fleet__node__credentials__key_entry_subs(SubscriptionNode):
     key: SubscriptionNode
     private_key: SubscriptionNode
@@ -2207,7 +2261,7 @@ class fleetmgr__fleet__node__credentials__key_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.key, self.private_key]
         return direct
 
-_breaker46: None = None
+_breaker48: None = None
 class fleetmgr__fleet__node__credentials__key_subs(SubscriptionNode):
     key: SubscriptionNode
     private_key: SubscriptionNode
@@ -2227,7 +2281,7 @@ class fleetmgr__fleet__node__credentials__key_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.key, self.private_key]
         return direct
 
-_breaker47: None = None
+_breaker49: None = None
 class fleetmgr__fleet__node__credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2243,7 +2297,7 @@ class fleetmgr__fleet__node__credentials_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker48: None = None
+_breaker50: None = None
 class fleetmgr__fleet__node__initial_credentials_entry_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2259,7 +2313,7 @@ class fleetmgr__fleet__node__initial_credentials_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker49: None = None
+_breaker51: None = None
 class fleetmgr__fleet__node__initial_credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2283,7 +2337,7 @@ class fleetmgr__fleet__node__initial_credentials_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker50: None = None
+_breaker52: None = None
 class fleetmgr__fleet__node__mock__module_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     namespace: SubscriptionNode
@@ -2301,7 +2355,7 @@ class fleetmgr__fleet__node__mock__module_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.namespace, self.revision, self.feature]
         return direct
 
-_breaker51: None = None
+_breaker53: None = None
 class fleetmgr__fleet__node__mock__module_subs(SubscriptionNode):
     name: SubscriptionNode
     namespace: SubscriptionNode
@@ -2325,7 +2379,7 @@ class fleetmgr__fleet__node__mock__module_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.namespace, self.revision, self.feature]
         return direct
 
-_breaker52: None = None
+_breaker54: None = None
 class fleetmgr__fleet__node__mock_subs(SubscriptionNode):
     enabled: SubscriptionNode
     module: fleetmgr__fleet__node__mock__module_subs
@@ -2339,7 +2393,7 @@ class fleetmgr__fleet__node__mock_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.enabled, self.module]
         return direct
 
-_breaker53: None = None
+_breaker55: None = None
 class fleetmgr__fleet__node__debug_subs(SubscriptionNode):
     connection: SubscriptionNode
 
@@ -2351,7 +2405,7 @@ class fleetmgr__fleet__node__debug_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.connection]
         return direct
 
-_breaker54: None = None
+_breaker56: None = None
 class fleetmgr__fleet__node__feature_flags_subs(SubscriptionNode):
     runtime_schema_fetch: SubscriptionNode
 
@@ -2363,7 +2417,7 @@ class fleetmgr__fleet__node__feature_flags_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.runtime_schema_fetch]
         return direct
 
-_breaker55: None = None
+_breaker57: None = None
 class fleetmgr__fleet__node_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     description: SubscriptionNode
@@ -2391,7 +2445,7 @@ class fleetmgr__fleet__node_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.description, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags]
         return direct
 
-_breaker56: None = None
+_breaker58: None = None
 class fleetmgr__fleet__node_subs(SubscriptionNode):
     name: SubscriptionNode
     description: SubscriptionNode
@@ -2425,7 +2479,7 @@ class fleetmgr__fleet__node_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.description, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags]
         return direct
 
-_breaker57: None = None
+_breaker59: None = None
 class fleetmgr__fleet__device__address__initial_credentials_entry_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2441,7 +2495,7 @@ class fleetmgr__fleet__device__address__initial_credentials_entry_subs(Subscript
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker58: None = None
+_breaker60: None = None
 class fleetmgr__fleet__device__address__initial_credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2465,7 +2519,7 @@ class fleetmgr__fleet__device__address__initial_credentials_subs(SubscriptionNod
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker59: None = None
+_breaker61: None = None
 class fleetmgr__fleet__device__address_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     address: SubscriptionNode
@@ -2483,7 +2537,7 @@ class fleetmgr__fleet__device__address_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.address, self.port, self.initial_credentials]
         return direct
 
-_breaker60: None = None
+_breaker62: None = None
 class fleetmgr__fleet__device__address_subs(SubscriptionNode):
     name: SubscriptionNode
     address: SubscriptionNode
@@ -2507,7 +2561,7 @@ class fleetmgr__fleet__device__address_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.address, self.port, self.initial_credentials]
         return direct
 
-_breaker61: None = None
+_breaker63: None = None
 class fleetmgr__fleet__device__credentials__key_entry_subs(SubscriptionNode):
     key: SubscriptionNode
     private_key: SubscriptionNode
@@ -2521,7 +2575,7 @@ class fleetmgr__fleet__device__credentials__key_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.key, self.private_key]
         return direct
 
-_breaker62: None = None
+_breaker64: None = None
 class fleetmgr__fleet__device__credentials__key_subs(SubscriptionNode):
     key: SubscriptionNode
     private_key: SubscriptionNode
@@ -2541,7 +2595,7 @@ class fleetmgr__fleet__device__credentials__key_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.key, self.private_key]
         return direct
 
-_breaker63: None = None
+_breaker65: None = None
 class fleetmgr__fleet__device__credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2557,7 +2611,7 @@ class fleetmgr__fleet__device__credentials_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker64: None = None
+_breaker66: None = None
 class fleetmgr__fleet__device__initial_credentials_entry_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2573,7 +2627,7 @@ class fleetmgr__fleet__device__initial_credentials_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker65: None = None
+_breaker67: None = None
 class fleetmgr__fleet__device__initial_credentials_subs(SubscriptionNode):
     username: SubscriptionNode
     password: SubscriptionNode
@@ -2597,7 +2651,7 @@ class fleetmgr__fleet__device__initial_credentials_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.username, self.password, self.key]
         return direct
 
-_breaker66: None = None
+_breaker68: None = None
 class fleetmgr__fleet__device__mock__module_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     namespace: SubscriptionNode
@@ -2615,7 +2669,7 @@ class fleetmgr__fleet__device__mock__module_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.namespace, self.revision, self.feature]
         return direct
 
-_breaker67: None = None
+_breaker69: None = None
 class fleetmgr__fleet__device__mock__module_subs(SubscriptionNode):
     name: SubscriptionNode
     namespace: SubscriptionNode
@@ -2639,7 +2693,7 @@ class fleetmgr__fleet__device__mock__module_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.namespace, self.revision, self.feature]
         return direct
 
-_breaker68: None = None
+_breaker70: None = None
 class fleetmgr__fleet__device__mock_subs(SubscriptionNode):
     enabled: SubscriptionNode
     module: fleetmgr__fleet__device__mock__module_subs
@@ -2653,7 +2707,7 @@ class fleetmgr__fleet__device__mock_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.enabled, self.module]
         return direct
 
-_breaker69: None = None
+_breaker71: None = None
 class fleetmgr__fleet__device__debug_subs(SubscriptionNode):
     connection: SubscriptionNode
 
@@ -2665,7 +2719,7 @@ class fleetmgr__fleet__device__debug_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.connection]
         return direct
 
-_breaker70: None = None
+_breaker72: None = None
 class fleetmgr__fleet__device__feature_flags_subs(SubscriptionNode):
     runtime_schema_fetch: SubscriptionNode
 
@@ -2677,7 +2731,7 @@ class fleetmgr__fleet__device__feature_flags_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.runtime_schema_fetch]
         return direct
 
-_breaker71: None = None
+_breaker73: None = None
 class fleetmgr__fleet__device_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     type: SubscriptionNode
@@ -2709,7 +2763,7 @@ class fleetmgr__fleet__device_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.type, self.shard, self.description, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags]
         return direct
 
-_breaker72: None = None
+_breaker74: None = None
 class fleetmgr__fleet__device_subs(SubscriptionNode):
     name: SubscriptionNode
     type: SubscriptionNode
@@ -2747,7 +2801,7 @@ class fleetmgr__fleet__device_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.type, self.shard, self.description, self.address, self.credentials, self.initial_credentials, self.approval_required, self.mock, self.debug, self.feature_flags]
         return direct
 
-_breaker73: None = None
+_breaker75: None = None
 class fleetmgr__fleet_subs(SubscriptionNode):
     node: fleetmgr__fleet__node_subs
     device: fleetmgr__fleet__device_subs
@@ -2761,7 +2815,37 @@ class fleetmgr__fleet_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.node, self.device]
         return direct
 
-_breaker74: None = None
+_breaker76: None = None
+class software__software__upgrade_campaign__device_entry_subs(SubscriptionNode):
+    name: SubscriptionNode
+
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'name'), parent=path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name]
+        return direct
+
+_breaker77: None = None
+class software__software__upgrade_campaign__device_subs(SubscriptionNode):
+    name: SubscriptionNode
+    pure def __init__(self, path: ?SubscriptionPath=None) -> None:
+        SubscriptionNode.__init__(self, path)
+        self.name = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'name'), parent=path))
+
+    pure def entry(self, name: str) -> software__software__upgrade_campaign__device_entry_subs:
+        predicates = [
+            ygdata.FNode(ygdata.Id(NS_software, 'name'), value_match=name),
+        ]
+        base_path = self._path!.parent
+        return software__software__upgrade_campaign__device_entry_subs(SubscriptionPath(ygdata.Id(NS_software, 'device'), predicates=predicates, parent=base_path))
+
+    pure def _direct_children(self) -> list[SubscriptionNode]:
+        direct: list[SubscriptionNode] = [self.name]
+        return direct
+
+_breaker78: None = None
 class software__software__upgrade_campaign__state__device_status_entry_subs(SubscriptionNode):
     device: SubscriptionNode
     status: SubscriptionNode
@@ -2777,7 +2861,7 @@ class software__software__upgrade_campaign__state__device_status_entry_subs(Subs
         direct: list[SubscriptionNode] = [self.device, self.status, self.running_release]
         return direct
 
-_breaker75: None = None
+_breaker79: None = None
 class software__software__upgrade_campaign__state__device_status_subs(SubscriptionNode):
     device: SubscriptionNode
     status: SubscriptionNode
@@ -2799,7 +2883,7 @@ class software__software__upgrade_campaign__state__device_status_subs(Subscripti
         direct: list[SubscriptionNode] = [self.device, self.status, self.running_release]
         return direct
 
-_breaker76: None = None
+_breaker80: None = None
 class software__software__upgrade_campaign__state_subs(SubscriptionNode):
     total: SubscriptionNode
     in_progress: SubscriptionNode
@@ -2819,13 +2903,13 @@ class software__software__upgrade_campaign__state_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.total, self.in_progress, self.succeeded, self.failed, self.device_status]
         return direct
 
-_breaker77: None = None
+_breaker81: None = None
 class software__software__upgrade_campaign_entry_subs(SubscriptionNode):
     name: SubscriptionNode
     target_release: SubscriptionNode
     image_url: SubscriptionNode
     allow_staging: SubscriptionNode
-    device: SubscriptionNode
+    device: software__software__upgrade_campaign__device_subs
     admin_state: SubscriptionNode
     state: software__software__upgrade_campaign__state_subs
 
@@ -2835,7 +2919,7 @@ class software__software__upgrade_campaign_entry_subs(SubscriptionNode):
         self.target_release = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'target-release'), parent=path))
         self.image_url = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'image-url'), parent=path))
         self.allow_staging = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'allow-staging'), parent=path))
-        self.device = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
+        self.device = software__software__upgrade_campaign__device_subs(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
         self.admin_state = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'admin-state'), parent=path))
         self.state = software__software__upgrade_campaign__state_subs(SubscriptionPath(ygdata.Id(NS_software, 'state'), parent=path))
 
@@ -2843,13 +2927,13 @@ class software__software__upgrade_campaign_entry_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.target_release, self.image_url, self.allow_staging, self.device, self.admin_state, self.state]
         return direct
 
-_breaker78: None = None
+_breaker82: None = None
 class software__software__upgrade_campaign_subs(SubscriptionNode):
     name: SubscriptionNode
     target_release: SubscriptionNode
     image_url: SubscriptionNode
     allow_staging: SubscriptionNode
-    device: SubscriptionNode
+    device: software__software__upgrade_campaign__device_subs
     admin_state: SubscriptionNode
     state: software__software__upgrade_campaign__state_subs
     pure def __init__(self, path: ?SubscriptionPath=None) -> None:
@@ -2858,7 +2942,7 @@ class software__software__upgrade_campaign_subs(SubscriptionNode):
         self.target_release = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'target-release'), parent=path))
         self.image_url = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'image-url'), parent=path))
         self.allow_staging = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'allow-staging'), parent=path))
-        self.device = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
+        self.device = software__software__upgrade_campaign__device_subs(SubscriptionPath(ygdata.Id(NS_software, 'device'), parent=path))
         self.admin_state = SubscriptionNode(SubscriptionPath(ygdata.Id(NS_software, 'admin-state'), parent=path))
         self.state = software__software__upgrade_campaign__state_subs(SubscriptionPath(ygdata.Id(NS_software, 'state'), parent=path))
 
@@ -2873,7 +2957,7 @@ class software__software__upgrade_campaign_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.name, self.target_release, self.image_url, self.allow_staging, self.device, self.admin_state, self.state]
         return direct
 
-_breaker79: None = None
+_breaker83: None = None
 class software__software_subs(SubscriptionNode):
     upgrade_campaign: software__software__upgrade_campaign_subs
 
@@ -2885,7 +2969,7 @@ class software__software_subs(SubscriptionNode):
         direct: list[SubscriptionNode] = [self.upgrade_campaign]
         return direct
 
-_breaker80: None = None
+_breaker84: None = None
 class root_subs(SubscriptionNode):
     fleet: fleetmgr__fleet_subs
     software: software__software_subs
