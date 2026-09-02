@@ -462,3 +462,95 @@ actor nested_list_session_get(t: testing.AsyncT):
     sess.edit_config(nested_tree, cont1)
 
 ########################
+
+actor source_stops_mentioning_shared_element(t: testing.AsyncT):
+    # Both sources contribute to the same device. The campaign is recomputed
+    # before commit and no longer includes it; inventory still keeps the list
+    # key alive, but the old target release must go away.
+    inventory = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("device-1"),
+            q("device-type"): gdata.Leaf("router")
+        }),
+    ])
+    campaign = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("device-1"),
+            q("target-release"): gdata.Leaf("17.15")
+        }),
+    ])
+    no_campaign_devices = gdata.List([q("name")], [
+    ])
+
+    expected = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("device-1"),
+            q("device-type"): gdata.Leaf("router")
+        }),
+    ])
+
+    tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
+    tx = tlist.newtrans()
+
+    tx.configure("1", {"inventory": inventory, "campaign": campaign}, None)
+    tx.configure("1", {"campaign": no_campaign_devices}, None)
+
+    def committed(_r: value):
+        tx.commit("1", True)
+        testing.assertEqual(tx.get().prsrc(deterministic=True), expected.prsrc(deterministic=True))
+        t.success()
+
+    tx.lock("1", None, committed)
+
+actor source_stops_mentioning_shared_element2(t: testing.AsyncT):
+    # Both sources contribute to the same device. The campaign is recomputed
+    # before commit and no longer includes it; inventory still keeps the list
+    # key alive, but the old target release must go away.
+    # Compared to the previous test, the current scenario also involves a
+    # secondary device touched by campaign and retained in the recomputed config.
+    inventory = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("device-1"),
+            q("device-type"): gdata.Leaf("router")
+        }),
+    ])
+    campaign = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("device-1"),
+            q("target-release"): gdata.Leaf("17.15")
+        }),
+        gdata.Container({
+            q("name"): gdata.Leaf("device-2"),
+            q("device-type"): gdata.Leaf("router")
+        })
+    ])
+    no_campaign_devices = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("device-2"),
+            q("device-type"): gdata.Leaf("router")
+        })
+    ])
+
+    expected = gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("device-1"),
+            q("device-type"): gdata.Leaf("router")
+        }),
+        gdata.Container({
+            q("name"): gdata.Leaf("device-2"),
+            q("device-type"): gdata.Leaf("router")
+        })
+    ])
+
+    tlist = ttt.List(ttt.Transform(ttt.PassThrough), [q("name")]) (ttt.PathRoot("0:"), None)
+    tx = tlist.newtrans()
+
+    tx.configure("1", {"inventory": inventory, "campaign": campaign}, None)
+    tx.configure("1", {"campaign": no_campaign_devices}, None)
+
+    def committed(_r: value):
+        tx.commit("1", True)
+        testing.assertEqual(tx.get().prsrc(deterministic=True), expected.prsrc(deterministic=True))
+        t.success()
+
+    tx.lock("1", None, committed)
