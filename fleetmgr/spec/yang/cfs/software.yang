@@ -32,11 +32,14 @@ module software {
         type boolean;
         default "false";
       }
-      leaf-list device {
+      list device {
+        key name;
         description "Devices this campaign upgrades.";
-        sw:link inventory;
-        type leafref {
-          path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+        leaf name {
+          sw:link inventory;
+          type leafref {
+            path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+          }
         }
       }
       leaf admin-state {

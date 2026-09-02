@@ -62,9 +62,9 @@ actor _test_campaign_transform(t: testing.AsyncT):
         target_release="17.18.03a",
         image_url="https://images.example/xe.bin",
         allow_staging=True,
-        device=["cpe-1"],
         admin_state="run",
     )
+    campaign.device.create("cpe-1")
 
     transform: cfs.UpgradeCampaign = cfs.UpgradeCampaign()
     o: y_1.root = y_1.root.from_gdata(
@@ -124,7 +124,7 @@ actor _test_campaign_link_routes_existing_inventory(t: testing.AsyncT):
             image_url="https://images.example/xe.bin",
             admin_state="run",
         )
-        campaign.device = ["cpe-1"]
+        campaign.device.create("cpe-1")
         tr.edit_config(root.to_gdata(), on_campaign)
 
     tr.edit_config(root.to_gdata(), on_inventory)

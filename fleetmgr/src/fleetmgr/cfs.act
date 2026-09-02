@@ -115,7 +115,8 @@ class UpgradeCampaign(base.UpgradeCampaign):
         o = base.o_root()
         if i.admin_state == "run":
             inventory = y_0.root.from_gdata(linked)
-            for d in i.device:
+            for member in i.device:
+                d = member.name
                 fleet_device = inventory.fleet.device.get(d)
                 if fleet_device is None:
                     continue
@@ -180,8 +181,8 @@ actor UpgradeCampaignTransform(path: ttt.Path,
 
     def on_conf(conf: y_0.software__software__upgrade_campaign_entry) -> None:
         ms = []
-        for d in conf.device:
-            ms.append(d)
+        for member in conf.device:
+            ms.append(member.name)
         members = ms
         publish()
 

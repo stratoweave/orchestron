@@ -86,10 +86,10 @@ The `fleetmgr` CFS has two inventory lists:
   explicit device `type`. Its
   transform writes the entry under `/rfs{shard}/device`.
 
-The generic `software` model remains separate from inventory. Its campaign
-device leaf-list links only the referenced `/fleet/device` entries, resolving
-each member's shard before merging all software intent into the same RFS device
-entry.
+The generic `software` model remains separate from inventory. Each campaign
+device list entry links its name to the referenced `/fleet/device` entry,
+resolving each member's shard before merging all software intent into the same
+RFS device entry.
 
 The RFS transform renders that entry directly into the flotilla's standard
 `/device` schema. A second RFS transform maintains one periodic subtree-filtered

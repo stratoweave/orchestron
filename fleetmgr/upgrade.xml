@@ -5,8 +5,12 @@
             <name>xe-upgrade</name>
             <target-release>17.18.03a</target-release>
             <image-url>scp://root:labpass@10.0.0.9:/images/c8000v-universalk9.17.18.03a.SPA.bin</image-url>
-            <device>cpe-01</device>
-            <device>cpe-02</device>
+            <device>
+                <name>cpe-01</name>
+            </device>
+            <device>
+                <name>cpe-02</name>
+            </device>
             <admin-state>run</admin-state>
         </upgrade-campaign>
     </software>
