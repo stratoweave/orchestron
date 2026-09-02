@@ -14,6 +14,37 @@ module fleetmgr-rfs {
   }
 
   augment "/sw-rfs:rfs" {
+    container flotilla-status {
+      description
+        "One whole-datastore operational feed from this flotilla. Device
+         status is normalized here before CFS campaigns aggregate it.";
+
+      sw:rfs-transform fleetmgr.rfs.FlotillaStatus;
+
+      leaf enabled {
+        type boolean;
+        default "true";
+      }
+
+      container state {
+        config false;
+
+        list device {
+          key name;
+
+          leaf name {
+            type string;
+          }
+          leaf status {
+            type string;
+          }
+          leaf running-release {
+            type string;
+          }
+        }
+      }
+    }
+
     list device {
       key name;
 
@@ -21,6 +52,11 @@ module fleetmgr-rfs {
 
       leaf name {
         type string;
+      }
+
+      leaf type {
+        type string;
+        mandatory true;
       }
 
       uses fleetmgr-types:device-options;

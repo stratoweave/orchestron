@@ -15,10 +15,6 @@ module software {
       key name;
 
       sw:transform fleetmgr.cfs.UpgradeCampaign;
-      sw:link inventory {
-        sw:path /fleetmgr:fleet/fleetmgr:device;
-      }
-
       leaf name {
         type string;
       }
@@ -27,8 +23,18 @@ module software {
         type string;
         mandatory true;
       }
+      leaf image-url {
+        description "Image URL used by devices that pull their own software.";
+        type string;
+      }
+      leaf allow-staging {
+        description "Allow the image to be staged before the impacting step.";
+        type boolean;
+        default "false";
+      }
       leaf-list device {
         description "Devices this campaign upgrades.";
+        sw:link inventory;
         type leafref {
           path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
         }
@@ -64,6 +70,9 @@ module software {
             type string;
           }
           leaf status {
+            type string;
+          }
+          leaf running-release {
             type string;
           }
         }

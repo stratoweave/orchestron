@@ -1,8 +1,11 @@
 import testing
 
+import stratoweave
+
 import fleetmgr.cfs as cfs
 import fleetmgr.layers.y_0 as y_0
 import fleetmgr.layers.y_1_loose as y_1
+import fleetmgr.sysspec as sysspec
 from fleetmgr.layers.y_0 import \
     fleetmgr__fleet__device__address_entry as InputAddress, \
     fleetmgr__fleet__device__credentials as InputCredentials, \
@@ -40,6 +43,8 @@ actor _test_node_transform(t: testing.AsyncT):
         t.failure(ValueError("flotilla address was not preserved"))
     elif dev.credentials.username != "admin" or dev.credentials.password != "admin":
         t.failure(ValueError("flotilla credentials were not preserved"))
+    elif o.rfs.get("flotilla-1")!.flotilla_status.enabled != True:
+        t.failure(ValueError("flotilla status collector was not enabled"))
     else:
         t.success()
 
@@ -48,12 +53,15 @@ actor _test_campaign_transform(t: testing.AsyncT):
     inventory = y_0.root()
     inventory.fleet.device.create(
         "cpe-1",
+        type="iosxe",
         shard="flotilla-1",
         credentials=InputCredentials(username="admin"),
     )
     campaign = InputCampaign(
         name="xe-upgrade",
         target_release="17.18.03a",
+        image_url="https://images.example/xe.bin",
+        allow_staging=True,
         device=["cpe-1"],
         admin_state="run",
     )
@@ -65,10 +73,62 @@ actor _test_campaign_transform(t: testing.AsyncT):
     dev = o.rfs.get("flotilla-1")!.device.get("cpe-1")!
 
     if dev.software.target_release != "17.18.03a" or \
-       dev.software.upgrade_campaign != "xe-upgrade":
+       dev.software.upgrade_campaign != "xe-upgrade" or \
+       dev.software.image_url != "https://images.example/xe.bin" or \
+       not dev.software.allow_staging!:
         t.failure(ValueError("campaign was not routed through the device shard"))
     else:
         t.success()
+
+
+actor _test_campaign_link_routes_existing_inventory(t: testing.AsyncT):
+    """A later campaign resolves and augments an existing inventory device."""
+    root = y_0.root()
+    root.fleet.node.create(
+        "flotilla-1",
+        credentials=NodeCredentials(username="admin"),
+    )
+    root.fleet.device.create(
+        "cpe-1",
+        type="iosxe",
+        shard="flotilla-1",
+        credentials=InputCredentials(username="admin"),
+    )
+    tr = stratoweave.test_main(sysspec.SYSSPEC, t.log_handler)
+    var done = False
+
+    def fail(message: str) -> None:
+        if not done:
+            done = True
+            t.failure(ValueError(message))
+
+    def on_campaign(result) -> None:
+        if isinstance(result, Exception):
+            fail("campaign edit failed: {result}")
+            return
+        lower = y_1.root.from_gdata(tr.cfs.below().newsession().get_data())
+        out = lower.rfs.get("flotilla-1")!.device.get("cpe-1")!
+        if out.software.target_release != "17.18.03a":
+            fail("linked campaign did not augment the existing inventory device")
+        elif not done:
+            done = True
+            t.success()
+
+    def on_inventory(result) -> None:
+        if isinstance(result, Exception):
+            fail("inventory edit failed: {result}")
+            return
+        campaign = root.software.upgrade_campaign.create(
+            "xe-upgrade",
+            target_release="17.18.03a",
+            image_url="https://images.example/xe.bin",
+            admin_state="run",
+        )
+        campaign.device = ["cpe-1"]
+        tr.edit_config(root.to_gdata(), on_campaign)
+
+    tr.edit_config(root.to_gdata(), on_inventory)
+    after 2.0: fail("timed out waiting for linked campaign")
 
 
 actor _test_device_transform(t: testing.AsyncT):
@@ -80,6 +140,7 @@ actor _test_device_transform(t: testing.AsyncT):
 
     i: InputDevice = InputDevice(
         name="cpe-1",
+        type="iosxe",
         shard="flotilla-1",
         description="Lab CPE",
         credentials=credentials,
@@ -128,8 +189,8 @@ actor _test_device_transform(t: testing.AsyncT):
     out_key: OutputKey = dev.credentials.key.get("ssh-ed25519 public")!
     out_module: OutputMockModule = dev.mock.module.get("ietf-system")!
 
-    if dev.description != "Lab CPE":
-        t.failure(ValueError("device description was not preserved"))
+    if dev.type != "iosxe" or dev.description != "Lab CPE":
+        t.failure(ValueError("device identity was not preserved"))
     elif out_address.address != "192.0.2.1" or out_address.port != 830:
         t.failure(ValueError("device address fields were not preserved"))
     elif address_credentials is None or device_credentials is None:

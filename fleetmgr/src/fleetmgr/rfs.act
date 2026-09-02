@@ -1,9 +1,62 @@
 from stratoweave.exception import UnsupportedDevice
 
+import stratoweave.device as swdev
+import yang.gdata as ygdata
+
 import fleetmgr.layers.base_1 as base
+import fleetmgr.layers.y_1 as y_1
+import fleetmgr.layers.y_1_oper as y1_oper
 import fleetmgr.devices.flotilla as flotilla
+import fleetmgr.devices.flotilla_oper as flotilla_oper
 # TODO: required by the compiler, see acton issue #2390
 import yang.identityref
+
+
+class FlotillaStatus(base.FlotillaStatus):
+    def transform(self, i, di):
+        if "stratoweave-rfs" not in di.modules:
+            raise UnsupportedDevice()
+        return flotilla.root()
+
+
+actor FlotillaStatusTransform(
+    path,
+    update_oper: proc(?y1_oper.stratoweave_rfs__rfs__flotilla_status) -> None,
+    dev: swdev.DeviceMgr,
+):
+    """Normalize one whole-datastore feed from a flotilla."""
+    var subscriptions: ?ygdata.SubscriptionManager = None
+    var destination: ?ygdata.Dst = None
+
+    def publish(root: ?flotilla_oper.root) -> None:
+        oper = base.FlotillaStatus.new_state(path)
+        if root is not None:
+            for remote in root!.device:
+                state = remote.software.state
+                if state.status is not None or state.running_release is not None:
+                    out = oper.state.device.create(remote.name)
+                    out.status = state.status
+                    out.running_release = state.running_release
+        update_oper(oper)
+
+    def on_state(root: ?flotilla_oper.root, error: ?Exception) -> None:
+        if error is not None:
+            print("flotilla status subscription failed at {path}: {error}", err=True)
+            publish(None)
+        else:
+            publish(root)
+
+    def on_conf(conf: y_1.stratoweave_rfs__rfs__flotilla_status) -> None:
+        if subscriptions is None:
+            subscriptions = ygdata.SubscriptionManager(dev.tree_provider(), str(path))
+            destination = flotilla_oper.dst(on_state)
+
+        want: set[ygdata.Delivery] = set()
+        if conf.enabled != False:
+            want.add(destination!.deliver({
+                ygdata.SubscriptionSpec(None, period=0.25),
+            }))
+        subscriptions!.declare(want)
 
 
 class Device(base.Device):
@@ -13,7 +66,7 @@ class Device(base.Device):
 
         o = flotilla.root()
         dev = o.device.create(i.name)
-        dev.type = "cpe"
+        dev.type = i.type
         dev.description = i.description
         dev.approval_required = i.approval_required
 

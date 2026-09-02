@@ -17,6 +17,7 @@ actor _test_device_transform(t: testing.AsyncT):
     credentials.key.create("public-key", private_key="private-key")
     i = InputDevice(
         name="cpe-1",
+        type="iosxe",
         description="Lab CPE",
         credentials=credentials,
         approval_required=True,
@@ -60,7 +61,7 @@ actor _test_device_transform(t: testing.AsyncT):
     o = flotilla.root.from_gdata(transform.transform(i, di).to_gdata())
     dev = o.device.get("cpe-1")!
 
-    if dev.type != "cpe" or dev.description != "Lab CPE":
+    if dev.type != "iosxe" or dev.description != "Lab CPE":
         t.failure(ValueError("device identity was not rendered"))
     elif dev.address.get("oob")!.address != "192.0.2.1":
         t.failure(ValueError("device address was not rendered"))

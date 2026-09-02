@@ -1,4 +1,5 @@
 acton := env_var_or_default("ACTON", "acton")
+fleetmgr_api := env_var_or_default("FLEETMGR_API", "http://127.0.0.1:18200")
 
 # Regenerate both system specifications from YANG.
 gen:
@@ -14,6 +15,90 @@ flotilla:
 # Start the top node with the 20-device, one-flotilla demo.
 demo:
 	out/bin/fleetmgr --http-port 18200 --netconf-port 12900 demo.xml
+
+# Submit the two-device IOS XE demo campaign.
+upgrade:
+	@curl -fsS -X PATCH -H "Content-Type: application/yang-data+xml" --data-binary @upgrade.xml "{{fleetmgr_api}}/restconf/data"
+	@echo "Submitted xe-upgrade"
+
+# Print one normalized snapshot of a campaign's operational state.
+campaign-status campaign="xe-upgrade":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	state="$(curl -fsS -H 'Accept: application/yang-data+json' '{{fleetmgr_api}}/restconf/data' | jq -c --arg campaign '{{campaign}}' '
+	  .["software:software"]["upgrade-campaign"][]?
+	  | select(.name == $campaign)
+	  | {
+	      campaign: .name,
+	      total: (.state.total // 0),
+	      in_progress: (.state["in-progress"] // 0),
+	      succeeded: (.state.succeeded // 0),
+	      failed: (.state.failed // 0),
+	      devices: [
+	        .state["device-status"][]?
+	        | {
+	            device,
+	            status: (.status // "pending"),
+	            running_release: .["running-release"]
+	          }
+	      ]
+	    }
+	')"
+	if [[ -z "$state" ]]; then
+	  echo "Campaign {{campaign}} does not exist" >&2
+	  exit 1
+	fi
+	jq . <<<"$state"
+
+# Poll a campaign, printing only state changes and stopping when it completes.
+watch-campaign campaign="xe-upgrade":
+	#!/usr/bin/env bash
+	set -euo pipefail
+	previous=''
+	while true; do
+	  state="$(curl -fsS -H 'Accept: application/yang-data+json' '{{fleetmgr_api}}/restconf/data' | jq -c --arg campaign '{{campaign}}' '
+	    .["software:software"]["upgrade-campaign"][]?
+	    | select(.name == $campaign)
+	    | {
+	        campaign: .name,
+	        total: (.state.total // 0),
+	        in_progress: (.state["in-progress"] // 0),
+	        succeeded: (.state.succeeded // 0),
+	        failed: (.state.failed // 0),
+	        devices: [
+	          .state["device-status"][]?
+	          | {
+	              device,
+	              status: (.status // "pending"),
+	              running_release: .["running-release"]
+	            }
+	        ]
+	      }
+	  ')"
+	  if [[ -z "$state" ]]; then
+	    state='{"campaign":"{{campaign}}","status":"waiting for campaign"}'
+	  fi
+	  if [[ "$state" != "$previous" ]]; then
+	    jq . <<<"$state"
+	    previous="$state"
+	  fi
+	  if jq -e '(.total // 0) > 0 and .in_progress == 0 and ((.succeeded + .failed) >= .total)' <<<"$state" >/dev/null; then
+	    exit 0
+	  fi
+	  sleep 0.1
+	done
+
+# Start watching before submitting, so the short mock in-progress state is visible.
+upgrade-and-watch:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	just watch-campaign xe-upgrade &
+	watcher=$!
+	trap 'kill "$watcher" 2>/dev/null || true' EXIT
+	sleep 0.1
+	just upgrade
+	wait "$watcher"
+	trap - EXIT
 
 test:
 	{{acton}} test --module test_fleetmgr_cfs

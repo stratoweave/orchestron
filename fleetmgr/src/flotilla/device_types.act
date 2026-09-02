@@ -5,31 +5,43 @@ import logging
 import net
 
 import stratoweave.device as swdev
-import stratoweave.adapters.adapter as swad
-import stratoweave.adapters.software_mock as swmock
+import stratoweave.adapters.netconf as swna
+import stratoweave.adapters.software_iosxe as swxe
+import stratoweave.adapters.software_iosxe_mock as swxemock
 
-import flotilla.devices.cpe as cpe_dev
-import flotilla.devices.cpe_oper as cpe_oper
-
-
-def _cpe_adapter(dev: swdev.DeviceMgr, schema, dmc, registry, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap):
-    # An adapter that does not support mocking, so mock/enabled=true falls
-    # back to the generic MockAdapter: the cheapest per-CPE configuration
-    # that still receives TTT-delivered config.
-    return swad.NoAdapter(schema, log_handler, connect_cap)
+import flotilla.devices.iosxe as iosxe_dev
+import flotilla.devices.iosxe_oper as iosxe_oper
 
 
-def _cpe_software(dev: swdev.DeviceMgr, dmc, log_handler: logging.Handler, connect_cap: ?net.TCPConnectCap) -> swdev.SoftwareAdapter:
-    # Installs take a visible 1-4s here so a UI shows real progress;
-    # tests elsewhere construct the mock without a delay and stay instant.
-    return swmock.MockSoftwareAdapter(log_handler, "17.15.01a", install_delay=(1.0, 4.0))
+def _iosxe_adapter(dev: swdev.DeviceMgr, schema, dmc, registry,
+                   log_handler: logging.Handler,
+                   connect_cap: ?net.TCPConnectCap):
+    adapter = swna.NetconfAdapter(
+        dev, schema, dmc, registry, log_handler, connect_cap)
+    if dmc.mock.enabled:
+        server = adapter.get_mock_server()
+        if server is not None:
+            mock = swxemock.IosXeSoftwareMock(
+                server!, log_handler, complete_after=0.5)
+            mock.attach()
+    return adapter
+
+
+def _iosxe_software(dev: swdev.DeviceMgr, dmc, log_handler: logging.Handler,
+                    connect_cap: ?net.TCPConnectCap) -> swdev.SoftwareAdapter:
+    if dmc.mock.enabled:
+        # The production adapter still runs end to end. Poll faster only when
+        # its device-side NETCONF session is mocked for the demo.
+        return swxe.IosXeSoftwareAdapter(dev, dmc, log_handler, connect_cap,
+                                         0.1, 0.2)
+    return swxe.IosXeSoftwareAdapter(dev, dmc, log_handler, connect_cap)
 
 
 device_types: dict[str, swdev.DeviceType] = {
-    "cpe": swdev.DeviceType(
-        name="cpe",
-        adapter_type=_cpe_adapter,
-        src_dnode=cpe_dev.SRC_DNODE,
-        oper_src_dnode=cpe_oper.SRC_DNODE,
-        software_adapter_type=_cpe_software)
+    "iosxe": swdev.DeviceType(
+        name="iosxe",
+        adapter_type=_iosxe_adapter,
+        src_dnode=iosxe_dev.SRC_DNODE,
+        oper_src_dnode=iosxe_oper.SRC_DNODE,
+        software_adapter_type=_iosxe_software)
 }

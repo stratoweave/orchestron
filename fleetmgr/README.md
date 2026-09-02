@@ -6,13 +6,17 @@ device to a manually named shard.
 
 `flotilla` is the bottom. It has no application CFS layer: its northbound is
 the standard StratoWeave RFS, and every `/device` entry is managed directly as
-a CPE.
+an IOS XE device.
 
-    fleetmgr CFS /fleet/device{cpe, shard=flotilla-1}
+    fleetmgr CFS /fleet/device{cpe, shard=flotilla-1, type=iosxe}
         -> fleetmgr RFS /rfs{flotilla-1}/device{cpe}
-        -> NETCONF
-        -> flotilla RFS /device{cpe}
-        -> physical CPE
+        -> NETCONF -> flotilla RFS /device{cpe}
+        -> IOS XE adapter -> physical or mock IOS XE device
+
+    flotilla operational datastore
+        -> one periodic full-store subscription per flotilla
+        -> fleetmgr RFS /rfs{flotilla-1}/flotilla-status
+        -> fleetmgr CFS /software/upgrade-campaign/state
 
 There is no range expansion. A flotilla assigned 500 devices receives 500
 complete `/device` entries, including addresses, credentials, policy, mock and
@@ -38,7 +42,7 @@ Then start the top in another terminal:
     just demo
 
 The demo declares `flotilla-1` at `127.0.0.1:12901` and assigns 20 complete
-mock CPE entries to it. The processes use these ports:
+mock IOS XE entries to it. The processes use these ports:
 
     process    HTTP   NETCONF
     fleetmgr   18200  12900
@@ -55,22 +59,43 @@ Inspect the top CFS and the bottom RFS independently:
 The second response should contain the 20 `stratoweave-rfs:device` entries
 rendered by the top.
 
+Run the two-device IOS XE campaign and follow its state from the top:
+
+    just upgrade-and-watch
+
+The watcher starts before the intent is submitted, so it catches the mock's
+short `in-progress` state and stops when both devices have either succeeded or
+failed. `running_release` changes from `17.18.02` to `17.18.3a` on success.
+
+The submission and observation steps are also available separately:
+
+    just watch-campaign       # run first in one terminal
+    just upgrade              # submit upgrade.xml from another terminal
+    just campaign-status      # print one current snapshot
+
+Set `FLEETMGR_API` to point these targets at a top node on another address.
+
 ## Models and transforms
 
 The `fleetmgr` CFS has two inventory lists:
 
 - `/fleet/node`: connection configuration for a flotilla. Its transform creates
-  the top's managed `/device` entry with device type `flotilla`.
-- `/fleet/device`: complete CPE configuration plus a string `shard`. Its
+  the top's managed `/device` entry with device type `flotilla` and enables its
+  operational collector.
+- `/fleet/device`: complete device configuration plus a string `shard` and an
+  explicit device `type`. Its
   transform writes the entry under `/rfs{shard}/device`.
 
 The generic `software` model remains separate from inventory. Its campaign
-transform links to `/fleet/device` only to resolve each member's shard, then
-merges software intent into the same RFS device entry.
+device leaf-list links only the referenced `/fleet/device` entries, resolving
+each member's shard before merging all software intent into the same RFS device
+entry.
 
 The RFS transform renders that entry directly into the flotilla's standard
-`/device` schema. Operational fan-in from the flotilla is deliberately left for
-a later change; campaign members remain `pending` at the top for now.
+`/device` schema. A second RFS transform maintains one unfiltered, periodic
+whole-datastore subscription to each flotilla. It normalizes device software
+status locally; campaign transforms then select and aggregate only their own
+members. This avoids one southbound subscription per device or campaign.
 
 `flotilla` supplies only one modeled layer, the standard RFS. StratoWeave adds
 the implicit device layer beneath it.
@@ -79,6 +104,9 @@ the implicit device layer beneath it.
 
     just test
 
-The focused tests cover node creation, per-device sharding, campaign routing,
-the parent RFS-to-flotilla render, and direct `/device` configuration at the
-RFS-only bottom.
+The focused tests cover node creation, per-device sharding, precise campaign
+links, campaign aggregation, the parent RFS-to-flotilla render, direct
+`/device` configuration at the RFS-only bottom, and a complete mock IOS XE
+software upgrade. The root tests also cover IOS XE adapter behavior and ensure
+that a software-intent change preserves the existing NETCONF adapter and
+session.

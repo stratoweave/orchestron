@@ -3,6 +3,7 @@ import process
 
 import stratoweave.build as swbuild
 import stratoweave.swyang as swyang
+import stratoweave.adapters.software_iosxe_yang as swxe_yang
 
 actor main(env):
     fc = file.FileCap(env.cap)
@@ -23,10 +24,13 @@ actor main(env):
 
     flotilla_rfs = swbuild.Layer([])
     flotilla_rfs.models.extend([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types])
+    iosxe = swbuild.DeviceType.from_dir(fc, "iosxe", "yang/dev-cpe")
+    iosxe.models.extend(swxe_yang.models)
+
     flotilla = swbuild.SysSpec("flotilla", [
         flotilla_rfs,
     ], [
-        swbuild.DeviceType.from_dir(fc, "cpe", "yang/dev-cpe"),
+        iosxe,
     ])
     try:
         fleetmgr.compile().gen_app(fc, "../src/")

@@ -4,6 +4,7 @@ import stratoweave.ttt as ttt
 
 import fleetmgr.layers.base_0 as base
 import fleetmgr.layers.y_0 as y_0
+import fleetmgr.layers.y_1_oper as y1_oper
 # TODO: required by the compiler, see acton issue #2390
 import yang.identityref
 import fleetmgr.layers.y_0_oper as y0_oper
@@ -54,6 +55,10 @@ class Node(base.Node):
 
         dev.debug.connection = i.debug.connection
         dev.feature_flags.runtime_schema_fetch = i.feature_flags.runtime_schema_fetch
+
+        # One collector per flotilla observes the complete bottom RFS
+        # operational datastore. Per-device status is filtered locally.
+        o.rfs.create(i.name).flotilla_status.enabled = True
         return o
 
 
@@ -61,6 +66,7 @@ class Device(base.Device):
     def transform(self, i):
         o = base.o_root()
         dev = o.rfs.create(i.shard).device.create(i.name)
+        dev.type = i.type
         dev.description = i.description
         dev.approval_required = i.approval_required
 
@@ -116,30 +122,80 @@ class UpgradeCampaign(base.UpgradeCampaign):
                 dev = o.rfs.create(fleet_device!.shard).device.create(d)
                 dev.software.target_release = i.target_release
                 dev.software.upgrade_campaign = i.name
+                dev.software.image_url = i.image_url
+                dev.software.allow_staging = i.allow_staging
         return o
 
 
 actor UpgradeCampaignTransform(path: ttt.Path,
                                update_oper: proc(?y0_oper.software__software__upgrade_campaign_entry) -> None,
                                lower_tree_provider: ?ygdata.TreeProvider):
-    """Publishes campaign membership until bottom operational fan-in exists."""
-    oper: y0_oper.software__software__upgrade_campaign_entry = base.UpgradeCampaign.new_state(path)
+    """Aggregate normalized device status collected from every flotilla."""
     var members: list[str] = []
+    var latest: ?y1_oper.root = None
+    var subscriptions: ?ygdata.SubscriptionManager = None
+    var destination: ?ygdata.Dst = None
 
-    def publish():
+    def publish() -> None:
+        oper = base.UpgradeCampaign.new_state(path)
         st = oper.state
+        in_progress = 0
+        succeeded = 0
+        failed = 0
+
         for d in members:
+            status: ?str = None
+            running_release: ?str = None
+            if latest is not None:
+                for shard in latest!.rfs:
+                    observed = shard.flotilla_status.state.device.get(d)
+                    if observed is not None:
+                        status = observed!.status
+                        running_release = observed!.running_release
+
             ds = st.device_status.create(d)
-            ds.status = "pending"
+            ds.status = status if status is not None else "pending"
+            ds.running_release = running_release
+
+            if status == "in-progress":
+                in_progress += 1
+            elif status == "succeeded" or status == "up-to-date":
+                succeeded += 1
+            elif status == "failed" or status == "rolled-back":
+                failed += 1
+
         st.total = u64(len(members))
-        st.in_progress = 0
-        st.succeeded = 0
-        st.failed = 0
+        st.in_progress = u64(in_progress)
+        st.succeeded = u64(succeeded)
+        st.failed = u64(failed)
         update_oper(oper)
 
-    def on_conf(conf: y_0.software__software__upgrade_campaign_entry):
+    def on_rfs(root: ?y1_oper.root, error: ?Exception) -> None:
+        if error is not None:
+            print("campaign status subscription failed at {path}: {error}", err=True)
+            latest = None
+        else:
+            latest = root
+        publish()
+
+    def on_conf(conf: y_0.software__software__upgrade_campaign_entry) -> None:
         ms = []
         for d in conf.device:
             ms.append(d)
         members = ms
         publish()
+
+        if lower_tree_provider is not None and subscriptions is None:
+            subscriptions = ygdata.SubscriptionManager(
+                lower_tree_provider!,
+                "campaign-status:{path}",
+            )
+            destination = y1_oper.dst(on_rfs)
+
+        if subscriptions is not None:
+            want: set[ygdata.Delivery] = set()
+            if len(members) > 0:
+                want.add(destination!.deliver({
+                    ygdata.SubscriptionSpec(None, period=0.25),
+                }))
+            subscriptions!.declare(want)

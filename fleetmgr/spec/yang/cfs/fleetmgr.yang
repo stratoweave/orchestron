@@ -32,6 +32,12 @@ module fleetmgr {
         type string;
       }
 
+      leaf type {
+        description "Device platform type understood by the owning flotilla.";
+        type string;
+        mandatory true;
+      }
+
       leaf shard {
         description "Name of the flotilla node that owns this device.";
         type string;
