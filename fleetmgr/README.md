@@ -31,22 +31,23 @@ Set `ACTON=/path/to/acton` when the compiler is not on `PATH`. Regeneration
 produces both generated system-spec packages from `spec/`; the build produces
 both binaries.
 
-## Manual two-process demo
+## Ten-flotilla subprocess demo
 
-Start the bottom first:
-
-    just flotilla
-
-Then start the top in another terminal:
+Start the top:
 
     just demo
 
-The demo declares `flotilla-1` at `127.0.0.1:12901` and assigns 20 complete
-mock IOS XE entries to it. The processes use these ports:
+The top starts ten `flotilla` subprocesses and waits for every NETCONF listener
+before starting its own runtime. The demo declares `flotilla-1` through
+`flotilla-10` and assigns two complete mock IOS XE entries to each. The
+processes use these ports:
 
-    process    HTTP   NETCONF
-    fleetmgr   18200  12900
-    flotilla   18201  12901
+    process          HTTP          NETCONF
+    fleetmgr         18200         12900
+    flotilla-1..10   18201..18210  12901..12910
+
+For bottom-node development, `just flotilla` still starts one standalone
+instance on the first flotilla's ports. Do not run it alongside `just demo`.
 
 Inspect the top CFS and the bottom RFS independently:
 
@@ -56,8 +57,8 @@ Inspect the top CFS and the bottom RFS independently:
     curl -H "Accept: application/yang-data+json" \
       http://127.0.0.1:18201/restconf/data
 
-The second response should contain the 20 `stratoweave-rfs:device` entries
-rendered by the top.
+The second response should contain the two `stratoweave-rfs:device` entries
+assigned to `flotilla-1` and rendered by the top.
 
 Run the two-device IOS XE campaign and follow its state from the top:
 
