@@ -173,6 +173,36 @@ ys_link_in_dynstate = r"""module link-in-dynstate {
 }
 """
 
+ys_leaf_list_link = r"""module leaf-list-link {
+  yang-version "1.1";
+  namespace "http://example.com/leaf-list-link";
+  prefix "lll";
+  import stratoweave {
+    prefix sw;
+  }
+
+  container targets {
+    list target {
+      key id;
+      sw:transform example.Target;
+      leaf id {
+        type string;
+      }
+    }
+  }
+
+  container campaign {
+    sw:transform example.Campaign;
+    leaf-list target-id {
+      sw:link target;
+      type leafref {
+        path "/targets/target/id";
+      }
+    }
+  }
+}
+"""
+
 ########################
 # Helpers
 ########################
@@ -278,3 +308,19 @@ def _test_gen_build_target_links():
     extracted = ttt_links.extract_links(site, y)
     lines = ttt_links.gen_build_target_links("build_target_links_test", extracted)
     return "\n".join(lines)
+
+def _test_leaf_list_leafref_link():
+    """Each leaf-list value generates one keyed link demand."""
+    y = yang.compile([ys_leaf_list_link, swyang.stratoweave])
+    campaign = _as_inner(_find_child(y, "campaign"))
+    extracted = ttt_links.extract_links(campaign, y)
+
+    testing.assertEqual("target" in extracted, True)
+    field = extracted["target"]
+    testing.assertEqual(isinstance(field, ttt_links.MultiLinkedInput), True)
+
+    generated = "\n".join(
+        ttt_links.gen_build_target_links("build_leaf_list_links", extracted)
+    )
+    testing.assertEqual("get_opt_values" in generated, True)
+    testing.assertEqual("for _v0 in _ll0" in generated, True)

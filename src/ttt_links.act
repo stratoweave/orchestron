@@ -118,8 +118,9 @@ def _collect_links(sn: schema.DNode, root: schema.DRoot, path_from_transform: li
             tag = ext.arg
             if tag is not None:
                 link: ?Link = None
-                if isinstance(sn, schema.DLeaf):
-                    # Leafref link: resolve from the leaf's compiled type
+                if isinstance(sn, schema.DNodeLeaf):
+                    # Leafref link: resolve from the leaf or leaf-list's
+                    # compiled type.
                     leaf_type = sn.type
                     if isinstance(leaf_type, schema.DTypeLeafref):
                         filter_path = xpath_to_spath(root, leaf_type.path, sn.module)
@@ -185,7 +186,7 @@ def extract_links(transform_node: schema.DNodeInner, root: schema.DRoot) -> dict
         elif isinstance(link, LeafrefLink):
             crosses_list = False
             for step in link.source_path_from_transform:
-                if isinstance(step, schema.DList):
+                if isinstance(step, schema.DList) or isinstance(step, schema.DLeafList):
                     crosses_list = True
             if crosses_list:
                 result[tag] = MultiLinkedInput(link)
@@ -214,10 +215,10 @@ def _gen_source_traversal(tag: str, link: LeafrefLink, indent: int) -> list[str]
     """Generate gdata traversal code that reads leafref source values.
 
     Walks source_path_from_transform and emits get_opt_cnt / get_opt_list /
-    get_opt_value calls for each schema step. Consecutive container steps are
-    collapsed into a single optional chain (using ?.). List steps produce a loop
-    over elements. Once the source leaf is reached, its value is captured in a
-    _vN variable and embedded in an FNode filter expression.
+    get_opt_value / get_opt_values calls for each schema step. Consecutive
+    container steps are collapsed into a single optional chain (using ?.).
+    List and leaf-list steps produce loops. Once a source value is reached, it
+    is embedded in an FNode filter expression.
     """
     lines = []
     path = link.source_path_from_transform
@@ -233,6 +234,15 @@ def _gen_source_traversal(tag: str, link: LeafrefLink, indent: int) -> list[str]
             vname = "_v{depth}"
             lines.append("{' ' * ind}{vname} = {cur}.{"?.".join(chain_parts)}")
             lines.append("{' ' * ind}if {vname} is not None:")
+            ind += 4
+            fnode = _gen_fnode(link.filter_path, value_match_var=vname)
+            lines.append("{' ' * ind}res.append(ttt.TaggedPath({repr(tag)}, {fnode}))")
+        elif isinstance(step, schema.DLeafList):
+            chain_parts.append("get_opt_values({qn})")
+            lname = "_ll{depth}"
+            lines.append("{' ' * ind}{lname} = {cur}.{"?.".join(chain_parts)}")
+            vname = "_v{depth}"
+            lines.append("{' ' * ind}for {vname} in {lname}:")
             ind += 4
             fnode = _gen_fnode(link.filter_path, value_match_var=vname)
             lines.append("{' ' * ind}res.append(ttt.TaggedPath({repr(tag)}, {fnode}))")
