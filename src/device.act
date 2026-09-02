@@ -821,16 +821,18 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
             if device_type is not None:
                 type_changed = old_type != str(new_dmc.type)
                 effective_mock = system_mock or is_mock_device(new_dmc)
+                old_effective_mock = system_mock or is_mock_device(dmc)
+                mock_mode_changed = old_effective_mock != effective_mock
 
-                need_new_adapter = type_changed or isinstance(adapter, NoAdapter)
-                if not need_new_adapter:
-                    if effective_mock:
-                        if isinstance(adapter, MockAdapter):
-                            need_new_adapter = connect_cap is not None
-                        else:
-                            need_new_adapter = connect_cap is None or not adapter.supports_mocking()
-                    else:
-                        need_new_adapter = isinstance(adapter, MockAdapter)
+                # Same-type DMC changes belong to the existing adapter. In
+                # particular, software intent is not transport lifecycle.
+                # A replacement is needed only when the type changes, there is
+                # no adapter yet, or mock mode changes and this adapter cannot
+                # make that transition through set_dmc().
+                need_new_adapter = \
+                    type_changed or \
+                    isinstance(adapter, NoAdapter) or \
+                    (mock_mode_changed and not adapter.supports_mocking())
 
                 # Hand the software manager its adapter and config. The
                 # software adapter follows the same lifecycle as the device
