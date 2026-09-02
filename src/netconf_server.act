@@ -58,7 +58,7 @@ actor StaticAuthChecker(expected_user: str, expected_password: str):
         respond(user == expected_user and password == expected_password)
 
 
-actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRoot, cfs: ttt.Layer, capabilities: ?list[str]=None, on_close: ?action(NetconfSession) -> None=None, session_seq: int=0):
+actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRoot, cfs: ttt.Layer, capabilities: ?list[str]=None, on_close: ?action(NetconfSession) -> None=None, session_seq: int=0, subscription_schema: ?yschema.DRoot=None):
     """A single NETCONF session driving the configuration tree.
 
     Wraps a netconf.Server bound to `pipe` (one transport channel) and handles
@@ -73,9 +73,9 @@ actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRo
     datastore via a per-session TttSubscriptionService, which drives TTT's native
     declare_subscriptions: establish/delete-subscription RPCs are routed to it and
     it streams push-update notifications back over this session. A subscription
-    may carry a datastore-subtree-filter, parsed against `top_schema`, so that
-    only the selected subtree is pushed. session_seq makes the per-session
-    subscription owner ids unique on the shared cfs.
+    may carry a datastore-subtree-filter, parsed against `subscription_schema`
+    when supplied so operational-only nodes can be selected. session_seq makes
+    the per-session subscription owner ids unique on the shared cfs.
 
     `on_close`, if given, is called with this session when its transport drops,
     so the owner can release its reference and let the session be reclaimed.
@@ -211,7 +211,8 @@ actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRo
     var server: netconf.Server = netconf.Server(pipe=pipe, on_connect=_on_conn, on_rpc=on_rpc, capabilities=capabilities, log_handler=log_handler)
     # owner_prefix must be unique per session: TTT keys subscriptions by owner id,
     # so sessions sharing this cfs must not collide on "yp-<sub_id>".
-    service = yp_ttt.TttSubscriptionService(server, cfs, top_schema, owner_prefix="yp-" + str(session_seq), log_handler=log_handler)
+    served_subscription_schema = subscription_schema if subscription_schema is not None else top_schema
+    service = yp_ttt.TttSubscriptionService(server, cfs, served_subscription_schema, owner_prefix="yp-" + str(session_seq), log_handler=log_handler)
 
 
 actor NetconfServer(
@@ -226,6 +227,7 @@ actor NetconfServer(
     auth_check: ?action(str, ?str, ?bytes, action(bool) -> None) -> None = None,
     host_key: ?str = None,
     on_listen: ?action(?Exception) -> None = None,
+    subscription_schema: ?yschema.DRoot = None,
 ):
     """Northbound NETCONF server over SSH.
 
@@ -270,7 +272,7 @@ actor NetconfServer(
     def _on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
         _session_seq += 1
         _log.info("NETCONF session accepted", {"session": _session_seq})
-        _sessions.append(NetconfSession(p, log_handler, top_schema, cfs, _capabilities, on_close=_session_closed, session_seq=_session_seq))
+        _sessions.append(NetconfSession(p, log_handler, top_schema, cfs, _capabilities, on_close=_session_closed, session_seq=_session_seq, subscription_schema=subscription_schema))
 
     listener = sshpipe.SshPipeListener(
         listen_cap,

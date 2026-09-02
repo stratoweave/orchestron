@@ -18,11 +18,21 @@ class SysSpec(value):
     get_layers: proc(swdev.DeviceRegistry, ?logging.Handler, ?swdb.Store) -> ttt.Layer
     @property
     schema_for_layer: proc(int) -> yschema.DRoot
+    @property
+    oper_schema_for_layer: ?proc(int) -> yschema.DRoot
 
-    def __init__(self, device_types, get_layers, schema_for_layer):
+    def __init__(self, device_types, get_layers, schema_for_layer,
+                 oper_schema_for_layer: ?(proc(int) -> yschema.DRoot)=None):
         self.device_types = device_types
         self.get_layers = get_layers
         self.schema_for_layer = schema_for_layer
+        self.oper_schema_for_layer = oper_schema_for_layer
+
+    def schema_for_oper_layer(self, layer: int) -> yschema.DRoot:
+        get_schema = self.oper_schema_for_layer
+        if get_schema is not None:
+            return get_schema(layer)
+        return self.schema_for_layer(layer)
 
 
 class AppArgs(value):

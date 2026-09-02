@@ -1,25 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data>
-    <software xmlns="urn:fleetmgr:software">
-        <device><name>cpe-01</name></device>
-        <device><name>cpe-02</name></device>
-        <device><name>cpe-03</name></device>
-        <device><name>cpe-04</name></device>
-        <device><name>cpe-05</name></device>
-        <device><name>cpe-06</name></device>
-        <device><name>cpe-07</name></device>
-        <device><name>cpe-08</name></device>
-        <device><name>cpe-09</name></device>
-        <device><name>cpe-10</name></device>
-        <device><name>cpe-11</name></device>
-        <device><name>cpe-12</name></device>
-        <device><name>cpe-13</name></device>
-        <device><name>cpe-14</name></device>
-        <device><name>cpe-15</name></device>
-        <device><name>cpe-16</name></device>
-        <device><name>cpe-17</name></device>
-        <device><name>cpe-18</name></device>
-        <device><name>cpe-19</name></device>
-        <device><name>cpe-20</name></device>
-    </software>
+    <fleet xmlns="urn:fleetmgr:fleetmgr">
+        <node>
+            <name>flotilla-1</name>
+            <address><name>primary</name><address>127.0.0.1</address><port>12901</port></address>
+            <credentials><username>admin</username><password>admin</password></credentials>
+        </node>
+        <device><name>cpe-01</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-02</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-03</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-04</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-05</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-06</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-07</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-08</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-09</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-10</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-11</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-12</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-13</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-14</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-15</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-16</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-17</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-18</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-19</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+        <device><name>cpe-20</name><type>iosxe</type><shard>flotilla-1</shard><credentials><username>admin</username><password>admin</password></credentials><mock><enabled>true</enabled></mock></device>
+    </fleet>
 </data>

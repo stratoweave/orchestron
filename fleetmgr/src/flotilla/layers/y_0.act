@@ -93,313 +93,18 @@ SRC_DNODE_CHILD_0: DList = DList(module='stratoweave-rfs', namespace='http://str
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='device', arg=None, exts=[])
     ], children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11])
 
-SRC_DNODE_CHILD_13: DLeaf = DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-
-SRC_DNODE_CHILD_14: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='flotilla-status', config=True, description='One subtree-filtered operational feed from this flotilla. Per-device\nsoftware state is normalized here before CFS campaigns aggregate it.', presence=False, exts=[
-        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='fleetmgr.rfs.FlotillaStatus', exts=[])
-    ], children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='enabled', config=True, default='true', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+SRC_DNODE_CHILD_12: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
+    DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='name', config=True, description='Device name', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 ])
-
-SRC_DNODE_CHILD_16: DLeaf = DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-
-SRC_DNODE_CHILD_17: DLeaf = DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='type', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-
-SRC_DNODE_CHILD_18: DLeaf = DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='description', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-
-SRC_DNODE_CHILD_19: DList = DList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='address', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='name', config=True, description="Name of address, e.g. 'loopback' or 'OOB'", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='address', config=True, mandatory=True, type=DTypeUnion(name='inet:host', description='The host type represents either an IP address or a DNS\ndomain name.', reference=None, exts=[], builtin_type='union', default=None, types=[DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]), DTypeString(name='inet:ipv6-address', description='The ipv6-address type represents an IPv6 address in full,\nmixed, shortened, and shortened-mixed notation.  The IPv6\naddress may include a zone index, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format of IPv6 addresses uses the textual\nrepresentation defined in Section 4 of RFC 5952.  The\ncanonical format for the zone index is the numerical\nformat as described in Section 11.2 of RFC 4007.', reference='RFC 4291: IP Version 6 Addressing Architecture\nRFC 4007: IPv6 Scoped Address Architecture\nRFC 5952: A Recommendation for IPv6 Address Text\n          Representation', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='((:|[0-9a-fA-F]{{0,4}}):)([0-9a-fA-F]{{0,4}}:){{0,5}}((([0-9a-fA-F]{{0,4}}:)?(:|[0-9a-fA-F]{{0,4}}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){{3}}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{{N}}\\p{{L}}]+)?', pcre='^(((:|[0-9a-fA-F]{{0,4}}):)([0-9a-fA-F]{{0,4}}:){{0,5}}((([0-9a-fA-F]{{0,4}}:)?(:|[0-9a-fA-F]{{0,4}}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){{3}}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False), YangPattern(yang_regex='(([^:]+:){{6}}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?', pcre='^((([^\\:]+:){{6}}(([^\\:]+:[^\\:]+)|(.*\\..*)))|((([^\\:]+:)*[^\\:]+)?::(([^\\:]+:)*[^\\:]+)?)(%.+)?)$', invert=False)]), DTypeString(name='inet:domain-name', description='The domain-name type represents a DNS domain name.  The\nname SHOULD be fully qualified whenever possible.\n\nInternet domain names are only loosely specified.  Section\n3.5 of RFC 1034 recommends a syntax (modified in Section\n2.1 of RFC 1123).  The pattern above is intended to allow\nfor current practice in domain name use, and some possible\nfuture expansion.  It is designed to hold various types of\ndomain names, including names used for A or AAAA records\n(host names) and other records, such as SRV records.  Note\nthat Internet host names have a stricter syntax (described\nin RFC 952) than the DNS recommendations in RFCs 1034 and\n1123, and that systems that want to store host names in\nschema nodes using the domain-name type are recommended to\nadhere to this stricter standard to ensure interoperability.\n\nThe encoding of DNS names in the DNS protocol is limited\nto 255 characters.  Since the encoding consists of labels\nprefixed by a length bytes and there is a trailing NULL\nbyte, only 253 characters can appear in the textual dotted\nnotation.\n\nThe description clause of schema nodes using the domain-name\ntype MUST describe when and how these names are resolved to\nIP addresses.  Note that the resolution of a domain-name value\nmay require to query multiple DNS records (e.g., A for IPv4\nand AAAA for IPv6).  The order of the resolution process and\nwhich DNS record takes precedence can either be defined\nexplicitly or may depend on the configuration of the\nresolver.\n\nDomain-name values use the US-ASCII encoding.  Their canonical\nformat uses lowercase US-ASCII characters.  Internationalized\ndomain names MUST be A-labels as per RFC 5890.', reference='RFC  952: DoD Internet Host Table Specification\nRFC 1034: Domain Names - Concepts and Facilities\nRFC 1123: Requirements for Internet Hosts -- Application\n          and Support\nRFC 2782: A DNS RR for specifying the location of services\n          (DNS SRV)\nRFC 5890: Internationalized Domain Names in Applications\n          (IDNA): Definitions and Document Framework', exts=[], builtin_type='string', default=None, length=Ranges([(1, 253)]), patterns=[YangPattern(yang_regex='((([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.)*([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.?)|\\.', pcre='^(((([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.)*([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.?)|\\.)$', invert=False)])])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='port', config=True, mandatory=False, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
-    DList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='initial-credentials', key=[
-'username',
-'password',
-'key'
-        ], config=True, min_elements=0, ordered_by='system', children=[
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='username', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='password', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-    ])
-])
-
-SRC_DNODE_CHILD_20: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='credentials', config=True, presence=False, children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='username', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='password', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='key', key=['key'], config=True, min_elements=0, ordered_by='system', children=[
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='private-key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-    ])
-])
-
-SRC_DNODE_CHILD_21: DList = DList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='initial-credentials', key=[
-'username',
-'password',
-'key'
-    ], config=True, min_elements=0, ordered_by='system', children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='username', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='password', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-])
-
-SRC_DNODE_CHILD_22: DLeaf = DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='approval-required', config=True, description='Require approval of each individual configuration change to this device', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
-
-SRC_DNODE_CHILD_23: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='mock', config=True, presence=False, children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='enabled', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-    DList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='module', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='namespace', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='revision', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeafList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='feature', config=True, min_elements=0, ordered_by='system', type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-    ])
-])
-
-SRC_DNODE_CHILD_24: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='debug', config=True, presence=False, children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='connection', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
-])
-
-SRC_DNODE_CHILD_25: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='feature-flags', config=True, presence=False, children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='runtime-schema-fetch', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
-])
-
-SRC_DNODE_CHILD_26: DContainer = DContainer(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='software', config=True, presence=False, children=[
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='upgrade-campaign', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='target-release', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='image-url', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-    DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='allow-staging', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
-    DList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='veto', key=['holder'], config=True, min_elements=0, ordered_by='system', children=[
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='holder', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
-        DLeaf(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='reason', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
-    ])
-])
-
-SRC_DNODE_CHILD_15: DList = DList(module='fleetmgr-rfs', namespace='urn:fleetmgr:rfs', prefix='fleetmgr-rfs', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
-        DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='rfs-transform', arg='fleetmgr.rfs.Device', exts=[])
-    ], children=[SRC_DNODE_CHILD_16, SRC_DNODE_CHILD_17, SRC_DNODE_CHILD_18, SRC_DNODE_CHILD_19, SRC_DNODE_CHILD_20, SRC_DNODE_CHILD_21, SRC_DNODE_CHILD_22, SRC_DNODE_CHILD_23, SRC_DNODE_CHILD_24, SRC_DNODE_CHILD_25, SRC_DNODE_CHILD_26])
-
-SRC_DNODE_CHILD_12: DList = DList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rfs', key=['name'], config=True, min_elements=0, ordered_by='system', children=[SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15])
 
 SRC_DNODE: DRoot = DRoot(
     children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_12],
     identities=[],
     rpcs=[],
-    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None), 'urn:fleetmgr:types':('fleetmgr-types', None), 'urn:fleetmgr:rfs':('fleetmgr-rfs', None)},
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None)},
 )
 
-SRC_YANG_0: str = r"""module fleetmgr-rfs {
-  yang-version "1.1";
-  namespace "urn:fleetmgr:rfs";
-  prefix fleetmgr-rfs;
-
-  import stratoweave {
-    prefix sw;
-  }
-  import stratoweave-rfs {
-    prefix sw-rfs;
-  }
-  import fleetmgr-types {
-    prefix fleetmgr-types;
-  }
-
-  augment "/sw-rfs:rfs" {
-    container flotilla-status {
-      description
-        "One subtree-filtered operational feed from this flotilla. Per-device
-         software state is normalized here before CFS campaigns aggregate it.";
-
-      sw:rfs-transform fleetmgr.rfs.FlotillaStatus;
-
-      leaf enabled {
-        type boolean;
-        default "true";
-      }
-
-      container state {
-        config false;
-
-        list device {
-          key name;
-
-          leaf name {
-            type string;
-          }
-          leaf status {
-            type string;
-          }
-          leaf running-release {
-            type string;
-          }
-        }
-      }
-    }
-
-    list device {
-      key name;
-
-      sw:rfs-transform fleetmgr.rfs.Device;
-
-      leaf name {
-        type string;
-      }
-
-      leaf type {
-        type string;
-        mandatory true;
-      }
-
-      uses fleetmgr-types:device-options;
-      uses fleetmgr-types:software-options;
-    }
-  }
-}
-"""
-
-SRC_YANG_1: str = r"""module fleetmgr-types {
-  yang-version "1.1";
-  namespace "urn:fleetmgr:types";
-  prefix fleetmgr-types;
-
-  import ietf-inet-types {
-    prefix inet;
-  }
-
-  grouping device-options {
-    leaf description {
-      type string;
-    }
-
-    list address {
-      key name;
-      leaf name {
-        description "Name of address, e.g. 'loopback' or 'OOB'";
-        type string;
-      }
-      leaf address {
-        type inet:host;
-        mandatory true;
-      }
-      leaf port {
-        type uint16;
-      }
-      list initial-credentials {
-        key "username password key";
-        leaf username {
-          type string;
-        }
-        leaf password {
-          type string;
-        }
-        leaf key {
-          type string;
-        }
-      }
-    }
-
-    container credentials {
-      leaf username {
-        type string;
-        mandatory true;
-      }
-      leaf password {
-        type string;
-      }
-      list key {
-        key key;
-        leaf key {
-          type string;
-        }
-        leaf private-key {
-          type string;
-        }
-      }
-    }
-
-    list initial-credentials {
-      key "username password key";
-      leaf username {
-        type string;
-      }
-      leaf password {
-        type string;
-      }
-      leaf key {
-        type string;
-      }
-    }
-
-    leaf approval-required {
-      description "Require approval of each individual configuration change to this device";
-      type boolean;
-      default "false";
-    }
-
-    container mock {
-      leaf enabled {
-        type boolean;
-        default "false";
-      }
-      list module {
-        key "name";
-        leaf name {
-          type string;
-        }
-        leaf namespace {
-          type string;
-          mandatory true;
-        }
-        leaf revision {
-          type string;
-        }
-        leaf-list feature {
-          type string;
-        }
-      }
-    }
-
-    container debug {
-      leaf connection {
-        type boolean;
-        default "false";
-      }
-    }
-
-    container feature-flags {
-      leaf runtime-schema-fetch {
-        type boolean;
-        default false;
-      }
-    }
-  }
-
-  grouping software-options {
-    container software {
-      leaf upgrade-campaign {
-        type string;
-      }
-      leaf target-release {
-        type string;
-      }
-      leaf image-url {
-        type string;
-      }
-      leaf allow-staging {
-        type boolean;
-        default "false";
-      }
-      list veto {
-        key holder;
-        leaf holder {
-          type string;
-        }
-        leaf reason {
-          type string;
-        }
-      }
-    }
-  }
-}
-"""
-
-SRC_YANG_2: str = r"""module stratoweave {
+SRC_YANG_0: str = r"""module stratoweave {
   yang-version "1.1";
   namespace "http://stratoweave.org/yang/stratoweave";
   prefix "sw";
@@ -462,7 +167,7 @@ SRC_YANG_2: str = r"""module stratoweave {
   }
 }"""
 
-SRC_YANG_3: str = r"""module stratoweave-rfs {
+SRC_YANG_1: str = r"""module stratoweave-rfs {
   yang-version "1.1";
   namespace "http://stratoweave.org/yang/stratoweave-rfs";
   prefix "sw-rfs";
@@ -759,7 +464,7 @@ SRC_YANG_3: str = r"""module stratoweave-rfs {
 }
 """
 
-SRC_YANG_4: str = r"""module ietf-inet-types {
+SRC_YANG_2: str = r"""module ietf-inet-types {
 
   namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
   prefix "inet";
@@ -1219,7 +924,7 @@ SRC_YANG_4: str = r"""module ietf-inet-types {
 }
 """
 
-SRC_YANG_5: str = r"""module ietf-yang-types {
+SRC_YANG_3: str = r"""module ietf-yang-types {
   namespace "urn:ietf:params:xml:ns:yang:ietf-yang-types";
   prefix yang;
 
@@ -1991,15 +1696,11 @@ pure def src_yang() -> list[str]:
         SRC_YANG_1,
         SRC_YANG_2,
         SRC_YANG_3,
-        SRC_YANG_4,
-        SRC_YANG_5,
     ]
 
 
 NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
 NS_stratoweave_rfs: str = 'http://stratoweave.org/yang/stratoweave-rfs'
-NS_fleetmgr_rfs: str = 'urn:fleetmgr:rfs'
-NS_fleetmgr_types: str = 'urn:fleetmgr:types'
 NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
 NS_ietf_yang_types: str = 'urn:ietf:params:xml:ns:yang:ietf-yang-types'
 
@@ -2016,7 +1717,7 @@ class stratoweave_rfs__device__address__initial_credentials_entry(yadata.MNode):
         self.key = key
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address', 'initial-credentials'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'address', 'initial-credentials'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__address__initial_credentials_entry:
@@ -2060,22 +1761,22 @@ class stratoweave_rfs__device__address__initial_credentials(yadata.MKeyedList[(u
 _breaker3: None = None
 class stratoweave_rfs__device__address_entry(yadata.MNode):
     name: str
-    address: ?str
+    address: str
     port: ?u64
     initial_credentials: stratoweave_rfs__device__address__initial_credentials
 
-    mut def __init__(self, name: str, address: ?str, port: ?u64, initial_credentials: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
+    mut def __init__(self, name: str, address: str, port: ?u64, initial_credentials: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
         self.name = name
         self.address = address
         self.port = port
         self.initial_credentials = stratoweave_rfs__device__address__initial_credentials(elements=initial_credentials)
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'address'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__address_entry:
-        return stratoweave_rfs__device__address_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), address=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'address')), port=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'port')), initial_credentials=stratoweave_rfs__device__address__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))))
+        return stratoweave_rfs__device__address_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), address=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'address')), port=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'port')), initial_credentials=stratoweave_rfs__device__address__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))))
 
     mut def copy(self) -> stratoweave_rfs__device__address_entry:
         """Create a deep copy of this adata object"""
@@ -2086,11 +1787,10 @@ class stratoweave_rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__d
     mut def __init__(self, elements: list[stratoweave_rfs__device__address_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
-    mut def create(self, key: str, address: ?str=None, port: ?u64=None) -> stratoweave_rfs__device__address_entry:
+    mut def create(self, key: str, address: str, port: ?u64=None) -> stratoweave_rfs__device__address_entry:
         e = self.get(key)
         if e is not None:
-            if address is not None:
-                e.address = address
+            e.address = address
             if port is not None:
                 e.port = port
             return e
@@ -2126,7 +1826,7 @@ class stratoweave_rfs__device__credentials__key_entry(yadata.MNode):
         self.private_key = private_key
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials', 'key'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'credentials', 'key'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__credentials__key_entry:
@@ -2171,23 +1871,23 @@ class stratoweave_rfs__device__credentials__key(yadata.MKeyedList[str, stratowea
 
 _breaker7: None = None
 class stratoweave_rfs__device__credentials(yadata.MNode):
-    username: ?str
+    username: str
     password: ?str
     key: stratoweave_rfs__device__credentials__key
 
-    mut def __init__(self, username: ?str, password: ?str, key: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
+    mut def __init__(self, username: str, password: ?str, key: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
         self.username = username
         self.password = password
         self.key = stratoweave_rfs__device__credentials__key(elements=key)
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'credentials'])
 
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__credentials:
         if n is not None:
-            return stratoweave_rfs__device__credentials(username=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=stratoweave_rfs__device__credentials__key.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'key'))))
-        return stratoweave_rfs__device__credentials()
+            return stratoweave_rfs__device__credentials(username=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=stratoweave_rfs__device__credentials__key.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'key'))))
+        raise ValueError('Missing required subtree stratoweave_rfs__device__credentials')
 
     mut def copy(self) -> stratoweave_rfs__device__credentials:
         """Create a deep copy of this adata object"""
@@ -2206,7 +1906,7 @@ class stratoweave_rfs__device__initial_credentials_entry(yadata.MNode):
         self.key = key
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'initial-credentials'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'initial-credentials'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__initial_credentials_entry:
@@ -2250,22 +1950,22 @@ class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: 
 _breaker10: None = None
 class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
     name: str
-    namespace: ?str
+    namespace: str
     revision: ?str
     feature: list[str]
 
-    mut def __init__(self, name: str, namespace: ?str, revision: ?str, feature: ?list[str]=None) -> None:
+    mut def __init__(self, name: str, namespace: str, revision: ?str, feature: ?list[str]=None) -> None:
         self.name = name
         self.namespace = namespace
         self.revision = revision
         self.feature = feature if feature is not None else []
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock', 'module'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'mock', 'module'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__mock__module_entry:
-        return stratoweave_rfs__device__mock__module_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), namespace=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'namespace')), revision=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'revision')), feature=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'feature')))
+        return stratoweave_rfs__device__mock__module_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), namespace=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'namespace')), revision=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'revision')), feature=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'feature')))
 
     mut def copy(self) -> stratoweave_rfs__device__mock__module_entry:
         """Create a deep copy of this adata object"""
@@ -2276,11 +1976,10 @@ class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_r
     mut def __init__(self, elements: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
-    mut def create(self, key: str, namespace: ?str=None, revision: ?str=None) -> stratoweave_rfs__device__mock__module_entry:
+    mut def create(self, key: str, namespace: str, revision: ?str=None) -> stratoweave_rfs__device__mock__module_entry:
         e = self.get(key)
         if e is not None:
-            if namespace is not None:
-                e.namespace = namespace
+            e.namespace = namespace
             if revision is not None:
                 e.revision = revision
             return e
@@ -2308,15 +2007,15 @@ class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_r
 
 _breaker12: None = None
 class stratoweave_rfs__device__mock(yadata.MNode):
-    enabled: ?bool
+    enabled: bool
     module: stratoweave_rfs__device__mock__module
 
-    mut def __init__(self, enabled: ?bool, module: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
-        self.enabled = enabled
+    mut def __init__(self, enabled: ?bool=None, module: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
+        self.enabled = enabled if enabled is not None else False
         self.module = stratoweave_rfs__device__mock__module(elements=module)
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'mock'])
 
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__mock:
@@ -2331,13 +2030,13 @@ class stratoweave_rfs__device__mock(yadata.MNode):
 
 _breaker13: None = None
 class stratoweave_rfs__device__debug(yadata.MNode):
-    connection: ?bool
+    connection: bool
 
-    mut def __init__(self, connection: ?bool) -> None:
-        self.connection = connection
+    mut def __init__(self, connection: ?bool=None) -> None:
+        self.connection = connection if connection is not None else False
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'debug'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'debug'])
 
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__debug:
@@ -2352,13 +2051,13 @@ class stratoweave_rfs__device__debug(yadata.MNode):
 
 _breaker14: None = None
 class stratoweave_rfs__device__feature_flags(yadata.MNode):
-    runtime_schema_fetch: ?bool
+    runtime_schema_fetch: bool
 
-    mut def __init__(self, runtime_schema_fetch: ?bool) -> None:
-        self.runtime_schema_fetch = runtime_schema_fetch
+    mut def __init__(self, runtime_schema_fetch: ?bool=None) -> None:
+        self.runtime_schema_fetch = runtime_schema_fetch if runtime_schema_fetch is not None else False
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'feature-flags'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'feature-flags'])
 
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__feature_flags:
@@ -2381,7 +2080,7 @@ class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
         self.reason = reason
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'veto'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'software', 'veto'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__software__veto_entry:
@@ -2429,18 +2128,18 @@ class stratoweave_rfs__device__software(yadata.MNode):
     upgrade_campaign: ?str
     target_release: ?str
     image_url: ?str
-    allow_staging: ?bool
+    allow_staging: bool
     veto: stratoweave_rfs__device__software__veto
 
-    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, image_url: ?str, allow_staging: ?bool, veto: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
+    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, image_url: ?str, allow_staging: ?bool=None, veto: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
         self.upgrade_campaign = upgrade_campaign
         self.target_release = target_release
         self.image_url = image_url
-        self.allow_staging = allow_staging
+        self.allow_staging = allow_staging if allow_staging is not None else False
         self.veto = stratoweave_rfs__device__software__veto(elements=veto)
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device', 'software'])
 
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software:
@@ -2461,31 +2160,31 @@ class stratoweave_rfs__device_entry(yadata.MNode):
     address: stratoweave_rfs__device__address
     credentials: stratoweave_rfs__device__credentials
     initial_credentials: stratoweave_rfs__device__initial_credentials
-    approval_required: ?bool
+    approval_required: bool
     mock: stratoweave_rfs__device__mock
     debug: stratoweave_rfs__device__debug
     feature_flags: stratoweave_rfs__device__feature_flags
     software: stratoweave_rfs__device__software
 
-    mut def __init__(self, name: str, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, software: ?stratoweave_rfs__device__software=None) -> None:
+    mut def __init__(self, name: str, credentials: stratoweave_rfs__device__credentials, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], approval_required: ?bool=None, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, software: ?stratoweave_rfs__device__software=None) -> None:
         self.name = name
         self.description = description
         self.type = type
         self.address = stratoweave_rfs__device__address(elements=address)
-        self.credentials = credentials if credentials is not None else stratoweave_rfs__device__credentials()
+        self.credentials = credentials
         self.initial_credentials = stratoweave_rfs__device__initial_credentials(elements=initial_credentials)
-        self.approval_required = approval_required
+        self.approval_required = approval_required if approval_required is not None else False
         self.mock = mock if mock is not None else stratoweave_rfs__device__mock()
         self.debug = debug if debug is not None else stratoweave_rfs__device__debug()
         self.feature_flags = feature_flags if feature_flags is not None else stratoweave_rfs__device__feature_flags()
         self.software = software if software is not None else stratoweave_rfs__device__software()
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:device'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device_entry:
-        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), software=stratoweave_rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'software'))))
+        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), software=stratoweave_rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'software'))))
 
     mut def copy(self) -> stratoweave_rfs__device_entry:
         """Create a deep copy of this adata object"""
@@ -2496,9 +2195,10 @@ class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_ent
     mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
 
-    mut def create(self, key: str, description: ?str=None, type: ?str=None, approval_required: ?bool=None) -> stratoweave_rfs__device_entry:
+    mut def create(self, key: str, credentials: stratoweave_rfs__device__credentials, description: ?str=None, type: ?str=None, approval_required: ?bool=None) -> stratoweave_rfs__device_entry:
         e = self.get(key)
         if e is not None:
+            e.credentials = credentials
             if description is not None:
                 e.description = description
             if type is not None:
@@ -2507,7 +2207,7 @@ class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_ent
                 e.approval_required = approval_required
             return e
         name = key
-        res = stratoweave_rfs__device_entry(name=name, description=description, type=type, approval_required=approval_required)
+        res = stratoweave_rfs__device_entry(name=name, credentials=credentials, description=description, type=type, approval_required=approval_required)
         self.elements.append(res)
         return res
 
@@ -2529,573 +2229,24 @@ class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_ent
 
 
 _breaker20: None = None
-class stratoweave_rfs__rfs__flotilla_status(yadata.MNode):
-    enabled: ?bool
-
-    mut def __init__(self, enabled: ?bool) -> None:
-        self.enabled = enabled
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:flotilla-status'])
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__rfs__flotilla_status:
-        if n is not None:
-            return stratoweave_rfs__rfs__flotilla_status(enabled=n.get_opt_bool(ygdata.Id(NS_fleetmgr_rfs, 'enabled')))
-        return stratoweave_rfs__rfs__flotilla_status()
-
-    mut def copy(self) -> stratoweave_rfs__rfs__flotilla_status:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__flotilla_status.from_gdata(self.to_gdata())
-
-
-_breaker21: None = None
-class stratoweave_rfs__rfs__device__address__initial_credentials_entry(yadata.MNode):
-    username: str
-    password: str
-    key: str
-
-    mut def __init__(self, username: str, password: str, key: str) -> None:
-        self.username = username
-        self.password = password
-        self.key = key
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'address', 'initial-credentials'])
-
-    @staticmethod
-    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__device__address__initial_credentials_entry:
-        return stratoweave_rfs__rfs__device__address__initial_credentials_entry(username=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'username')), password=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'password')), key=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'key')))
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__address__initial_credentials_entry:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__address__initial_credentials_entry.from_gdata(self.to_gdata())
-
-_breaker22: None = None
-class stratoweave_rfs__rfs__device__address__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__rfs__device__address__initial_credentials_entry]):
-    mut def __init__(self, elements: list[stratoweave_rfs__rfs__device__address__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
-
-    mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__rfs__device__address__initial_credentials_entry:
-        e = self.get(key_)
-        if e is not None:
-            return e
-        (username=username, password=password, key=key) = key_
-        res = stratoweave_rfs__rfs__device__address__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
-        return res
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__device__address__initial_credentials_entry]:
-        if n is not None:
-            return [stratoweave_rfs__rfs__device__address__initial_credentials_entry.from_gdata(e) for e in n.elements]
-        return []
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__address__initial_credentials:
-        """Create a deep copy of this list object"""
-        # Copy each element in the list
-        copied_elements = []
-        for e in self:
-            ce = e.copy()
-            if ce is not None:
-                copied_elements.append(ce)
-        return stratoweave_rfs__rfs__device__address__initial_credentials(elements=copied_elements)
-
-
-_breaker23: None = None
-class stratoweave_rfs__rfs__device__address_entry(yadata.MNode):
-    name: str
-    address: ?str
-    port: ?u64
-    initial_credentials: stratoweave_rfs__rfs__device__address__initial_credentials
-
-    mut def __init__(self, name: str, address: ?str, port: ?u64, initial_credentials: list[stratoweave_rfs__rfs__device__address__initial_credentials_entry]=[]) -> None:
-        self.name = name
-        self.address = address
-        self.port = port
-        self.initial_credentials = stratoweave_rfs__rfs__device__address__initial_credentials(elements=initial_credentials)
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'address'])
-
-    @staticmethod
-    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__device__address_entry:
-        return stratoweave_rfs__rfs__device__address_entry(name=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'name')), address=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'address')), port=n.get_opt_u64(ygdata.Id(NS_fleetmgr_rfs, 'port')), initial_credentials=stratoweave_rfs__rfs__device__address__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr_rfs, 'initial-credentials'))))
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__address_entry:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__address_entry.from_gdata(self.to_gdata())
-
-_breaker24: None = None
-class stratoweave_rfs__rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__rfs__device__address_entry]):
-    mut def __init__(self, elements: list[stratoweave_rfs__rfs__device__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
-
-    mut def create(self, key: str, address: ?str=None, port: ?u64=None) -> stratoweave_rfs__rfs__device__address_entry:
-        e = self.get(key)
-        if e is not None:
-            if address is not None:
-                e.address = address
-            if port is not None:
-                e.port = port
-            return e
-        name = key
-        res = stratoweave_rfs__rfs__device__address_entry(name=name, address=address, port=port)
-        self.elements.append(res)
-        return res
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__device__address_entry]:
-        if n is not None:
-            return [stratoweave_rfs__rfs__device__address_entry.from_gdata(e) for e in n.elements]
-        return []
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__address:
-        """Create a deep copy of this list object"""
-        # Copy each element in the list
-        copied_elements = []
-        for e in self:
-            ce = e.copy()
-            if ce is not None:
-                copied_elements.append(ce)
-        return stratoweave_rfs__rfs__device__address(elements=copied_elements)
-
-
-_breaker25: None = None
-class stratoweave_rfs__rfs__device__credentials__key_entry(yadata.MNode):
-    key: str
-    private_key: ?str
-
-    mut def __init__(self, key: str, private_key: ?str) -> None:
-        self.key = key
-        self.private_key = private_key
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'credentials', 'key'])
-
-    @staticmethod
-    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__device__credentials__key_entry:
-        return stratoweave_rfs__rfs__device__credentials__key_entry(key=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'key')), private_key=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'private-key')))
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__credentials__key_entry:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__credentials__key_entry.from_gdata(self.to_gdata())
-
-_breaker26: None = None
-class stratoweave_rfs__rfs__device__credentials__key(yadata.MKeyedList[str, stratoweave_rfs__rfs__device__credentials__key_entry]):
-    mut def __init__(self, elements: list[stratoweave_rfs__rfs__device__credentials__key_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.key == k, elements)
-
-    mut def create(self, key_: str, private_key: ?str=None) -> stratoweave_rfs__rfs__device__credentials__key_entry:
-        e = self.get(key_)
-        if e is not None:
-            if private_key is not None:
-                e.private_key = private_key
-            return e
-        key = key_
-        res = stratoweave_rfs__rfs__device__credentials__key_entry(key=key, private_key=private_key)
-        self.elements.append(res)
-        return res
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__device__credentials__key_entry]:
-        if n is not None:
-            return [stratoweave_rfs__rfs__device__credentials__key_entry.from_gdata(e) for e in n.elements]
-        return []
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__credentials__key:
-        """Create a deep copy of this list object"""
-        # Copy each element in the list
-        copied_elements = []
-        for e in self:
-            ce = e.copy()
-            if ce is not None:
-                copied_elements.append(ce)
-        return stratoweave_rfs__rfs__device__credentials__key(elements=copied_elements)
-
-
-_breaker27: None = None
-class stratoweave_rfs__rfs__device__credentials(yadata.MNode):
-    username: ?str
-    password: ?str
-    key: stratoweave_rfs__rfs__device__credentials__key
-
-    mut def __init__(self, username: ?str, password: ?str, key: list[stratoweave_rfs__rfs__device__credentials__key_entry]=[]) -> None:
-        self.username = username
-        self.password = password
-        self.key = stratoweave_rfs__rfs__device__credentials__key(elements=key)
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'credentials'])
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__rfs__device__credentials:
-        if n is not None:
-            return stratoweave_rfs__rfs__device__credentials(username=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'username')), password=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'password')), key=stratoweave_rfs__rfs__device__credentials__key.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr_rfs, 'key'))))
-        return stratoweave_rfs__rfs__device__credentials()
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__credentials:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__credentials.from_gdata(self.to_gdata())
-
-
-_breaker28: None = None
-class stratoweave_rfs__rfs__device__initial_credentials_entry(yadata.MNode):
-    username: str
-    password: str
-    key: str
-
-    mut def __init__(self, username: str, password: str, key: str) -> None:
-        self.username = username
-        self.password = password
-        self.key = key
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'initial-credentials'])
-
-    @staticmethod
-    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__device__initial_credentials_entry:
-        return stratoweave_rfs__rfs__device__initial_credentials_entry(username=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'username')), password=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'password')), key=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'key')))
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__initial_credentials_entry:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__initial_credentials_entry.from_gdata(self.to_gdata())
-
-_breaker29: None = None
-class stratoweave_rfs__rfs__device__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__rfs__device__initial_credentials_entry]):
-    mut def __init__(self, elements: list[stratoweave_rfs__rfs__device__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
-
-    mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__rfs__device__initial_credentials_entry:
-        e = self.get(key_)
-        if e is not None:
-            return e
-        (username=username, password=password, key=key) = key_
-        res = stratoweave_rfs__rfs__device__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
-        return res
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__device__initial_credentials_entry]:
-        if n is not None:
-            return [stratoweave_rfs__rfs__device__initial_credentials_entry.from_gdata(e) for e in n.elements]
-        return []
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__initial_credentials:
-        """Create a deep copy of this list object"""
-        # Copy each element in the list
-        copied_elements = []
-        for e in self:
-            ce = e.copy()
-            if ce is not None:
-                copied_elements.append(ce)
-        return stratoweave_rfs__rfs__device__initial_credentials(elements=copied_elements)
-
-
-_breaker30: None = None
-class stratoweave_rfs__rfs__device__mock__module_entry(yadata.MNode):
-    name: str
-    namespace: ?str
-    revision: ?str
-    feature: list[str]
-
-    mut def __init__(self, name: str, namespace: ?str, revision: ?str, feature: ?list[str]=None) -> None:
-        self.name = name
-        self.namespace = namespace
-        self.revision = revision
-        self.feature = feature if feature is not None else []
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'mock', 'module'])
-
-    @staticmethod
-    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__device__mock__module_entry:
-        return stratoweave_rfs__rfs__device__mock__module_entry(name=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'name')), namespace=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'namespace')), revision=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'revision')), feature=n.get_opt_strs(ygdata.Id(NS_fleetmgr_rfs, 'feature')))
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__mock__module_entry:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__mock__module_entry.from_gdata(self.to_gdata())
-
-_breaker31: None = None
-class stratoweave_rfs__rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_rfs__rfs__device__mock__module_entry]):
-    mut def __init__(self, elements: list[stratoweave_rfs__rfs__device__mock__module_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
-
-    mut def create(self, key: str, namespace: ?str=None, revision: ?str=None) -> stratoweave_rfs__rfs__device__mock__module_entry:
-        e = self.get(key)
-        if e is not None:
-            if namespace is not None:
-                e.namespace = namespace
-            if revision is not None:
-                e.revision = revision
-            return e
-        name = key
-        res = stratoweave_rfs__rfs__device__mock__module_entry(name=name, namespace=namespace, revision=revision)
-        self.elements.append(res)
-        return res
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__device__mock__module_entry]:
-        if n is not None:
-            return [stratoweave_rfs__rfs__device__mock__module_entry.from_gdata(e) for e in n.elements]
-        return []
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__mock__module:
-        """Create a deep copy of this list object"""
-        # Copy each element in the list
-        copied_elements = []
-        for e in self:
-            ce = e.copy()
-            if ce is not None:
-                copied_elements.append(ce)
-        return stratoweave_rfs__rfs__device__mock__module(elements=copied_elements)
-
-
-_breaker32: None = None
-class stratoweave_rfs__rfs__device__mock(yadata.MNode):
-    enabled: ?bool
-    module: stratoweave_rfs__rfs__device__mock__module
-
-    mut def __init__(self, enabled: ?bool, module: list[stratoweave_rfs__rfs__device__mock__module_entry]=[]) -> None:
-        self.enabled = enabled
-        self.module = stratoweave_rfs__rfs__device__mock__module(elements=module)
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'mock'])
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__rfs__device__mock:
-        if n is not None:
-            return stratoweave_rfs__rfs__device__mock(enabled=n.get_opt_bool(ygdata.Id(NS_fleetmgr_rfs, 'enabled')), module=stratoweave_rfs__rfs__device__mock__module.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr_rfs, 'module'))))
-        return stratoweave_rfs__rfs__device__mock()
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__mock:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__mock.from_gdata(self.to_gdata())
-
-
-_breaker33: None = None
-class stratoweave_rfs__rfs__device__debug(yadata.MNode):
-    connection: ?bool
-
-    mut def __init__(self, connection: ?bool) -> None:
-        self.connection = connection
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'debug'])
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__rfs__device__debug:
-        if n is not None:
-            return stratoweave_rfs__rfs__device__debug(connection=n.get_opt_bool(ygdata.Id(NS_fleetmgr_rfs, 'connection')))
-        return stratoweave_rfs__rfs__device__debug()
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__debug:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__debug.from_gdata(self.to_gdata())
-
-
-_breaker34: None = None
-class stratoweave_rfs__rfs__device__feature_flags(yadata.MNode):
-    runtime_schema_fetch: ?bool
-
-    mut def __init__(self, runtime_schema_fetch: ?bool) -> None:
-        self.runtime_schema_fetch = runtime_schema_fetch
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'feature-flags'])
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__rfs__device__feature_flags:
-        if n is not None:
-            return stratoweave_rfs__rfs__device__feature_flags(runtime_schema_fetch=n.get_opt_bool(ygdata.Id(NS_fleetmgr_rfs, 'runtime-schema-fetch')))
-        return stratoweave_rfs__rfs__device__feature_flags()
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__feature_flags:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__feature_flags.from_gdata(self.to_gdata())
-
-
-_breaker35: None = None
-class stratoweave_rfs__rfs__device__software__veto_entry(yadata.MNode):
-    holder: str
-    reason: ?str
-
-    mut def __init__(self, holder: str, reason: ?str) -> None:
-        self.holder = holder
-        self.reason = reason
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'software', 'veto'])
-
-    @staticmethod
-    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__device__software__veto_entry:
-        return stratoweave_rfs__rfs__device__software__veto_entry(holder=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'holder')), reason=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'reason')))
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__software__veto_entry:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__software__veto_entry.from_gdata(self.to_gdata())
-
-_breaker36: None = None
-class stratoweave_rfs__rfs__device__software__veto(yadata.MKeyedList[str, stratoweave_rfs__rfs__device__software__veto_entry]):
-    mut def __init__(self, elements: list[stratoweave_rfs__rfs__device__software__veto_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.holder == k, elements)
-
-    mut def create(self, key: str, reason: ?str=None) -> stratoweave_rfs__rfs__device__software__veto_entry:
-        e = self.get(key)
-        if e is not None:
-            if reason is not None:
-                e.reason = reason
-            return e
-        holder = key
-        res = stratoweave_rfs__rfs__device__software__veto_entry(holder=holder, reason=reason)
-        self.elements.append(res)
-        return res
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__device__software__veto_entry]:
-        if n is not None:
-            return [stratoweave_rfs__rfs__device__software__veto_entry.from_gdata(e) for e in n.elements]
-        return []
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__software__veto:
-        """Create a deep copy of this list object"""
-        # Copy each element in the list
-        copied_elements = []
-        for e in self:
-            ce = e.copy()
-            if ce is not None:
-                copied_elements.append(ce)
-        return stratoweave_rfs__rfs__device__software__veto(elements=copied_elements)
-
-
-_breaker37: None = None
-class stratoweave_rfs__rfs__device__software(yadata.MNode):
-    upgrade_campaign: ?str
-    target_release: ?str
-    image_url: ?str
-    allow_staging: ?bool
-    veto: stratoweave_rfs__rfs__device__software__veto
-
-    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, image_url: ?str, allow_staging: ?bool, veto: list[stratoweave_rfs__rfs__device__software__veto_entry]=[]) -> None:
-        self.upgrade_campaign = upgrade_campaign
-        self.target_release = target_release
-        self.image_url = image_url
-        self.allow_staging = allow_staging
-        self.veto = stratoweave_rfs__rfs__device__software__veto(elements=veto)
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device', 'software'])
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__rfs__device__software:
-        if n is not None:
-            return stratoweave_rfs__rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_fleetmgr_rfs, 'allow-staging')), veto=stratoweave_rfs__rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr_rfs, 'veto'))))
-        return stratoweave_rfs__rfs__device__software()
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device__software:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device__software.from_gdata(self.to_gdata())
-
-
-_breaker38: None = None
-class stratoweave_rfs__rfs__device_entry(yadata.MNode):
-    name: str
-    type: ?str
-    description: ?str
-    address: stratoweave_rfs__rfs__device__address
-    credentials: stratoweave_rfs__rfs__device__credentials
-    initial_credentials: stratoweave_rfs__rfs__device__initial_credentials
-    approval_required: ?bool
-    mock: stratoweave_rfs__rfs__device__mock
-    debug: stratoweave_rfs__rfs__device__debug
-    feature_flags: stratoweave_rfs__rfs__device__feature_flags
-    software: stratoweave_rfs__rfs__device__software
-
-    mut def __init__(self, name: str, type: ?str, description: ?str, address: list[stratoweave_rfs__rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__rfs__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?stratoweave_rfs__rfs__device__mock=None, debug: ?stratoweave_rfs__rfs__device__debug=None, feature_flags: ?stratoweave_rfs__rfs__device__feature_flags=None, software: ?stratoweave_rfs__rfs__device__software=None) -> None:
-        self.name = name
-        self.type = type
-        self.description = description
-        self.address = stratoweave_rfs__rfs__device__address(elements=address)
-        self.credentials = credentials if credentials is not None else stratoweave_rfs__rfs__device__credentials()
-        self.initial_credentials = stratoweave_rfs__rfs__device__initial_credentials(elements=initial_credentials)
-        self.approval_required = approval_required
-        self.mock = mock if mock is not None else stratoweave_rfs__rfs__device__mock()
-        self.debug = debug if debug is not None else stratoweave_rfs__rfs__device__debug()
-        self.feature_flags = feature_flags if feature_flags is not None else stratoweave_rfs__rfs__device__feature_flags()
-        self.software = software if software is not None else stratoweave_rfs__rfs__device__software()
-
-    mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs', 'fleetmgr-rfs:device'])
-
-    @staticmethod
-    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs__device_entry:
-        return stratoweave_rfs__rfs__device_entry(name=n.get_str(ygdata.Id(NS_fleetmgr_rfs, 'name')), type=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'type')), description=n.get_opt_str(ygdata.Id(NS_fleetmgr_rfs, 'description')), address=stratoweave_rfs__rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr_rfs, 'address'))), credentials=stratoweave_rfs__rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_fleetmgr_rfs, 'approval-required')), mock=stratoweave_rfs__rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr_rfs, 'mock'))), debug=stratoweave_rfs__rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr_rfs, 'debug'))), feature_flags=stratoweave_rfs__rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr_rfs, 'feature-flags'))), software=stratoweave_rfs__rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr_rfs, 'software'))))
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device_entry:
-        """Create a deep copy of this adata object"""
-        return stratoweave_rfs__rfs__device_entry.from_gdata(self.to_gdata())
-
-_breaker39: None = None
-class stratoweave_rfs__rfs__device(yadata.MKeyedList[str, stratoweave_rfs__rfs__device_entry]):
-    mut def __init__(self, elements: list[stratoweave_rfs__rfs__device_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
-
-    mut def create(self, key: str, type: ?str=None, description: ?str=None, approval_required: ?bool=None) -> stratoweave_rfs__rfs__device_entry:
-        e = self.get(key)
-        if e is not None:
-            if type is not None:
-                e.type = type
-            if description is not None:
-                e.description = description
-            if approval_required is not None:
-                e.approval_required = approval_required
-            return e
-        name = key
-        res = stratoweave_rfs__rfs__device_entry(name=name, type=type, description=description, approval_required=approval_required)
-        self.elements.append(res)
-        return res
-
-    @staticmethod
-    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs__device_entry]:
-        if n is not None:
-            return [stratoweave_rfs__rfs__device_entry.from_gdata(e) for e in n.elements]
-        return []
-
-    mut def copy(self) -> stratoweave_rfs__rfs__device:
-        """Create a deep copy of this list object"""
-        # Copy each element in the list
-        copied_elements = []
-        for e in self:
-            ce = e.copy()
-            if ce is not None:
-                copied_elements.append(ce)
-        return stratoweave_rfs__rfs__device(elements=copied_elements)
-
-
-_breaker40: None = None
 class stratoweave_rfs__rfs_entry(yadata.MNode):
     name: str
-    flotilla_status: stratoweave_rfs__rfs__flotilla_status
-    device: stratoweave_rfs__rfs__device
 
-    mut def __init__(self, name: str, flotilla_status: ?stratoweave_rfs__rfs__flotilla_status=None, device: list[stratoweave_rfs__rfs__device_entry]=[]) -> None:
+    mut def __init__(self, name: str) -> None:
         self.name = name
-        self.flotilla_status = flotilla_status if flotilla_status is not None else stratoweave_rfs__rfs__flotilla_status()
-        self.device = stratoweave_rfs__rfs__device(elements=device)
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs'])
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['stratoweave-rfs:rfs'])
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs_entry:
-        return stratoweave_rfs__rfs_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), flotilla_status=stratoweave_rfs__rfs__flotilla_status.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr_rfs, 'flotilla-status'))), device=stratoweave_rfs__rfs__device.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr_rfs, 'device'))))
+        return stratoweave_rfs__rfs_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')))
 
     mut def copy(self) -> stratoweave_rfs__rfs_entry:
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__rfs_entry.from_gdata(self.to_gdata())
 
-_breaker41: None = None
+_breaker21: None = None
 class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -3126,7 +2277,7 @@ class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
         return stratoweave_rfs__rfs(elements=copied_elements)
 
 
-_breaker42: None = None
+_breaker22: None = None
 class root(yadata.MNode):
     device: stratoweave_rfs__device
     rfs: stratoweave_rfs__rfs
@@ -3136,7 +2287,7 @@ class root(yadata.MNode):
         self.rfs = stratoweave_rfs__rfs(elements=rfs)
 
     mut def to_gdata(self) -> ygdata.Node:
-        return yadata.from_adata(SRC_DNODE, self, loose=True)
+        return yadata.from_adata(SRC_DNODE, self, loose=False)
 
     @staticmethod
     mut def from_gdata(n: ?ygdata.Node) -> root:

@@ -1,0 +1,47 @@
+# This file is generated only when missing.
+# Edit it to register package-provided device types for this app.
+
+import logging
+import net
+
+import stratoweave.device as swdev
+import stratoweave.adapters.netconf as swna
+import stratoweave.adapters.software_iosxe as swxe
+import stratoweave.adapters.software_iosxe_mock as swxemock
+
+import flotilla.devices.iosxe as iosxe_dev
+import flotilla.devices.iosxe_oper as iosxe_oper
+
+
+def _iosxe_adapter(dev: swdev.DeviceMgr, schema, dmc, registry,
+                   log_handler: logging.Handler,
+                   connect_cap: ?net.TCPConnectCap):
+    adapter = swna.NetconfAdapter(
+        dev, schema, dmc, registry, log_handler, connect_cap)
+    if dmc.mock.enabled:
+        server = adapter.get_mock_server()
+        if server is not None:
+            mock = swxemock.IosXeSoftwareMock(
+                server!, log_handler, complete_after=0.5)
+            mock.attach()
+    return adapter
+
+
+def _iosxe_software(dev: swdev.DeviceMgr, dmc, log_handler: logging.Handler,
+                    connect_cap: ?net.TCPConnectCap) -> swdev.SoftwareAdapter:
+    if dmc.mock.enabled:
+        # The production adapter still runs end to end. Poll faster only when
+        # its device-side NETCONF session is mocked for the demo.
+        return swxe.IosXeSoftwareAdapter(dev, dmc, log_handler, connect_cap,
+                                         0.1, 0.2)
+    return swxe.IosXeSoftwareAdapter(dev, dmc, log_handler, connect_cap)
+
+
+device_types: dict[str, swdev.DeviceType] = {
+    "iosxe": swdev.DeviceType(
+        name="iosxe",
+        adapter_type=_iosxe_adapter,
+        src_dnode=iosxe_dev.SRC_DNODE,
+        oper_src_dnode=iosxe_oper.SRC_DNODE,
+        software_adapter_type=_iosxe_software)
+}

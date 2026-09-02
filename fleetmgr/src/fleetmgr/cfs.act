@@ -4,92 +4,199 @@ import stratoweave.ttt as ttt
 
 import fleetmgr.layers.base_0 as base
 import fleetmgr.layers.y_0 as y_0
+import fleetmgr.layers.y_1_oper as y1_oper
 # TODO: required by the compiler, see acton issue #2390
 import yang.identityref
 import fleetmgr.layers.y_0_oper as y0_oper
-import fleetmgr.layers.y_1_oper as y1_oper
+
+
+class Node(base.Node):
+    def transform(self, i):
+        o = base.o_root()
+        dev = o.device.create(i.name)
+        dev.type = "flotilla"
+        dev.description = i.description
+        dev.approval_required = i.approval_required
+
+        for address in i.address:
+            out_address = dev.address.create(
+                address.name,
+                address=address.address,
+                port=address.port,
+            )
+            for credentials in address.initial_credentials:
+                out_address.initial_credentials.create((
+                    username=credentials.username,
+                    password=credentials.password,
+                    key=credentials.key,
+                ))
+
+        dev.credentials.username = i.credentials.username
+        dev.credentials.password = i.credentials.password
+        for key in i.credentials.key:
+            dev.credentials.key.create(key.key, private_key=key.private_key)
+
+        for credentials in i.initial_credentials:
+            dev.initial_credentials.create((
+                username=credentials.username,
+                password=credentials.password,
+                key=credentials.key,
+            ))
+
+        dev.mock.enabled = i.mock.enabled
+        for module in i.mock.module:
+            out_module = dev.mock.module.create(
+                module.name,
+                namespace=module.namespace,
+                revision=module.revision,
+            )
+            for feature in module.feature:
+                out_module.feature.append(feature)
+
+        dev.debug.connection = i.debug.connection
+        dev.feature_flags.runtime_schema_fetch = i.feature_flags.runtime_schema_fetch
+
+        # One collector per flotilla observes only device software state from
+        # the bottom RFS datastore. Per-campaign membership is filtered locally.
+        o.rfs.create(i.name).flotilla_status.enabled = True
+        return o
 
 
 class Device(base.Device):
     def transform(self, i):
         o = base.o_root()
-        dev = o.device.create(i.name)
-        dev.type = "cpe"
-        dev.approval_required = False
-        dev.credentials.username = "admin"
-        dev.credentials.password = "admin"
-        dev.mock.enabled = True
+        dev = o.rfs.create(i.shard).device.create(i.name)
+        dev.type = i.type
+        dev.description = i.description
+        dev.approval_required = i.approval_required
+
+        for address in i.address:
+            out_address = dev.address.create(
+                address.name,
+                address=address.address,
+                port=address.port,
+            )
+            for credentials in address.initial_credentials:
+                out_address.initial_credentials.create((
+                    username=credentials.username,
+                    password=credentials.password,
+                    key=credentials.key,
+                ))
+
+        dev.credentials.username = i.credentials.username
+        dev.credentials.password = i.credentials.password
+        for key in i.credentials.key:
+            dev.credentials.key.create(key.key, private_key=key.private_key)
+
+        for credentials in i.initial_credentials:
+            dev.initial_credentials.create((
+                username=credentials.username,
+                password=credentials.password,
+                key=credentials.key,
+            ))
+
+        dev.mock.enabled = i.mock.enabled
+        for module in i.mock.module:
+            out_module = dev.mock.module.create(
+                module.name,
+                namespace=module.namespace,
+                revision=module.revision,
+            )
+            for feature in module.feature:
+                out_module.feature.append(feature)
+
+        dev.debug.connection = i.debug.connection
+        dev.feature_flags.runtime_schema_fetch = i.feature_flags.runtime_schema_fetch
         return o
 
 
 class UpgradeCampaign(base.UpgradeCampaign):
-    def transform(self, i):
+    def transform(self, i, linked):
         o = base.o_root()
         if i.admin_state == "run":
-            for d in i.device:
-                dev = o.device.create(d)
+            inventory = y_0.root.from_gdata(linked)
+            for member in i.device:
+                d = member.name
+                fleet_device = inventory.fleet.device.get(d)
+                if fleet_device is None:
+                    continue
+                dev = o.rfs.create(fleet_device!.shard).device.create(d)
                 dev.software.target_release = i.target_release
                 dev.software.upgrade_campaign = i.name
+                dev.software.image_url = i.image_url
+                dev.software.allow_staging = i.allow_staging
         return o
 
 
 actor UpgradeCampaignTransform(path: ttt.Path,
                                update_oper: proc(?y0_oper.software__software__upgrade_campaign_entry) -> None,
                                lower_tree_provider: ?ygdata.TreeProvider):
-    """Aggregates member software status into the campaign's oper state.
-
-    Subscribes to each member device entry's software state at layer 1 and
-    republishes counts plus a per-device table, which is what a UI polls.
-    """
-    oper: y0_oper.software__software__upgrade_campaign_entry = base.UpgradeCampaign.new_state(path)
-    _subs = ygdata.SubscriptionManager(lower_tree_provider!, str(path))
+    """Aggregate normalized device status collected from every flotilla."""
     var members: list[str] = []
+    var latest: ?y1_oper.root = None
+    var subscriptions: ?ygdata.SubscriptionManager = None
+    var destination: ?ygdata.Dst = None
 
-    def on_sw_state(root: ?y1_oper.root, err: ?Exception):
-        if err is not None:
-            print("UpgradeCampaignTransform subscription error: {err}", err=True)
-            return
+    def publish() -> None:
+        oper = base.UpgradeCampaign.new_state(path)
         st = oper.state
         in_progress = 0
         succeeded = 0
         failed = 0
+
         for d in members:
-            status = "pending"
-            if root is not None:
-                r = root.device.get(d)
-                if r is not None:
-                    s = r.software.state.status
-                    if s is not None:
-                        status = s
+            status: ?str = None
+            running_release: ?str = None
+            if latest is not None:
+                for shard in latest!.rfs:
+                    observed = shard.flotilla_status.state.device.get(d)
+                    if observed is not None:
+                        status = observed!.status
+                        running_release = observed!.running_release
+
             ds = st.device_status.create(d)
-            ds.status = status
+            ds.status = status if status is not None else "pending"
+            ds.running_release = running_release
+
             if status == "in-progress":
                 in_progress += 1
-            elif status == "succeeded":
+            elif status == "succeeded" or status == "up-to-date":
                 succeeded += 1
-            elif status == "failed":
+            elif status == "failed" or status == "rolled-back":
                 failed += 1
+
         st.total = u64(len(members))
         st.in_progress = u64(in_progress)
         st.succeeded = u64(succeeded)
         st.failed = u64(failed)
         update_oper(oper)
 
-    def subscribe():
-        specs: set[ygdata.SubscriptionSpec] = set()
-        for d in members:
-            specs.add(y1_oper.subs.device.entry(d).software.state.status.subscribe(period=1.0))
-        want: set[ygdata.Delivery] = set()
-        if len(specs) > 0:
-            dst = y1_oper.dst(lambda r, e: on_sw_state(r, e))
-            want.add(dst.deliver(specs))
-        _subs.declare(want)
+    def on_rfs(root: ?y1_oper.root, error: ?Exception) -> None:
+        if error is not None:
+            print("campaign status subscription failed at {path}: {error}", err=True)
+            latest = None
+        else:
+            latest = root
+        publish()
 
-    def on_conf(conf: y_0.software__software__upgrade_campaign_entry):
+    def on_conf(conf: y_0.software__software__upgrade_campaign_entry) -> None:
         ms = []
-        for d in conf.device:
-            ms.append(d)
+        for member in conf.device:
+            ms.append(member.name)
         members = ms
-        subscribe()
-        # publish immediately so a freshly created campaign shows its members
-        on_sw_state(None, None)
+        publish()
+
+        if lower_tree_provider is not None and subscriptions is None:
+            subscriptions = ygdata.SubscriptionManager(
+                lower_tree_provider!,
+                "campaign-status:{path}",
+            )
+            destination = y1_oper.dst(on_rfs)
+
+        if subscriptions is not None:
+            want: set[ygdata.Delivery] = set()
+            if len(members) > 0:
+                want.add(destination!.deliver({
+                    ygdata.SubscriptionSpec(None, period=0.25),
+                }))
+            subscriptions!.declare(want)

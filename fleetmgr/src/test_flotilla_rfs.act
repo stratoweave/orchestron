@@ -1,0 +1,122 @@
+import testing
+
+import stratoweave
+
+import flotilla.layers.y_0 as rfs
+import flotilla.layers.y_0_oper as rfs_oper
+import flotilla.sysspec as sysspec
+from flotilla.layers.y_0 import \
+    stratoweave_rfs__device__credentials as Credentials
+
+
+actor _test_direct_device_config(t: testing.AsyncT):
+    """The flotilla northbound is RFS: /device is its top-level intent."""
+    root = rfs.root()
+    root.device.create(
+        "cpe-1",
+        type="iosxe",
+        credentials=Credentials(username="admin", password="admin"),
+    ).mock.enabled = True
+
+    tr = stratoweave.test_main(sysspec.SYSSPEC, t.log_handler)
+    var attempts = 0
+
+    def check_device():
+        attempts += 1
+        mgr = tr.dev_registry.get("cpe-1")
+        config = mgr!.get_dmc() if mgr is not None else None
+        if config is not None and config!.type == "iosxe" and config!.mock.enabled!:
+            t.success()
+        elif attempts >= 100:
+            t.failure(ValueError("direct /device config was not retained"))
+        else:
+            after 0.01: check_device()
+
+    def cont(result):
+        if isinstance(result, Exception):
+            t.failure(result)
+            return
+        check_device()
+
+    tr.edit_config(root.to_gdata(), cont)
+
+
+actor _test_iosxe_software_upgrade(t: testing.AsyncT):
+    """Run the production IOS XE workflow against flotilla's device mock."""
+    root = rfs.root()
+    dev = root.device.create(
+        "xe-1",
+        type="iosxe",
+        credentials=Credentials(username="admin", password="admin"),
+    )
+    dev.mock.enabled = True
+
+    tr = stratoweave.test_main(sysspec.SYSSPEC, t.log_handler)
+    var attempts = 0
+    var saw_in_progress = False
+    var finished = False
+
+    def fail(message: str) -> None:
+        if not finished:
+            finished = True
+            t.failure(ValueError(message))
+
+    def poll_status() -> None:
+        attempts += 1
+        oper = rfs_oper.root.from_gdata(tr.cfs.newsession().get_data())
+        out = oper.device.get("xe-1")
+        if out is not None:
+            status = out!.software.state.status
+            if status == "in-progress":
+                saw_in_progress = True
+            elif status == "failed":
+                fail("IOS XE software upgrade failed")
+                return
+            elif status == "succeeded":
+                if not saw_in_progress:
+                    fail("IOS XE upgrade skipped the observable in-progress state")
+                elif out!.software.state.running_release != "17.18.3a":
+                    fail("IOS XE running release was not published")
+                else:
+                    finished = True
+                    t.success()
+                return
+        if attempts >= 500:
+            fail("timed out waiting for IOS XE software upgrade")
+        else:
+            after 0.01: poll_status()
+
+    def start_upgrade() -> None:
+        dev.software.upgrade_campaign = "xe-upgrade"
+        dev.software.target_release = "17.18.03a"
+        dev.software.image_url = \
+            "scp://root:labpass@10.0.0.9:/images/" + \
+            "c8000v-universalk9.17.18.03a.SPA.bin"
+
+        def on_upgrade(result):
+            if isinstance(result, Exception):
+                fail("failed to apply IOS XE software intent: {result}")
+            else:
+                poll_status()
+
+        tr.edit_config(root.to_gdata(), on_upgrade)
+
+    def wait_for_mock() -> None:
+        mgr = tr.dev_registry.get("xe-1")
+        if mgr is not None and \
+           "Cisco-IOS-XE-install-oper" in mgr!.get_modules().0:
+            # The mock attachment follows adapter construction asynchronously.
+            after 0.05: start_upgrade()
+        elif attempts >= 500:
+            fail("timed out waiting for IOS XE mock device")
+        else:
+            attempts += 1
+            after 0.01: wait_for_mock()
+
+    def on_device(result):
+        if isinstance(result, Exception):
+            fail("failed to create IOS XE mock device: {result}")
+        else:
+            wait_for_mock()
+
+    tr.edit_config(root.to_gdata(), on_device)

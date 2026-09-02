@@ -6,23 +6,15 @@ module software {
   import stratoweave {
     prefix sw;
   }
+  import fleetmgr {
+    prefix fleetmgr;
+  }
 
   container software {
-    list device {
-      key name;
-
-      sw:transform fleetmgr.cfs.Device;
-
-      leaf name {
-        type string;
-      }
-    }
-
     list upgrade-campaign {
       key name;
 
       sw:transform fleetmgr.cfs.UpgradeCampaign;
-
       leaf name {
         type string;
       }
@@ -31,9 +23,24 @@ module software {
         type string;
         mandatory true;
       }
-      leaf-list device {
-        description "Devices this campaign upgrades.";
+      leaf image-url {
+        description "Image URL used by devices that pull their own software.";
         type string;
+      }
+      leaf allow-staging {
+        description "Allow the image to be staged before the impacting step.";
+        type boolean;
+        default "false";
+      }
+      list device {
+        key name;
+        description "Devices this campaign upgrades.";
+        leaf name {
+          sw:link inventory;
+          type leafref {
+            path "/fleetmgr:fleet/fleetmgr:device/fleetmgr:name";
+          }
+        }
       }
       leaf admin-state {
         description
@@ -66,6 +73,9 @@ module software {
             type string;
           }
           leaf status {
+            type string;
+          }
+          leaf running-release {
             type string;
           }
         }

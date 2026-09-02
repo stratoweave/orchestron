@@ -1,0 +1,42 @@
+import file
+import process
+
+import stratoweave.build as swbuild
+import stratoweave.swyang as swyang
+import stratoweave.adapters.software_iosxe_yang as swxe_yang
+
+actor main(env):
+    fc = file.FileCap(env.cap)
+    rfc = file.ReadFileCap(fc)
+    common = file.ReadFile(rfc, "yang/common/fleetmgr-types.yang").read().decode()
+
+    cfs_layer = swbuild.Layer.from_dir(fc, "yang/cfs")
+    cfs_layer.models.extend([common, swyang.stratoweave, swyang.ietf_inet_types])
+    rfs_layer = swbuild.Layer.from_dir(fc, "yang/rfs")
+    rfs_layer.models.extend([common, swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types])
+
+    fleetmgr = swbuild.SysSpec("fleetmgr", [
+        cfs_layer,
+        rfs_layer,
+    ], [
+        swbuild.DeviceType("flotilla", models=[swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types])
+    ])
+
+    flotilla_rfs = swbuild.Layer([])
+    flotilla_rfs.models.extend([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types, swyang.ietf_yang_types])
+    iosxe = swbuild.DeviceType.from_dir(fc, "iosxe", "yang/dev-cpe")
+    iosxe.models.extend(swxe_yang.models)
+
+    flotilla = swbuild.SysSpec("flotilla", [
+        flotilla_rfs,
+    ], [
+        iosxe,
+    ])
+    try:
+        fleetmgr.compile().gen_app(fc, "../src/")
+        flotilla.compile().gen_app(fc, "../src/")
+    except Exception as exc:
+        print(exc)
+        env.exit(1)
+    else:
+        env.exit(0)

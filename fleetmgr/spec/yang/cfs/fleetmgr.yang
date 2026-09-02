@@ -1,0 +1,50 @@
+module fleetmgr {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:fleetmgr";
+  prefix fleetmgr;
+
+  import stratoweave {
+    prefix sw;
+  }
+  import fleetmgr-types {
+    prefix fleetmgr-types;
+  }
+
+  container fleet {
+    list node {
+      key name;
+
+      sw:transform fleetmgr.cfs.Node;
+
+      leaf name {
+        type string;
+      }
+
+      uses fleetmgr-types:device-options;
+    }
+
+    list device {
+      key name;
+
+      sw:transform fleetmgr.cfs.Device;
+
+      leaf name {
+        type string;
+      }
+
+      leaf type {
+        description "Device platform type understood by the owning flotilla.";
+        type string;
+        mandatory true;
+      }
+
+      leaf shard {
+        description "Name of the flotilla node that owns this device.";
+        type string;
+        mandatory true;
+      }
+
+      uses fleetmgr-types:device-options;
+    }
+  }
+}

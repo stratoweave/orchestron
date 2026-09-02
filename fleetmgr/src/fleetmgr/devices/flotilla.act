@@ -1,0 +1,629 @@
+import base64
+import json
+import std.xml as xml
+import yang.adata as yadata
+import yang.gdata as ygdata
+import yang.xml as yxml
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+import fleetmgr.devices.flotilla_schema
+
+# == This file is generated ==
+
+
+
+
+SRC_DNODE: DRoot = fleetmgr.devices.flotilla_schema.SRC_DNODE
+
+pure def src_yang() -> list[str]:
+    return fleetmgr.devices.flotilla_schema.src_yang()
+
+
+NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
+NS_stratoweave_rfs: str = 'http://stratoweave.org/yang/stratoweave-rfs'
+NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
+NS_ietf_yang_types: str = 'urn:ietf:params:xml:ns:yang:ietf-yang-types'
+
+
+_breaker1: None = None
+class stratoweave_rfs__device__address__initial_credentials_entry(yadata.MNode):
+    username: str
+    password: str
+    key: str
+
+    mut def __init__(self, username: str, password: str, key: str) -> None:
+        self.username = username
+        self.password = password
+        self.key = key
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address', 'initial-credentials'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__address__initial_credentials_entry:
+        return stratoweave_rfs__device__address__initial_credentials_entry(username=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'key')))
+
+    mut def copy(self) -> stratoweave_rfs__device__address__initial_credentials_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__address__initial_credentials_entry.from_gdata(self.to_gdata())
+
+_breaker2: None = None
+class stratoweave_rfs__device__address__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__address__initial_credentials_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+
+    mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__address__initial_credentials_entry:
+        e = self.get(key_)
+        if e is not None:
+            return e
+        (username=username, password=password, key=key) = key_
+        res = stratoweave_rfs__device__address__initial_credentials_entry(username=username, password=password, key=key)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__address__initial_credentials_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__address__initial_credentials_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__address__initial_credentials:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__address__initial_credentials(elements=copied_elements)
+
+
+_breaker3: None = None
+class stratoweave_rfs__device__address_entry(yadata.MNode):
+    name: str
+    address: ?str
+    port: ?u64
+    initial_credentials: stratoweave_rfs__device__address__initial_credentials
+
+    mut def __init__(self, name: str, address: ?str, port: ?u64, initial_credentials: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
+        self.name = name
+        self.address = address
+        self.port = port
+        self.initial_credentials = stratoweave_rfs__device__address__initial_credentials(elements=initial_credentials)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'address'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__address_entry:
+        return stratoweave_rfs__device__address_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), address=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'address')), port=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'port')), initial_credentials=stratoweave_rfs__device__address__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))))
+
+    mut def copy(self) -> stratoweave_rfs__device__address_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__address_entry.from_gdata(self.to_gdata())
+
+_breaker4: None = None
+class stratoweave_rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__device__address_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__address_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, address: ?str=None, port: ?u64=None) -> stratoweave_rfs__device__address_entry:
+        e = self.get(key)
+        if e is not None:
+            if address is not None:
+                e.address = address
+            if port is not None:
+                e.port = port
+            return e
+        name = key
+        res = stratoweave_rfs__device__address_entry(name=name, address=address, port=port)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__address_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__address_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__address:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__address(elements=copied_elements)
+
+
+_breaker5: None = None
+class stratoweave_rfs__device__credentials__key_entry(yadata.MNode):
+    key: str
+    private_key: ?str
+
+    mut def __init__(self, key: str, private_key: ?str) -> None:
+        self.key = key
+        self.private_key = private_key
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials', 'key'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__credentials__key_entry:
+        return stratoweave_rfs__device__credentials__key_entry(key=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'key')), private_key=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'private-key')))
+
+    mut def copy(self) -> stratoweave_rfs__device__credentials__key_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__credentials__key_entry.from_gdata(self.to_gdata())
+
+_breaker6: None = None
+class stratoweave_rfs__device__credentials__key(yadata.MKeyedList[str, stratoweave_rfs__device__credentials__key_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.key == k, elements)
+
+    mut def create(self, key_: str, private_key: ?str=None) -> stratoweave_rfs__device__credentials__key_entry:
+        e = self.get(key_)
+        if e is not None:
+            if private_key is not None:
+                e.private_key = private_key
+            return e
+        key = key_
+        res = stratoweave_rfs__device__credentials__key_entry(key=key, private_key=private_key)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__credentials__key_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__credentials__key_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__credentials__key:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__credentials__key(elements=copied_elements)
+
+
+_breaker7: None = None
+class stratoweave_rfs__device__credentials(yadata.MNode):
+    username: ?str
+    password: ?str
+    key: stratoweave_rfs__device__credentials__key
+
+    mut def __init__(self, username: ?str, password: ?str, key: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
+        self.username = username
+        self.password = password
+        self.key = stratoweave_rfs__device__credentials__key(elements=key)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'credentials'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__credentials:
+        if n is not None:
+            return stratoweave_rfs__device__credentials(username=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=stratoweave_rfs__device__credentials__key.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'key'))))
+        return stratoweave_rfs__device__credentials()
+
+    mut def copy(self) -> stratoweave_rfs__device__credentials:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__credentials.from_gdata(self.to_gdata())
+
+
+_breaker8: None = None
+class stratoweave_rfs__device__initial_credentials_entry(yadata.MNode):
+    username: str
+    password: str
+    key: str
+
+    mut def __init__(self, username: str, password: str, key: str) -> None:
+        self.username = username
+        self.password = password
+        self.key = key
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'initial-credentials'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__initial_credentials_entry:
+        return stratoweave_rfs__device__initial_credentials_entry(username=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'username')), password=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'password')), key=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'key')))
+
+    mut def copy(self) -> stratoweave_rfs__device__initial_credentials_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__initial_credentials_entry.from_gdata(self.to_gdata())
+
+_breaker9: None = None
+class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__initial_credentials_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__initial_credentials_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+
+    mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__initial_credentials_entry:
+        e = self.get(key_)
+        if e is not None:
+            return e
+        (username=username, password=password, key=key) = key_
+        res = stratoweave_rfs__device__initial_credentials_entry(username=username, password=password, key=key)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__initial_credentials_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__initial_credentials_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__initial_credentials:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__initial_credentials(elements=copied_elements)
+
+
+_breaker10: None = None
+class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
+    name: str
+    namespace: ?str
+    revision: ?str
+    feature: list[str]
+
+    mut def __init__(self, name: str, namespace: ?str, revision: ?str, feature: ?list[str]=None) -> None:
+        self.name = name
+        self.namespace = namespace
+        self.revision = revision
+        self.feature = feature if feature is not None else []
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock', 'module'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__mock__module_entry:
+        return stratoweave_rfs__device__mock__module_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), namespace=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'namespace')), revision=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'revision')), feature=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'feature')))
+
+    mut def copy(self) -> stratoweave_rfs__device__mock__module_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__mock__module_entry.from_gdata(self.to_gdata())
+
+_breaker11: None = None
+class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_rfs__device__mock__module_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, namespace: ?str=None, revision: ?str=None) -> stratoweave_rfs__device__mock__module_entry:
+        e = self.get(key)
+        if e is not None:
+            if namespace is not None:
+                e.namespace = namespace
+            if revision is not None:
+                e.revision = revision
+            return e
+        name = key
+        res = stratoweave_rfs__device__mock__module_entry(name=name, namespace=namespace, revision=revision)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__mock__module_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__mock__module_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__mock__module:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__mock__module(elements=copied_elements)
+
+
+_breaker12: None = None
+class stratoweave_rfs__device__mock(yadata.MNode):
+    enabled: ?bool
+    module: stratoweave_rfs__device__mock__module
+
+    mut def __init__(self, enabled: ?bool, module: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
+        self.enabled = enabled
+        self.module = stratoweave_rfs__device__mock__module(elements=module)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'mock'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__mock:
+        if n is not None:
+            return stratoweave_rfs__device__mock(enabled=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'enabled')), module=stratoweave_rfs__device__mock__module.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'module'))))
+        return stratoweave_rfs__device__mock()
+
+    mut def copy(self) -> stratoweave_rfs__device__mock:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__mock.from_gdata(self.to_gdata())
+
+
+_breaker13: None = None
+class stratoweave_rfs__device__debug(yadata.MNode):
+    connection: ?bool
+
+    mut def __init__(self, connection: ?bool) -> None:
+        self.connection = connection
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'debug'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__debug:
+        if n is not None:
+            return stratoweave_rfs__device__debug(connection=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'connection')))
+        return stratoweave_rfs__device__debug()
+
+    mut def copy(self) -> stratoweave_rfs__device__debug:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__debug.from_gdata(self.to_gdata())
+
+
+_breaker14: None = None
+class stratoweave_rfs__device__feature_flags(yadata.MNode):
+    runtime_schema_fetch: ?bool
+
+    mut def __init__(self, runtime_schema_fetch: ?bool) -> None:
+        self.runtime_schema_fetch = runtime_schema_fetch
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'feature-flags'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__feature_flags:
+        if n is not None:
+            return stratoweave_rfs__device__feature_flags(runtime_schema_fetch=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'runtime-schema-fetch')))
+        return stratoweave_rfs__device__feature_flags()
+
+    mut def copy(self) -> stratoweave_rfs__device__feature_flags:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__feature_flags.from_gdata(self.to_gdata())
+
+
+_breaker15: None = None
+class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
+    holder: str
+    reason: ?str
+
+    mut def __init__(self, holder: str, reason: ?str) -> None:
+        self.holder = holder
+        self.reason = reason
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software', 'veto'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device__software__veto_entry:
+        return stratoweave_rfs__device__software__veto_entry(holder=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'holder')), reason=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'reason')))
+
+    mut def copy(self) -> stratoweave_rfs__device__software__veto_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software__veto_entry.from_gdata(self.to_gdata())
+
+_breaker16: None = None
+class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave_rfs__device__software__veto_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.holder == k, elements)
+
+    mut def create(self, key: str, reason: ?str=None) -> stratoweave_rfs__device__software__veto_entry:
+        e = self.get(key)
+        if e is not None:
+            if reason is not None:
+                e.reason = reason
+            return e
+        holder = key
+        res = stratoweave_rfs__device__software__veto_entry(holder=holder, reason=reason)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device__software__veto_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device__software__veto_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device__software__veto:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device__software__veto(elements=copied_elements)
+
+
+_breaker17: None = None
+class stratoweave_rfs__device__software(yadata.MNode):
+    upgrade_campaign: ?str
+    target_release: ?str
+    image_url: ?str
+    allow_staging: ?bool
+    veto: stratoweave_rfs__device__software__veto
+
+    mut def __init__(self, upgrade_campaign: ?str, target_release: ?str, image_url: ?str, allow_staging: ?bool, veto: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
+        self.upgrade_campaign = upgrade_campaign
+        self.target_release = target_release
+        self.image_url = image_url
+        self.allow_staging = allow_staging
+        self.veto = stratoweave_rfs__device__software__veto(elements=veto)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'software'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__software:
+        if n is not None:
+            return stratoweave_rfs__device__software(upgrade_campaign=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'upgrade-campaign')), target_release=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'target-release')), image_url=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'image-url')), allow_staging=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'allow-staging')), veto=stratoweave_rfs__device__software__veto.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'veto'))))
+        return stratoweave_rfs__device__software()
+
+    mut def copy(self) -> stratoweave_rfs__device__software:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__software.from_gdata(self.to_gdata())
+
+
+_breaker18: None = None
+class stratoweave_rfs__device_entry(yadata.MNode):
+    name: str
+    description: ?str
+    type: ?str
+    address: stratoweave_rfs__device__address
+    credentials: stratoweave_rfs__device__credentials
+    initial_credentials: stratoweave_rfs__device__initial_credentials
+    approval_required: ?bool
+    mock: stratoweave_rfs__device__mock
+    debug: stratoweave_rfs__device__debug
+    feature_flags: stratoweave_rfs__device__feature_flags
+    software: stratoweave_rfs__device__software
+
+    mut def __init__(self, name: str, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, software: ?stratoweave_rfs__device__software=None) -> None:
+        self.name = name
+        self.description = description
+        self.type = type
+        self.address = stratoweave_rfs__device__address(elements=address)
+        self.credentials = credentials if credentials is not None else stratoweave_rfs__device__credentials()
+        self.initial_credentials = stratoweave_rfs__device__initial_credentials(elements=initial_credentials)
+        self.approval_required = approval_required
+        self.mock = mock if mock is not None else stratoweave_rfs__device__mock()
+        self.debug = debug if debug is not None else stratoweave_rfs__device__debug()
+        self.feature_flags = feature_flags if feature_flags is not None else stratoweave_rfs__device__feature_flags()
+        self.software = software if software is not None else stratoweave_rfs__device__software()
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device_entry:
+        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), software=stratoweave_rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'software'))))
+
+    mut def copy(self) -> stratoweave_rfs__device_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device_entry.from_gdata(self.to_gdata())
+
+_breaker19: None = None
+class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str, description: ?str=None, type: ?str=None, approval_required: ?bool=None) -> stratoweave_rfs__device_entry:
+        e = self.get(key)
+        if e is not None:
+            if description is not None:
+                e.description = description
+            if type is not None:
+                e.type = type
+            if approval_required is not None:
+                e.approval_required = approval_required
+            return e
+        name = key
+        res = stratoweave_rfs__device_entry(name=name, description=description, type=type, approval_required=approval_required)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__device_entry]:
+        if n is not None:
+            return [stratoweave_rfs__device_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__device:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__device(elements=copied_elements)
+
+
+_breaker20: None = None
+class stratoweave_rfs__rfs_entry(yadata.MNode):
+    name: str
+
+    mut def __init__(self, name: str) -> None:
+        self.name = name
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:rfs'])
+
+    @staticmethod
+    mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__rfs_entry:
+        return stratoweave_rfs__rfs_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')))
+
+    mut def copy(self) -> stratoweave_rfs__rfs_entry:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__rfs_entry.from_gdata(self.to_gdata())
+
+_breaker21: None = None
+class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
+    mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
+        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+
+    mut def create(self, key: str) -> stratoweave_rfs__rfs_entry:
+        e = self.get(key)
+        if e is not None:
+            return e
+        name = key
+        res = stratoweave_rfs__rfs_entry(name=name)
+        self.elements.append(res)
+        return res
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.List) -> list[stratoweave_rfs__rfs_entry]:
+        if n is not None:
+            return [stratoweave_rfs__rfs_entry.from_gdata(e) for e in n.elements]
+        return []
+
+    mut def copy(self) -> stratoweave_rfs__rfs:
+        """Create a deep copy of this list object"""
+        # Copy each element in the list
+        copied_elements = []
+        for e in self:
+            ce = e.copy()
+            if ce is not None:
+                copied_elements.append(ce)
+        return stratoweave_rfs__rfs(elements=copied_elements)
+
+
+_breaker22: None = None
+class root(yadata.MNode):
+    device: stratoweave_rfs__device
+    rfs: stratoweave_rfs__rfs
+
+    mut def __init__(self, device: list[stratoweave_rfs__device_entry]=[], rfs: list[stratoweave_rfs__rfs_entry]=[]) -> None:
+        self.device = stratoweave_rfs__device(elements=device)
+        self.rfs = stratoweave_rfs__rfs(elements=rfs)
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True)
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> root:
+        if n is not None:
+            return root(device=stratoweave_rfs__device.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'device'))), rfs=stratoweave_rfs__rfs.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'rfs'))))
+        return root()
+
+    mut def copy(self) -> root:
+        """Create a deep copy of this adata object"""
+        return root.from_gdata(self.to_gdata())
+
+
+actor rpc_root(tp: ygdata.TreeProvider):
+    pass
+

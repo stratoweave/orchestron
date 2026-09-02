@@ -110,6 +110,7 @@ class CompiledSysSpec(object):
         syssrc += "import {self.name}.device_types as sw_device_types\n"
         syssrc_getlayers = "def get_layers(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None, db: ?swdb.Store=None):\n"
         syssrc_schema_for_layer = "def schema_for_layer(layer):\n"
+        syssrc_oper_schema_for_layer = "def oper_schema_for_layer(layer):\n"
         for (idx, layer) in reversed(list(enumerate(self.layers))):
             print("Generating layer {idx}")
             layer_name = layer.name
@@ -131,6 +132,7 @@ class CompiledSysSpec(object):
 
             syssrc += "import {self.name}.layers.t_{idx} as t_{idx}\n"
             syssrc += "import {self.name}.layers.y_{idx} as y_{idx}\n"
+            syssrc += "import {self.name}.layers.y_{idx}_oper as y_{idx}_oper\n"
             print("Generating base & TTT(?) for layer {idx}")
 
             # Not for the last layer
@@ -170,6 +172,8 @@ class CompiledSysSpec(object):
 """
 
             syssrc_schema_for_layer += "        return y_{idx}.SRC_DNODE\n"
+            syssrc_oper_schema_for_layer += "    if layer == {idx}:\n"
+            syssrc_oper_schema_for_layer += "        return y_{idx}_oper.SRC_DNODE\n"
 
             loose_name = "{output_dir}/{self.name}/layers/y_{idx}_loose.act"
             if _maybe_write_file(fc, loose_name, layer.print(loose=True, exclude_ext=_SW_EXCLUDE_EXT)):
@@ -179,6 +183,7 @@ class CompiledSysSpec(object):
 
         syssrc_getlayers += "    return layer0\n"
         syssrc_schema_for_layer += "    raise ValueError('Invalid layer: {{layer}}')"
+        syssrc_oper_schema_for_layer += "    raise ValueError('Invalid layer: {{layer}}')"
 
         syssrc_devtypes = ""
         device_typesrc = "# This file is generated only when missing.\n"
@@ -230,13 +235,14 @@ class CompiledSysSpec(object):
         print("Generating app sysspec.act")
         syssrc += "\n{syssrc_getlayers}\n"
         syssrc += "\n{syssrc_schema_for_layer}\n"
+        syssrc += "\n\n{syssrc_oper_schema_for_layer}\n"
         syssrc += "\n\ngenerated_device_types: dict[str, swdev.DeviceType] = {{\n"
         syssrc += syssrc_devtypes
         syssrc += "}}\n"
         syssrc += "\ndevice_types: dict[str, swdev.DeviceType] = dict(\n"
         syssrc += "    list(generated_device_types.items()) + list(sw_device_types.device_types.items())\n"
         syssrc += ")"
-        syssrc += "\n\nSYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer)\n"
+        syssrc += "\n\nSYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer, oper_schema_for_layer)\n"
         if _write_file_if_missing(fc, "{output_dir}/{self.name}/device_types.act", device_typesrc):
             print("+ App device_types.act created")
         else:
