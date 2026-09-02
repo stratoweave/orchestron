@@ -147,6 +147,94 @@ def new_netconf_mock_device_mgr(t: testing.EnvT, name: str, on_reconf: action(st
 #################################################################################
 ## Tests
 #################################################################################
+actor _test_software_dmc_preserves_system_mock_adapter(t: testing.EnvT):
+    """Software intent must not replace the device transport adapter."""
+    old_datetime = "2026-02-21T10:11:12Z"
+
+    def noop_on_reconf(name: str):
+        pass
+    schema = yang.compile([IETF_SYSTEM_YANG])
+    dev_types = {
+        "netconf": swdev.DeviceType(
+            name="netconf",
+            adapter_type=swna.NetconfAdapter,
+            src_dnode=schema,
+        )
+    }
+    dev: swdev.DeviceMgr = swdev.DeviceMgr(
+        dev_types,
+        None,
+        "dev-software-dmc",
+        t.log_handler,
+        noop_on_reconf,
+        swdev.SchemaRegistry(),
+    )
+    dev.set_dmc(make_netconf_mock_dmc("dev-software-dmc"))
+    var done = False
+
+    def fail(msg: str) -> None:
+        if not done:
+            done = True
+            t.failure(ValueError(msg))
+
+    def on_reply(root: ?ygdata.Node, error: ?Exception) -> None:
+        if error is not None:
+            fail("software-only DMC update lost the NETCONF mock RPC handler: {error}")
+        elif root is None or root!.get_opt_str(_q("old-datetime")) != old_datetime:
+            fail("software-only DMC update replaced the NETCONF adapter")
+        elif not done:
+            done = True
+            t.success()
+
+    def update_software() -> None:
+        updated = make_netconf_mock_dmc("dev-software-dmc")
+        updated.software.upgrade_campaign = "xe-upgrade"
+        updated.software.target_release = "17.18.03a"
+        dev.set_dmc(updated)
+        def invoke_rpc() -> None:
+            dev.rpc(on_reply, ygdata.Container({
+                _q("set-clock"): ygdata.Container({
+                    _q("new-datetime"): ygdata.Leaf("2026-03-01T00:00:00Z")
+                })
+            }))
+        after 0.05: invoke_rpc()
+
+    def start() -> None:
+        if IETF_SYSTEM_MODULE not in dev.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async dev.get_adapter()
+        adapter = await msg
+        if isinstance(adapter, swna.NetconfAdapter):
+            mock_server = adapter.get_mock_server()
+            if mock_server is None:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+                return
+
+            def on_rpc(request: xml.Node,
+                       respond: action(children: ?list[xml.Node], tag: ?str, message: ?str) -> None) -> None:
+                if request.tag == "set-clock":
+                    out = ygdata.Container({
+                        _q("old-datetime"): ygdata.Leaf(
+                            old_datetime,
+                            ns=IETF_SYSTEM_NS,
+                            module=IETF_SYSTEM_MODULE,
+                        )
+                    })
+                    respond(out.to_xml(deterministic=True))
+                else:
+                    respond(tag="operation-not-supported",
+                            message="mock does not do {request.tag}")
+
+            mock_server!.set_rpc_cb(on_rpc)
+            update_software()
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+    after 2.0: fail("Timed out checking adapter preservation")
+
+
 actor _test_get_yang_library(t: testing.EnvT):
     """ietf-yang-library discovery against the mock NETCONF server.
 
