@@ -16,8 +16,8 @@ module fleetmgr-rfs {
   augment "/sw-rfs:rfs" {
     container flotilla-status {
       description
-        "One whole-datastore operational feed from this flotilla. Device
-         status is normalized here before CFS campaigns aggregate it.";
+        "One subtree-filtered operational feed from this flotilla. Per-device
+         software state is normalized here before CFS campaigns aggregate it.";
 
       sw:rfs-transform fleetmgr.rfs.FlotillaStatus;
 

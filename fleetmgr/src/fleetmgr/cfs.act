@@ -56,8 +56,8 @@ class Node(base.Node):
         dev.debug.connection = i.debug.connection
         dev.feature_flags.runtime_schema_fetch = i.feature_flags.runtime_schema_fetch
 
-        # One collector per flotilla observes the complete bottom RFS
-        # operational datastore. Per-device status is filtered locally.
+        # One collector per flotilla observes only device software state from
+        # the bottom RFS datastore. Per-campaign membership is filtered locally.
         o.rfs.create(i.name).flotilla_status.enabled = True
         return o
 

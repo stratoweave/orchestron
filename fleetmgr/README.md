@@ -14,7 +14,7 @@ an IOS XE device.
         -> IOS XE adapter -> physical or mock IOS XE device
 
     flotilla operational datastore
-        -> one periodic full-store subscription per flotilla
+        -> one periodic /device/software/state subscription per flotilla
         -> fleetmgr RFS /rfs{flotilla-1}/flotilla-status
         -> fleetmgr CFS /software/upgrade-campaign/state
 
@@ -92,10 +92,11 @@ each member's shard before merging all software intent into the same RFS device
 entry.
 
 The RFS transform renders that entry directly into the flotilla's standard
-`/device` schema. A second RFS transform maintains one unfiltered, periodic
-whole-datastore subscription to each flotilla. It normalizes device software
-status locally; campaign transforms then select and aggregate only their own
-members. This avoids one southbound subscription per device or campaign.
+`/device` schema. A second RFS transform maintains one periodic subtree-filtered
+subscription to `/device/software/state` on each flotilla. It normalizes that
+state locally; campaign transforms then select and aggregate only their own
+members. This avoids both full-datastore pushes and one southbound subscription
+per device or campaign.
 
 `flotilla` supplies only one modeled layer, the standard RFS. StratoWeave adds
 the implicit device layer beneath it.

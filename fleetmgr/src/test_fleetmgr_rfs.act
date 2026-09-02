@@ -1,10 +1,12 @@
 import testing
+import yang.gdata as ygdata
 
 import stratoweave.adapters.adapter as swadapt
 import stratoweave.ttt as ttt
 
 import fleetmgr.rfs as rfs
 import fleetmgr.devices.flotilla as flotilla
+import fleetmgr.devices.flotilla_oper as flotilla_oper
 from fleetmgr.layers.y_1 import \
     stratoweave_rfs__rfs__device__address_entry as InputAddress, \
     stratoweave_rfs__rfs__device__credentials as InputCredentials, \
@@ -82,3 +84,33 @@ actor _test_device_transform(t: testing.AsyncT):
         t.failure(ValueError("software veto was not rendered"))
     else:
         t.success()
+
+
+def _test_flotilla_status_filter():
+    """The collector selects state for every device without leaking config."""
+    root = flotilla_oper.root()
+    first = root.device.create("cpe-1", description="must not be pushed")
+    first.software.target_release = "17.18.03a"
+    first.software.state.status = "in-progress"
+    first.software.state.running_release = "17.18.02"
+    second = root.device.create("cpe-2", description="must not be pushed")
+    second.software.state.status = "succeeded"
+
+    # TTT adapts an external named filter to its implicit root container.
+    rooted_filter = ygdata.FNode(children=[rfs.flotilla_status_filter()])
+    selected = ygdata.filter(root.to_gdata(), rooted_filter)
+    testing.assertEqual(selected is None, False)
+    out = flotilla_oper.root.from_gdata(selected!)
+
+    count = 0
+    for _ in out.device:
+        count += 1
+    testing.assertEqual(count, 2)
+    testing.assertEqual(out.device.get("cpe-1")!.description, None)
+    testing.assertEqual(out.device.get("cpe-1")!.software.target_release, None)
+    testing.assertEqual(out.device.get("cpe-1")!.software.state.status,
+                        "in-progress")
+    testing.assertEqual(out.device.get("cpe-1")!.software.state.running_release,
+                        "17.18.02")
+    testing.assertEqual(out.device.get("cpe-2")!.software.state.status,
+                        "succeeded")

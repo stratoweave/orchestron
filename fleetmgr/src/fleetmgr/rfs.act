@@ -19,12 +19,17 @@ class FlotillaStatus(base.FlotillaStatus):
         return flotilla.root()
 
 
+def flotilla_status_filter() -> ygdata.FNode:
+    """Select software operational state for every device in a flotilla."""
+    return flotilla_oper.subs.device.software.state.filt()!
+
+
 actor FlotillaStatusTransform(
     path,
     update_oper: proc(?y1_oper.stratoweave_rfs__rfs__flotilla_status) -> None,
     dev: swdev.DeviceMgr,
 ):
-    """Normalize one whole-datastore feed from a flotilla."""
+    """Normalize one filtered software-state feed from a flotilla."""
     var subscriptions: ?ygdata.SubscriptionManager = None
     var destination: ?ygdata.Dst = None
 
@@ -54,7 +59,7 @@ actor FlotillaStatusTransform(
         want: set[ygdata.Delivery] = set()
         if conf.enabled != False:
             want.add(destination!.deliver({
-                ygdata.SubscriptionSpec(None, period=0.25),
+                ygdata.SubscriptionSpec(flotilla_status_filter(), period=0.25),
             }))
         subscriptions!.declare(want)
 
