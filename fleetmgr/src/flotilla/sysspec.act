@@ -13,8 +13,10 @@ import stratoweave.ttt as ttt
 import flotilla.device_types as sw_device_types
 import flotilla.layers.t_1 as t_1
 import flotilla.layers.y_1 as y_1
+import flotilla.layers.y_1_oper as y_1_oper
 import flotilla.layers.t_0 as t_0
 import flotilla.layers.y_0 as y_0
+import flotilla.layers.y_0_oper as y_0_oper
 import flotilla.devices.iosxe as dev_iosxe
 import flotilla.devices.iosxe_oper as dev_iosxe_oper
 
@@ -38,6 +40,14 @@ def schema_for_layer(layer):
     raise ValueError('Invalid layer: {layer}')
 
 
+def oper_schema_for_layer(layer):
+    if layer == 1:
+        return y_1_oper.SRC_DNODE
+    if layer == 0:
+        return y_0_oper.SRC_DNODE
+    raise ValueError('Invalid layer: {layer}')
+
+
 generated_device_types: dict[str, swdev.DeviceType] = {
     "iosxe": swdev.DeviceType(name="iosxe",
             adapter_type=swna.NetconfAdapter,
@@ -50,4 +60,4 @@ device_types: dict[str, swdev.DeviceType] = dict(
     list(generated_device_types.items()) + list(sw_device_types.device_types.items())
 )
 
-SYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer)
+SYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer, oper_schema_for_layer)

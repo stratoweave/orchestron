@@ -13,10 +13,13 @@ import stratoweave.ttt as ttt
 import fleetmgr.device_types as sw_device_types
 import fleetmgr.layers.t_2 as t_2
 import fleetmgr.layers.y_2 as y_2
+import fleetmgr.layers.y_2_oper as y_2_oper
 import fleetmgr.layers.t_1 as t_1
 import fleetmgr.layers.y_1 as y_1
+import fleetmgr.layers.y_1_oper as y_1_oper
 import fleetmgr.layers.t_0 as t_0
 import fleetmgr.layers.y_0 as y_0
+import fleetmgr.layers.y_0_oper as y_0_oper
 import fleetmgr.devices.flotilla as dev_flotilla
 import fleetmgr.devices.flotilla_oper as dev_flotilla_oper
 
@@ -43,6 +46,16 @@ def schema_for_layer(layer):
     raise ValueError('Invalid layer: {layer}')
 
 
+def oper_schema_for_layer(layer):
+    if layer == 2:
+        return y_2_oper.SRC_DNODE
+    if layer == 1:
+        return y_1_oper.SRC_DNODE
+    if layer == 0:
+        return y_0_oper.SRC_DNODE
+    raise ValueError('Invalid layer: {layer}')
+
+
 generated_device_types: dict[str, swdev.DeviceType] = {
     "flotilla": swdev.DeviceType(name="flotilla",
             adapter_type=swna.NetconfAdapter,
@@ -55,4 +68,4 @@ device_types: dict[str, swdev.DeviceType] = dict(
     list(generated_device_types.items()) + list(sw_device_types.device_types.items())
 )
 
-SYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer)
+SYSSPEC = swapp.SysSpec(device_types, get_layers, schema_for_layer, oper_schema_for_layer)
