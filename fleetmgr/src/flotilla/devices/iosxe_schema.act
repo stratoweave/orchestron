@@ -1,0 +1,208 @@
+import base64
+import yang.xpath as yxpath
+from yang.identityref import Identityref, PartialIdentityref
+from yang.pattern import YangPattern
+from yang.schema import *
+from yang.type import Decimal, Ranges
+
+# == This file is generated ==
+
+
+_identities: list[DIdentity] = []
+
+
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='cpe-device', namespace='urn:fleetmgr:cpe-device', prefix='cpe', name='system', config=True, presence=False, children=[
+    DLeaf(module='cpe-device', namespace='urn:fleetmgr:cpe-device', prefix='cpe', name='hostname', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+])
+
+SRC_DNODE_RPC_0: DRpc = DRpc(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='install', input=DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, description='Correlates the operation with its records in\ninstall-oper-data. The real module caps this at 128 characters on\nsome RPCs and not others.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='one-shot', config=False, mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='path', config=False, description="bootflash:<filename> to add an already-staged file. The\nreal module limits this to 256 characters, where xcopy's paths allow\n4096, so a URL xcopy accepts can be too long here.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, description='Correlates the operation with its records in\ninstall-oper-data. The real module caps this at 128 characters on\nsome RPCs and not others.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='one-shot', config=False, mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='path', config=False, description="bootflash:<filename> to add an already-staged file. The\nreal module limits this to 256 characters, where xcopy's paths allow\n4096, so a URL xcopy accepts can be too long here.", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_1: DRpc = DRpc(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='xcopy', input=DInput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='source-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='destination-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), output=DOutput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='source-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='destination-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ]),
+    DOutput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE: DRoot = DRoot(
+    children=[SRC_DNODE_CHILD_0],
+    identities=[],
+    rpcs=[SRC_DNODE_RPC_0, SRC_DNODE_RPC_1],
+    module_metadata={'http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper':('Cisco-IOS-XE-device-hardware-oper', None), 'http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper':('Cisco-IOS-XE-install-oper', None), 'http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc':('Cisco-IOS-XE-install-rpc', None), 'http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc':('Cisco-IOS-XE-xcopy-rpc', None), 'urn:fleetmgr:cpe-device':('cpe-device', None)},
+)
+
+SRC_YANG_0: str = r"""module cpe-device {
+  yang-version "1.1";
+  namespace "urn:fleetmgr:cpe-device";
+  prefix cpe;
+
+  container system {
+    leaf hostname {
+      type string;
+    }
+  }
+}
+"""
+
+SRC_YANG_1: str = r"""module Cisco-IOS-XE-xcopy-rpc {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc";
+  prefix xcopy-ios-xe-rpc;
+
+  description
+    "Pruned to the file copy that stages an image. The device fetches it
+     itself, over scp, ftp, http or https; the URL must therefore be reachable
+     from the device rather than from us.
+
+     The destination is a bare filename: the device prepends /bootflash itself,
+     so passing a path doubles it and the operation fails.
+
+     Unlike the install RPCs, which are input-only, xcopy declares an output. It
+     must be declared here too: the reply is parsed against this schema, and an
+     undeclared output fails the call with 'Unexpected rpc-reply' after the
+     device has already transferred the image. The output carries only the uuid
+     we sent, so it confirms nothing about the copy -- progress is read from
+     install-oper-data like everything else.";
+
+  rpc xcopy {
+    input {
+      leaf uuid { type string; }
+      leaf source-path { type string; }
+      leaf destination-path { type string; }
+    }
+    output {
+      leaf uuid { type string; }
+    }
+  }
+}
+"""
+
+SRC_YANG_2: str = r"""module Cisco-IOS-XE-install-rpc {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc";
+  prefix install-ios-xe-rpc;
+
+  description
+    "Pruned to `install`, which is the only install RPC the MVP sends. The real
+     module has ten, all of them input-only: they reply <ok/> meaning accepted,
+     and progress arrives in install-oper-data under the uuid.
+
+     With `one-shot` set, `install` adds the image, activates it, commits and
+     reloads. The adapter does not send a separate `activate` RPC.";
+
+  rpc install {
+    input {
+      leaf uuid {
+        description "Correlates the operation with its records in
+          install-oper-data. The real module caps this at 128 characters on
+          some RPCs and not others.";
+        type string;
+        mandatory true;
+      }
+      leaf one-shot { type boolean; }
+      leaf path {
+        description "bootflash:<filename> to add an already-staged file. The
+          real module limits this to 256 characters, where xcopy's paths allow
+          4096, so a URL xcopy accepts can be too long here.";
+        type string;
+      }
+    }
+  }
+}
+"""
+
+SRC_YANG_3: str = r"""module Cisco-IOS-XE-install-oper {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-install-oper";
+  prefix install-ios-xe-oper;
+
+  description
+    "Pruned to the operation records, which are how an asynchronous install
+     reports progress. One RPC produces several records sharing an op-uuid and
+     differing in op-id, and a record moves from install-oper to
+     install-oper-hist when it finishes -- so both lists have to be read.";
+
+  container install-oper-data {
+    config false;
+
+    list install-oper {
+      description "Operations currently executing.";
+      leaf op-uuid   { type string; }
+      leaf op-id     { type string; }
+      leaf op-status { type string; }
+      leaf op-done   { type string; }
+      list install-txn-summary-op {
+        leaf txn-cmd    { type string; }
+        leaf txn-status { type string; }
+      }
+    }
+
+    list install-oper-hist {
+      description "Finished operations retained by the device. Each attempt
+        needs a new uuid.";
+      leaf op-uuid   { type string; }
+      leaf op-id     { type string; }
+      leaf op-status { type string; }
+      leaf op-done   { type string; }
+      list install-txn-sum-op-hist {
+        leaf txn-cmd    { type string; }
+        leaf txn-status { type string; }
+      }
+    }
+  }
+}
+"""
+
+SRC_YANG_4: str = r"""module Cisco-IOS-XE-device-hardware-oper {
+  yang-version "1.1";
+  namespace "http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper";
+  prefix device-hardware-ios-xe-oper;
+
+  description
+    "Pruned to the running release, which is how the impacting step is known to
+     have landed.";
+
+  container device-hardware-data {
+    config false;
+    container device-hardware {
+      container device-system-data {
+        leaf software-version {
+          description "Carries a whole banner line, not a bare version:
+            'Cisco IOS XE Software, Version 17.18.02'.";
+          type string;
+        }
+      }
+    }
+  }
+}
+"""
+
+pure def src_yang() -> list[str]:
+    return [
+        SRC_YANG_0,
+        SRC_YANG_1,
+        SRC_YANG_2,
+        SRC_YANG_3,
+        SRC_YANG_4,
+    ]
+

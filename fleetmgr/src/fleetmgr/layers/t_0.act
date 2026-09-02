@@ -19,8 +19,10 @@ def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: 
 
 def _build_target_links_software__software__upgrade_campaign_entry(conf: ygdata.Node) -> list[ttt.TaggedPath]:
     res = []
-    # static link: inventory
-    res.append(ttt.TaggedPath('inventory', ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "fleet"), children=[ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "device"))])))
+    # leafref link: inventory
+    _ll0 = conf.get_opt_values(ygdata.Id("urn:fleetmgr:software", "device"))
+    for _v0 in _ll0:
+        res.append(ttt.TaggedPath('inventory', ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "fleet"), children=[ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "device"), children=[ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "name"), value_match=_v0)])])))
     return res
 def UpgradeCampaignTransformCtor(params: ttt.TransformActorParams) -> ?proc(ygdata.Node, ?ygdata.Node) -> None:
     def update_oper_type_wrapper(oper: ?y_0_oper.software__software__upgrade_campaign_entry):

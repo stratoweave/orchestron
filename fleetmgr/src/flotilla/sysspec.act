@@ -15,8 +15,8 @@ import flotilla.layers.t_1 as t_1
 import flotilla.layers.y_1 as y_1
 import flotilla.layers.t_0 as t_0
 import flotilla.layers.y_0 as y_0
-import flotilla.devices.cpe as dev_cpe
-import flotilla.devices.cpe_oper as dev_cpe_oper
+import flotilla.devices.iosxe as dev_iosxe
+import flotilla.devices.iosxe_oper as dev_iosxe_oper
 
 def get_layers(dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None, db: ?swdb.Store=None):
     layer1 = ttt.Layer('1', t_1.get_ttt(None, dev_registry, log_handler), None, db)
@@ -39,10 +39,10 @@ def schema_for_layer(layer):
 
 
 generated_device_types: dict[str, swdev.DeviceType] = {
-    "cpe": swdev.DeviceType(name="cpe",
+    "iosxe": swdev.DeviceType(name="iosxe",
             adapter_type=swna.NetconfAdapter,
-            src_dnode=dev_cpe.SRC_DNODE,
-            oper_src_dnode=dev_cpe_oper.SRC_DNODE,
+            src_dnode=dev_iosxe.SRC_DNODE,
+            oper_src_dnode=dev_iosxe_oper.SRC_DNODE,
         ),
 }
 

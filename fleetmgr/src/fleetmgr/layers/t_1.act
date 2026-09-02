@@ -7,10 +7,18 @@ import logging
 import stratoweave.device as swdev
 import stratoweave.ttt as ttt
 import yang.gdata as ygdata
+import fleetmgr.layers.y_1_oper as y_1_oper
 
 import fleetmgr.rfs as rfs
 
+from fleetmgr.layers.y_1 import stratoweave_rfs__rfs__flotilla_status
 
 def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: ?logging.Handler=None) -> proc(ttt.Path,?ttt.Layer)->ttt.Node:
-    r = ttt.Container({ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "device"): ttt.List(ttt.Device(dev_registry, log_handler), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs'), ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "rfs"): ttt.List(ttt.Container({ygdata.Id("urn:fleetmgr:rfs", "device"): ttt.List(ttt.RFSTransform(rfs.Device, dev_registry, None, lower, log_handler), [ygdata.Id("urn:fleetmgr:rfs", "name")], ns='urn:fleetmgr:rfs', module='fleetmgr-rfs')}), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs')})
+    r = ttt.Container({ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "device"): ttt.List(ttt.Device(dev_registry, log_handler), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs'), ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "rfs"): ttt.List(ttt.Container({ygdata.Id("urn:fleetmgr:rfs", "flotilla-status"): ttt.RFSTransform(rfs.FlotillaStatus, dev_registry, FlotillaStatusTransformCtor, lower, log_handler), ygdata.Id("urn:fleetmgr:rfs", "device"): ttt.List(ttt.RFSTransform(rfs.Device, dev_registry, None, lower, log_handler), [ygdata.Id("urn:fleetmgr:rfs", "name")], ns='urn:fleetmgr:rfs', module='fleetmgr-rfs')}), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs')})
     return r
+
+def FlotillaStatusTransformCtor(params: ttt.TransformActorParams) -> ?proc(ygdata.Node, ?ygdata.Node) -> None:
+    def update_oper_type_wrapper(oper: ?y_1_oper.stratoweave_rfs__rfs__flotilla_status):
+        params.update_oper(oper.to_gdata() if oper is not None else None)
+    act = rfs.FlotillaStatusTransform(params.path, update_oper_type_wrapper, params.dev!)
+    return proc lambda c, m: act.on_conf(stratoweave_rfs__rfs__flotilla_status.from_gdata(c))
