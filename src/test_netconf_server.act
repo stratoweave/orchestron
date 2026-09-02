@@ -11,9 +11,13 @@ Two angles, both against a real TTT layer:
 YANG-push subscriptions are served per session by a TttSubscriptionService, and
 covered over the pipe: a periodic establish-subscription is accepted (returns a
 subscription-id), a raw on-change establish-subscription is rejected with an
-rpc-error (the client helper only builds periodic requests), and two sessions on
-one TTT layer stay isolated, with a datastore change reaching both. A loopback-SSH
-test also checks that a session's subscriptions are released when it closes.
+rpc-error (the client helper only builds periodic requests), a subtree filter
+narrows the push to the selected nodes (a container leaf, and one keyed list
+entry's oper subtree using the filter XML the device adapter emits), a filter
+outside the schema and an xpath filter are rejected without allocating an id,
+and two sessions on one TTT layer stay isolated, with a datastore change
+reaching both. A loopback-SSH test also
+checks that a session's subscriptions are released when it closes.
 """
 
 import logging
@@ -29,6 +33,7 @@ import yang.gdata as gdata
 import yang.schema as yschema
 
 import netconf_server as swnetconf
+import yp
 
 
 DEMO_NS = "urn:demo"
@@ -45,6 +50,62 @@ DEMO_YANG = r"""module demo {
 
 def _q(n: str) -> gdata.Id:
     return gdata.Id(DEMO_NS, n)
+
+
+# A fleet-shaped schema for the keyed-entry subscription test: /device{name}
+# with config under software and oper state under software/state, the shape a
+# top-tier fleet manager asks a flotilla for.
+FLEET_NS = "urn:demo-fleet"
+FLEET_YANG = r"""module demo-fleet {
+  yang-version "1.1";
+  namespace "urn:demo-fleet";
+  prefix df;
+  list device {
+    key name;
+    leaf name { type string; }
+    container software {
+      leaf target { type string; }
+      container state {
+        config false;
+        leaf status { type string; }
+      }
+    }
+  }
+}"""
+
+
+def _fq(n: str) -> gdata.Id:
+    return gdata.Id(FLEET_NS, n)
+
+
+class _FleetOperTransform(ttt.TransformFunction):
+    def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
+        return gdata.Container(), None
+
+
+actor _FleetOperPublisher(path: ttt.Path, update_oper: proc(?gdata.Node) -> None):
+    """Publishes software/state/status = "up-<name>" for one device entry."""
+    def on_conf(conf: gdata.Node, memory: ?gdata.Node):
+        name = conf.get_opt_str(_fq("name"))
+        if name is not None:
+            update_oper(gdata.Container({
+                _fq("software"): gdata.Container({
+                    _fq("state"): gdata.Container({
+                        _fq("status"): gdata.Leaf("up-" + name),
+                    }),
+                }),
+            }))
+
+
+def _fleet_oper_publisher(params: ttt.TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None:
+    act = _FleetOperPublisher(params.path, params.update_oper)
+    return act.on_conf
+
+
+def _fleet_layer() -> ttt.Layer:
+    return ttt.Layer("top", ttt.Container({
+        _fq("device"): ttt.List(ttt.Transform(_FleetOperTransform, _fleet_oper_publisher), [_fq("name")]),
+    }), None)
 
 
 def _demo_schema() -> yschema.DRoot:
@@ -529,3 +590,222 @@ actor _test_ssh_session_cleanup(t: testing.EnvT):
     server = swnetconf.NetconfServer(listen_cap, log_handler=lh, top_schema=schema, cfs=layer, address="127.0.0.1", port=0, on_listen=_on_listen)
 
     after 15.0: fail(ValueError("timed out waiting for session cleanup"))
+
+
+def _first_error_tag(err: netconf.NetconfError) -> ?str:
+    """The error-tag of the first rpc-error carried by err, if any."""
+    errs = err.rpc_error
+    if errs is not None:
+        if len(errs) > 0:
+            return errs[0].error_tag
+    return None
+
+
+actor _test_subscription_subtree_filter_narrows_push(t: testing.AsyncT):
+    """A datastore-subtree-filter narrows what a periodic subscription pushes:
+    with hostname and location configured, a filter that selects hostname
+    yields a push-update that carries hostname and not location."""
+    lh = logging.Handler("nctest")
+    schema = _demo_schema()
+    layer = _demo_layer()
+    caps = swnetconf.build_capabilities(schema)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps)
+
+    var done = False
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_notif(c: netconf.Client, n: xml.Node):
+        if done:
+            return
+        pu = yp.parse_push_update(n)
+        if pu is not None:
+            payload = ""
+            for node in pu.contents:
+                payload = payload + node.encode()
+            if payload.find("hostname") == -1 or payload.find("r1") == -1:
+                fail(ValueError("filtered push lacks hostname: " + payload))
+            elif payload.find("location") != -1:
+                fail(ValueError("filtered push leaked location: " + payload))
+            else:
+                done = True
+                t.success()
+        else:
+            fail(ValueError("unexpected notification: " + n.encode()))
+
+    def _on_sub(c: netconf.Client, sub_id: ?int, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+
+    def _on_seed(c: netconf.Client, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        filt = xml.decode('<system xmlns="urn:demo"><hostname/></system>')
+        c.establish_subscription(_on_sub, period=5, subtree_filter=[filt])
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        seed = xml.decode('<system xmlns="urn:demo"><hostname>r1</hostname><location>lab</location></system>')
+        c.edit_config([seed], _on_seed)
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, _on_notif, True, lh, pipe=pipes.client)
+    after 5.0: fail(ValueError("timed out waiting for a filtered push-update"))
+
+
+actor _test_subscription_rejects_bad_subtree_filter(t: testing.AsyncT):
+    """A subtree filter that names a node outside the schema fails the RPC with
+    invalid-value, and no subscription is allocated: deleting id 1 afterwards
+    is refused."""
+    lh = logging.Handler("nctest")
+    schema = _demo_schema()
+    layer = _demo_layer()
+    caps = swnetconf.build_capabilities(schema)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps)
+
+    var done = False
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_del(c: netconf.Client, err: ?netconf.NetconfError):
+        if err is None:
+            fail(ValueError("a rejected establish-subscription must not allocate an id"))
+        elif not done:
+            done = True
+            t.success()
+
+    def _on_sub(c: netconf.Client, sub_id: ?int, err: ?netconf.NetconfError):
+        if err is not None:
+            tag = _first_error_tag(err)
+            if tag != "invalid-value":
+                fail(ValueError("expected invalid-value, got {tag}"))
+            else:
+                c.delete_subscription(_on_del, 1)
+        else:
+            fail(ValueError("expected the bad subtree filter to be rejected"))
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        filt = xml.decode('<nosuch xmlns="urn:demo"/>')
+        c.establish_subscription(_on_sub, period=5, subtree_filter=[filt])
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, None, True, lh, pipe=pipes.client)
+    after 5.0: fail(ValueError("timed out waiting for the bad filter to be rejected"))
+
+
+actor _test_subscription_rejects_xpath_filter(t: testing.AsyncT):
+    """A datastore-xpath-filter is rejected with operation-not-supported: only
+    subtree filters are served."""
+    lh = logging.Handler("nctest")
+    schema = _demo_schema()
+    layer = _demo_layer()
+    caps = swnetconf.build_capabilities(schema)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps)
+
+    var done = False
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_sub(c: netconf.Client, sub_id: ?int, err: ?netconf.NetconfError):
+        if err is not None:
+            tag = _first_error_tag(err)
+            if tag != "operation-not-supported":
+                fail(ValueError("expected operation-not-supported, got {tag}"))
+            elif not done:
+                done = True
+                t.success()
+        else:
+            fail(ValueError("expected the xpath filter to be rejected"))
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        c.establish_subscription(_on_sub, period=5, xpath_filter="/system")
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, None, True, lh, pipe=pipes.client)
+    after 5.0: fail(ValueError("timed out waiting for the xpath filter to be rejected"))
+
+
+actor _test_subscription_subtree_filter_keyed_entry_oper(t: testing.AsyncT):
+    """A filter for one keyed list entry's oper subtree, sent as the filter XML
+    the device adapter emits, pushes that entry's state and nothing else: not
+    the other entry, and not the entry's own config under software."""
+    lh = logging.Handler("nctest")
+    schema = yang.compile([FLEET_YANG])
+    layer = _fleet_layer()
+    caps = swnetconf.build_capabilities(schema)
+
+    pipes = netconf.actor_pipe_pair()
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps)
+
+    var done = False
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_notif(c: netconf.Client, n: xml.Node):
+        if done:
+            return
+        pu = yp.parse_push_update(n)
+        if pu is not None:
+            payload = ""
+            for node in pu.contents:
+                payload = payload + node.encode()
+            if payload.find("cpe-16") != -1:
+                fail(ValueError("filtered push leaked another entry: " + payload))
+            elif payload.find("target") != -1:
+                fail(ValueError("filtered push leaked unselected config: " + payload))
+            elif payload.find("up-cpe-17") != -1:
+                done = True
+                t.success()
+            # Otherwise the entry's oper state is not published yet; the next
+            # sample carries it and pushes again.
+        else:
+            fail(ValueError("unexpected notification: " + n.encode()))
+
+    def _on_sub(c: netconf.Client, sub_id: ?int, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+
+    def _on_seed(c: netconf.Client, err: ?netconf.NetconfError):
+        if err is not None:
+            fail(err)
+            return
+        # /device{cpe-17}/software/state, rendered the way NetconfDriver._yp_ensure
+        # renders a SubscriptionSpec filter onto the wire.
+        filt = gdata.FNode(_fq("device"), children=[
+            gdata.FNode(_fq("name"), value_match="cpe-17"),
+            gdata.FNode(_fq("software"), children=[gdata.FNode(_fq("state"))]),
+        ])
+        c.establish_subscription(_on_sub, period=5, subtree_filter=filt.to_filter_xml(deterministic=True))
+
+    def _on_connect(c: netconf.Client, e: ?Exception):
+        if e is not None:
+            fail(ValueError("client connect failed: {e}"))
+            return
+        seed = [
+            xml.decode('<device xmlns="urn:demo-fleet"><name>cpe-16</name><software><target>2.0</target></software></device>'),
+            xml.decode('<device xmlns="urn:demo-fleet"><name>cpe-17</name><software><target>2.0</target></software></device>'),
+        ]
+        c.edit_config(seed, _on_seed)
+
+    client = netconf.Client(None, "mock", 0, "admin", "admin", None, _on_connect, _on_notif, True, lh, pipe=pipes.client)
+    after 5.0: fail(ValueError("timed out waiting for the keyed entry's filtered push-update"))

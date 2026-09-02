@@ -1,19 +1,21 @@
-"""TTT-backed YANG-push for the northbound NETCONF server (periodic / full-tree).
+"""TTT-backed YANG-push for the northbound NETCONF server (periodic).
 
 TttSubscriptionService is the NETCONF binding that serves dynamic YANG-push
 (RFC 8641) subscriptions straight from a ttt.Layer datastore via TTT's native
 subscription mechanism (declare_subscriptions). On establish-subscription it
 declares a TTT subscription; TTT samples the datastore on the spec period and
 pushes the current merged tree to our callback, which we frame as a NETCONF
-push-update notification carrying the full datastore-contents.
+push-update notification carrying the datastore-contents.
 
 Supported v1 subset, enforced before a subscription is accepted (anything outside
 it gets an rpc-error rather than being silently served as something else):
 
   - periodic subscriptions only; on-change is not supported;
   - the running or operational datastore;
-  - no filter - the whole datastore is pushed, so a request that carries a
-    subtree/xpath filter is rejected rather than quietly widened.
+  - no filter, or a datastore-subtree-filter (RFC 6241 subtree filtering). The
+    filter is parsed against the served schema into a gdata filter and handed to
+    TTT, which samples only the selected subtree, so each push carries just the
+    filtered data. A datastore-xpath-filter is rejected.
 
 Known deviation, still under discussion: TTT subscriptions are
 periodic-with-change-suppression, so a subscription only pushes when the datastore
@@ -28,21 +30,35 @@ import std.xml as xml
 
 import ttt
 import yang.gdata as gdata
+import yang.schema as yschema
+import yang.xml as yxml
 
 from netconf import Server
 import yp
 
 
-actor TttSubscriptionService(server: Server, cfs: ttt.Layer,
+def parse_subtree_filter(schema: yschema.DRoot, nodes: list[xml.Node]) -> gdata.FNode:
+    """Turn the data nodes of a datastore-subtree-filter into a gdata filter.
+
+    The nodes are the top-level data nodes carried inside the anydata element,
+    so wrap them in the NETCONF <filter> element that from_filter_xml expects.
+    Raises ValueError when a node is not in the schema or a value does not
+    parse."""
+    wrapper = xml.Node("filter", attributes=[("type", "subtree")], children=nodes)
+    return yxml.from_filter_xml(schema, wrapper)
+
+
+actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRoot,
                              owner_prefix: str="yp",
                              log_handler: ?logging.Handler=None):
     """Serves YANG-push subscriptions for one NETCONF session from cfs.
 
     Route establish-subscription / delete-subscription here from the server's
     on_rpc (gate with yp.is_subscription_rpc); call shutdown when the session
-    closes so TTT stops sampling for it. owner_prefix must be unique per session:
-    TTT keys subscriptions by owner id, so two sessions sharing one cfs must not
-    collide."""
+    closes so TTT stops sampling for it. schema is the served top-level schema;
+    subtree filters are parsed against it. owner_prefix must be unique per
+    session: TTT keys subscriptions by owner id, so two sessions sharing one cfs
+    must not collide."""
 
     _log = logging.Logger(log_handler)
     var active: set[int] = set()
@@ -59,12 +75,6 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer,
             return local == "running" or local == "operational"
         return False
 
-    def _has_filter(op: xml.Node) -> bool:
-        for c in op.children:
-            if c.tag == "datastore-subtree-filter" or c.tag == "datastore-xpath-filter":
-                return True
-        return False
-
     def _has_on_change(op: xml.Node) -> bool:
         for c in op.children:
             if c.tag == "on-change":
@@ -77,7 +87,7 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer,
         return []
 
     def _on_tree(sub_id: int, tree: ?gdata.Node, err: ?Exception) -> None:
-        """TTT subscription callback: a fresh full merged tree (or an error).
+        """TTT subscription callback: a fresh merged tree (or an error).
         Frame it as a push-update, unless the subscription is already gone."""
         if sub_id in active:
             if err is not None:
@@ -85,6 +95,31 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer,
             else:
                 server.send_notification(yp.build_notification(
                     yp.event_time_now(), yp.build_push_update(sub_id, _contents(tree))))
+
+    def _establish(message_id: str, pp: int, subtree_filter: ?list[xml.Node]) -> None:
+        """Declare a periodic TTT subscription and reply with its id.
+
+        A subtree filter that does not parse against the schema fails the RPC
+        with invalid-value, and no id is allocated."""
+        filt: ?gdata.FNode = None
+        if subtree_filter is not None:
+            try:
+                filt = parse_subtree_filter(schema, subtree_filter)
+            except Exception as e:
+                server.send_error(message_id, "invalid-value",
+                    "bad datastore-subtree-filter: {e}")
+                return
+        sub_id = next_id
+        next_id += 1
+        active.add(sub_id)
+        period_s = float(pp) / 100.0
+        scope = "filtered" if filt is not None else "full"
+        _log.info("establish-subscription id={sub_id} mode=periodic period={period_s}s scope={scope}")
+        # Reply with the id BEFORE the subscription can push (ordering).
+        server.send_reply(message_id, [yp.build_subscription_id_reply(sub_id)])
+        spec = gdata.SubscriptionSpec(filt, period=period_s)
+        cfs.declare_subscriptions(_owner_id(sub_id),
+            (lambda tree, err: _on_tree(sub_id, tree, err)), {spec})
 
     def handle_rpc(message_id: str, op: xml.Node) -> None:
         """Handle a subscription RPC. Route here when is_subscription_rpc."""
@@ -103,20 +138,11 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer,
                 elif not _datastore_supported(params.datastore):
                     server.send_error(message_id, "invalid-value",
                         "unsupported datastore; this server serves running and operational")
-                elif _has_filter(op):
+                elif params.xpath_filter is not None:
                     server.send_error(message_id, "operation-not-supported",
-                        "filtered subscriptions are not supported; the whole datastore is pushed")
+                        "xpath filters are not supported; use a datastore-subtree-filter")
                 else:
-                    sub_id = next_id
-                    next_id += 1
-                    active.add(sub_id)
-                    period_s = float(pp) / 100.0
-                    _log.info("establish-subscription id={sub_id} mode=periodic period={period_s}s")
-                    # Reply with the id BEFORE the subscription can push (ordering).
-                    server.send_reply(message_id, [yp.build_subscription_id_reply(sub_id)])
-                    spec = gdata.SubscriptionSpec(None, period=period_s)
-                    cfs.declare_subscriptions(_owner_id(sub_id),
-                        (lambda tree, err: _on_tree(sub_id, tree, err)), {spec})
+                    _establish(message_id, pp, params.subtree_filter)
             else:
                 server.send_error(message_id, "missing-element",
                     "a periodic <period> is required")
