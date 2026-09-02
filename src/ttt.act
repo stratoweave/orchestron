@@ -1521,7 +1521,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
         for node in elems.values():
             node.bind_db(db1)
 
-    def acquire(tid: str, keys: ?dict[str, dict[gdata.Id, gdata.Leaf]]) -> dict[str, Node]:
+    def acquire(tid: str, keys: ?dict[str, dict[gdata.Id, gdata.Leaf]], full: ?set[str]) -> dict[str, Node]:
         if keys is not None:
             keys1 = set(keys.keys())
             new = keys1 - set(elems.keys())
@@ -1535,6 +1535,8 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
             keys1 = set(elems.keys())
             #print('====', tid, path, 'acquire all keys:', keys1, actorid(), err=True)
         active[tid] = keys1
+        if full is not None:
+            active[tid] |= full     # Ensure that keys acquired by 'tid' in earlier configure runs are also marked as active
 
         return {k: elems[k] for k in keys1}
 
@@ -1559,7 +1561,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
             provisional = set()
 
     def all():
-        #print('====', 'all:', elems.keys(), 'provisional:', provisional, "active:", active)
+        #print('====', 'all:', set(elems.keys()), 'provisional:', provisional, "active:", active)
         if provisional:
             return {k: elems[k] for k in elems if k not in provisional}
         else:
@@ -1602,7 +1604,7 @@ actor ListState(path, template: proc(Path, ?Layer) -> Node, ns: ?str, module: ?s
 class _ListTransaction(_Transaction):
     liststate : ListState
     key_names : list[gdata.Id]
-    diffs : dict[str, gdata.Node]
+    sources_by_key : dict[str, set[str]]
     elems : dict[str, Transaction]
     accum : dict[str, CfgResult]
     state : ?YieldState[str]
@@ -1616,31 +1618,31 @@ class _ListTransaction(_Transaction):
         self.key_names = key_names
         self.ns = ns
         self.module = module
-        self.diffs = {}
+        self.sources_by_key = {}
         self.elems = {}
         self.accum = {}
         self.state = None
         self.reset = False
 
     def configure(self, tid, diff, out: ?Session, dbuf: ?swdb.Buffer=None):
-        #print('####', tid, '(List)', _format_path(self.path), 'configure', actorid(), err=True)
+        #print('####', tid, '(List)', _format_path(self.path), 'configure\n', per_src(diff), err=True)
         if self.reset:
-            self.diffs = {}
+            self.sources_by_key = {}
             self.elems = {}
             self.accum = {}
             self.reset = False
-        self.diffs.update(diff.items())
-        diff_by_key = transpose_list(self.diffs)
-        sources = set(diff.keys())
+        diff_by_key = transpose_list(diff)
+        for key,subdiff_by_src in diff_by_key.items():
+            self.sources_by_key[key] = set(subdiff_by_src.keys())
         leaves_by_key = {}
-        if len(diff_by_key) == 0:
-            for key,node in self.liststate.acquire(tid, None).items():
+        if len(diff) == 0:
+            for key,node in self.liststate.acquire(tid, None, None).items():
                 diff_by_key[key] = {}
                 if key not in self.elems:
                     self.elems[key] = node.newtrans()
         elif WILDKEY in diff_by_key:
             wildconf = diff_by_key[WILDKEY]
-            for key,node in self.liststate.acquire(tid, None).items():
+            for key,node in self.liststate.acquire(tid, None, None).items():
                 if key in diff_by_key:
                     diff_by_key[key].update(wildconf.items())
                 else:
@@ -1653,17 +1655,18 @@ class _ListTransaction(_Transaction):
                 for node in subdiff.values():
                     kc = node.key_children(self.key_names)
                     leaves_by_key[key] = kc
-            for key,node in self.liststate.acquire(tid, leaves_by_key).items():
+            for key,node in self.liststate.acquire(tid, leaves_by_key, set(self.elems.keys())).items():
                 if key not in self.elems:
                     self.elems[key] = node.newtrans()
+            for key,sources in self.sources_by_key.items():
+                if key not in diff_by_key:
+                    for src in sources:
+                        if src in diff:     # If 'src' is in the current diff, clear any 'tid' key it no longer mentions
+                            diff_by_key[key] = {src: gdata.Container()}
         msgs = {}
         for key,subdiff in diff_by_key.items():
-            #print('   #', tid, '(List)', _format_path(self.path), 'CONFIGURE ELEMENT', key, err=True)
-            if any([ s in sources for s in subdiff.keys() ]) or not subdiff:   # Only configure elems touched by the current diff
-                msgs[key] = async self.elems[key].configure(tid, subdiff, out, dbuf)
-        for key in self.accum.keys():
-            if key not in diff_by_key:                                          # ... or elems first configured and then gone absent
-                msgs[key] = async self.elems[key].configure(tid, {}, out, dbuf)
+            #print('   #', tid, '(List)', _format_path(self.path), 'CONFIGURE ELEMENT', key, '\n' + per_src(subdiff), err=True)
+            msgs[key] = async self.elems[key].configure(tid, subdiff, out, dbuf)
         results = {}
         for key,msg in msgs.items():
             results[key] = await msg
@@ -1709,7 +1712,7 @@ class _ListTransaction(_Transaction):
         # linkage can now be a transaction entry point, so like configure()
         # it must clear the previous transaction stale state
         if self.reset:
-            self.diffs = {}
+            self.sources_by_key = {}
             self.elems = {}
             self.accum = {}
             self.reset = False
