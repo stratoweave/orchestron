@@ -73,6 +73,19 @@ FLEET_YANG = r"""module demo-fleet {
   }
 }"""
 
+FLEET_CONFIG_YANG = r"""module demo-fleet {
+  yang-version "1.1";
+  namespace "urn:demo-fleet";
+  prefix df;
+  list device {
+    key name;
+    leaf name { type string; }
+    container software {
+      leaf target { type string; }
+    }
+  }
+}"""
+
 
 def _fq(n: str) -> gdata.Id:
     return gdata.Id(FLEET_NS, n)
@@ -748,12 +761,14 @@ actor _test_subscription_subtree_filter_keyed_entry_oper(t: testing.AsyncT):
     the device adapter emits, pushes that entry's state and nothing else: not
     the other entry, and not the entry's own config under software."""
     lh = logging.Handler("nctest")
-    schema = yang.compile([FLEET_YANG])
+    schema = yang.compile([FLEET_CONFIG_YANG])
+    oper_schema = yang.compile([FLEET_YANG])
     layer = _fleet_layer()
     caps = swnetconf.build_capabilities(schema)
 
     pipes = netconf.actor_pipe_pair()
-    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps)
+    server = swnetconf.NetconfSession(pipes.server, lh, schema, layer, caps,
+                                      subscription_schema=oper_schema)
 
     var done = False
     def fail(e: Exception):
