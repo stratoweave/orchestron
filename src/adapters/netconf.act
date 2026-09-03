@@ -1,6 +1,7 @@
 import hash.wyhash as wyhash
 import logging
 import net
+import ssh
 import time
 import testing
 import std.xml as xml
@@ -24,7 +25,7 @@ from device_meta_config import \
 from adapters.adapter import \
     DeviceAdapter, ModCap, DISCONNECTED, CONNECTING, CONNECTED, TRANSACTION, \
     NotConnectedError, BusyError, LockedError, TxidMismatchError, ConfigError, \
-    SharedSubscription, SubscriptionOwner, parse_cap, \
+    SharedSubscription, SubscriptionOwner, parse_cap, ssh_transport_config, \
     subscription_delay, merge_subscription_tree, \
     SubscriptionStatus, SUBSCRIPTION_YANG_PUSH, SUBSCRIPTION_POLL, SUBSCRIPTION_CONNECTING
 
@@ -900,12 +901,26 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         if not (old_g.get_opt_cnt(ygdata.Id(ns, "credentials")) == new_g.get_opt_cnt(ygdata.Id(ns, "credentials"))
                 and old_g.get_opt_list(ygdata.Id(ns, "address")) == new_g.get_opt_list(ygdata.Id(ns, "address"))
                 and old_g.get_opt_cnt(ygdata.Id(ns, "mock")) == new_g.get_opt_cnt(ygdata.Id(ns, "mock"))
+                and old_g.get_opt_cnt(ygdata.Id(ns, "ssh")) == new_g.get_opt_cnt(ygdata.Id(ns, "ssh"))
                 and old_g.get_opt_cnt(ygdata.Id(ns, "feature-flags")) == new_g.get_opt_cnt(ygdata.Id(ns, "feature-flags"))):
             _log.debug("Device.set_dmc: reconnect required, reconnecting")
             _connect(new_dmc)
         else:
             _log.debug("Device.set_dmc: no reconnect required, keeping client")
         dmc = new_dmc
+
+    def _ssh_transport(new_dmc: DeviceMetaConfig) -> ?ssh.TransportConfig:
+        """Build the SSH transport config, or None if the config is unusable.
+
+        An unusable SSH config is a configuration error, not a transient
+        connection failure, so the caller stays disconnected instead of
+        retrying a connection that can never come up.
+        """
+        try:
+            return ssh_transport_config(new_dmc.ssh)
+        except ValueError as exc:
+            _log.error("Invalid SSH configuration, not connecting", {"err": exc})
+            return None
 
     def _connect(new_dmc):
         use_mock_server = system_mock or new_dmc.mock.enabled or len(new_dmc.mock.module.elements) > 0
@@ -946,13 +961,18 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         port = addr_port if addr_port is not None else bigint(830)
 
         if connect_cap is not None and password is not None:
+            transport = _ssh_transport(new_dmc)
+            if transport is None:
+                state = DISCONNECTED
+                return
             state = CONNECTING
             _log.debug(f"Setting up NETCONF client... {address} {port} {username} {password}")
             c = netconf.Client(connect_cap, address, int(port), username, password,
                                skip_host_key_check=True,
                                on_connect=_on_connect,
                                on_notif=_on_notif,
-                               log_handler=_con_log_handler)
+                               log_handler=_con_log_handler,
+                               ssh_transport=transport)
             client = c
 
     def get_mock_server() -> ?NetconfMockServer:

@@ -23,6 +23,7 @@ from pipe import Pipe, actor_pipe_pair as _actor_pipe_pair
 from netconf.buffer import Buffer
 from netconf.fixups import FIXUPS
 from netconf.fixups.base import Fixup
+import ssh
 import ssh.pipe as sshpipe
 from netconf.transport import TcpListenPipe, TcpPipe, TcpPipeListener
 import yp
@@ -182,10 +183,15 @@ actor Client(
         skip_host_key_check: bool=False,
         log_handler: ?logging.Handler,
         pipe: ?Pipe=None,
-        fixups: ?list[proc() -> Fixup]=FIXUPS):
+        fixups: ?list[proc() -> Fixup]=FIXUPS,
+        ssh_transport: ?ssh.TransportConfig=None):
 
     _log = logging.Logger(log_handler)
     _log.info("Connecting to " + address + ":" + str(port) + " as " + username)
+
+    # `key` is the private key material itself (PEM / OpenSSH text), not a path;
+    # the SSH library keeps keys in memory and never reads the filesystem.
+    _private_keys: ?list[ssh.PrivateKey] = [ssh.PrivateKey(key.encode())] if key is not None else None
 
     var framing = SEPARATOR_FRAMING
     var recv_buf = Buffer()
@@ -1002,7 +1008,8 @@ actor Client(
                     port=port,
                     username=username,
                     password=password,
-                    private_key_file=key,
+                    private_keys=_private_keys,
+                    transport=ssh_transport,
                     subsystem="netconf",
                     host_key_check=sshpipe.HOST_KEY_CHECK_NONE if skip_host_key_check else sshpipe.HOST_KEY_CHECK_ACCEPT_NEW,
                     log_handler=log_handler)
@@ -1762,7 +1769,8 @@ actor _SshTestServer(t: testing.EnvT,
                      on_rpc: action(Server, str, xml.Node) -> None,
                      on_port: action(int) -> None,
                      on_error: action(str) -> None,
-                     capabilities: ?list[str]=None):
+                     capabilities: ?list[str]=None,
+                     transport: ?ssh.TransportConfig=None):
     """A minimal NETCONF server over SSH: SshPipeListener feeding netconf.Server.
 
     Serves the "netconf" subsystem with password authentication; every accepted
@@ -1798,6 +1806,7 @@ actor _SshTestServer(t: testing.EnvT,
         on_accept=_on_accept,
         auth_check=_auth,
         subsystem="netconf",
+        transport=transport,
         log_handler=t.log_handler)
 
 
@@ -1953,6 +1962,135 @@ actor _test_client_server_ssh_legacy_framing(t: testing.EnvT):
         _fail_once(ValueError("Timed out waiting for legacy framing SSH NETCONF <get>"))
 
     srv = _SshTestServer(t, _on_server_rpc, _on_port, _on_error, capabilities=[CAP_NC_1_0])
+    after 10.0: _on_timeout()
+
+
+actor _test_client_server_ssh_transport_config(t: testing.EnvT):
+    """A pinned cipher/kex/MAC set negotiates and carries a NETCONF <get>."""
+    log = logging.Logger(t.log_handler)
+    var done = False
+    var srv: ?_SshTestServer = None
+    var client: ?Client = None
+
+    # Deliberately not the library defaults, so a config that never reaches
+    # libssh would leave the session on chacha20/mlkem768 instead.
+    transport = ssh.TransportConfig(ciphers=[ssh.cipher.aes128_ctr],
+                                    macs=[ssh.mac.hmac_sha2_512],
+                                    key_exchanges=[ssh.kex.curve25519_sha256])
+
+    def _fail_once(e: Exception):
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(e)
+
+    def _success_once():
+        if done:
+            return
+        done = True
+        _teardown()
+        t.success()
+
+    def _teardown():
+        s = srv
+        if s is not None:
+            s.close()
+
+    def _on_server_rpc(s: Server, message_id: str, op: xml.Node):
+        s.send_reply(message_id, _test_data_reply("pinned-transport"))
+
+    def _on_get(c: Client, result: ?xml.Node, error: ?NetconfError):
+        if error is not None:
+            _fail_once(error)
+            return
+        value = _test_reply_value(result)
+        if value == "pinned-transport":
+            c.close(None)
+            _success_once()
+        else:
+            _fail_once(ValueError("Unexpected reply value: {value}"))
+
+    def _on_connect(c: Client, e: ?Exception):
+        if e is not None:
+            _fail_once(ValueError("Failed to connect over SSH: {e}"))
+        else:
+            c.get(_on_get)
+
+    def _on_port(port: int):
+        client = Client(net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+                        address="127.0.0.1",
+                        port=port,
+                        username=_ssh_test_username,
+                        password=_ssh_test_password,
+                        key=None,
+                        on_connect=_on_connect,
+                        on_notif=None,
+                        skip_host_key_check=True,
+                        log_handler=t.log_handler,
+                        ssh_transport=transport)
+
+    def _on_error(msg: str):
+        _fail_once(ValueError(msg))
+
+    def _on_timeout():
+        _fail_once(ValueError("Timed out waiting for pinned-transport SSH NETCONF <get>"))
+
+    srv = _SshTestServer(t, _on_server_rpc, _on_port, _on_error, transport=transport)
+    after 10.0: _on_timeout()
+
+
+actor _test_client_server_ssh_transport_mismatch(t: testing.EnvT):
+    """Disjoint cipher preferences fail the key exchange, not the RPC."""
+    var done = False
+    var srv: ?_SshTestServer = None
+    var client: ?Client = None
+
+    server_transport = ssh.TransportConfig(ciphers=[ssh.cipher.aes256_ctr])
+    client_transport = ssh.TransportConfig(ciphers=[ssh.cipher.aes128_cbc])
+
+    def _on_server_rpc(s: Server, message_id: str, op: xml.Node):
+        pass
+
+    def _on_connect(c: Client, e: ?Exception):
+        if done:
+            return
+        done = True
+        s = srv
+        if s is not None:
+            s.close()
+        if e is not None:
+            t.success()
+        else:
+            t.failure(ValueError("Connect succeeded with no cipher in common"))
+
+    def _on_port(port: int):
+        client = Client(net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+                        address="127.0.0.1",
+                        port=port,
+                        username=_ssh_test_username,
+                        password=_ssh_test_password,
+                        key=None,
+                        on_connect=_on_connect,
+                        on_notif=None,
+                        skip_host_key_check=True,
+                        log_handler=t.log_handler,
+                        ssh_transport=client_transport)
+
+    def _on_error(msg: str):
+        if not done:
+            done = True
+            t.failure(ValueError(msg))
+
+    def _on_timeout():
+        if not done:
+            done = True
+            s = srv
+            if s is not None:
+                s.close()
+            t.failure(ValueError("Timed out waiting for SSH transport mismatch"))
+
+    srv = _SshTestServer(t, _on_server_rpc, _on_port, _on_error, transport=server_transport)
     after 10.0: _on_timeout()
 
 
