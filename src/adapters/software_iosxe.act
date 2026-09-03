@@ -147,11 +147,11 @@ def records_for(root: ?ygdata.Node, uuid: str) -> list[(status: str,
     """
     out: list[(status: str, done: str, stages: list[str])] = []
     iod = ixoper.root.from_gdata(root).install_oper_data
-    for e in iod.install_oper.elements:
+    for e in iod.install_oper:
         if e.op_uuid != uuid:
             continue
         stages: list[str] = []
-        for t in e.install_txn_summary_op.elements:
+        for t in e.install_txn_summary_op:
             cmd = t.txn_cmd
             if cmd is not None:
                 stages.append(cmd!)
@@ -160,11 +160,11 @@ def records_for(root: ?ygdata.Node, uuid: str) -> list[(status: str,
         out.append((status=status! if status is not None else "",
                     done=done! if done is not None else "",
                     stages=stages))
-    for e in iod.install_oper_hist.elements:
+    for e in iod.install_oper_hist:
         if e.op_uuid != uuid:
             continue
         stages = []
-        for t in e.install_txn_sum_op_hist.elements:
+        for t in e.install_txn_sum_op_hist:
             cmd = t.txn_cmd
             if cmd is not None:
                 stages.append(cmd!)

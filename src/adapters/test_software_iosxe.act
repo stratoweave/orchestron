@@ -145,9 +145,9 @@ def _test_records_filter_preserves_keyless_history():
     got = ygdata.filter(root, filt)
     testing.assertTrue(got is not None, "record filter returned no data")
     oper = ixoper.root.from_gdata(got).install_oper_data
-    testing.assertEqual(0, len(oper.install_oper.elements),
+    testing.assertEqual(0, len(oper.install_oper),
                         "empty active list was not preserved")
-    testing.assertEqual(2, len(oper.install_oper_hist.elements),
+    testing.assertEqual(2, len(oper.install_oper_hist),
                         "keyless history entries were collapsed")
     hardware = ixoper.root.from_gdata(got).device_hardware_data.device_hardware
     version = hardware.device_system_data.software_version

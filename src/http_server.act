@@ -221,7 +221,7 @@ actor HttpServer(
         }
 
         addresses = []
-        for addr_entry in dmc.address.elements:
+        for addr_entry in dmc.address:
             addr_info = {
                 "name": addr_entry.name,
                 "address": addr_entry.address

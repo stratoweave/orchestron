@@ -246,7 +246,7 @@ def _mock_capabilities_from_dmc(new_dmc: DeviceMetaConfig) -> list[str]:
     caps: list[str] = [netconf.CAP_NC_1_0, netconf.CAP_NC_1_1,
         "urn:ietf:params:netconf:capability:writable-running:1.0",
         "urn:ietf:params:netconf:capability:candidate:1.0"]
-    for mock_cap in new_dmc.mock.module.elements:
+    for mock_cap in new_dmc.mock.module:
         cap = mock_cap.namespace + "?module=" + mock_cap.name
         rev = mock_cap.revision
         if rev is not None:
@@ -923,7 +923,7 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             return None
 
     def _connect(new_dmc):
-        use_mock_server = system_mock or new_dmc.mock.enabled or len(new_dmc.mock.module.elements) > 0
+        use_mock_server = system_mock or new_dmc.mock.enabled or len(new_dmc.mock.module) > 0
 
         username = new_dmc.credentials.username
         password = new_dmc.credentials.password
@@ -951,11 +951,12 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
 
         mock_server = None
 
-        if not len(new_dmc.address.elements) > 0:
+        addresses = list(new_dmc.address)
+        if len(addresses) == 0:
             _log.debug("Not enough addressess :/")
             return
 
-        addr = new_dmc.address.elements[0]
+        addr = addresses[0]
         address = addr.address
         addr_port = addr.port
         port = addr_port if addr_port is not None else bigint(830)

@@ -2104,7 +2104,7 @@ class stratoweave_rfs__device__address__initial_credentials_entry(yadata.MNode):
 _breaker2: None = None
 class stratoweave_rfs__device__address__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__address__initial_credentials_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__address__initial_credentials_entry:
         e = self.get(key_)
@@ -2112,7 +2112,7 @@ class stratoweave_rfs__device__address__initial_credentials(yadata.MKeyedList[(u
             return e
         (username=username, password=password, key=key) = key_
         res = stratoweave_rfs__device__address__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2159,7 +2159,7 @@ class stratoweave_rfs__device__address_entry(yadata.MNode):
 _breaker4: None = None
 class stratoweave_rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__device__address_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, address: ?str=None, port: ?u64=None) -> stratoweave_rfs__device__address_entry:
         e = self.get(key)
@@ -2171,7 +2171,7 @@ class stratoweave_rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__d
             return e
         name = key
         res = stratoweave_rfs__device__address_entry(name=name, address=address, port=port)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2214,7 +2214,7 @@ class stratoweave_rfs__device__credentials__key_entry(yadata.MNode):
 _breaker6: None = None
 class stratoweave_rfs__device__credentials__key(yadata.MKeyedList[str, stratoweave_rfs__device__credentials__key_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.key == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.key, elements)
 
     mut def create(self, key_: str, private_key: ?str=None) -> stratoweave_rfs__device__credentials__key_entry:
         e = self.get(key_)
@@ -2224,7 +2224,7 @@ class stratoweave_rfs__device__credentials__key(yadata.MKeyedList[str, stratowea
             return e
         key = key_
         res = stratoweave_rfs__device__credentials__key_entry(key=key, private_key=private_key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2294,7 +2294,7 @@ class stratoweave_rfs__device__initial_credentials_entry(yadata.MNode):
 _breaker9: None = None
 class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__initial_credentials_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__initial_credentials_entry:
         e = self.get(key_)
@@ -2302,7 +2302,7 @@ class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: 
             return e
         (username=username, password=password, key=key) = key_
         res = stratoweave_rfs__device__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2388,7 +2388,7 @@ class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
 _breaker12: None = None
 class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_rfs__device__mock__module_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, namespace: ?str=None, revision: ?str=None) -> stratoweave_rfs__device__mock__module_entry:
         e = self.get(key)
@@ -2400,7 +2400,7 @@ class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_r
             return e
         name = key
         res = stratoweave_rfs__device__mock__module_entry(name=name, namespace=namespace, revision=revision)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2508,7 +2508,7 @@ class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
 _breaker17: None = None
 class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave_rfs__device__software__veto_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.holder == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.holder, elements)
 
     mut def create(self, key: str, reason: ?str=None) -> stratoweave_rfs__device__software__veto_entry:
         e = self.get(key)
@@ -2518,7 +2518,7 @@ class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave
             return e
         holder = key
         res = stratoweave_rfs__device__software__veto_entry(holder=holder, reason=reason)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2610,7 +2610,7 @@ class stratoweave_rfs__device_entry(yadata.MNode):
 _breaker20: None = None
 class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, description: ?str=None, type: ?str=None, approval_required: ?bool=None) -> stratoweave_rfs__device_entry:
         e = self.get(key)
@@ -2624,7 +2624,7 @@ class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_ent
             return e
         name = key
         res = stratoweave_rfs__device_entry(name=name, description=description, type=type, approval_required=approval_required)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2733,7 +2733,7 @@ class stratoweave_rfs__rfs__l3vpn_endpoint_entry(yadata.MNode):
 _breaker24: None = None
 class stratoweave_rfs__rfs__l3vpn_endpoint(yadata.MKeyedList[str, stratoweave_rfs__rfs__l3vpn_endpoint_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs__l3vpn_endpoint_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.interface_name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.interface_name, elements)
 
     mut def create(self, key: str, vpn_name: ?str=None, customer_name: ?str=None, route_distinguisher: ?str=None, import_rt: ?str=None, export_rt: ?str=None, ipv4_address: ?str=None, prefix_length: ?u64=None, mtu: ?u64=None, vlan_id: ?u64=None, enabled: ?bool=None, site_code: ?str=None, description: ?str=None) -> stratoweave_rfs__rfs__l3vpn_endpoint_entry:
         e = self.get(key)
@@ -2765,7 +2765,7 @@ class stratoweave_rfs__rfs__l3vpn_endpoint(yadata.MKeyedList[str, stratoweave_rf
             return e
         interface_name = key
         res = stratoweave_rfs__rfs__l3vpn_endpoint_entry(interface_name=interface_name, vpn_name=vpn_name, customer_name=customer_name, route_distinguisher=route_distinguisher, import_rt=import_rt, export_rt=export_rt, ipv4_address=ipv4_address, prefix_length=prefix_length, mtu=mtu, vlan_id=vlan_id, enabled=enabled, site_code=site_code, description=description)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2810,7 +2810,7 @@ class stratoweave_rfs__rfs_entry(yadata.MNode):
 _breaker26: None = None
 class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str) -> stratoweave_rfs__rfs_entry:
         e = self.get(key)
@@ -2818,7 +2818,7 @@ class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
             return e
         name = key
         res = stratoweave_rfs__rfs_entry(name=name)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod

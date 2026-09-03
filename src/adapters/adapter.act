@@ -436,8 +436,8 @@ actor MockDriver(on_connect: action(dict[str, ModCap], ?u64) -> None, bundled_sc
         _log.debug("MockAdapter.set_dmc", {"new_dmc": new_dmc.to_gdata().to_yang_jsonstr()})
         dmc = new_dmc
 
-        if len(new_dmc.mock.module.elements) > 0:
-            for mock_cap in new_dmc.mock.module.elements:
+        if len(new_dmc.mock.module) > 0:
+            for mock_cap in new_dmc.mock.module:
                 m = ModCap(mock_cap.name, mock_cap.namespace, mock_cap.revision, mock_cap.feature)
                 _log.debug("Adding mock cap", {"cap": m.name})
                 modset[m.name] = m
