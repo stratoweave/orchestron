@@ -160,9 +160,8 @@ library does not support is rejected by the YANG enumeration; anything that
 slips past is logged and leaves the device disconnected rather than retrying a
 connection that can never come up.
 
-Northbound NETCONF server transport settings are not configurable yet -- the
-plumbing is in `NetconfServer(ssh_transport=...)`, but nothing in the model
-drives it.
+The northbound NETCONF server has its own equivalent settings, configured as
+system settings rather than as intent; see [Running StratoWeave](run.md).
 
 ## RFS models still define the service-specific southbound data
 

@@ -76,6 +76,35 @@ The most important runtime options are:
   instead of continuing to serve traffic. This is useful for CI validation or
   one-shot initialization jobs.
 
+### NETCONF server SSH transport
+
+The SSH transport the northbound NETCONF server offers is configured under
+`netconf_ssh`, through the same three sources as every other system setting.
+Leave it alone and the SSH library's defaults apply.
+
+```aon title="system.aon"
+netconf_ssh:
+    cipher = ["aes256-gcm@openssh.com", "aes256-ctr"]
+    host_key_algorithm = ["ssh-ed25519"]
+    rekey_after_seconds = 3600
+```
+
+The same settings are `--netconf-ssh.cipher` on the command line, repeated once
+per value, and `STRATOWEAVE_NETCONF_SSH__CIPHER` in the environment.
+
+The algorithm lists (`cipher`, `mac`, `key_exchange`, `host_key_algorithm`,
+`public_key_algorithm`, `compression_algorithm`) are ordered preference lists,
+most preferred first, and an empty one means the library default. The rest are
+`compression_level` (1-9, default 7), `rekey_after_bytes`,
+`rekey_after_seconds` and `minimum_rsa_bits`. Both rekey limits take `0` to
+mean unset: no byte limit beyond the negotiated cipher's own, and no
+time-based rekeying.
+
+An algorithm name the SSH library does not support fails at startup rather
+than on the first connection. The equivalent settings for connections *to*
+devices live in the device's `ssh` container, described in
+[Device management](devices.md).
+
 ### Acton Runtime System
 As for any Acton application, you can also configure the [Acton Runtime System](https://acton.guide/rts.html).
 

@@ -1,6 +1,8 @@
 import argconf
 import file
 import logging
+import ssh
+import ssh_config
 import std.xml as xml
 
 import db as swdb
@@ -35,6 +37,122 @@ class SysSpec(value):
         return self.schema_for_layer(layer)
 
 
+class SshTransportSettings(value):
+    """SSH transport settings for a listening or connecting SSH endpoint.
+
+    Empty algorithm lists mean "no preference" and leave the SSH library
+    default in place. A rekey limit of None uses the negotiated cipher's RFC
+    4344 volume limit for bytes, and disables time-based rekeying for seconds.
+    """
+    ciphers: list[str]
+    macs: list[str]
+    key_exchanges: list[str]
+    host_key_algorithms: list[str]
+    public_key_algorithms: list[str]
+    compression_algorithms: list[str]
+    compression_level: int
+    rekey_after_bytes: ?int
+    rekey_after_seconds: ?int
+    minimum_rsa_bits: int
+
+    def __init__(self, ciphers: list[str], macs: list[str],
+                 key_exchanges: list[str], host_key_algorithms: list[str],
+                 public_key_algorithms: list[str],
+                 compression_algorithms: list[str],
+                 compression_level: int, rekey_after_bytes: ?int,
+                 rekey_after_seconds: ?int, minimum_rsa_bits: int):
+        self.ciphers = ciphers
+        self.macs = macs
+        self.key_exchanges = key_exchanges
+        self.host_key_algorithms = host_key_algorithms
+        self.public_key_algorithms = public_key_algorithms
+        self.compression_algorithms = compression_algorithms
+        self.compression_level = compression_level
+        self.rekey_after_bytes = rekey_after_bytes
+        self.rekey_after_seconds = rekey_after_seconds
+        self.minimum_rsa_bits = minimum_rsa_bits
+
+    @staticmethod
+    def declare(p: argconf.Parser, prefix: str):
+        """Declare the transport settings for one endpoint under `prefix`."""
+        p.add_str_list(
+            prefix + ".cipher", default=[],
+            help="Ciphers to offer, most preferred first"
+        )
+        p.add_str_list(
+            prefix + ".mac", default=[],
+            help="MAC algorithms to offer, most preferred first"
+        )
+        p.add_str_list(
+            prefix + ".key_exchange", default=[],
+            help="Key exchange algorithms to offer, most preferred first"
+        )
+        p.add_str_list(
+            prefix + ".host_key_algorithm", default=[],
+            help="Host key algorithms to offer, most preferred first"
+        )
+        p.add_str_list(
+            prefix + ".public_key_algorithm", default=[],
+            help="Public key algorithms to accept, most preferred first"
+        )
+        p.add_str_list(
+            prefix + ".compression_algorithm", default=[],
+            help="Compression algorithms to offer, most preferred first"
+        )
+        p.add_int(
+            prefix + ".compression_level", default=7,
+            help="zlib compression level, 1 (fastest) to 9 (smallest)"
+        )
+        p.add_int(
+            prefix + ".rekey_after_bytes", default=0,
+            help="Rekey after this many bytes; 0 uses the cipher's own limit"
+        )
+        p.add_int(
+            prefix + ".rekey_after_seconds", default=0,
+            help="Rekey after this many seconds; 0 disables time-based rekeying"
+        )
+        p.add_int(
+            prefix + ".minimum_rsa_bits", default=1024,
+            help="Reject RSA keys shorter than this"
+        )
+
+    @staticmethod
+    def read(args: argconf.Config, prefix: str) -> SshTransportSettings:
+        """Read the settings declared by `declare` under the same prefix."""
+        def opt_int(name: str) -> ?int:
+            # argconf has no notion of an optional setting -- a declaration
+            # without a default makes it required -- so 0 is the unset value
+            # for both rekey limits, the way "" is for db and netconf_host_key.
+            limit = args.get_int(prefix + "." + name)
+            return limit if limit != 0 else None
+
+        return SshTransportSettings(
+            args.get_str_list(prefix + ".cipher"),
+            args.get_str_list(prefix + ".mac"),
+            args.get_str_list(prefix + ".key_exchange"),
+            args.get_str_list(prefix + ".host_key_algorithm"),
+            args.get_str_list(prefix + ".public_key_algorithm"),
+            args.get_str_list(prefix + ".compression_algorithm"),
+            args.get_int(prefix + ".compression_level"),
+            opt_int("rekey_after_bytes"),
+            opt_int("rekey_after_seconds"),
+            args.get_int(prefix + ".minimum_rsa_bits"))
+
+    def transport_config(self) -> ssh.TransportConfig:
+        """Build the SSH TransportConfig these settings describe."""
+        return ssh_config.transport_config(
+            self.ciphers,
+            self.macs,
+            self.key_exchanges,
+            self.host_key_algorithms,
+            self.public_key_algorithms,
+            self.compression_algorithms,
+            self.compression_level,
+            self.rekey_after_bytes,
+            self.rekey_after_seconds,
+            self.minimum_rsa_bits)
+
+
 class SystemSettings(value):
     startup_config_files: list[str]
     db_spec: ?str
@@ -43,12 +161,14 @@ class SystemSettings(value):
     netconf_host_key_path: ?str
     netconf_user: str
     netconf_password: str
+    netconf_ssh: SshTransportSettings
     exit_on_done: bool
 
     def __init__(self, startup_config_files: list[str], db_spec: ?str,
                  http_port: int, netconf_port: int,
                  netconf_host_key_path: ?str,
                  netconf_user: str, netconf_password: str,
+                 netconf_ssh: SshTransportSettings,
                  exit_on_done: bool):
         self.startup_config_files = startup_config_files
         self.db_spec = db_spec
@@ -57,6 +177,7 @@ class SystemSettings(value):
         self.netconf_host_key_path = netconf_host_key_path
         self.netconf_user = netconf_user
         self.netconf_password = netconf_password
+        self.netconf_ssh = netconf_ssh
         self.exit_on_done = exit_on_done
 
     @staticmethod
@@ -82,6 +203,7 @@ class SystemSettings(value):
             "netconf_password", default="admin",
             help="NETCONF SSH password (v1 static credential)"
         )
+        SshTransportSettings.declare(p, "netconf_ssh")
         p.add_bool("exit_on_done", help="Exit after startup config has been applied")
         return p
 
@@ -99,6 +221,7 @@ class SystemSettings(value):
             args.get_opt_str("netconf_host_key"),
             args.get_str("netconf_user"),
             args.get_str("netconf_password"),
+            SshTransportSettings.read(args, "netconf_ssh"),
             args.get_bool("exit_on_done"))
 
 

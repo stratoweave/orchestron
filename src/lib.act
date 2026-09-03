@@ -144,7 +144,7 @@ def _start(sysspec: swapp.SysSpec, env: Env,
 
         if netconf:
             nc_listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(env.cap)))
-            swnetconf.NetconfServer(nc_listen_cap, log_handler=logh_netconf, top_schema=top_schema, cfs=cfs, port=system_settings.netconf_port, username=system_settings.netconf_user, password=system_settings.netconf_password, host_key=netconf_host_key, subscription_schema=top_oper_schema)
+            swnetconf.NetconfServer(nc_listen_cap, log_handler=logh_netconf, top_schema=top_schema, cfs=cfs, port=system_settings.netconf_port, username=system_settings.netconf_user, password=system_settings.netconf_password, host_key=netconf_host_key, subscription_schema=top_oper_schema, ssh_transport=system_settings.netconf_ssh.transport_config())
 
         swapp.StartupConfigApplier(system_settings.startup_config_files, system_settings.exit_on_done, top_schema, cfs, env.exit, rfcap, logh)
         log.info("StratoWeave running..")
