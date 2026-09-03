@@ -73,9 +73,10 @@ actor NetconfSession(pipe, log_handler: logging.Handler, top_schema: yschema.DRo
     datastore via a per-session TttSubscriptionService, which drives TTT's native
     declare_subscriptions: establish/delete-subscription RPCs are routed to it and
     it streams push-update notifications back over this session. A subscription
-    may carry a datastore-subtree-filter, parsed against `subscription_schema`
-    when supplied so operational-only nodes can be selected. session_seq makes
-    the per-session subscription owner ids unique on the shared cfs.
+    may carry a datastore-subtree-filter or datastore-xpath-filter, parsed
+    against `subscription_schema` when supplied so operational-only nodes can be
+    selected. session_seq makes the per-session subscription owner ids unique on
+    the shared cfs.
 
     `on_close`, if given, is called with this session when its transport drops,
     so the owner can release its reference and let the session be reclaimed.
