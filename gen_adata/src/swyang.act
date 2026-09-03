@@ -79,6 +79,211 @@ rfs = r"""module stratoweave-rfs {
 
   description "RFS services";
 
+  typedef ssh-cipher {
+    type enumeration {
+      enum "chacha20-poly1305@openssh.com";
+      enum "aes256-gcm@openssh.com";
+      enum "aes128-gcm@openssh.com";
+      enum "aes256-ctr";
+      enum "aes192-ctr";
+      enum "aes128-ctr";
+      enum "aes256-cbc";
+      enum "aes192-cbc";
+      enum "aes128-cbc";
+      enum "3des-cbc";
+      enum "none";
+    }
+    description
+      "Symmetric cipher, as negotiated in the SSH transport protocol.";
+  }
+
+  typedef ssh-mac {
+    type enumeration {
+      enum "hmac-sha2-256-etm@openssh.com";
+      enum "hmac-sha2-512-etm@openssh.com";
+      enum "hmac-sha1-etm@openssh.com";
+      enum "hmac-sha2-256";
+      enum "hmac-sha2-512";
+      enum "hmac-sha1";
+      enum "none";
+    }
+    description
+      "Message authentication code, as negotiated in the SSH transport
+     protocol. Not used with AEAD ciphers, which authenticate themselves.";
+  }
+
+  typedef ssh-key-exchange {
+    type enumeration {
+      enum "diffie-hellman-group-exchange-sha1";
+      enum "mlkem768x25519-sha256";
+      enum "mlkem768nistp256-sha256";
+      enum "sntrup761x25519-sha512";
+      enum "sntrup761x25519-sha512@openssh.com";
+      enum "curve25519-sha256";
+      enum "curve25519-sha256@libssh.org";
+      enum "ecdh-sha2-nistp256";
+      enum "ecdh-sha2-nistp384";
+      enum "ecdh-sha2-nistp521";
+      enum "diffie-hellman-group18-sha512";
+      enum "diffie-hellman-group16-sha512";
+      enum "diffie-hellman-group-exchange-sha256";
+      enum "diffie-hellman-group14-sha256";
+      enum "diffie-hellman-group14-sha1";
+      enum "diffie-hellman-group1-sha1";
+    }
+    description
+      "Key exchange algorithm, as negotiated in the SSH transport protocol.";
+  }
+
+  typedef ssh-host-key-algorithm {
+    type enumeration {
+      enum "ssh-ed25519-cert-v01@openssh.com";
+      enum "sk-ssh-ed25519-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "rsa-sha2-512-cert-v01@openssh.com";
+      enum "rsa-sha2-256-cert-v01@openssh.com";
+      enum "ssh-rsa-cert-v01@openssh.com";
+      enum "ssh-ed25519";
+      enum "ecdsa-sha2-nistp521";
+      enum "ecdsa-sha2-nistp384";
+      enum "ecdsa-sha2-nistp256";
+      enum "sk-ssh-ed25519@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256@openssh.com";
+      enum "rsa-sha2-512";
+      enum "rsa-sha2-256";
+      enum "ssh-rsa";
+    }
+    description
+      "Server host key algorithm, i.e. the key type we are willing to accept
+     from the far end and verify the session signature with.";
+  }
+
+  typedef ssh-public-key-algorithm {
+    type enumeration {
+      enum "ssh-ed25519-cert-v01@openssh.com";
+      enum "sk-ssh-ed25519-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "rsa-sha2-512-cert-v01@openssh.com";
+      enum "rsa-sha2-256-cert-v01@openssh.com";
+      enum "ssh-rsa-cert-v01@openssh.com";
+      enum "ssh-ed25519";
+      enum "ecdsa-sha2-nistp521";
+      enum "ecdsa-sha2-nistp384";
+      enum "ecdsa-sha2-nistp256";
+      enum "sk-ssh-ed25519@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256@openssh.com";
+      enum "rsa-sha2-512";
+      enum "rsa-sha2-256";
+      enum "ssh-rsa";
+    }
+    description
+      "Public key algorithm offered during publickey authentication.";
+  }
+
+  typedef ssh-compression-algorithm {
+    type enumeration {
+      enum "none";
+      enum "zlib@openssh.com";
+      enum "zlib";
+    }
+    description
+      "Transport compression algorithm.";
+  }
+
+  grouping ssh-client-config {
+    description
+      "SSH client transport parameters, shared by every adapter that talks to
+       a device over SSH (NETCONF, CLI, ...). Each algorithm leaf-list is the
+       ordered preference list sent in the SSH key exchange; leaving one empty
+       means the SSH library picks its own default set.";
+
+    leaf-list cipher {
+      description
+        "Symmetric ciphers to offer, most preferred first.";
+      type sw-rfs:ssh-cipher;
+      ordered-by user;
+    }
+
+    leaf-list mac {
+      description
+        "MAC algorithms to offer, most preferred first.";
+      type sw-rfs:ssh-mac;
+      ordered-by user;
+    }
+
+    leaf-list key-exchange {
+      description
+        "Key exchange algorithms to offer, most preferred first.";
+      type sw-rfs:ssh-key-exchange;
+      ordered-by user;
+    }
+
+    leaf-list host-key-algorithm {
+      description
+        "Server host key algorithms to accept, most preferred first. This is
+         what decides which host key type the device presents.";
+      type sw-rfs:ssh-host-key-algorithm;
+      ordered-by user;
+    }
+
+    leaf-list public-key-algorithm {
+      description
+        "Public key algorithms to offer for publickey authentication, most
+         preferred first.";
+      type sw-rfs:ssh-public-key-algorithm;
+      ordered-by user;
+    }
+
+    leaf-list compression-algorithm {
+      description
+        "Compression algorithms to offer, most preferred first. 'none' first
+         disables compression against peers that also offer it.";
+      type sw-rfs:ssh-compression-algorithm;
+      ordered-by user;
+    }
+
+    leaf compression-level {
+      description
+        "zlib compression level, 1 (fastest) to 9 (smallest). Only relevant
+         when a zlib compression algorithm is negotiated.";
+      type uint8 {
+        range "1..9";
+      }
+      default 7;
+    }
+
+    leaf rekey-after-bytes {
+      description
+        "Rekey after this many bytes have passed over the session. Absent
+         means the RFC 4344 volume limit of the negotiated cipher. A value
+         can only lower that limit, never raise it.";
+      type uint64;
+    }
+
+    leaf rekey-after-seconds {
+      description
+        "Rekey after this many seconds. Absent disables time-based rekeying.";
+      type uint32 {
+        range "0..4294967";
+      }
+    }
+
+    leaf minimum-rsa-bits {
+      description
+        "Reject RSA host and public keys shorter than this.";
+      type uint32 {
+        range "1024..2147483647";
+      }
+      default 1024;
+    }
+  }
+
   grouping check-result {
     leaf verdict {
       type enumeration {
@@ -165,6 +370,13 @@ rfs = r"""module stratoweave-rfs {
       leaf key {
         type string;
       }
+    }
+
+    container ssh {
+      description
+        "SSH transport parameters used when connecting to this device. Applies
+         to every SSH-based adapter (NETCONF over SSH, CLI, ...).";
+      uses sw-rfs:ssh-client-config;
     }
 
     leaf approval-required {
