@@ -23,8 +23,8 @@ dependencies = {
     ),
     "ssh": (
         repo_url="https://github.com/actonlang/acton-ssh",
-        url="https://github.com/actonlang/acton-ssh/archive/ece31ecae01e2b30e132dd951e66e4d2a755eaf3.zip",
-        hash="N-V-__8AALNbBABH2GJv8zlC5SEQovY49g9CwCP1XwL6JdlF"
+        url="https://github.com/actonlang/acton-ssh/archive/77979296514f22644361bfc913ab38380a319e78.zip",
+        hash="N-V-__8AAENzBQCULJ1vzVNJljN38D8ICiBrkTcRsxecBNuF"
     ),
     "yang": (
         repo_url="https://github.com/stratoweave/acton-yang.git",

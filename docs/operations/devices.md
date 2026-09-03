@@ -132,6 +132,38 @@ If credentials should not be operator supplied, keep them out of the
 northbound YANG and set the same `dev.credentials` fields from an internal
 lookup instead.
 
+## SSH transport parameters
+
+Every SSH-based adapter -- NETCONF over SSH today, CLI adapters later -- reads
+its transport settings from the device's `ssh` container. Leave it out and the
+SSH library's defaults apply; set it to deal with devices that need something
+narrower or older.
+
+```acton title="src/sorespo/cfs.act"
+dev.ssh.cipher = ["aes128-ctr"]
+dev.ssh.key_exchange = ["diffie-hellman-group14-sha256"]
+dev.ssh.host_key_algorithm = ["ssh-rsa"]
+dev.ssh.minimum_rsa_bits = u64(1024)
+```
+
+The algorithm leaf-lists (`cipher`, `mac`, `key-exchange`,
+`host-key-algorithm`, `public-key-algorithm`, `compression-algorithm`) are
+ordered preference lists, most preferred first, and an empty one means "use the
+library default". `host-key-algorithm` is what decides which host key type the
+device presents. The remaining leaves are `compression-level` (1-9, default 7),
+`rekey-after-bytes`, `rekey-after-seconds` and `minimum-rsa-bits`; absent
+`rekey-after-bytes` uses the negotiated cipher's RFC 4344 volume limit, and
+absent `rekey-after-seconds` disables time-based rekeying.
+
+Changing the `ssh` container reconnects the device. An algorithm name the SSH
+library does not support is rejected by the YANG enumeration; anything that
+slips past is logged and leaves the device disconnected rather than retrying a
+connection that can never come up.
+
+Northbound NETCONF server transport settings are not configurable yet -- the
+plumbing is in `NetconfServer(ssh_transport=...)`, but nothing in the model
+drives it.
+
 ## RFS models still define the service-specific southbound data
 
 The built-in device list already comes from the StratoWeave RFS schema. Your

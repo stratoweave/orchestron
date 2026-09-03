@@ -276,7 +276,7 @@ actor YpMockServer(listen_cap: net.TCPListenCap,
         on_accept=_on_accept,
         auth_check=_auth,
         subsystem="netconf",
-        host_key=None,
+        host_keys=None,
         log_handler=log_handler)
 
     if tick_interval > 0.0:

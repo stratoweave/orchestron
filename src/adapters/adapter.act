@@ -1,5 +1,6 @@
 import logging
 import net
+import ssh
 import testing
 import std.xml as xml
 
@@ -9,12 +10,38 @@ import yang.gdata as ygdata
 from device_schema import DeviceSchema
 
 from device_meta_config import \
-    stratoweave_rfs__device_entry as DeviceMetaConfig
+    stratoweave_rfs__device_entry as DeviceMetaConfig, \
+    stratoweave_rfs__device__ssh as DeviceMetaConfigSsh
 
 DISCONNECTED  = 0
 CONNECTING    = 1
 CONNECTED     = 2
 TRANSACTION   = 3
+
+def ssh_transport_config(cfg: DeviceMetaConfigSsh) -> ssh.TransportConfig:
+    """Build an SSH TransportConfig from a device's ssh container.
+
+    An empty algorithm leaf-list means "no preference": pass None so the SSH
+    library uses its own default list rather than an empty negotiation set.
+    The library validates the algorithm names and the numeric ranges, raising
+    ValueError on anything it does not support.
+    """
+    # Bind the optionals to locals: narrowing does not carry through an
+    # attribute access.
+    rekey_bytes = cfg.rekey_after_bytes
+    rekey_seconds = cfg.rekey_after_seconds
+    return ssh.TransportConfig(
+        ciphers=[ssh.Cipher(n) for n in cfg.cipher] if len(cfg.cipher) > 0 else None,
+        macs=[ssh.Mac(n) for n in cfg.mac] if len(cfg.mac) > 0 else None,
+        key_exchanges=[ssh.KeyExchange(n) for n in cfg.key_exchange] if len(cfg.key_exchange) > 0 else None,
+        host_key_algorithms=[ssh.HostKeyAlgorithm(n) for n in cfg.host_key_algorithm] if len(cfg.host_key_algorithm) > 0 else None,
+        public_key_algorithms=[ssh.PublicKeyAlgorithm(n) for n in cfg.public_key_algorithm] if len(cfg.public_key_algorithm) > 0 else None,
+        compression_algorithms=[ssh.CompressionAlgorithm(n) for n in cfg.compression_algorithm] if len(cfg.compression_algorithm) > 0 else None,
+        compression_level=int(cfg.compression_level),
+        rekey_after_bytes=int(rekey_bytes) if rekey_bytes is not None else None,
+        rekey_after_seconds=int(rekey_seconds) if rekey_seconds is not None else None,
+        minimum_rsa_bits=int(cfg.minimum_rsa_bits))
+
 
 class MockRoot(yadata.MNode):
     """Mock root node for mock devices"""
@@ -475,3 +502,50 @@ def _test_parse_cap_xr_hostname():
     testing.assertEqual(mod.namespace, "http://cisco.com/ns/yang/Cisco-IOS-XR-um-hostname-cfg")
     testing.assertEqual(mod.revision, "2021-04-21")
     testing.assertEqual(mod.feature, [])
+
+
+def _test_ssh_transport_config_defaults():
+    """An empty ssh container yields the SSH library's own defaults."""
+    tc = ssh_transport_config(DeviceMetaConfigSsh())
+    testing.assertEqual([str(c) for c in tc.ciphers], [str(c) for c in ssh.cipher.default])
+    testing.assertEqual([str(m) for m in tc.macs], [str(m) for m in ssh.mac.default])
+    testing.assertEqual([str(k) for k in tc.key_exchanges], [str(k) for k in ssh.kex.default])
+    testing.assertEqual([str(h) for h in tc.host_key_algorithms], [str(h) for h in ssh.hostkey.default])
+    testing.assertEqual([str(p) for p in tc.public_key_algorithms], [str(p) for p in ssh.pubkey.default])
+    testing.assertEqual([str(c) for c in tc.compression_algorithms], [str(c) for c in ssh.compression.default])
+    testing.assertEqual(tc.compression_level, 7)
+    testing.assertEqual(tc.rekey_after_bytes, None)
+    testing.assertEqual(tc.rekey_after_seconds, None)
+    testing.assertEqual(tc.minimum_rsa_bits, 1024)
+
+def _test_ssh_transport_config_preferences():
+    """Configured algorithm lists carry over in order."""
+    cfg = DeviceMetaConfigSsh(cipher=["aes128-ctr", "aes256-ctr"],
+                              mac=["hmac-sha2-512"],
+                              key_exchange=["curve25519-sha256"],
+                              host_key_algorithm=["ssh-ed25519"],
+                              public_key_algorithm=["rsa-sha2-512"],
+                              compression_algorithm=["zlib@openssh.com", "none"],
+                              compression_level=u64(3),
+                              rekey_after_bytes=u64(1048576),
+                              rekey_after_seconds=u64(3600),
+                              minimum_rsa_bits=u64(3072))
+    tc = ssh_transport_config(cfg)
+    testing.assertEqual([str(c) for c in tc.ciphers], ["aes128-ctr", "aes256-ctr"])
+    testing.assertEqual([str(m) for m in tc.macs], ["hmac-sha2-512"])
+    testing.assertEqual([str(k) for k in tc.key_exchanges], ["curve25519-sha256"])
+    testing.assertEqual([str(h) for h in tc.host_key_algorithms], ["ssh-ed25519"])
+    testing.assertEqual([str(p) for p in tc.public_key_algorithms], ["rsa-sha2-512"])
+    testing.assertEqual([str(c) for c in tc.compression_algorithms], ["zlib@openssh.com", "none"])
+    testing.assertEqual(tc.compression_level, 3)
+    testing.assertEqual(tc.rekey_after_bytes, 1048576)
+    testing.assertEqual(tc.rekey_after_seconds, 3600)
+    testing.assertEqual(tc.minimum_rsa_bits, 3072)
+
+def _test_ssh_transport_config_rejects_unsupported_algorithm():
+    """The SSH library validates names; the YANG enum keeps them out of the tree."""
+    try:
+        ssh_transport_config(DeviceMetaConfigSsh(cipher=["rot13-cbc"]))
+    except ValueError:
+        return
+    testing.error("expected ValueError for an unsupported cipher")

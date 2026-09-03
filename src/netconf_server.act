@@ -3,6 +3,7 @@ import net
 import std.xml as xml
 
 import netconf
+import ssh
 import ssh.pipe as sshpipe
 
 import ttt as ttt
@@ -228,6 +229,7 @@ actor NetconfServer(
     host_key: ?str = None,
     on_listen: ?action(?Exception) -> None = None,
     subscription_schema: ?yschema.DRoot = None,
+    ssh_transport: ?ssh.TransportConfig = None,
 ):
     """Northbound NETCONF server over SSH.
 
@@ -248,6 +250,7 @@ actor NetconfServer(
     var _sessions: list[NetconfSession] = []
     var _session_seq: int = 0
     var listener: ?sshpipe.SshPipeListener = None
+    _host_keys: ?list[ssh.PrivateKey] = [ssh.PrivateKey(host_key.encode())] if host_key is not None else None
 
     def _on_listen(l: sshpipe.SshPipeListener, err: ?Exception):
         if err is not None:
@@ -282,7 +285,8 @@ actor NetconfServer(
         on_accept=_on_accept,
         auth_check=_auth,
         subsystem="netconf",
-        host_key=host_key,
+        host_keys=_host_keys,
+        transport=ssh_transport,
         log_handler=log_handler)
 
     def bound_port() -> int:
