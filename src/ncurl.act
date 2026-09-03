@@ -319,6 +319,7 @@ actor CmdGetData(env, args, log_handler, use_get_config: bool):
     var config_xml: ?xml.Node = None
     var client: ?netconf.Client = None
     var schemas: list[str] = []
+    var download_failures = 0
     var strict_quoting = True
 
     def _on_connect(c: netconf.Client, e: ?Exception):
@@ -415,7 +416,7 @@ actor CmdGetData(env, args, log_handler, use_get_config: bool):
             print("Fetching schemas for data conversion...")
             # Check if explicit modules are provided
             if len(explicit_modules) > 0:
-                schemas_to_download = build_explicit_schemas_list(explicit_modules, format)
+                schemas_to_download = build_explicit_schemas_list(explicit_modules, "yang")
 
                 print("Downloading {len(schemas_to_download)} specified schemas")
                 schema_getter = netconf.SchemaGetter(c)
@@ -462,11 +463,13 @@ actor CmdGetData(env, args, log_handler, use_get_config: bool):
     def _on_schema_download(sg: netconf.SchemaGetter, current_index: int, total_schemas: int, schema: (identifier: str, version: ?str, format: ?str), schema_data: ?str, error: ?netconf.NetconfError):
         """Collect downloaded schemas into the list"""
         if error is not None:
+            download_failures += 1
             print("Error downloading {schema.identifier}: {error}", err=True)
         elif schema_data is not None:
             schemas.append(schema_data)
             print("Downloaded [{current_index}/{total_schemas}]: {schema.identifier}")
         else:
+            download_failures += 1
             print("Warning: no schema data received for {schema.identifier}", err=True)
 
     def _on_schemas_complete(sg: netconf.SchemaGetter, error: ?netconf.NetconfError):
@@ -482,6 +485,14 @@ actor CmdGetData(env, args, log_handler, use_get_config: bool):
             return
         def _close_cb():
             env.exit(1)
+
+        if download_failures > 0:
+            print("Failed to download {download_failures} schemas", err=True)
+            if client is not None:
+                client.close(_close_cb)
+            else:
+                env.exit(1)
+            return
 
         print("Retrieved {len(schemas)} schemas")
 
@@ -870,6 +881,7 @@ actor CmdGetSchema(env, args, log_handler):
     explicit_modules = args.get_strlist("module")
 
     var client: ?netconf.Client = None
+    var download_failures = 0
 
     def _on_connect(c: netconf.Client, e: ?Exception):
         if e is not None:
@@ -924,7 +936,8 @@ actor CmdGetSchema(env, args, log_handler):
         """Handle each downloaded schema"""
         print("Downloading [{current_index}/{total_schemas}]: {schema.identifier}")
         if error is not None:
-            print("  {error}")
+            download_failures += 1
+            print("  {error}", err=True)
         elif schema_data is not None:
             # Build proper filename with identifier and version
             filename = "{schema.identifier}"
@@ -952,12 +965,18 @@ actor CmdGetSchema(env, args, log_handler):
             f.close()
             print("  Saved to: {filepath}")
         else:
-            print("  Warning: No data received for {schema.identifier}")
+            download_failures += 1
+            print("  Warning: No data received for {schema.identifier}", err=True)
 
     def _on_schemas_complete(sg: netconf.SchemaGetter, error: ?netconf.NetconfError):
         """Called when all schemas have been downloaded"""
         if error is not None:
             print("\nError downloading schemas: {error.error_message}", err=True)
+            env.exit(1)
+            return
+
+        if download_failures > 0:
+            print("\nFailed to download {download_failures} schemas", err=True)
             env.exit(1)
             return
 

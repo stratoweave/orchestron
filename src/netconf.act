@@ -1327,7 +1327,11 @@ actor SchemaGetter(client):
                 if result is not None:
                     for child in result.children:
                         if child.tag == "data":
-                            schema_data = child.text
+                            if len(child.children) > 0:
+                                # YIN is returned as XML elements, YANG as text
+                                schema_data = xml.encode_nodes(child.children)
+                            else:
+                                schema_data = child.text
                             break
 
                 # Call the callback with current progress and schema data
