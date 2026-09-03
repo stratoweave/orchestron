@@ -264,6 +264,28 @@ def path_filter(p: Path, tails: list[gdata.FNode]=[]) -> gdata.FNode:
     else:
         return gdata.FNode(gdata.Id("", p.name))
 
+# True when a Path names a data node somewhere along its chain, rather than
+# sitting at the layer root (a root node, or a list whose elements are the top
+# level of the layer's tree).
+def _path_is_named(p: Path) -> bool:
+    if isinstance(p, PathElem):
+        return True
+    elif isinstance(p, PathKey):
+        return _path_is_named(p.parent)
+    else:
+        return False
+
+# Render a Path as the gdata filter form of the data a node at that path can
+# change, for intersecting against subscription filters. This is path_filter()
+# with one exception: a node at the layer root serves the whole tree, and
+# PathRoot names the layer rather than a data node, so path_filter() would
+# render a node name that no data filter can ever match. The unnamed root
+# filter selects everything, which is what such a node really changes.
+def change_filter(p: Path) -> gdata.FNode:
+    if _path_is_named(p):
+        return path_filter(p)
+    return gdata.FNode()
+
 def make_rooted(p: Path, tree: gdata.Node):
     if isinstance(p, PathKey):
         return make_rooted(p.parent, gdata.List(list(p.keyvals.keys()), [tree]))
@@ -768,6 +790,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     var subs: dict[gdata.SubscriptionSpec, LayerSharedSubscription] = {}
     var sub_owners: dict[str, LayerSubscriptionOwner] = {}
     var pending_flush: bool = False
+    var changed_paths: list[gdata.FNode] = []
 
     def load_from_db(done: action(?Exception) -> None, top_only=False) -> None:
         db = db_arg
@@ -844,18 +867,38 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     def _node_changed(fpath: gdata.FNode) -> None:
         """A node in this layer reported that the data it serves changed.
 
-        One transaction commits many nodes, each reporting separately, so
-        resampling is deferred to a single flush per batch. fpath is the
-        reporting node's path in filter form; it is not used to narrow the
-        flush yet, and is what a changed-path/filter intersection would match
-        against.
+        One transaction commits many nodes, each reporting separately, so the
+        reported paths are collected and resampling is deferred to a single
+        flush per batch. fpath is the reporting node's path in filter form and
+        covers everything that changed below it. A node reporting twice in a
+        row - a commit followed by the transform actor's oper push - is only
+        recorded once; other repeats cost one extra filter comparison at flush
+        time, which is cheaper than keeping the batch deduplicated.
         """
+        if len(changed_paths) == 0 or changed_paths[-1] != fpath:
+            changed_paths.append(fpath)
         if not pending_flush:
             pending_flush = True
             after 0: _flush_changed()
 
+    def _spec_affected(spec: gdata.SubscriptionSpec, changed: list[gdata.FNode]) -> bool:
+        """Can a batch of changed paths reach the data a spec selects?
+
+        An unfiltered spec is served the whole tree, so every change reaches
+        it. A filtered one is resampled unless its filter is provably disjoint
+        from every path in the batch: pruning must never drop a change, so the
+        intersection answers "cannot prove disjoint" rather than "overlaps".
+        """
+        filt = spec.filt
+        if filt is None:
+            return True
+        for fpath in changed:
+            if gdata.filter_intersects(filt, fpath):
+                return True
+        return False
+
     def _flush_changed() -> None:
-        """Resample the on-change subscriptions after a batch of changes.
+        """Resample the on-change subscriptions a batch of changes can reach.
 
         A commit is not atomic across the node tree, so a flush can read a tree
         where later nodes of the same transaction have yet to commit. Those
@@ -865,8 +908,11 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         one.
         """
         pending_flush = False
+        changed = changed_paths
+        changed_paths = []
         for spec in [s for s in subs.keys() if s.on_change]:
-            _sample(spec)
+            if _spec_affected(spec, changed):
+                _sample(spec)
 
     def _add_owner_spec(owner_id: str, spec: gdata.SubscriptionSpec):
         """Attach an owner to a shared spec, creating and starting it if needed.
@@ -2039,6 +2085,7 @@ class _TransformTransactionBase(_Transaction):
     build_links: ?proc(gdata.Node) -> list[TaggedPath]
     route_fpath: gdata.FNode
     filter_fpath: gdata.FNode
+    change_fpath: gdata.FNode
 
     me: str
     db: ?swdb.Store
@@ -2068,6 +2115,7 @@ class _TransformTransactionBase(_Transaction):
         self.build_links = build_links
         self.route_fpath = path_route(path)
         self.filter_fpath = path_filter(path)
+        self.change_fpath = change_filter(path)
 
         self.db = None
         self.notify = None
@@ -2307,11 +2355,13 @@ class _TransformTransactionBase(_Transaction):
         """Tell the layer that the data this node serves has changed.
 
         The layer is told which node changed, not what it changed to: it
-        re-reads the subscriptions that could be affected.
+        re-reads the subscriptions that could be affected. The node's path
+        covers everything that can have changed, since the node serves that
+        whole subtree.
         """
         n = self.notify
         if n is not None:
-            n(self.filter_fpath)
+            n(self.change_fpath)
 
     def restore(self, attr: str, qualifier: ?str, raw: bytes) -> None:
         if attr == swdb.ATTR_RUNNING:

@@ -59,12 +59,56 @@ def OperPublisherCtor(params: ttt.TransformActorParams) -> ?proc(gdata.Node, ?gd
 
 ON_CHANGE = gdata.SubscriptionSpec(None, on_change=True)
 
+def _filtered(filt: gdata.FNode) -> gdata.SubscriptionSpec:
+    return gdata.SubscriptionSpec(filt, on_change=True)
+
+def _svc_filt(name: str) -> gdata.FNode:
+    """Select one service element, whole."""
+    return gdata.FNode(children=[
+        gdata.FNode(q("service"), children=[
+            gdata.FNode(q("name"), value_match=name),
+        ]),
+    ])
+
+def _svc_leaf_filt(name: str) -> gdata.FNode:
+    """Select one leaf of one service element."""
+    return gdata.FNode(children=[
+        gdata.FNode(q("service"), children=[
+            gdata.FNode(q("name"), value_match=name),
+            gdata.FNode(q("enabled")),
+        ]),
+    ])
+
 def _svc(name: str, enabled: bool) -> gdata.Node:
     return gdata.Container({
         q("service"): gdata.List([q("name")], [
             gdata.Container({
                 q("name"): gdata.Leaf(name),
                 q("enabled"): gdata.Leaf(enabled),
+            }),
+        ]),
+    })
+
+def _two_svcs(a_enabled: bool, b_enabled: bool) -> gdata.Node:
+    return gdata.Container({
+        q("service"): gdata.List([q("name")], [
+            gdata.Container({
+                q("name"): gdata.Leaf("svc-a"),
+                q("enabled"): gdata.Leaf(a_enabled),
+            }),
+            gdata.Container({
+                q("name"): gdata.Leaf("svc-b"),
+                q("enabled"): gdata.Leaf(b_enabled),
+            }),
+        ]),
+    })
+
+def _probe(name: str, target: str) -> gdata.Node:
+    return gdata.Container({
+        q("probe"): gdata.List([q("name")], [
+            gdata.Container({
+                q("name"): gdata.Leaf(name),
+                q("target"): gdata.Leaf(target),
             }),
         ]),
     })
@@ -471,3 +515,143 @@ actor spec_without_a_mode_is_rejected(t: testing.AsyncT):
             t.failure(ValueError("expected an error for a spec with no delivery mode, got {_prs(data)}"))
 
     layer.declare_subscriptions("no-mode", on_update, {gdata.SubscriptionSpec(None)})
+
+
+actor filtered_spec_sees_only_its_element(t: testing.AsyncT):
+    """A filtered on-change subscription is delivered its own slice of the tree.
+
+    A change to a sibling list element is not part of that slice: the change is
+    pruned, and the next delivery is the change to the element the filter does
+    select - carrying that change alone.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def change_selected(_r: value):
+        layer.edit_config(_svc("svc-a", False), None, None)
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == first:
+                # Change the element the filter does not select, then the one
+                # it does. Only the second may be delivered.
+                layer.edit_config(_svc("svc-b", False), None, change_selected)
+            else:
+                fail(ValueError("baseline should carry only the selected element, got {_prs(data)}"))
+        elif updates == 2:
+            if data == second:
+                done = True
+                t.success()
+            else:
+                fail(ValueError("expected the selected element's change, got {_prs(data)}"))
+        else:
+            fail(ValueError("unexpected delivery {updates}: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("filtered", on_update, {_filtered(_svc_filt("svc-a"))})
+
+    layer.edit_config(_two_svcs(True, True), None, declare)
+
+
+actor change_outside_the_filter_is_pruned(t: testing.AsyncT):
+    """A change under another top-level node does not wake a filtered
+    subscription, and does not stop the next change that does."""
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+        q("probe"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def change_selected(_r: value):
+        layer.edit_config(_svc("svc-a", False), None, None)
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == first:
+                layer.edit_config(_probe("p1", "10.0.0.2"), None, change_selected)
+            else:
+                fail(ValueError("baseline should carry the selected subtree, got {_prs(data)}"))
+        elif updates == 2:
+            if data == second:
+                done = True
+                t.success()
+            else:
+                fail(ValueError("expected the service change, got {_prs(data)}"))
+        else:
+            fail(ValueError("unexpected delivery {updates}: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("branch", on_update, {_filtered(_svc_filt("svc-a"))})
+
+    def seed_service(_r: value):
+        layer.edit_config(_svc("svc-a", True), None, declare)
+
+    layer.edit_config(_probe("p1", "10.0.0.1"), None, seed_service)
+
+
+actor change_above_a_selected_leaf_is_delivered(t: testing.AsyncT):
+    """A filter selecting a leaf is woken by a change reported one level above.
+
+    A node reports the path of the whole subtree it serves, never the leaves
+    inside it, so pruning has to treat a reported element as reaching every
+    selection below it.
+    """
+    layer = ttt.Layer("top", ttt.Container({
+        q("service"): ttt.List(ttt.Transform(Noop), [q("name")]),
+    }), None)
+    first = _tree([_entry("svc-a", True)])
+    second = _tree([_entry("svc-a", False)])
+    var done = False
+    var updates = 0
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def on_update(data: ?gdata.Node, err: ?Exception):
+        updates += 1
+        if err is not None:
+            fail(err)
+        elif updates == 1:
+            if data == first:
+                layer.edit_config(_svc("svc-a", False), None, None)
+            else:
+                fail(ValueError("baseline should carry the selected leaf, got {_prs(data)}"))
+        elif updates == 2:
+            if data == second:
+                done = True
+                t.success()
+            else:
+                fail(ValueError("expected the changed leaf, got {_prs(data)}"))
+        else:
+            fail(ValueError("unexpected delivery {updates}: {_prs(data)}"))
+
+    def declare(_r: value):
+        layer.declare_subscriptions("leaf", on_update, {_filtered(_svc_leaf_filt("svc-a"))})
+
+    layer.edit_config(_svc("svc-a", True), None, declare)
