@@ -1,4 +1,4 @@
-import argparse
+import argconf
 import file
 import logging
 import std.xml as xml
@@ -35,8 +35,8 @@ class SysSpec(value):
         return self.schema_for_layer(layer)
 
 
-class AppArgs(value):
-    config_files: list[str]
+class SystemSettings(value):
+    startup_config_files: list[str]
     db_spec: ?str
     http_port: int
     netconf_port: int
@@ -45,8 +45,12 @@ class AppArgs(value):
     netconf_password: str
     exit_on_done: bool
 
-    def __init__(self, config_files: list[str]=[], db_spec: ?str=None, http_port: int=80, netconf_port: int=830, netconf_host_key_path: ?str=None, netconf_user: str="admin", netconf_password: str="admin", exit_on_done: bool=False):
-        self.config_files = config_files
+    def __init__(self, startup_config_files: list[str], db_spec: ?str,
+                 http_port: int, netconf_port: int,
+                 netconf_host_key_path: ?str,
+                 netconf_user: str, netconf_password: str,
+                 exit_on_done: bool):
+        self.startup_config_files = startup_config_files
         self.db_spec = db_spec
         self.http_port = http_port
         self.netconf_port = netconf_port
@@ -55,35 +59,53 @@ class AppArgs(value):
         self.netconf_password = netconf_password
         self.exit_on_done = exit_on_done
 
+    @staticmethod
+    def parser() -> argconf.Parser:
+        """Return the system settings schema."""
+        p = argconf.Parser("STRATOWEAVE", "[FILE ...]")
+        p.add_str(
+            "db", default="",
+            help="TTT database: an LMDB path or a database URL"
+        )
+        p.add_int("http_port", default=80, help="HTTP listen port")
+        p.add_int("netconf_port", default=830, help="NETCONF SSH listen port")
+        p.add_str(
+            "netconf_host_key", default="",
+            help="SSH host key file for NETCONF; ephemeral in-memory key if unset"
+        )
+        p.add_str(
+            "netconf_user", default="admin",
+            help="NETCONF SSH username (v1 static credential)"
+        )
+        p.add_str(
+            "netconf_password", default="admin",
+            help="NETCONF SSH password (v1 static credential)"
+        )
+        p.add_bool("exit_on_done", help="Exit after startup config has been applied")
+        return p
 
     @staticmethod
-    def from_args(argv: list[str], exit: action(int) -> None) -> AppArgs:
-        p = argparse.Parser()
-        p.add_arg("file", "Config XML file(s)", False, "+")
-        p.add_option("db", "str", default="", help="TTT database: an LMDB path or a database URL")
-        p.add_option("http-port", "int", default=80, help="HTTP listen port")
-        p.add_option("netconf-port", "int", default=830, help="NETCONF SSH listen port")
-        p.add_option("netconf-host-key", "str", default="", help="SSH host key file for NETCONF; ephemeral in-memory key if unset")
-        p.add_option("netconf-user", "str", default="admin", help="NETCONF SSH username (v1 static credential)")
-        p.add_option("netconf-password", "str", default="admin", help="NETCONF SSH password (v1 static credential)")
-        p.add_bool("exit-on-done", "Exit after startup config has been applied")
-
-        try:
-            args = p.parse(argv)
-            db_spec = args.get_str("db")
-            host_key = args.get_str("netconf-host-key")
-            return AppArgs(args.get_strlist("file"), db_spec if db_spec != "" else None, args.get_int("http-port"), args.get_int("netconf-port"), host_key if host_key != "" else None, args.get_str("netconf-user"), args.get_str("netconf-password"), args.get_bool("exit-on-done"))
-        except argparse.PrintUsage as exc:
-            print(exc.error_message)
-            exit(0)
-        except argparse.ArgumentError as exc:
-            print(exc.error_message, err=True)
-            exit(1)
-
-        return AppArgs()
+    def parse(argv: list[str],
+              system_settings: ?list[dict[str, ?value]]=None,
+              environment: ?dict[str, str]=None) -> SystemSettings:
+        """Resolve system settings without reading process state or files."""
+        args = SystemSettings.parser().parse(argv, system_settings, environment)
+        db_spec = args.get_str("db")
+        host_key = args.get_str("netconf_host_key")
+        return SystemSettings(
+            args.rest,
+            db_spec if db_spec != "" else None,
+            args.get_int("http_port"),
+            args.get_int("netconf_port"),
+            host_key if host_key != "" else None,
+            args.get_str("netconf_user"),
+            args.get_str("netconf_password"),
+            args.get_bool("exit_on_done"))
 
 
 NS_SW_RFS = "http://stratoweave.org/yang/stratoweave-rfs"
+
+
 def _rfs_for_device(dev):
     def q(n):
         return ygdata.Id(NS_SW_RFS, n)
@@ -109,7 +131,7 @@ actor RfsReconf(dev_registry: swdev.DeviceRegistry, cfs: ttt.Layer):
     dev_registry.on_reconf(lambda dev: _rfs.edit_config(_rfs_for_device(dev)))
 
 
-actor StartupConfigApplier(config_files: list[str], exit_on_done: bool, top_schema: yschema.DRoot, cfs: ttt.Layer, exit: action(int) -> None, rfcap: file.ReadFileCap, log_handler: logging.Handler):
+actor StartupConfigApplier(startup_config_files: list[str], exit_on_done: bool, top_schema: yschema.DRoot, cfs: ttt.Layer, exit: action(int) -> None, rfcap: file.ReadFileCap, log_handler: logging.Handler):
     var log = logging.Logger(log_handler)
 
     def _conf_load_done(result):
@@ -125,13 +147,13 @@ actor StartupConfigApplier(config_files: list[str], exit_on_done: bool, top_sche
     def _apply():
         # Read and apply config files; merge multiple snippets (files) into a single intent
         input_merge = ygdata.Container()
-        for filename in config_files:
+        for filename in startup_config_files:
             log.debug("Reading config file", {"config_file": filename})
             f = file.ReadFile(rfcap, filename)
-            nb_input = await async f.read()
+            data = f.read()
             f.close()
             try:
-                conf_xml = xml.decode(nb_input.decode())
+                conf_xml = xml.decode(data.decode())
                 conf_gd = yxml.from_xml(top_schema, conf_xml, loose=True)
                 input_merge = ygdata.merge(input_merge, conf_gd)
             except Exception as e:
@@ -143,7 +165,7 @@ actor StartupConfigApplier(config_files: list[str], exit_on_done: bool, top_sche
         session = cfs.newsession()
         session.edit_config(input_merge, None, _conf_load_done)
 
-    if len(config_files) > 0:
+    if len(startup_config_files) > 0:
         after 0.5: _apply()
 
 
@@ -174,7 +196,7 @@ actor StartupBootstrap(cfs: ttt.Layer, restore_from_db: bool, netconf_host_key_p
         if hkp is not None:
             try:
                 f = file.ReadFile(rfcap, hkp)
-                _netconf_host_key = (await async f.read()).decode()
+                _netconf_host_key = f.read().decode()
                 f.close()
             except Exception as e:
                 log.error("Error reading NETCONF host key", {"path": hkp, "error": e})

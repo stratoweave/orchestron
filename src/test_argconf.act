@@ -1,0 +1,376 @@
+import argconf
+import aon
+import app as swapp
+
+import testing
+
+
+def _test_stratoweave_system_settings():
+    system_settings = [aon.decode("""
+db = "/var/lib/stratoweave"
+http_port = 8081
+netconf_port = 1830
+netconf_user = "configured"
+exit_on_done = True
+""", "stratoweave.aon")]
+    resolved_settings = swapp.SystemSettings.parse(
+        ["stratoweave", "--http-port=8080", "startup.xml"],
+        system_settings,
+        {"STRATOWEAVE_NETCONF_USER": "environment"}
+    )
+
+    testing.assertEqual(resolved_settings.startup_config_files, ["startup.xml"])
+    testing.assertEqual(resolved_settings.db_spec, "/var/lib/stratoweave")
+    testing.assertEqual(resolved_settings.http_port, 8080)
+    testing.assertEqual(resolved_settings.netconf_port, 1830)
+    testing.assertEqual(resolved_settings.netconf_user, "environment")
+    testing.assertEqual(resolved_settings.exit_on_done, True)
+    help_text = swapp.SystemSettings.parser().get_help("stratoweave")
+    testing.assertTrue(
+        "Usage: stratoweave [OPTIONS] [--] [FILE ...]" in help_text
+    )
+
+    without_startup_config = swapp.SystemSettings.parse(["stratoweave"])
+    testing.assertEqual(without_startup_config.startup_config_files, [])
+
+
+def _test_precedence_and_canonical_names():
+    p = argconf.Parser("MYAPP")
+    p.add_int("network.netconf_port", default=830, short="p")
+    p.add_str("network.host", default="localhost")
+    p.add_bool("network.tls", default=True)
+    p.add_float("network.ratio", default=1.0)
+    p.add_str_list("network.tags", default=["default"])
+    p.add_int("workers", default=2)
+
+    system = aon.decode("""
+network:
+    netconf_port = 100
+    host = "system"
+    tls = True
+    ratio = 1.5
+    tags = ["system"]
+""")
+    user = aon.decode("""
+network:
+    netconf_port = 200
+""")
+    environment = {
+        "MYAPP_NETWORK__NETCONF_PORT": "300",
+        "MYAPP_NETWORK__HOST": "environment"
+    }
+    config = p.parse(
+        ["app", "--network.netconf-port=400", "--no-network.tls",
+         "--network.tags", "cli-a", "--network.tags=cli-b", "serve"],
+        [system, user], environment
+    )
+
+    testing.assertEqual(config.get_int("network.netconf_port"), 400)
+    testing.assertEqual(config.get_str("network.host"), "environment")
+    testing.assertEqual(config.get_bool("network.tls"), False)
+    testing.assertEqual(config.get_float("network.ratio"), 1.5)
+    testing.assertEqual(config.get_str_list("network.tags"), ["cli-a", "cli-b"])
+    testing.assertEqual(config.get_int("workers"), 2)
+    testing.assertEqual(config.source("network.netconf_port"), "command line")
+    testing.assertEqual(config.source("network.host"), "environment")
+    testing.assertEqual(config.source("network.ratio"), "config")
+    testing.assertEqual(config.source("workers"), "default")
+    testing.assertEqual(config.rest, ["serve"])
+
+
+def _test_environment_values_and_names():
+    p = argconf.Parser("SERVICE")
+    p.add_int("server.port")
+    p.add_float("server.load")
+    p.add_bool("server.tls")
+    p.add_str("server.banner")
+    p.add_str_list("server.peers")
+
+    testing.assertEqual(p.environment_variables(), [
+        "SERVICE_SERVER__BANNER",
+        "SERVICE_SERVER__LOAD",
+        "SERVICE_SERVER__PEERS",
+        "SERVICE_SERVER__PORT",
+        "SERVICE_SERVER__TLS"
+    ])
+
+    config = p.parse(["service"], environment={
+        "SERVICE_SERVER__PORT": "830",
+        "SERVICE_SERVER__LOAD": "2.5",
+        "SERVICE_SERVER__TLS": "False",
+        "SERVICE_SERVER__BANNER": "hello # this is literal",
+        "SERVICE_SERVER__PEERS": '["one", "two"]',
+        "PATH": "/bin"
+    })
+    testing.assertEqual(config.get_int("server.port"), 830)
+    testing.assertEqual(config.get_float("server.load"), 2.5)
+    testing.assertEqual(config.get_bool("server.tls"), False)
+    testing.assertEqual(config.get_str("server.banner"), "hello # this is literal")
+    testing.assertEqual(config.get_str_list("server.peers"), ["one", "two"])
+
+
+def _test_homogeneous_lists_from_every_source():
+    p = argconf.Parser("APP")
+    p.add_bool_list("flags")
+    p.add_int_list("numbers")
+    p.add_float_list("ratios")
+    p.add_str_list("labels")
+
+    document: dict[str, ?value] = aon.decode("""
+flags = [True]
+numbers = [1, 2]
+ratios = [1, 2.5]
+labels = ["config"]
+""")
+    environment: dict[str, str] = {"APP_RATIOS": "[3, 4.5]"}
+    config = p.parse(
+        ["app", "--flags=True", "--flags", "False",
+         "--numbers", "5", "--numbers=6",
+         "--labels", "cli-a", "--labels=cli-b"],
+        [document], environment
+    )
+
+    flags = config.get_bool_list("flags")
+    testing.assertEqual(len(flags), 2)
+    testing.assertEqual(flags[0], True)
+    testing.assertEqual(flags[1], False)
+    testing.assertEqual(config.get_int_list("numbers"), [5, 6])
+    testing.assertEqual(config.get_float_list("ratios"), [3.0, 4.5])
+    testing.assertEqual(config.get_str_list("labels"), ["cli-a", "cli-b"])
+    testing.assertEqual(config.source("flags"), "command line")
+    testing.assertEqual(config.source("ratios"), "environment")
+
+
+def _test_list_types_are_strict():
+    p = argconf.Parser("APP")
+    p.add_int_list("numbers")
+
+    try:
+        p.parse(["app"], [aon.decode('numbers = [1, "two"]')])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a mixed integer list to fail")
+
+    try:
+        p.parse(["app"], environment={"APP_NUMBERS": "1, 2"})
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an environment list without list brackets to fail")
+
+
+def _test_boolean_command_line_forms():
+    p = argconf.Parser("APP")
+    p.add_bool("feature")
+
+    enabled = p.parse(["app", "--feature"])
+    disabled = p.parse(["app", "--feature=False"])
+    negated = p.parse(["app", "--no-feature"])
+
+    testing.assertEqual(enabled.get_bool("feature"), True)
+    testing.assertEqual(disabled.get_bool("feature"), False)
+    testing.assertEqual(negated.get_bool("feature"), False)
+
+
+def _test_short_options_and_repeated_lists():
+    p = argconf.Parser("APP")
+    p.add_bool("verbose", short="v")
+    p.add_int("number", short="n")
+    p.add_str_list("tag", default=["lower"], short="t")
+
+    config = p.parse(["app", "-vn12", "-tone", "-t", "two"])
+    testing.assertEqual(config.get_bool("verbose"), True)
+    testing.assertEqual(config.get_int("number"), 12)
+    testing.assertEqual(config.get_str_list("tag"), ["one", "two"])
+
+
+def _test_terminator_and_remaining_arguments():
+    p = argconf.Parser()
+    p.add_bool("verbose")
+    testing.assertEqual(p.environment_variables(), [])
+    config = p.parse(["app", "before", "--verbose", "--", "--unknown", "after"])
+    testing.assertEqual(config.get_bool("verbose"), True)
+    testing.assertEqual(config.rest, ["before", "--unknown", "after"])
+
+
+def _test_configuration_is_strict_and_structural():
+    p = argconf.Parser("APP")
+    p.add_int("server.port", default=80)
+
+    try:
+        p.parse(["app"], [{"server": {"porrt": 830}}])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an unknown nested configuration key to fail")
+
+    try:
+        p.parse(["app"], [{"unknown": {}}])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an unknown empty configuration table to fail")
+
+    try:
+        p.parse(["app"], [{"server.port": 830}])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a quoted dotted key not to match a nested path")
+
+    try:
+        p.parse(["app"], [{"server": {"port": "830"}}])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a configuration type mismatch to fail")
+
+
+def _test_schema_rejects_ambiguous_names():
+    try:
+        argconf.Parser("bad-prefix")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an invalid environment prefix to fail")
+
+    p = argconf.Parser("APP")
+    try:
+        p.add_int("BadName")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a non-canonical setting name to fail")
+
+    p.add_int("server", default=1)
+    try:
+        p.add_int("server.port", default=80)
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a scalar/table path conflict to fail")
+
+    p2 = argconf.Parser("APP")
+    p2.add_str("no_feature", default="independent")
+    try:
+        p2.add_bool("feature")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a generated negation collision to fail")
+
+
+def _test_missing_and_invalid_values_are_errors():
+    p = argconf.Parser("APP")
+    p.add_int("port")
+
+    try:
+        p.parse(["app"])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a missing required setting to fail")
+
+    try:
+        p.parse(["app", "--port=not-an-int"])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an invalid command-line integer to fail")
+
+    try:
+        p.parse(["app"], environment={"APP_PORT": "1\nother = 2"})
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a multiline environment literal to fail")
+
+    try:
+        p.parse(["app", "--unknown"])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an unknown command-line option to fail")
+
+    lists = argconf.Parser()
+    lists.add_str_list("tags")
+    try:
+        lists.parse(["app"])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a string list without a default to be required")
+
+
+def _test_typed_text_rejects_trailing_comments():
+    p = argconf.Parser("APP")
+    p.add_int("port")
+    p.add_str_list("peers", default=[])
+
+    try:
+        p.parse(["app"], environment={"APP_PORT": "830 # ignored"})
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an environment integer suffix to fail")
+
+    try:
+        p.parse(["app", "--port", "830 # ignored"])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a command-line integer suffix to fail")
+
+    try:
+        p.parse(["app", "--port=830"], environment={
+            "APP_PEERS": '["one"] # ignored'
+        })
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an environment list suffix to fail")
+
+
+def _test_help_is_pure_and_reserved():
+    p = argconf.Parser("APP")
+    p.add_int("port", default=80, help="Listen port", short="p")
+    empty_flags: list[bool] = []
+    p.add_bool_list("flags", default=empty_flags)
+    help_text = p.get_help("server")
+    testing.assertTrue("--port INT" in help_text)
+    testing.assertTrue("--flags BOOL (repeatable)" in help_text)
+    testing.assertTrue("APP_PORT" in help_text)
+
+    try:
+        p.parse(["server", "--help"])
+    except argconf.PrintHelp as exc:
+        testing.assertTrue("Usage: server" in str(exc))
+    else:
+        raise ValueError("Expected --help to request help")
+
+    # Asking for help must not mutate the schema or a later parse.
+    config = p.parse(["server"])
+    testing.assertEqual(config.get_int("port"), 80)
+
+
+def _test_defaults_and_results_do_not_alias():
+    original = ["one"]
+    p = argconf.Parser("APP")
+    p.add_str_list("tag", default=original)
+    original.append("outside")
+
+    first = p.parse(["app", "--tag", "first"])
+    second = p.parse(["app"])
+    first_tags = first.get_str_list("tag")
+    first_tags.append("mutated result")
+
+    testing.assertEqual(first.get_str_list("tag"), ["first"])
+    testing.assertEqual(second.get_str_list("tag"), ["one"])
+
+
+def _test_float_accepts_integer_configuration():
+    p = argconf.Parser("APP")
+    p.add_float("ratio")
+    config = p.parse(["app"], [{"ratio": 2}])
+    testing.assertEqual(config.get_float("ratio"), 2.0)
