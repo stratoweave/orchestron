@@ -1626,6 +1626,10 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
                 cb(None, NotConnectedError())
                 return
             _log.debug("Device.rpc.rpc_reply", {"r": r, "error": error})
+            if r is None and error is None:
+                # The session went away before a reply. Not an <ok/>.
+                cb(None, NotConnectedError())
+                return
             if r is not None and error is None:
                 if netconf.is_ok_reply(r):
                     cb(ygdata.Container({}), None)
