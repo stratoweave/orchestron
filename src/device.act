@@ -802,7 +802,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         def is_mock_device(new_dmc: DeviceMetaConfig) -> bool:
             if new_dmc.mock.enabled:
                 return True
-            if len(new_dmc.mock.module.elements) > 0:
+            if len(new_dmc.mock.module) > 0:
                 return True
             return False
 
@@ -843,7 +843,7 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
                         swmgr.set_adapter(sw_type(self, new_dmc, _log_handler, connect_cap))
                 sw = new_dmc.software
                 sw_vetoes = {}
-                for v in sw.veto.elements:
+                for v in sw.veto:
                     sw_vetoes[v.holder] = str(v.reason)
                 swmgr.set_config(sw.upgrade_campaign, sw.target_release, sw.allow_staging, sw_vetoes)
 
