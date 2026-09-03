@@ -1184,6 +1184,9 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
     def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node):
         adapter.rpc(cb, gdata_rpc)
 
+    def rpc_xml(cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node):
+        adapter.rpc_xml(cb, xml_rpc)
+
     def get(cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None):
         """Read device data once, narrowed by `filt`. The result may contain
         configuration, operational state, or both. Subscribe instead when the

@@ -2096,6 +2096,24 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema,
         else:
             cb(None, NotConnectedError())
 
+    def rpc_xml(cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
+        def rpc_reply(c, r: ?xml.Node, error: ?netconf.NetconfError):
+            if _is_stale(c):
+                cb(None, NotConnectedError())
+                return
+            _log.debug("Device.rpc_xml.rpc_reply", {"r": r, "error": error})
+            if r is None and error is None:
+                # The client dropped the request, on close or restart.
+                cb(None, NotConnectedError())
+                return
+            cb(r, error)
+
+        _log.debug("Device.rpc_xml", {"xml_rpc": xml_rpc})
+        if client is not None:
+            client.rpc(xml_rpc, rpc_reply)
+        else:
+            cb(None, NotConnectedError())
+
     def rpc(cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
         if len(gdata_rpc.children) != 1:
             cb(None, ValueError("gdata_rpc container must have exactly one child"))
@@ -2119,11 +2137,7 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema,
         if rpc_def!.output is not None:
             out_path = ["{rpc_def!.module}:{rpc_def!.name}", "output"]
 
-        def rpc_reply(c, r: ?xml.Node, error: ?netconf.NetconfError):
-            if _is_stale(c):
-                cb(None, NotConnectedError())
-                return
-            _log.debug("Device.rpc.rpc_reply", {"r": r, "error": error})
+        def on_reply(r: ?xml.Node, error: ?Exception):
             if r is not None and error is None:
                 if netconf.is_ok_reply(r):
                     cb(ygdata.Container({}), None)
@@ -2144,16 +2158,11 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema,
         # containers, but the RPC operation element must always be present.
         # So fix by moving this to an RPC-aware XML serializer.
         rpc_input = gdata_rpc.children[rpc_id]
-        xml_rpc = xml.Node(
+        rpc_xml(on_reply, xml.Node(
             rpc_id.name,
             nsdefs=[(None, rpc_id.q)],
             children=rpc_input.to_xml(),
-        )
-        _log.debug("Device.rpc", {"xml_rpc": xml_rpc})
-        if client is not None:
-            client.rpc(xml_rpc, rpc_reply)
-        else:
-            cb(None, NotConnectedError())
+        ))
 
     def _owner_publish(owner_id: str, err: ?Exception=None):
         if owner_id not in sub_owners:
@@ -2677,6 +2686,9 @@ class NetconfAdapter(DeviceAdapter):
 
     def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node) -> None:
         self._driver.rpc(cb, gdata_rpc)
+
+    def rpc_xml(self, cb: action(?xml.Node, ?Exception) -> None, xml_rpc: xml.Node) -> None:
+        self._driver.rpc_xml(cb, xml_rpc)
 
     def get(self, cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
         self._driver.get(cb, filt)
