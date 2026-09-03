@@ -54,9 +54,10 @@ actor _test_target_release_installs(t: testing.EnvT):
     def on_state(oper: ?ygdata.Node) -> None:
         if _pub_status(oper) == "succeeded":
             # Compare first, because install is impacting. Then two steps: the
-            # image has to be staged before it can be added. The trailing check
-            # reads the new release back for the oper tree.
-            testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "check"],
+            # image has to be staged before it can be added. No post-checks are
+            # registered, so commit follows at once. The trailing check reads
+            # the new release back for the oper tree.
+            testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "commit", "check"],
                                 "manager should have compared, staged, installed")
             t.success()
 
@@ -233,7 +234,7 @@ actor _test_reached_target_is_not_reinstalled(t: testing.EnvT):
             after 0.05: verify()
             return
         testing.assertEqual(adapter.calls(),
-                            ["check", "prepare", "install", "check", "check"],
+                            ["check", "prepare", "install", "commit", "check", "check"],
                             "the second round should have stopped at the check")
         t.success()
 
@@ -264,7 +265,7 @@ actor _test_unreadable_release_still_installs(t: testing.EnvT):
 
     def on_state(oper: ?ygdata.Node) -> None:
         if _pub_status(oper) == "succeeded":
-            testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "check"],
+            testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "commit", "check"],
                                 "a failed check should not stop the install")
             t.success()
 
@@ -308,7 +309,7 @@ actor _test_install_runs_once(t: testing.EnvT):
         if mgr.get_status() != "succeeded":
             after 0.05: verify()
             return
-        testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "check"],
+        testing.assertEqual(adapter.calls(), ["check", "prepare", "install", "commit", "check"],
                             "the sequence should have run once, not twice")
         t.success()
 
@@ -317,3 +318,264 @@ actor _test_install_runs_once(t: testing.EnvT):
     mgr.set_config("camp-1", NEW, False, {})
     mgr.set_config("camp-1", NEW, False, {})
     after 0.05: verify()
+
+
+actor _test_postchecks_gate_the_commit(t: testing.EnvT):
+    """Commit waits for every post-check to pass."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+    var answered = 0
+
+    def quick(done: action(bool, str) -> None) -> None:
+        answered += 1
+        done(True, "")
+
+    def slow(done: action(bool, str) -> None) -> None:
+        def reply() -> None:
+            testing.assertTrue("commit" not in adapter.calls(),
+                               "commit must wait for all post-checks")
+            answered += 1
+            done(True, "")
+        after 0.05: reply()
+
+    def verify() -> None:
+        if mgr.get_status() != "succeeded":
+            after 0.05: verify()
+            return
+        testing.assertEqual(2, answered, "both post-checks must have run")
+        testing.assertEqual(adapter.calls(),
+                            ["check", "prepare", "install", "commit", "check"],
+                            "commit must follow the passed post-checks")
+        t.success()
+
+    mgr.add_postcheck("a", quick)
+    mgr.add_postcheck("b", slow)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+    after 0.05: verify()
+
+
+actor _test_failed_postcheck_rolls_back(t: testing.EnvT):
+    """A failing post-check rolls back instead of committing."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def bad(done: action(bool, str) -> None) -> None:
+        done(False, "peer down")
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        status = _pub_status(oper)
+        if status == "succeeded":
+            t.failure(ValueError("a failed post-check must not end succeeded"))
+        elif status == "rolled-back":
+            testing.assertEqual(adapter.calls(),
+                                ["check", "prepare", "install", "rollback", "check"],
+                                "rollback must replace commit")
+            testing.assertEqual(OLD, adapter.running(),
+                                "device should be back on the old release")
+            testing.assertEqual(OLD, _pub_running(oper),
+                                "running-release should show the old release")
+            t.success()
+
+    dev.set_update_oper(on_state)
+    mgr.add_postcheck("a", bad)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_silent_postcheck_rolls_back(t: testing.EnvT):
+    """A post-check that never answers counts as failed once the deadline
+    passes."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def silent(done: action(bool, str) -> None) -> None:
+        pass
+
+    def verify() -> None:
+        st = mgr.get_status()
+        if st == "in-progress":
+            after 0.05: verify()
+            return
+        testing.assertEqual("rolled-back", st, "deadline must roll back")
+        testing.assertTrue("commit" not in adapter.calls(), "no commit without an answer")
+        testing.assertTrue("rollback" in adapter.calls(), "rollback must have run")
+        t.success()
+
+    mgr.set_postcheck_timeout(0.05)
+    mgr.add_postcheck("a", silent)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+    after 0.05: verify()
+
+
+actor _test_late_postcheck_reply_is_ignored(t: testing.EnvT):
+    """A pass that arrives after the run has rolled back changes nothing."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def bad(done: action(bool, str) -> None) -> None:
+        done(False, "peer down")
+
+    def late(done: action(bool, str) -> None) -> None:
+        def reply() -> None:
+            done(True, "")
+        after 0.1: reply()
+
+    def verify() -> None:
+        testing.assertEqual("rolled-back", mgr.get_status(),
+                            "the late pass must not change the outcome")
+        testing.assertTrue("commit" not in adapter.calls(),
+                           "the late pass must not commit")
+        t.success()
+
+    mgr.add_postcheck("a", bad)
+    mgr.add_postcheck("b", late)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+    after 0.3: verify()
+
+
+actor _test_removed_postcheck_is_not_consulted(t: testing.EnvT):
+    """A removed post-check no longer holds up the commit."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def silent(done: action(bool, str) -> None) -> None:
+        pass
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        if _pub_status(oper) == "succeeded":
+            testing.assertTrue("commit" in adapter.calls(), "commit must have run")
+            t.success()
+
+    dev.set_update_oper(on_state)
+    mgr.add_postcheck("a", silent)
+    mgr.remove_postcheck("a")
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_failed_rollback_is_failed(t: testing.EnvT):
+    """When the rollback itself fails the run ends failed, not rolled-back."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD, "rollback")
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def bad(done: action(bool, str) -> None) -> None:
+        done(False, "peer down")
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        status = _pub_status(oper)
+        if status == "failed":
+            t.success()
+        elif status == "succeeded" or status == "rolled-back":
+            t.failure(ValueError("a failed rollback must end failed, got {status}"))
+
+    dev.set_update_oper(on_state)
+    mgr.add_postcheck("a", bad)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_failed_commit_rolls_back(t: testing.EnvT):
+    """A refused commit rolls back; the device would revert on its own anyway."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD, "commit")
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        status = _pub_status(oper)
+        if status == "rolled-back":
+            testing.assertEqual(adapter.calls(),
+                                ["check", "prepare", "install", "commit", "rollback", "check"],
+                                "a failed commit must be followed by rollback")
+            t.success()
+        elif status == "succeeded" or status == "failed":
+            t.failure(ValueError("a failed commit must roll back, got {status}"))
+
+    dev.set_update_oper(on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_no_commit_window_left_rolls_back(t: testing.EnvT):
+    """With less than the commit margin left on the device timer the manager
+    does not start post-checks; it aborts."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD, commit_window=30)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+    var asked = False
+
+    def check(done: action(bool, str) -> None) -> None:
+        asked = True
+        done(True, "")
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        status = _pub_status(oper)
+        if status == "rolled-back":
+            testing.assertFalse(asked, "no post-check should run without time to commit")
+            testing.assertEqual(adapter.calls(),
+                                ["check", "prepare", "install", "rollback", "check"],
+                                "rollback must replace commit")
+            t.success()
+        elif status == "succeeded":
+            t.failure(ValueError("must not commit after the device timer"))
+
+    dev.set_update_oper(on_state)
+    mgr.add_postcheck("a", check)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})
+
+
+actor _test_reverted_device_is_not_succeeded(t: testing.EnvT):
+    """A commit that reports ok on a device already back on the old release
+    ends failed, not succeeded."""
+    def noop_on_reconf(name: str) -> None:
+        pass
+
+    adapter = swmock.MockSoftwareAdapter(t.log_handler, OLD, auto_abort=True)
+    dev = _devmgr(t, noop_on_reconf)
+    mgr = dev.get_swmgr()
+
+    def on_state(oper: ?ygdata.Node) -> None:
+        status = _pub_status(oper)
+        if status == "failed":
+            testing.assertEqual(OLD, _pub_running(oper),
+                                "running-release must show what the device runs")
+            t.success()
+        elif status == "succeeded":
+            t.failure(ValueError("device on the old release must not be succeeded"))
+
+    dev.set_update_oper(on_state)
+    mgr.set_adapter(adapter)
+    mgr.set_config("camp-1", NEW, False, {})

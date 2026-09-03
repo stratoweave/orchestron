@@ -46,12 +46,14 @@ install_rpc = r"""module Cisco-IOS-XE-install-rpc {
   prefix install-ios-xe-rpc;
 
   description
-    "Pruned to `install`, which is the only install RPC the MVP sends. The real
-     module has ten, all of them input-only: they reply <ok/> meaning accepted,
-     and progress arrives in install-oper-data under the uuid.
+    "Pruned to the four RPCs the adapter sends: install (add), activate,
+     install-commit and abort. The real module has ten, all input-only: they
+     reply <ok/> meaning accepted, and progress arrives in install-oper-data
+     under the uuid.
 
-     With `one-shot` set, `install` adds the image, activates it, commits and
-     reloads. The adapter does not send a separate `activate` RPC.";
+     Without `one-shot`, `install` only adds the image. `activate` boots it
+     with an auto-abort timer; the device reverts unless `install-commit`
+     arrives before the timer runs out.";
 
   rpc install {
     input {
@@ -71,6 +73,36 @@ install_rpc = r"""module Cisco-IOS-XE-install-rpc {
       }
     }
   }
+
+  rpc activate {
+    input {
+      leaf uuid { type string; mandatory true; }
+      leaf auto-abort-timer-val {
+        description "Minutes until the device aborts an uncommitted
+          activation. 30 is the smallest value the device accepts.";
+        type uint32 { range "30 .. 1200"; }
+        units "minutes";
+      }
+      leaf version {
+        description "Version of an already-added image, from
+          install-version-state-info. Activating an added image by its
+          bootflash path fails; it must be named by version.";
+        type string;
+      }
+    }
+  }
+
+  rpc install-commit {
+    input {
+      leaf uuid { type string; mandatory true; }
+    }
+  }
+
+  rpc abort {
+    input {
+      leaf uuid { type string; mandatory true; }
+    }
+  }
 }
 """
 
@@ -81,8 +113,9 @@ install_oper = r"""module Cisco-IOS-XE-install-oper {
 
   description
     "Pruned to the operation records, which are how an asynchronous install
-     reports progress. One RPC produces several records sharing an op-uuid and
-     differing in op-id, and a record moves from install-oper to
+     reports progress, and the version state, which names the added image so
+     it can be activated. One RPC produces several records sharing an op-uuid
+     and differing in op-id, and a record moves from install-oper to
      install-oper-hist when it finishes -- so both lists have to be read.";
 
   container install-oper-data {
@@ -110,6 +143,20 @@ install_oper = r"""module Cisco-IOS-XE-install-oper {
       list install-txn-sum-op-hist {
         leaf txn-cmd    { type string; }
         leaf txn-status { type string; }
+      }
+    }
+
+    list install-location-information {
+      description "Per-location install detail. Pruned to the version state:
+        after an add the device names the added image here, and `activate`
+        needs that version. The real list is keyed by fru/slot/bay/chassis
+        and carries large siblings like install-packages, left out here.";
+      list install-version-state-info {
+        description "One entry per known image version and its state, e.g.
+          provisioned-committed for the running image and
+          provisioned-uncommitted for one added but not yet committed.";
+        leaf version-state { type string; }
+        leaf version        { type string; }
       }
     }
   }

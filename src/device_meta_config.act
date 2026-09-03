@@ -572,6 +572,7 @@ SRC_YANG_0: str = r"""module stratoweave-rfs {
               enum check;
               enum prepare;
               enum install;
+              enum commit;
               enum rollback;
               enum cleanup;
             }

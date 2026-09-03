@@ -90,6 +90,15 @@ class SoftwareAdapter(object):
     ## on the box.
     rollback: proc(done: action(?Exception) -> None, previous: ?str) -> None
 
+    ## Confirm the release install activated, so the platform keeps it. On
+    ## IOS XE this stops the auto-abort timer. Runs after all post-checks pass.
+    commit: proc(done: action(?Exception) -> None) -> None
+
+    ## Report the seconds left before the platform reverts the activated
+    ## release on its own, counted from activation. None when the platform has
+    ## no such timer.
+    commit_window: proc(done: action(?int) -> None) -> None
+
     ## Remove superseded images once the new software is confirmed good.
     ## Reclaims the space the next upgrade needs.
     cleanup: proc(done: action(?Exception) -> None) -> None
@@ -126,6 +135,12 @@ class NoSoftwareAdapter(SoftwareAdapter):
     def rollback(self, done: action(?Exception) -> None, previous: ?str) -> None:
         done(self._unsupported())
 
+    def commit(self, done: action(?Exception) -> None) -> None:
+        done(self._unsupported())
+
+    def commit_window(self, done: action(?int) -> None) -> None:
+        done(None)
+
     def cleanup(self, done: action(?Exception) -> None) -> None:
         done(self._unsupported())
 
@@ -138,6 +153,13 @@ ST_UP_TO_DATE = "up-to-date"
 ST_IN_PROGRESS = "in-progress"
 ST_SUCCEEDED = "succeeded"
 ST_FAILED = "failed"
+ST_ROLLED_BACK = "rolled-back"
+
+# Post-checks must answer within this. The commit also has to land before the
+# platform's own abort timer fires, so the deadline is cut to what the adapter
+# says is left, minus room for the commit itself.
+POSTCHECK_TIMEOUT = 900.0
+COMMIT_MARGIN = 120.0
 
 
 actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr):
@@ -147,9 +169,9 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
     readable, so tight coupling is fine: status changes are pushed straight
     to devmgr.on_software_state.
 
-    Implemented so far: check, prepare, install, then a check to read the
-    release back, and a resync. Pre-checks, post-checks, rollback, cleanup
-    and early staging are still stubs.
+    Implemented so far: check, prepare, install, post-checks, commit or
+    rollback, then a check to read the release back, and a resync. Pre-checks,
+    cleanup and early staging are still stubs.
 
     Declarative like the rest of StratoWeave: the manager is told a target
     release and reconciles toward it, rather than being handed a command to
@@ -159,7 +181,7 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
                                               |                           |
                                      any fail |                  all pass | any fail
                                               v                           v         v
-                                        status=failed                cleanup   rollback
+                                        status=failed          commit, cleanup   rollback
                                       device untouched
 
     * A veto from any holder blocks the impacting step. Vetoes block *starting*
@@ -168,7 +190,8 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
       `allow_staging` only decides whether that work may happen early.
     * Every pre-check must pass for install to proceed. A failing pre-check
       leaves the device untouched, which is the whole point of the gate.
-    * Any failing post-check triggers a rollback.
+    * Any failing post-check triggers a rollback. So does a post-check that
+      does not answer within POSTCHECK_TIMEOUT.
     * **Cleanup is the point of no return**: it removes the superseded image,
       which on platforms without native rollback is the way home, so it must
       not run until the post-checks have passed.
@@ -199,6 +222,17 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
     # sequences on top of each other. Wider than `status == in-progress`,
     # because the comparison happens before there is any work to report.
     var busy: bool = False
+
+    var postchecks: dict[str, action(action(bool, str) -> None) -> None] = {}
+    # Registrants that have not answered yet in the current run.
+    var pending: dict[str, bool] = {}
+    var in_postchecks: bool = False
+    # Bumped at every decision, so a late post-check reply or timer from an
+    # earlier step is ignored.
+    var attempt: int = 0
+    # What the device ran before install; rollback returns to it.
+    var previous_release: ?str = None
+    var postcheck_timeout: float = POSTCHECK_TIMEOUT
 
     # The device/software/state oper tree this manager owns. Every change is
     # pushed to the DeviceMgr, which fuses it into the device entry's oper.
@@ -248,11 +282,22 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
 
     def add_postcheck(registrant: str, cb: action(action(bool, str) -> None) -> None) -> None:
         """Register a check evaluated after install, same shape as a pre-check.
-        Any registrant reporting False triggers a rollback."""
-        pass
+        All must pass before commit. Any registrant reporting False, or not
+        answering within POSTCHECK_TIMEOUT, triggers a rollback. A check added
+        during a run counts from the next run."""
+        postchecks[registrant] = cb
 
     def remove_postcheck(registrant: str) -> None:
-        pass
+        if registrant in postchecks:
+            del postchecks[registrant]
+        if in_postchecks and registrant in pending:
+            del pending[registrant]
+            if len(pending) == 0:
+                _commit()
+
+    def set_postcheck_timeout(secs: float) -> None:
+        """Test hook."""
+        postcheck_timeout = secs
 
     #### introspection ######################################################
 
@@ -312,6 +357,7 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
             _record(running, ST_UP_TO_DATE)
             busy = False
             return
+        previous_release = running
         _record(running, ST_IN_PROGRESS)
         adapter.prepare(_on_prepare_done, t!)
 
@@ -334,8 +380,90 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
             busy = False
             _set_status(ST_FAILED)
             return
+        adapter.commit_window(_on_commit_window)
+
+    def _on_commit_window(w: ?int) -> None:
+        limit = postcheck_timeout
+        if w is not None:
+            left = float(w!) - COMMIT_MARGIN
+            if left <= 0.0:
+                _start_rollback("no time left to commit before the device reverts")
+                return
+            if left < limit:
+                limit = left
+        _run_postchecks(limit)
+
+    def _run_postchecks(limit: float) -> None:
+        names = list(postchecks.keys())
+        if len(names) == 0:
+            _commit()
+            return
+        attempt += 1
+        gen = attempt
+        in_postchecks = True
+        pending = {}
+        for n in names:
+            pending[n] = True
+        for n in names:
+            postchecks[n](_postcheck_done(gen, n))
+        after limit: _on_postcheck_timeout(gen)
+
+    def _postcheck_done(gen: int, registrant: str) -> action(bool, str) -> None:
+        def done(ok: bool, reason: str) -> None:
+            _on_postcheck_result(gen, registrant, ok, reason)
+        return done
+
+    def _on_postcheck_result(gen: int, registrant: str, ok: bool, reason: str) -> None:
+        if gen != attempt or registrant not in pending:
+            _log.debug("software: late post-check reply ignored",
+                       {"device": name, "check": registrant})
+            return
+        del pending[registrant]
+        if not ok:
+            _start_rollback("post-check {registrant} failed: {reason}")
+            return
+        if len(pending) == 0:
+            _commit()
+
+    def _on_postcheck_timeout(gen: int) -> None:
+        if gen != attempt:
+            return
+        _start_rollback("post-checks did not answer: {list(pending.keys())}")
+
+    def _commit() -> None:
+        in_postchecks = False
+        attempt += 1
+        adapter.commit(_on_commit_done)
+
+    def _on_commit_done(err: ?Exception) -> None:
+        if err is not None:
+            # The device drops an uncommitted release on its own timer anyway.
+            # Abort now so the outcome is known.
+            _start_rollback("commit failed: {err}")
+            return
         # Refresh running-release with the value reported by the device.
         adapter.check(_on_final_check)
+
+    def _start_rollback(why: str) -> None:
+        _log.error("software: rolling back", {"device": name, "reason": why})
+        in_postchecks = False
+        attempt += 1
+        adapter.rollback(_on_rollback_done, previous_release)
+
+    def _on_rollback_done(err: ?Exception) -> None:
+        if err is not None:
+            _log.error("software rollback failed", {"device": name, "error": str(err)})
+            busy = False
+            _set_status(ST_FAILED)
+            return
+        adapter.check(_on_rollback_check)
+
+    def _on_rollback_check(running: ?str, err: ?Exception) -> None:
+        busy = False
+        if err is not None:
+            _log.warning("software: rolled back, but could not read the release back",
+                         {"device": name, "error": str(err)})
+        _record(running, ST_ROLLED_BACK)
 
     def _on_final_check(running: ?str, err: ?Exception) -> None:
         busy = False
@@ -344,6 +472,13 @@ actor SoftwareManager(name: str, log_handler: logging.Handler, devmgr: DeviceMgr
             # this final read fails.
             _log.warning("software: installed, but could not read the release back",
                          {"device": name, "error": str(err)})
+        t = target_release
+        if running is not None and t is not None and not adapter.matches_release(running, t!):
+            # The device reverted on its own before the commit took.
+            _log.error("software: device does not run the target after commit",
+                       {"device": name, "running": running!, "target": t!})
+            _record(running, ST_FAILED)
+            return
         # New software may mean a different modset, so the device has to be
         # re-discovered before anything trusts its schema again.
         devmgr.resync()

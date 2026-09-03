@@ -22,6 +22,18 @@ NEW_REPORTED = "17.18.3a"
 IMAGE_FILE = "c8000v-universalk9.17.18.03a.SPA.bin"
 IMAGE_URL = "scp://root:labpass@10.0.0.9:/images/" + IMAGE_FILE
 
+# The device names an image by a version string, and activate takes that, not
+# the path. The first three components match the release the operator asked for.
+OLD_VERSION = "17.18.02.0.4112"
+NEW_VERSION = "17.18.03a.0.5540"
+
+_ADD_STAGES = ["install-txn-add-prechk", "install-txn-copy", "install-txn-verify",
+               "install-txn-extract", "install-txn-add-postchk"]
+_ACT_STAGES = ["install-txn-act-prechk", "install-txn-img-act", "install-txn-reload"]
+_COMMIT_STAGES = ["install-txn-commit-prechk", "install-txn-commit",
+                  "install-txn-commit-postchk"]
+_ABORT_STAGES = ["install-txn-rbk-prechk", "install-txn-reload"]
+
 
 def _banner(version: str) -> str:
     return "Cisco IOS XE Software, Version {version}, RELEASE SOFTWARE (fc1)"
@@ -67,18 +79,33 @@ def operation_record(uuid: str, op_id: str, status: str, done: str,
         q("install-txn-sum-op-hist"): ygdata.List([], txns),
     }, ns=ns, module=mod)
 
+def version_state_info(state: str, version: str) -> ygdata.Node:
+    """One install-version-state-info entry, naming a known image version."""
+    def q(n: str) -> ygdata.Id:
+        return ygdata.Id(ixoper.NS_Cisco_IOS_XE_install_oper, n)
+    ns = ixoper.NS_Cisco_IOS_XE_install_oper
+    mod = "Cisco-IOS-XE-install-oper"
+    return ygdata.Container({
+        q("version-state"): ygdata.Leaf(state, ns=ns, module=mod),
+        q("version"): ygdata.Leaf(version, ns=ns, module=mod),
+    }, ns=ns, module=mod)
 
-def operational_datastore(version: str,
-                          history: list[ygdata.Node]) -> ygdata.Node:
+
+def operational_datastore(version: str, history: list[ygdata.Node],
+                          vstates: list[ygdata.Node]=[]) -> ygdata.Node:
     """Return the complete operational datastore served by the mock."""
     def q(n: str) -> ygdata.Id:
         return ygdata.Id(ixoper.NS_Cisco_IOS_XE_install_oper, n)
     ns = ixoper.NS_Cisco_IOS_XE_install_oper
     mod = "Cisco-IOS-XE-install-oper"
+    loc = ygdata.Container({
+        q("install-version-state-info"): ygdata.List([], vstates),
+    }, ns=ns, module=mod)
     install_oper = ygdata.Container({
         q("install-oper-data"): ygdata.Container({
             q("install-oper"): ygdata.List([], []),
             q("install-oper-hist"): ygdata.List([], history),
+            q("install-location-information"): ygdata.List([], [loc]),
         }, ns=ns, module=mod)
     })
     return ygdata.merge(install_oper, hardware_datastore(version))
@@ -103,42 +130,89 @@ actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
                         fail_rpc: ?str=None,
                         complete_after: float=0.05,
                         start_release: str=OLD_RELEASE,
-                        target_release: str=NEW_REPORTED):
-    """Model staged images, running release, and install history."""
+                        target_release: str=NEW_REPORTED,
+                        auto_abort_after: ?float=None):
+    """Model the staged and added image, running and committed release, and
+    install history.
+
+    Without one-shot, install only adds; activate boots the added image by its
+    version and leaves it uncommitted with an abort timer; install-commit keeps
+    it, abort reloads back. With auto_abort_after, an activation not committed
+    in time reverts, as the device timer would.
+    """
     _log = logging.Logger(log_handler)
 
     var running: str = start_release
+    var committed: str = start_release
     var staged: ?str = None
+    var added: ?str = None
     var history: list[ygdata.Node] = []
     var rpcs: list[str] = []
     var last_source: ?str = None
     var last_destination: ?str = None
     var last_path: ?str = None
     var last_one_shot: ?str = None
+    var last_act_version: ?str = None
+    var last_timer: ?str = None
+
+    def _ver_str(release: str) -> str:
+        return NEW_VERSION if release == target_release else OLD_VERSION
 
     def _publish() -> None:
-        mock_server.set_oper_ds(operational_datastore(running, history))
+        vstates = [version_state_info(
+            "install-version-state-provisioned-committed", _ver_str(committed))]
+        if added is not None and committed != target_release:
+            vstates.append(version_state_info(
+                "install-version-state-provisioned-uncommitted", NEW_VERSION))
+        mock_server.set_oper_ds(operational_datastore(running, history, vstates))
+
+    def _record(uuid: str, op_id: str, stages: list[str]) -> None:
+        history = history + [operation_record(
+            uuid, op_id, swxe.OP_SUCC, swxe.OP_COMPLETE, stages)]
 
     def _finish_xcopy(uuid: str) -> None:
         staged = last_destination
-        history = history + [operation_record(
-            uuid, "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
-            ["install-txn-dwnld-precheck", "install-txn-download"])]
+        _record(uuid, "1", ["install-txn-dwnld-precheck", "install-txn-download"])
+        _publish()
+
+    def _finish_add(uuid: str) -> None:
+        added = staged
+        _record(uuid, "1", _ADD_STAGES)
         _publish()
 
     def _finish_install(uuid: str) -> None:
-        history = history + [
-            operation_record(
-                uuid, "1", swxe.OP_SUCC, swxe.OP_COMPLETE,
-                ["install-txn-add-prechk", "install-txn-copy",
-                 "install-txn-verify", "install-txn-extract",
-                 "install-txn-add-postchk"]),
-            operation_record(
-                uuid, "2", swxe.OP_SUCC, swxe.OP_COMPLETE,
-                ["install-txn-act-prechk", "install-txn-img-act",
-                 "install-txn-commit", "install-txn-reload"]),
-        ]
+        """one-shot: add, activate, commit, reload."""
+        _record(uuid, "1", _ADD_STAGES)
+        _record(uuid, "2", ["install-txn-act-prechk", "install-txn-img-act",
+                            "install-txn-commit", "install-txn-reload"])
         running = target_release
+        committed = target_release
+        _publish()
+
+    def _finish_activate(uuid: str) -> None:
+        _record(uuid, "1", _ACT_STAGES)
+        running = target_release
+        _publish()
+        a = auto_abort_after
+        if a is not None:
+            after a!: _auto_abort(uuid)
+
+    def _auto_abort(uuid: str) -> None:
+        if running == committed:
+            return
+        history = history + [operation_record(
+            uuid, "2", swxe.OP_FAIL_REVERT, swxe.OP_REVERTED, _ABORT_STAGES)]
+        running = committed
+        _publish()
+
+    def _finish_commit(uuid: str) -> None:
+        committed = running
+        _record(uuid, "1", _COMMIT_STAGES)
+        _publish()
+
+    def _finish_abort(uuid: str) -> None:
+        _record(uuid, "1", _ABORT_STAGES)
+        running = committed
         _publish()
 
     def _on_rpc(request: xml.Node,
@@ -173,7 +247,34 @@ actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
                 respond(tag="operation-failed", message="no image has been staged")
                 return
             respond([])
-            after complete_after: _finish_install(uuid!)
+            if last_one_shot == "true":
+                after complete_after: _finish_install(uuid!)
+            else:
+                after complete_after: _finish_add(uuid!)
+            return
+
+        if request.tag == "activate":
+            last_act_version = _leaf_of(request, "version")
+            last_timer = _leaf_of(request, "auto-abort-timer-val")
+            if added is None or last_act_version != NEW_VERSION:
+                respond(tag="operation-failed",
+                        message="no added image with that version")
+                return
+            respond([])
+            after complete_after: _finish_activate(uuid!)
+            return
+
+        if request.tag == "install-commit":
+            respond([])
+            after complete_after: _finish_commit(uuid!)
+            return
+
+        if request.tag == "abort":
+            if running == committed:
+                respond(tag="operation-failed", message="nothing to abort")
+                return
+            respond([])
+            after complete_after: _finish_abort(uuid!)
             return
 
         respond(tag="operation-not-supported",
@@ -189,7 +290,11 @@ actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
     def get_running() -> str:
         return running
 
-    def get_inputs() -> (source: ?str, destination: ?str,
-                         path: ?str, one_shot: ?str):
+    def get_committed() -> str:
+        return committed
+
+    def get_inputs() -> (source: ?str, destination: ?str, path: ?str,
+                         one_shot: ?str, act_version: ?str, timer: ?str):
         return (source=last_source, destination=last_destination,
-                path=last_path, one_shot=last_one_shot)
+                path=last_path, one_shot=last_one_shot,
+                act_version=last_act_version, timer=last_timer)

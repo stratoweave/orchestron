@@ -12,7 +12,8 @@ from device import SoftwareAdapter
 
 
 actor MockSoftwareDriver(log_handler: logging.Handler, current: ?str, fail_job: ?str,
-                         install_delay: ?(float, float)):
+                         install_delay: ?(float, float), commit_window: ?int,
+                         auto_abort: bool):
     """State behind MockSoftwareAdapter."""
     var cur: ?str = current
     var prev: ?str = current
@@ -59,6 +60,15 @@ actor MockSoftwareDriver(log_handler: logging.Handler, current: ?str, fail_job: 
             cur = prev
         done(err)
 
+    def commit(done: action(?Exception) -> None) -> None:
+        if auto_abort:
+            # The device already went back; the commit has nothing to do.
+            cur = prev
+        done(_record("commit"))
+
+    def get_commit_window(done: action(?int) -> None) -> None:
+        done(commit_window)
+
     def cleanup(done: action(?Exception) -> None) -> None:
         done(_record("cleanup"))
 
@@ -80,11 +90,15 @@ class MockSoftwareAdapter(SoftwareAdapter):
     Installs complete instantly by default, which is what tests want. Pass
     install_delay=(lo, hi) seconds to make each install take a uniform random
     time in that range, for demos and UIs where progress should be visible.
+    commit_window mimics a platform abort timer. auto_abort makes commit a
+    no-op that leaves the device on the old release.
     """
     def __init__(self, log_handler: logging.Handler, current: ?str=None,
-                 fail_job: ?str=None, install_delay: ?(float, float)=None):
+                 fail_job: ?str=None, install_delay: ?(float, float)=None,
+                 commit_window: ?int=None, auto_abort: bool=False):
         self._log_handler = log_handler
-        self._driver = MockSoftwareDriver(log_handler, current, fail_job, install_delay)
+        self._driver = MockSoftwareDriver(log_handler, current, fail_job, install_delay,
+                                          commit_window, auto_abort)
 
     def check(self, done: action(?str, ?Exception) -> None) -> None:
         self._driver.check(done)
@@ -97,6 +111,12 @@ class MockSoftwareAdapter(SoftwareAdapter):
 
     def rollback(self, done: action(?Exception) -> None, previous: ?str) -> None:
         self._driver.rollback(done, previous)
+
+    def commit(self, done: action(?Exception) -> None) -> None:
+        self._driver.commit(done)
+
+    def commit_window(self, done: action(?int) -> None) -> None:
+        self._driver.get_commit_window(done)
 
     def cleanup(self, done: action(?Exception) -> None) -> None:
         self._driver.cleanup(done)
