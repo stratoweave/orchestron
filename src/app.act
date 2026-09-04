@@ -62,15 +62,16 @@ class SystemSettings(value):
     @staticmethod
     def parser() -> argconf.Parser:
         """Return the system settings schema."""
-        p = argconf.Parser("STRATOWEAVE", "[FILE ...]")
-        p.add_str(
-            "db", default="",
-            help="TTT database: an LMDB path or a database URL"
+        p = argconf.Parser("STRATOWEAVE")
+        p.add_str_list(
+            "startup_config_files", positional="FILE", default=[],
+            help="Startup configuration files, applied in order"
         )
+        p.add_str("db", help="TTT database: an LMDB path or a database URL")
         p.add_int("http_port", default=80, help="HTTP listen port")
         p.add_int("netconf_port", default=830, help="NETCONF SSH listen port")
         p.add_str(
-            "netconf_host_key", default="",
+            "netconf_host_key",
             help="SSH host key file for NETCONF; ephemeral in-memory key if unset"
         )
         p.add_str(
@@ -90,14 +91,12 @@ class SystemSettings(value):
               environment: ?dict[str, str]=None) -> SystemSettings:
         """Resolve system settings without reading process state or files."""
         args = SystemSettings.parser().parse(argv, system_settings, environment)
-        db_spec = args.get_str("db")
-        host_key = args.get_str("netconf_host_key")
         return SystemSettings(
-            args.rest,
-            db_spec if db_spec != "" else None,
+            args.get_str_list("startup_config_files"),
+            args.get_opt_str("db"),
             args.get_int("http_port"),
             args.get_int("netconf_port"),
-            host_key if host_key != "" else None,
+            args.get_opt_str("netconf_host_key"),
             args.get_str("netconf_user"),
             args.get_str("netconf_password"),
             args.get_bool("exit_on_done"))
