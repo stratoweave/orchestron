@@ -46,8 +46,8 @@ class EstablishParams(object):
     A subscription is either periodic (periodic_period set) or on-change (on_change
     True, with optional dampening_period and sync_on_start). subtree_filter
     carries the top-level data nodes from datastore-subtree-filter, if present.
-    xpath_filter is captured so bindings can reject it when they cannot honour it.
-    datastore is captured but not enforced here.
+    xpath_filter carries the datastore XPath expression, if present. datastore is
+    captured but not enforced here.
     """
     datastore: ?str
     periodic_period: ?int    # centiseconds; None if no <period> was given
@@ -333,7 +333,12 @@ def parse_establish_subscription(op: xml.Node) -> EstablishParams:
                 sync_on_start = False
     sf = _child_by_tag(op, "datastore-subtree-filter")
     subtree_filter = sf.children if sf is not None else None
-    xpath_filter = _text_of(_child_by_tag(op, "datastore-xpath-filter"))
+    xf = _child_by_tag(op, "datastore-xpath-filter")
+    xpath_filter: ?str = None
+    if xf is not None:
+        # Preserve presence of an empty element so the binding rejects the empty
+        # expression instead of accidentally widening it to an unfiltered request.
+        xpath_filter = xf.text if xf.text is not None else ""
     return EstablishParams(datastore, period, on_change, dampening_period, sync_on_start, subtree_filter, xpath_filter)
 
 

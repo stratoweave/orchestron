@@ -12,10 +12,11 @@ it gets an rpc-error rather than being silently served as something else):
 
   - periodic subscriptions only; on-change is not supported;
   - the running or operational datastore;
-  - no filter, or a datastore-subtree-filter (RFC 6241 subtree filtering). The
-    filter is parsed against the served schema into a gdata filter and handed to
-    TTT, which samples only the selected subtree, so each push carries just the
-    filtered data. A datastore-xpath-filter is rejected.
+  - no filter, a datastore-subtree-filter (RFC 6241 subtree filtering), or a
+    datastore-xpath-filter in the subset supported by acton-yang. Filters are
+    parsed against the served schema into a gdata filter and handed to TTT,
+    which samples only the selected subtree, so each push carries just the
+    filtered data.
 
 Known deviation, still under discussion: TTT subscriptions are
 periodic-with-change-suppression, so a subscription only pushes when the datastore
@@ -29,6 +30,7 @@ import logging
 import std.xml as xml
 
 import ttt
+import yang.filter_xpath as filter_xpath
 import yang.gdata as gdata
 import yang.schema as yschema
 import yang.xml as yxml
@@ -56,9 +58,9 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
     Route establish-subscription / delete-subscription here from the server's
     on_rpc (gate with yp.is_subscription_rpc); call shutdown when the session
     closes so TTT stops sampling for it. schema is the served top-level schema;
-    subtree filters are parsed against it. owner_prefix must be unique per
-    session: TTT keys subscriptions by owner id, so two sessions sharing one cfs
-    must not collide."""
+    subtree and XPath filters are parsed against it. owner_prefix must be unique
+    per session: TTT keys subscriptions by owner id, so two sessions sharing one
+    cfs must not collide."""
 
     _log = logging.Logger(log_handler)
     var active: set[int] = set()
@@ -96,18 +98,30 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
                 server.send_notification(yp.build_notification(
                     yp.event_time_now(), yp.build_push_update(sub_id, _contents(tree))))
 
-    def _establish(message_id: str, pp: int, subtree_filter: ?list[xml.Node]) -> None:
+    def _establish(message_id: str, pp: int, subtree_filter: ?list[xml.Node],
+                   xpath_filter: ?str) -> None:
         """Declare a periodic TTT subscription and reply with its id.
 
-        A subtree filter that does not parse against the schema fails the RPC
-        with invalid-value, and no id is allocated."""
+        A filter that does not parse against the schema fails the RPC with
+        invalid-value, and no id is allocated."""
         filt: ?gdata.FNode = None
-        if subtree_filter is not None:
+        if subtree_filter is not None and xpath_filter is not None:
+            server.send_error(message_id, "invalid-value",
+                "choose either datastore-subtree-filter or datastore-xpath-filter")
+            return
+        elif subtree_filter is not None:
             try:
                 filt = parse_subtree_filter(schema, subtree_filter)
             except Exception as e:
                 server.send_error(message_id, "invalid-value",
                     "bad datastore-subtree-filter: {e}")
+                return
+        elif xpath_filter is not None:
+            try:
+                filt = filter_xpath.from_xpath(schema, xpath_filter)
+            except Exception as e:
+                server.send_error(message_id, "invalid-value",
+                    "bad datastore-xpath-filter: {e}")
                 return
         sub_id = next_id
         next_id += 1
@@ -138,11 +152,9 @@ actor TttSubscriptionService(server: Server, cfs: ttt.Layer, schema: yschema.DRo
                 elif not _datastore_supported(params.datastore):
                     server.send_error(message_id, "invalid-value",
                         "unsupported datastore; this server serves running and operational")
-                elif params.xpath_filter is not None:
-                    server.send_error(message_id, "operation-not-supported",
-                        "xpath filters are not supported; use a datastore-subtree-filter")
                 else:
-                    _establish(message_id, pp, params.subtree_filter)
+                    _establish(message_id, pp, params.subtree_filter,
+                               params.xpath_filter)
             else:
                 server.send_error(message_id, "missing-element",
                     "a periodic <period> is required")
