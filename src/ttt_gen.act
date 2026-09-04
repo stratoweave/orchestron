@@ -210,7 +210,7 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
                 actor_args.append("params.update_oper")
             actor_args.append(transform_actor_handle)
             actor_args_s = ", ".join(actor_args)
-            act_defs.append("""def {transform_actor_ctor}(params: ttt.TransformActorParams) -> ?proc(ygdata.Node, ?ygdata.Node) -> None:
+            act_defs.append("""def {transform_actor_ctor}(params: ttt.TransformActorParams) -> proc(ygdata.Node, ?ygdata.Node) -> None:
 {wrappers}    act = {transform_actor_fq}({actor_args_s})
     return proc lambda c, m: act.on_conf({input_class}.from_gdata(c){bang}{memory_conv})
 """)

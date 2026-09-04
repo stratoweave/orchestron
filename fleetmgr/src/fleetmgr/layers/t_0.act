@@ -27,7 +27,7 @@ def _build_target_links_software__software__upgrade_campaign_entry(conf: ygdata.
             if _v1 is not None:
                 res.append(ttt.TaggedPath('inventory', ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "fleet"), children=[ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "device"), children=[ygdata.FNode(ygdata.Id("urn:fleetmgr:fleetmgr", "name"), value_match=_v1)])])))
     return res
-def UpgradeCampaignTransformCtor(params: ttt.TransformActorParams) -> ?proc(ygdata.Node, ?ygdata.Node) -> None:
+def UpgradeCampaignTransformCtor(params: ttt.TransformActorParams) -> proc(ygdata.Node, ?ygdata.Node) -> None:
     def update_oper_type_wrapper(oper: ?y_0_oper.software__software__upgrade_campaign_entry):
         params.update_oper(oper.to_gdata() if oper is not None else None)
     act = cfs.UpgradeCampaignTransform(params.path, update_oper_type_wrapper, params.lower_tree_provider)
