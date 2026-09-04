@@ -11,8 +11,8 @@ def flotilla_command(index: int) -> list[str]:
     return [
         FLOTILLA_BIN,
         "--rts-wthreads", "2",
-        "--http-port", str(BASE_HTTP_PORT + index),
-        "--netconf-port", str(BASE_NETCONF_PORT + index),
+        "--http.port", str(BASE_HTTP_PORT + index),
+        "--netconf.port", str(BASE_NETCONF_PORT + index),
     ]
 
 

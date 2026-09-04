@@ -104,12 +104,12 @@ class SshTransportSettings(value):
             help="zlib compression level, 1 (fastest) to 9 (smallest)"
         )
         p.add_int(
-            prefix + ".rekey_after_bytes", default=0,
-            help="Rekey after this many bytes; 0 uses the cipher's own limit"
+            prefix + ".rekey_after_bytes",
+            help="Rekey after this many bytes; the cipher's own limit if unset"
         )
         p.add_int(
-            prefix + ".rekey_after_seconds", default=0,
-            help="Rekey after this many seconds; 0 disables time-based rekeying"
+            prefix + ".rekey_after_seconds",
+            help="Rekey after this many seconds; no time-based rekey if unset"
         )
         p.add_int(
             prefix + ".minimum_rsa_bits", default=1024,
@@ -119,13 +119,6 @@ class SshTransportSettings(value):
     @staticmethod
     def read(args: argconf.Config, prefix: str) -> SshTransportSettings:
         """Read the settings declared by `declare` under the same prefix."""
-        def opt_int(name: str) -> ?int:
-            # argconf has no notion of an optional setting -- a declaration
-            # without a default makes it required -- so 0 is the unset value
-            # for both rekey limits, the way "" is for db and netconf_host_key.
-            limit = args.get_int(prefix + "." + name)
-            return limit if limit != 0 else None
-
         return SshTransportSettings(
             args.get_str_list(prefix + ".cipher"),
             args.get_str_list(prefix + ".mac"),
@@ -134,8 +127,8 @@ class SshTransportSettings(value):
             args.get_str_list(prefix + ".public_key_algorithm"),
             args.get_str_list(prefix + ".compression_algorithm"),
             args.get_int(prefix + ".compression_level"),
-            opt_int("rekey_after_bytes"),
-            opt_int("rekey_after_seconds"),
+            args.get_opt_int(prefix + ".rekey_after_bytes"),
+            args.get_opt_int(prefix + ".rekey_after_seconds"),
             args.get_int(prefix + ".minimum_rsa_bits"))
 
     def transport_config(self) -> ssh.TransportConfig:
@@ -189,21 +182,21 @@ class SystemSettings(value):
             help="Startup configuration files, applied in order"
         )
         p.add_str("db", help="TTT database: an LMDB path or a database URL")
-        p.add_int("http_port", default=80, help="HTTP listen port")
-        p.add_int("netconf_port", default=830, help="NETCONF SSH listen port")
+        p.add_int("http.port", default=80, help="HTTP listen port")
+        p.add_int("netconf.port", default=830, help="NETCONF SSH listen port")
         p.add_str(
-            "netconf_host_key",
-            help="SSH host key file for NETCONF; ephemeral in-memory key if unset"
-        )
-        p.add_str(
-            "netconf_user", default="admin",
+            "netconf.user", default="admin",
             help="NETCONF SSH username (v1 static credential)"
         )
         p.add_str(
-            "netconf_password", default="admin",
+            "netconf.password", default="admin",
             help="NETCONF SSH password (v1 static credential)"
         )
-        SshTransportSettings.declare(p, "netconf_ssh")
+        p.add_str(
+            "netconf.ssh.host_key",
+            help="SSH host key file for NETCONF; ephemeral in-memory key if unset"
+        )
+        SshTransportSettings.declare(p, "netconf.ssh")
         p.add_bool("exit_on_done", help="Exit after startup config has been applied")
         return p
 
@@ -216,12 +209,12 @@ class SystemSettings(value):
         return SystemSettings(
             args.get_str_list("startup_config_files"),
             args.get_opt_str("db"),
-            args.get_int("http_port"),
-            args.get_int("netconf_port"),
-            args.get_opt_str("netconf_host_key"),
-            args.get_str("netconf_user"),
-            args.get_str("netconf_password"),
-            SshTransportSettings.read(args, "netconf_ssh"),
+            args.get_int("http.port"),
+            args.get_int("netconf.port"),
+            args.get_opt_str("netconf.ssh.host_key"),
+            args.get_str("netconf.user"),
+            args.get_str("netconf.password"),
+            SshTransportSettings.read(args, "netconf.ssh"),
             args.get_bool("exit_on_done"))
 
 

@@ -10,11 +10,11 @@ build:
 
 # Start one RFS-only bottom node without the fleet manager supervisor.
 flotilla:
-	out/bin/flotilla --http-port 18201 --netconf-port 12901
+	out/bin/flotilla --http.port 18201 --netconf.port 12901
 
 # Start the top, which spawns ten flotillas, with the 20-device demo.
 demo:
-	out/bin/fleetmgr --http-port 18200 --netconf-port 12900 demo.xml
+	out/bin/fleetmgr --http.port 18200 --netconf.port 12900 demo.xml
 
 # Submit the two-device IOS XE demo campaign.
 upgrade:

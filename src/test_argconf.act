@@ -7,10 +7,11 @@ import testing
 
 
 _NETCONF_SSH_AON: str = r"""
-netconf_ssh:
-    cipher = ["aes256-ctr", "aes128-ctr"]
-    minimum_rsa_bits = 3072
-    rekey_after_seconds = 3600
+netconf:
+    ssh:
+        cipher = ["aes256-ctr", "aes128-ctr"]
+        minimum_rsa_bits = 3072
+        rekey_after_seconds = 3600
 """
 
 
@@ -18,15 +19,17 @@ def _test_stratoweave_system_settings():
     system_settings = [aon.decode("""
 db = "/var/lib/stratoweave"
 startup_config_files = ["base.xml"]
-http_port = 8081
-netconf_port = 1830
-netconf_user = "configured"
 exit_on_done = True
+http:
+    port = 8081
+netconf:
+    port = 1830
+    user = "configured"
 """, "stratoweave.aon")]
     resolved_settings = swapp.SystemSettings.parse(
-        ["stratoweave", "--http-port=8080", "startup.xml"],
+        ["stratoweave", "--http.port=8080", "startup.xml"],
         system_settings,
-        {"STRATOWEAVE_NETCONF_USER": "environment"}
+        {"STRATOWEAVE_NETCONF__USER": "environment"}
     )
 
     testing.assertEqual(resolved_settings.startup_config_files, ["startup.xml"])
@@ -703,9 +706,9 @@ def _test_netconf_ssh_from_all_three_sources():
     """SSH settings resolve from configuration, environment, and argv."""
     system_settings = [aon.decode(_NETCONF_SSH_AON, "stratoweave.aon")]
     settings = swapp.SystemSettings.parse(
-        ["stratoweave", "--netconf-ssh.key-exchange=curve25519-sha256"],
+        ["stratoweave", "--netconf.ssh.key-exchange=curve25519-sha256"],
         system_settings,
-        {"STRATOWEAVE_NETCONF_SSH__COMPRESSION_LEVEL": "3"}
+        {"STRATOWEAVE_NETCONF__SSH__COMPRESSION_LEVEL": "3"}
     )
 
     ssh_settings = settings.netconf_ssh
@@ -725,7 +728,7 @@ def _test_netconf_ssh_from_all_three_sources():
 def _test_netconf_ssh_rejects_unsupported_algorithm():
     """An unsupported algorithm name fails when the transport is built."""
     settings = swapp.SystemSettings.parse(
-        ["stratoweave", "--netconf-ssh.cipher=rot13-cbc"])
+        ["stratoweave", "--netconf.ssh.cipher=rot13-cbc"])
     try:
         settings.netconf_ssh.transport_config()
     except ValueError:
