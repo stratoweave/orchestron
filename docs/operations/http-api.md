@@ -252,6 +252,66 @@ Response:
 {"status":"ok","message":"Resync initiated"}
 ```
 
+## Browser terminal
+
+### `GET /device/<name>/terminal` (WebSocket)
+Opens an interactive SSH shell on the device and bridges it to the caller
+over a WebSocket. This is what the Web UI's Terminal page uses.
+
+The endpoint is off by default. Enable it with the `terminal_enabled` system
+setting (`--terminal-enabled` on the command line,
+`STRATOWEAVE_TERMINAL_ENABLED=true` in the environment, or
+`terminal_enabled = True` in a settings file). Without it, the path is not
+served and returns `404`.
+
+The request must be a WebSocket upgrade (`Connection: Upgrade`,
+`Upgrade: websocket`, `Sec-WebSocket-Version: 13`, `Sec-WebSocket-Key`). A
+plain `GET` returns `404`. Optional query parameters `cols` and `rows` set the
+initial PTY size (default 80x24, clamped to 1..512).
+
+The `Origin` header is required and its host must equal the host in the
+`Host` header (ports are ignored, so a dev server on `localhost:5173` that
+proxies to `localhost:3000` works). Other origins get `403` unless listed in
+the `terminal_allowed_origins` setting (comma-separated, exact origins such as
+`https://ops.example.com`). Non-browser clients must send an `Origin` header.
+
+The SSH session uses the device's stored `credentials/username` and
+`credentials/password`, the first entry in `address/`, the transport settings
+from `ssh/`, and the port from `terminal/port` (default 22, independent of the
+NETCONF port in `address/port`). Host keys are accepted without verification,
+as for the NETCONF adapter.
+
+Handshake failures are ordinary HTTP responses with a JSON body:
+
+- `400` invalid upgrade headers
+- `403` origin not allowed
+- `404` terminal disabled, unknown device, or not an upgrade request
+- `409` device has no address, no password, or an invalid `ssh/` config
+
+Wire protocol after the upgrade:
+
+- Binary frames carry raw terminal bytes in both directions (keystrokes to
+  the device, PTY output to the client).
+- Text frames carry JSON control messages. The client may send
+  `{"type":"resize","cols":120,"rows":40}`; it is accepted but not applied
+  yet (the SSH library has no window-change binding). The server sends
+  `{"type":"status","state":"connecting"|"connected"|"closed","message":"..."}`
+  and `{"type":"error","message":"..."}`.
+- Closing the WebSocket ends the SSH session; the SSH session or shell ending
+  closes the WebSocket (code 1000 after a normal shell exit, 1011 when the
+  connection or shell request failed).
+
+Example with [websocat](https://github.com/vi/websocat):
+
+```sh
+websocat -b -H 'Origin: http://localhost' \
+  "ws://localhost:3000/device/AMS-CORE-1/terminal?cols=120&rows=40"
+```
+
+There is no authentication on the HTTP API, so enabling the terminal exposes
+a device shell to anyone who can reach the port. Keep it off outside of lab
+setups until HTTP authentication exists.
+
 ## Layer inspection
 
 ### `GET /layer/<idx>`

@@ -379,6 +379,19 @@ rfs = r"""module stratoweave-rfs {
       uses sw-rfs:ssh-client-config;
     }
 
+    container terminal {
+      description
+        "Interactive SSH terminal (browser terminal) access to the device.
+         Authentication reuses credentials/, transport algorithms reuse ssh/.";
+      leaf port {
+        description
+          "TCP port of the device's interactive SSH server. Independent of
+           address/port, which is the management protocol (NETCONF) port.";
+        type uint16;
+        default 22;
+      }
+    }
+
     leaf approval-required {
       description "Require approval of each individual configuration change to this device";
       type boolean;

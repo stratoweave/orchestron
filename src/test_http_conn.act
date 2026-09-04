@@ -1,0 +1,435 @@
+import http
+import logging
+import net
+import random
+import testing
+
+import http_conn as swhttp_conn
+
+_ADDR = "127.0.0.1"
+
+
+def _random_port() -> int:
+    return random.randint(20000, 60000)
+
+
+def _has_header(raw: bytes, name: str) -> bool:
+    # Note: bytes.lower() is unreliable in the current Acton release, so
+    # compare as (ASCII) str.
+    return raw.decode().lower().find(name.lower()) >= 0
+
+
+class _Responses(object):
+    """Accumulates client-side bytes and splits out complete HTTP responses."""
+    buf: bytes
+    responses: list[http.Response]
+
+    def __init__(self):
+        self.buf = b""
+        self.responses = []
+
+    def feed(self, data: bytes, log: logging.Logger):
+        self.buf += data
+        while True:
+            res, rest = http.parse_response(self.buf, log)
+            if res is not None:
+                self.buf = rest
+                self.responses.append(res)
+            else:
+                break
+
+
+actor _test_http_conn_keepalive_pipelined(t: testing.EnvT):
+    """Two pipelined requests in one TCP write are answered in request order
+    even though the first handler responds late, and the connection stays
+    open for a third request."""
+    log = logging.Logger(t.log_handler)
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    var done = False
+    var attempts = 0
+    var port = 0
+    var listener: ?swhttp_conn.HttpListener = None
+    var client: ?net.TCPConnection = None
+    var third_sent = False
+    rx = _Responses()
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_request(conn: swhttp_conn.HttpConnection, req: http.Request, respond: action(int, dict[str, str], str) -> None):
+        if req.path == "/slow":
+            after 0.2: respond(200, {}, req.path)
+        else:
+            respond(200, {}, req.path)
+
+    def _on_receive(c: net.TCPConnection, data: bytes):
+        rx.feed(data, log)
+        if len(rx.responses) == 2 and not third_sent:
+            third_sent = True
+            try:
+                testing.assertEqual(rx.responses[0].body, b"/slow", "first response is for the first request")
+                testing.assertEqual(rx.responses[1].body, b"/fast", "second response is for the second request")
+                testing.assertEqual(rx.responses[0].status, 200, "status 200")
+            except AssertionError as e:
+                fail(e)
+                return
+            c.write(b"GET /third HTTP/1.1\r\nHost: test\r\n\r\n")
+        elif len(rx.responses) == 3 and not done:
+            done = True
+            try:
+                testing.assertEqual(rx.responses[2].body, b"/third", "connection was kept alive")
+                t.success()
+            except AssertionError as e:
+                t.failure(e)
+
+    def _on_connect(c: net.TCPConnection):
+        c.write(b"GET /slow HTTP/1.1\r\nHost: test\r\n\r\nGET /fast HTTP/1.1\r\nHost: test\r\n\r\n")
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            _start()
+            return
+        client = net.TCPConnection(connect_cap, _ADDR, port, _on_connect, _on_receive, _on_error, None)
+
+    def _start():
+        attempts += 1
+        if attempts > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port = _random_port()
+        listener = swhttp_conn.HttpListener(listen_cap, _ADDR, port, _on_request, None, _on_listen, t.log_handler)
+
+    _start()
+    after 10.0: fail(ValueError("timed out"))
+
+
+actor _test_http_conn_closes(t: testing.EnvT):
+    """HTTP/1.0 without a connection header, and HTTP/1.1 with
+    `Connection: close`, both answer and then close the connection."""
+    log = logging.Logger(t.log_handler)
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    var done = False
+    var attempts = 0
+    var port = 0
+    var listener: ?swhttp_conn.HttpListener = None
+    var phase = 0
+    rx1 = _Responses()
+    rx2 = _Responses()
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_request(conn: swhttp_conn.HttpConnection, req: http.Request, respond: action(int, dict[str, str], str) -> None):
+        respond(200, {}, "ok")
+
+    def _on_receive1(c: net.TCPConnection, data: bytes):
+        rx1.feed(data, log)
+
+    def _on_remote_close1(c: net.TCPConnection):
+        try:
+            testing.assertEqual(len(rx1.responses), 1, "HTTP/1.0 request got a response before the close")
+        except AssertionError as e:
+            fail(e)
+            return
+        phase = 2
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect2, _on_receive2, _on_error, _on_remote_close2)
+
+    def _on_connect1(c: net.TCPConnection):
+        c.write(b"GET /a HTTP/1.0\r\n\r\n")
+
+    def _on_receive2(c: net.TCPConnection, data: bytes):
+        rx2.feed(data, log)
+
+    def _on_remote_close2(c: net.TCPConnection):
+        if done:
+            return
+        done = True
+        try:
+            testing.assertEqual(len(rx2.responses), 1, "Connection: close request got a response before the close")
+            t.success()
+        except AssertionError as e:
+            t.failure(e)
+
+    def _on_connect2(c: net.TCPConnection):
+        c.write(b"GET /b HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n")
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            _start()
+            return
+        phase = 1
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect1, _on_receive1, _on_error, _on_remote_close1)
+
+    def _start():
+        attempts += 1
+        if attempts > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port = _random_port()
+        listener = swhttp_conn.HttpListener(listen_cap, _ADDR, port, _on_request, None, _on_listen, t.log_handler)
+
+    _start()
+    after 10.0: fail(ValueError("timed out"))
+
+
+actor _test_http_conn_upgrade_accept(t: testing.EnvT):
+    """An accepted upgrade answers 101 without a body, hands bytes that
+    arrived with the request to the raw handler, lets the server write raw
+    bytes back, and reports the transport close once."""
+    log = logging.Logger(t.log_handler)
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    var done = False
+    var attempts = 0
+    var port = 0
+    var listener: ?swhttp_conn.HttpListener = None
+    var server_conn: ?swhttp_conn.HttpConnection = None
+    var raw_received: bytes = b""
+    var raw_closed: list[?str] = []
+    var client_buf: bytes = b""
+    var got_101 = False
+    var closed_client = False
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_request(conn: swhttp_conn.HttpConnection, req: http.Request, respond: action(int, dict[str, str], str) -> None):
+        fail(ValueError("upgrade request reached the ordinary request handler"))
+
+    def _on_raw_data(data: bytes):
+        raw_received += data
+        sc = server_conn
+        if raw_received == b"\x81\x00" and sc is not None:
+            sc.write(b"pong")
+
+    def _on_raw_closed(err: ?str):
+        raw_closed.append(err)
+        after 0.2: _finish()
+
+    def _finish():
+        if done:
+            return
+        done = True
+        try:
+            testing.assertEqual(raw_received, b"\x81\x00", "bytes sent along with the upgrade request reach the raw handler")
+            testing.assertEqual(len(raw_closed), 1, "on_closed fired exactly once")
+            testing.assertNone(raw_closed[0], "clean remote close carries no error")
+            t.success()
+        except AssertionError as e:
+            t.failure(e)
+
+    def _on_upgrade(conn: swhttp_conn.HttpConnection, req: http.Request):
+        server_conn = conn
+        try:
+            testing.assertEqual(req.path, "/device/r1/terminal", "upgrade request path")
+            testing.assertEqual(req.headers["upgrade"], "websocket", "upgrade header")
+        except AssertionError as e:
+            fail(e)
+            return
+        conn.accept_upgrade({"Upgrade": "websocket", "Connection": "Upgrade", "Sec-WebSocket-Accept": "x"}, _on_raw_data, _on_raw_closed)
+
+    def _on_receive(c: net.TCPConnection, data: bytes):
+        client_buf += data
+        if not got_101:
+            end = client_buf.find(b"\r\n\r\n")
+            if end < 0:
+                return
+            head = client_buf[:end + 4]
+            client_buf = client_buf[end + 4:]
+            try:
+                testing.assertTrue(head.startswith(b"HTTP/1.1 101 Switching Protocols\r\n"), "101 status line")
+                testing.assertTrue(_has_header(head, "\r\nsec-websocket-accept: x\r\n"), "accept header echoed")
+                testing.assertFalse(_has_header(head, "content-length"), "no Content-Length on a 101")
+            except AssertionError as e:
+                fail(e)
+                return
+            got_101 = True
+        if got_101 and client_buf == b"pong" and not closed_client:
+            closed_client = True
+            c.close(_on_client_closed)
+
+    def _on_client_closed(c: net.TCPConnection):
+        pass
+
+    def _on_connect(c: net.TCPConnection):
+        c.write(b"GET /device/r1/terminal HTTP/1.1\r\nHost: test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n\x81\x00")
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            _start()
+            return
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect, _on_receive, _on_error, None)
+
+    def _start():
+        attempts += 1
+        if attempts > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port = _random_port()
+        listener = swhttp_conn.HttpListener(listen_cap, _ADDR, port, _on_request, _on_upgrade, _on_listen, t.log_handler)
+
+    _start()
+    after 10.0: fail(ValueError("timed out"))
+
+
+actor _test_http_conn_upgrade_reject(t: testing.EnvT):
+    """A rejected upgrade is an ordinary response and the connection keeps
+    serving requests afterwards."""
+    log = logging.Logger(t.log_handler)
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    var done = False
+    var attempts = 0
+    var port = 0
+    var listener: ?swhttp_conn.HttpListener = None
+    var second_sent = False
+    rx = _Responses()
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_request(conn: swhttp_conn.HttpConnection, req: http.Request, respond: action(int, dict[str, str], str) -> None):
+        respond(200, {}, req.path)
+
+    def _on_upgrade(conn: swhttp_conn.HttpConnection, req: http.Request):
+        conn.reject_upgrade(403, {"Content-Type": "text/plain"}, "origin not allowed")
+
+    def _on_receive(c: net.TCPConnection, data: bytes):
+        rx.feed(data, log)
+        if len(rx.responses) == 1 and not second_sent:
+            second_sent = True
+            try:
+                testing.assertEqual(rx.responses[0].status, 403, "upgrade rejected with 403")
+                testing.assertEqual(rx.responses[0].body, b"origin not allowed", "rejection body")
+            except AssertionError as e:
+                fail(e)
+                return
+            c.write(b"GET /after HTTP/1.1\r\nHost: test\r\n\r\n")
+        elif len(rx.responses) == 2 and not done:
+            done = True
+            try:
+                testing.assertEqual(rx.responses[1].status, 200, "ordinary request after rejection")
+                testing.assertEqual(rx.responses[1].body, b"/after", "ordinary request body")
+                t.success()
+            except AssertionError as e:
+                t.failure(e)
+
+    def _on_connect(c: net.TCPConnection):
+        c.write(b"GET /device/r1/terminal HTTP/1.1\r\nHost: test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n")
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            _start()
+            return
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect, _on_receive, _on_error, None)
+
+    def _start():
+        attempts += 1
+        if attempts > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port = _random_port()
+        listener = swhttp_conn.HttpListener(listen_cap, _ADDR, port, _on_request, _on_upgrade, _on_listen, t.log_handler)
+
+    _start()
+    after 10.0: fail(ValueError("timed out"))
+
+
+actor _test_http_conn_upgrade_disabled_and_garbage(t: testing.EnvT):
+    """Without an on_upgrade callback an upgrade request is an ordinary
+    request; an unparsable request line gets 400 and a close."""
+    log = logging.Logger(t.log_handler)
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    var done = False
+    var attempts = 0
+    var port = 0
+    var listener: ?swhttp_conn.HttpListener = None
+    rx1 = _Responses()
+    rx2 = _Responses()
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_request(conn: swhttp_conn.HttpConnection, req: http.Request, respond: action(int, dict[str, str], str) -> None):
+        if swhttp_conn.is_upgrade_request(req):
+            respond(426, {}, "upgrade not available")
+        else:
+            respond(200, {}, req.path)
+
+    def _on_receive1(c: net.TCPConnection, data: bytes):
+        rx1.feed(data, log)
+        if len(rx1.responses) == 1:
+            try:
+                testing.assertEqual(rx1.responses[0].status, 426, "upgrade request handled by the ordinary handler")
+            except AssertionError as e:
+                fail(e)
+                return
+            c.close(_on_closed1)
+
+    def _on_closed1(c: net.TCPConnection):
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect2, _on_receive2, _on_error, _on_remote_close2)
+
+    def _on_connect1(c: net.TCPConnection):
+        c.write(b"GET /device/r1/terminal HTTP/1.1\r\nHost: test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n")
+
+    def _on_receive2(c: net.TCPConnection, data: bytes):
+        rx2.feed(data, log)
+
+    def _on_remote_close2(c: net.TCPConnection):
+        if done:
+            return
+        done = True
+        try:
+            testing.assertEqual(len(rx2.responses), 1, "garbage got exactly one response")
+            testing.assertEqual(rx2.responses[0].status, 400, "garbage is answered with 400")
+            t.success()
+        except AssertionError as e:
+            t.failure(e)
+
+    def _on_connect2(c: net.TCPConnection):
+        c.write(b"\x00\x01 this is not http\r\n\r\n")
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            _start()
+            return
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect1, _on_receive1, _on_error, None)
+
+    def _start():
+        attempts += 1
+        if attempts > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port = _random_port()
+        listener = swhttp_conn.HttpListener(listen_cap, _ADDR, port, _on_request, None, _on_listen, t.log_handler)
+
+    _start()
+    after 10.0: fail(ValueError("timed out"))

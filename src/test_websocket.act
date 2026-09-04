@@ -1,0 +1,355 @@
+import logging
+import testing
+
+import websocket as ws
+
+_HEX = "0123456789abcdef"
+
+
+def _hex(b: bytes) -> str:
+    out = ""
+    for i in range(len(b)):
+        x = b[i]
+        out += _HEX[x >> 4] + _HEX[x & 0xf]
+    return out
+
+
+def _mask(payload: bytes, key: bytes) -> bytes:
+    return bytes([payload[i] ^ key[i & 3] for i in range(len(payload))])
+
+
+def _client_frame(opcode: int, payload: bytes, fin: bool = True, key: bytes = b"\x37\xfa\x21\x3d") -> bytes:
+    """A masked client frame, built independently of the module under test."""
+    b0 = (0x80 if fin else 0) | opcode
+    n = len(payload)
+    if n < 126:
+        hdr = bytes([b0, 0x80 | n])
+    elif n < 65536:
+        hdr = bytes([b0, 0x80 | 126, (n >> 8) & 0xff, n & 0xff])
+    else:
+        hdr = bytes([b0, 0x80 | 127] + [(n >> (8 * k)) & 0xff for k in [7, 6, 5, 4, 3, 2, 1, 0]])
+    return hdr + key + _mask(payload, key)
+
+
+def _expect_protocol_error(buf: bytes, what: str, max_payload: int = 1048576) -> bool:
+    try:
+        ws.decode_frame(buf, max_payload)
+    except ws.ProtocolError as e:
+        return True
+    return False
+
+
+def _test_sha1_vectors():
+    testing.assertEqual(_hex(ws.sha1(b"")), "da39a3ee5e6b4b0d3255bfef95601890afd80709", "sha1 of empty input")
+    testing.assertEqual(_hex(ws.sha1(b"abc")), "a9993e364706816aba3e25717850c26c9cd0d89d", "sha1 of abc")
+    # 56 bytes: the padding spills into a second block.
+    two_blocks = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+    testing.assertEqual(_hex(ws.sha1(two_blocks)), "84983e441c3bd26ebaae4aa1f95129e5e54670f1", "sha1 two-block padding")
+    testing.assertEqual(_hex(ws.sha1(bytes([0x61 for i in range(1000)]))), "291e9a6c66994949b57ba5e650361e98fc36b1ba", "sha1 of 1000 x a")
+
+
+def _test_handshake_accept():
+    # RFC 6455 section 4.2.2 sample.
+    testing.assertEqual(ws.handshake_accept("dGhlIHNhbXBsZSBub25jZQ=="), "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", "accept value")
+    hdrs = ws.accept_headers(" dGhlIHNhbXBsZSBub25jZQ== ")
+    testing.assertEqual(hdrs["Sec-WebSocket-Accept"], "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", "accept header is trimmed")
+    testing.assertEqual(hdrs["Upgrade"], "websocket", "upgrade header")
+    testing.assertEqual(hdrs["Connection"], "Upgrade", "connection header")
+
+
+def _good_upgrade_headers() -> dict[str, str]:
+    return {
+        "host": "localhost:3000",
+        "upgrade": "websocket",
+        "connection": "keep-alive, Upgrade",
+        "sec-websocket-version": "13",
+        "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
+    }
+
+
+def _test_validate_upgrade():
+    testing.assertNone(ws.validate_upgrade(_good_upgrade_headers()), "valid headers pass")
+    testing.assertTrue(ws.is_upgrade_request(_good_upgrade_headers()), "is an upgrade request")
+
+    h = _good_upgrade_headers()
+    h["sec-websocket-key"] = ""
+    testing.assertNotNone(ws.validate_upgrade(h), "missing key is rejected")
+
+    h = _good_upgrade_headers()
+    h["sec-websocket-version"] = "8"
+    testing.assertNotNone(ws.validate_upgrade(h), "version 8 is rejected")
+
+    h = _good_upgrade_headers()
+    h["sec-websocket-key"] = "not base64!"
+    testing.assertNotNone(ws.validate_upgrade(h), "malformed key is rejected")
+
+    h = _good_upgrade_headers()
+    h["connection"] = "keep-alive"
+    testing.assertNotNone(ws.validate_upgrade(h), "connection without upgrade token is rejected")
+    testing.assertFalse(ws.is_upgrade_request(h), "not an upgrade request")
+
+    h = _good_upgrade_headers()
+    h["upgrade"] = "h2c"
+    testing.assertNotNone(ws.validate_upgrade(h), "non-websocket upgrade is rejected")
+
+
+def _test_origin_host():
+    testing.assertEqual(ws.origin_host("http://localhost:3000"), "localhost", "origin with port")
+    testing.assertEqual(ws.origin_host("https://Example.COM"), "example.com", "origin lower-cased")
+    testing.assertEqual(ws.origin_host("https://[::1]:8443"), "::1", "ipv6 origin")
+    testing.assertEqual(ws.origin_host("http://sweave/path"), "sweave", "origin with path")
+    testing.assertNone(ws.origin_host("null"), "opaque origin")
+    testing.assertNone(ws.origin_host("http://"), "empty host")
+    testing.assertEqual(ws.host_header_host("sweave:80"), "sweave", "host header with port")
+    testing.assertEqual(ws.host_header_host("[::1]:3000"), "::1", "ipv6 host header")
+    testing.assertEqual(ws.host_header_host("LOCALHOST"), "localhost", "host header lower-cased")
+
+
+def _test_decode_masked_text():
+    # RFC 6455 section 5.7: single-frame masked text "Hello".
+    buf = b"\x81\x85\x37\xfa\x21\x3d\x7f\x9f\x4d\x51\x58"
+    fr, rest = ws.decode_frame(buf, 1048576)
+    testing.assertNotNone(fr, "frame decoded")
+    if fr is not None:
+        testing.assertTrue(fr.fin, "fin set")
+        testing.assertEqual(fr.opcode, ws.OP_TEXT, "text opcode")
+        testing.assertEqual(fr.payload, b"Hello", "unmasked payload")
+    testing.assertEqual(rest, b"", "nothing left over")
+
+
+def _test_decode_partial_and_multiple():
+    full = b"\x81\x85\x37\xfa\x21\x3d\x7f\x9f\x4d\x51\x58"
+    fr, rest = ws.decode_frame(full[:10], 1048576)
+    testing.assertNone(fr, "incomplete frame yields nothing")
+    testing.assertEqual(rest, full[:10], "incomplete buffer is returned untouched")
+    fr, rest = ws.decode_frame(b"\x81", 1048576)
+    testing.assertNone(fr, "one byte is not enough")
+
+    two = full + _client_frame(ws.OP_BINARY, b"\x00\x01\x02")
+    fr, rest = ws.decode_frame(two, 1048576)
+    testing.assertNotNone(fr, "first of two frames")
+    testing.assertEqual(rest, _client_frame(ws.OP_BINARY, b"\x00\x01\x02"), "second frame left in rest")
+    fr2, rest2 = ws.decode_frame(rest, 1048576)
+    testing.assertNotNone(fr2, "second frame decoded")
+    if fr2 is not None:
+        testing.assertEqual(fr2.opcode, ws.OP_BINARY, "binary opcode")
+        testing.assertEqual(fr2.payload, b"\x00\x01\x02", "binary payload")
+    testing.assertEqual(rest2, b"", "buffer drained")
+
+
+def _test_decode_lengths():
+    for n in [0, 125, 126, 65535, 65536, 70000]:
+        payload = bytes([i & 0xff for i in range(n)])
+        buf = _client_frame(ws.OP_BINARY, payload)
+        fr, rest = ws.decode_frame(buf, 1 << 20)
+        testing.assertNotNone(fr, "frame of {n} bytes decoded")
+        if fr is not None:
+            testing.assertEqual(len(fr.payload), n, "payload length {n}")
+            testing.assertEqual(fr.payload, payload, "payload content {n}")
+        testing.assertEqual(rest, b"", "no leftover for {n}")
+
+
+def _test_decode_rejects():
+    # Unmasked client frame.
+    testing.assertTrue(_expect_protocol_error(b"\x81\x05Hello", "unmasked"), "unmasked frame rejected")
+    # RSV1 set.
+    testing.assertTrue(_expect_protocol_error(b"\xc1\x85\x37\xfa\x21\x3d\x7f\x9f\x4d\x51\x58", "rsv"), "rsv bit rejected")
+    # Opcode 3 is reserved.
+    testing.assertTrue(_expect_protocol_error(_client_frame(3, b"x"), "opcode"), "reserved opcode rejected")
+    # Control frame with 126-byte payload.
+    testing.assertTrue(_expect_protocol_error(_client_frame(ws.OP_PING, b"p" * 126), "long ping"), "long control frame rejected")
+    # Fragmented ping.
+    testing.assertTrue(_expect_protocol_error(_client_frame(ws.OP_PING, b"p", fin=False), "frag ping"), "fragmented control frame rejected")
+    # Too big for the limit.
+    too_big = False
+    try:
+        ws.decode_frame(_client_frame(ws.OP_BINARY, b"x" * 200), 100)
+    except ws.TooBigError as e:
+        too_big = True
+    testing.assertTrue(too_big, "oversized frame raises TooBigError")
+    # 64-bit length with the top bit set.
+    testing.assertTrue(_expect_protocol_error(b"\x82\xff\x80\x00\x00\x00\x00\x00\x00\x00\x37\xfa\x21\x3d", "huge"), "length over 2^63 rejected")
+
+
+def _test_encode_frame():
+    testing.assertEqual(ws.encode_frame(ws.OP_TEXT, b"Hello"), b"\x81\x05Hello", "short text frame")
+    testing.assertEqual(ws.encode_frame(ws.OP_BINARY, b"", fin=False), b"\x02\x00", "empty non-final binary frame")
+    f126 = ws.encode_frame(ws.OP_BINARY, b"x" * 126)
+    testing.assertEqual(f126[:4], b"\x82\x7e\x00\x7e", "16-bit length header")
+    testing.assertEqual(len(f126), 4 + 126, "16-bit frame size")
+    f64k = ws.encode_frame(ws.OP_BINARY, b"x" * 65536)
+    testing.assertEqual(f64k[:10], b"\x82\x7f\x00\x00\x00\x00\x00\x01\x00\x00", "64-bit length header")
+    testing.assertEqual(len(f64k), 10 + 65536, "64-bit frame size")
+    testing.assertEqual(ws.close_payload(1000, "bye"), b"\x03\xe8bye", "close payload")
+    testing.assertEqual(ws.encode_frame(ws.OP_PONG, b"ab"), b"\x8a\x02ab", "pong frame")
+
+
+def _server_frames(chunks: list[bytes]) -> list[(int, bytes)]:
+    """Split the bytes a ServerConnection wrote into (opcode, payload) pairs."""
+    buf = b"".join(chunks)
+    out: list[(int, bytes)] = []
+    while len(buf) >= 2:
+        b0 = buf[0]
+        plen = buf[1] & 0x7f
+        hl = 2
+        if plen == 126:
+            plen = (buf[2] << 8) | buf[3]
+            hl = 4
+        elif plen == 127:
+            plen = 0
+            for i in range(2, 10):
+                plen = (plen << 8) | buf[i]
+            hl = 10
+        out.append((b0 & 0x0f, buf[hl:hl + plen]))
+        buf = buf[hl + plen:]
+    return out
+
+
+actor _test_server_connection_messages(t: testing.AsyncT):
+    """Ping is answered, fragments are reassembled, a client close is echoed
+    and reported exactly once."""
+    var written: list[bytes] = []
+    var transport_closed = 0
+    var messages: list[(bytes, bool)] = []
+    var closes: list[(int, str)] = []
+    var done = False
+
+    def _write(data: bytes):
+        written.append(data)
+
+    def _close_transport():
+        transport_closed += 1
+
+    def _on_message(c: ws.ServerConnection, payload: bytes, is_binary: bool):
+        messages.append((payload, is_binary))
+
+    def _on_close(c: ws.ServerConnection, code: int, reason: str):
+        closes.append((code, reason))
+
+    def _check():
+        if done:
+            return
+        done = True
+        try:
+            frames = _server_frames(written)
+            testing.assertEqual(len(messages), 2, "two messages delivered")
+            testing.assertEqual(messages[0].0, b"Hello", "reassembled text message")
+            testing.assertFalse(messages[0].1, "text message is not binary")
+            testing.assertEqual(messages[1].0, b"\x01\x02", "binary message")
+            testing.assertTrue(messages[1].1, "binary message flagged binary")
+            testing.assertEqual(len(frames), 2, "pong and close written")
+            testing.assertEqual(frames[0].0, ws.OP_PONG, "pong frame")
+            testing.assertEqual(frames[0].1, b"ping!", "pong echoes the ping payload")
+            testing.assertEqual(frames[1].0, ws.OP_CLOSE, "close frame echoed")
+            testing.assertEqual(frames[1].1, b"\x03\xe8", "echoed close carries code 1000")
+            testing.assertEqual(transport_closed, 1, "transport closed once")
+            testing.assertEqual(len(closes), 1, "on_close exactly once")
+            testing.assertEqual(closes[0].0, 1000, "peer close code reported")
+            testing.assertEqual(closes[0].1, "done", "peer close reason reported")
+            t.success()
+        except AssertionError as e:
+            t.failure(e)
+
+    conn = ws.ServerConnection(_write, _close_transport, _on_message, _on_close, t.log_handler, close_grace=0.1)
+    # Deliver everything byte by byte to exercise buffering across reads.
+    stream = (_client_frame(ws.OP_PING, b"ping!")
+              + _client_frame(ws.OP_TEXT, b"Hel", fin=False)
+              + _client_frame(ws.OP_CONT, b"lo", fin=True)
+              + _client_frame(ws.OP_BINARY, b"\x01\x02")
+              + _client_frame(ws.OP_CLOSE, b"\x03\xe8done"))
+    for i in range(len(stream)):
+        conn.on_data(stream[i:i + 1])
+    # A late transport-closed notification must not produce a second on_close.
+    conn.on_transport_closed(None)
+    after 0.5: _check()
+
+
+actor _test_server_connection_protocol_error(t: testing.AsyncT):
+    """An unmasked frame gets a 1002 close and, absent a reply, a forced
+    transport close after the grace period."""
+    var written: list[bytes] = []
+    var transport_closed = 0
+    var closes: list[(int, str)] = []
+    var done = False
+
+    def _write(data: bytes):
+        written.append(data)
+
+    def _close_transport():
+        transport_closed += 1
+
+    def _on_message(c: ws.ServerConnection, payload: bytes, is_binary: bool):
+        pass
+
+    def _on_close(c: ws.ServerConnection, code: int, reason: str):
+        closes.append((code, reason))
+
+    def _check():
+        if done:
+            return
+        done = True
+        try:
+            frames = _server_frames(written)
+            testing.assertEqual(len(frames), 1, "exactly one frame written")
+            testing.assertEqual(frames[0].0, ws.OP_CLOSE, "it is a close frame")
+            testing.assertEqual(frames[0].1[:2], b"\x03\xea", "close code 1002")
+            testing.assertEqual(transport_closed, 1, "transport force-closed once")
+            testing.assertEqual(len(closes), 1, "on_close exactly once")
+            testing.assertEqual(closes[0].0, 1002, "reported code 1002")
+            t.success()
+        except AssertionError as e:
+            t.failure(e)
+
+    conn = ws.ServerConnection(_write, _close_transport, _on_message, _on_close, t.log_handler, close_grace=0.1)
+    conn.on_data(b"\x81\x05Hello")
+    # Anything after the failure is ignored.
+    conn.on_data(_client_frame(ws.OP_TEXT, b"ignored"))
+    after 0.6: _check()
+
+
+actor _test_server_connection_server_close(t: testing.AsyncT):
+    """Server-initiated close followed by the transport dropping reports one
+    close with the server's code; sends after close are suppressed."""
+    var written: list[bytes] = []
+    var transport_closed = 0
+    var closes: list[(int, str)] = []
+    var done = False
+    status_json = '{{"type":"status"}}'
+
+    def _write(data: bytes):
+        written.append(data)
+
+    def _close_transport():
+        transport_closed += 1
+
+    def _on_message(c: ws.ServerConnection, payload: bytes, is_binary: bool):
+        pass
+
+    def _on_close(c: ws.ServerConnection, code: int, reason: str):
+        closes.append((code, reason))
+
+    def _check():
+        if done:
+            return
+        done = True
+        try:
+            frames = _server_frames(written)
+            testing.assertEqual(len(frames), 2, "one text frame and one close frame")
+            testing.assertEqual(frames[0].0, ws.OP_TEXT, "text frame before close")
+            testing.assertEqual(frames[0].1, status_json.encode(), "text frame payload")
+            testing.assertEqual(frames[1].0, ws.OP_CLOSE, "close frame")
+            testing.assertEqual(frames[1].1, b"\x03\xe8shell exited", "close code and reason")
+            testing.assertEqual(len(closes), 1, "on_close exactly once")
+            testing.assertEqual(closes[0].0, 1000, "our close code reported")
+            testing.assertEqual(closes[0].1, "shell exited", "our close reason reported")
+            testing.assertEqual(transport_closed, 0, "transport closed by the peer, not forced")
+            t.success()
+        except AssertionError as e:
+            t.failure(e)
+
+    conn = ws.ServerConnection(_write, _close_transport, _on_message, _on_close, t.log_handler, close_grace=5.0)
+    conn.send_text(status_json)
+    conn.close(ws.CLOSE_NORMAL, "shell exited")
+    conn.send_binary(b"late")
+    conn.on_transport_closed(None)
+    after 0.5: _check()

@@ -1,0 +1,242 @@
+"""Browser terminal: a WebSocket to SSH shell bridge.
+
+`TerminalSession` completes a WebSocket upgrade on an `HttpConnection`, opens
+an SSH session to the device with its stored credentials, requests an
+interactive shell with a PTY, and copies bytes in both directions.
+
+Wire protocol (see docs/operations/http-api.md):
+- binary frames carry raw terminal bytes in both directions;
+- text frames carry JSON control messages. The client may send
+  `{"type": "resize", "cols": N, "rows": M}`. The server sends
+  `{"type": "status", "state": "connecting" | "connected" | "closed",
+  "message": "..."}` and `{"type": "error", "message": "..."}`.
+
+Closing either side tears down the other. Backpressure is not available in
+either direction: acton-ssh fails the channel once its write buffer exceeds
+`max_write_buffer` and the TCP write queue is unbounded, so a very fast
+producer paired with a stalled consumer grows memory until one side gives up.
+"""
+
+import json
+import logging
+import net
+import ssh
+
+import http_conn as swhttp_conn
+import websocket as swws
+
+STATE_CONNECTING = 0
+STATE_SHELL = 1
+STATE_CLOSED = 2
+
+MIN_DIM = 1
+MAX_DIM = 512
+
+
+def clamp_dim(n: int, default: int) -> int:
+    """Clamp a terminal dimension into [MIN_DIM, MAX_DIM]."""
+    if n < MIN_DIM:
+        return default
+    if n > MAX_DIM:
+        return MAX_DIM
+    return n
+
+
+class TerminalTarget(object):
+    device: str
+    address: str
+    port: int
+    username: str
+    password: str
+    transport: ?ssh.TransportConfig
+    cols: int
+    rows: int
+
+    def __init__(self, device: str, address: str, port: int, username: str, password: str,
+                 transport: ?ssh.TransportConfig, cols: int, rows: int):
+        self.device = device
+        self.address = address
+        self.port = port
+        self.username = username
+        self.password = password
+        self.transport = transport
+        self.cols = cols
+        self.rows = rows
+
+
+actor TerminalSession(
+    conn: swhttp_conn.HttpConnection,
+    ws_headers: dict[str, str],
+    connect_cap: net.TCPConnectCap,
+    target: TerminalTarget,
+    log_handler: logging.Handler,
+    term: str = "xterm-256color",
+    connect_timeout: float = 10.0
+):
+    """One browser terminal session. Construct it from an upgrade handler;
+    it sends the 101 itself (via `conn.accept_upgrade`)."""
+    _log = logging.Logger(log_handler)
+
+    var state: int = STATE_CONNECTING
+    var ws: ?swws.ServerConnection = None
+    var client: ?ssh.Client = None
+    var channel: ?ssh.Channel = None
+    var cols: int = target.cols
+    var rows: int = target.rows
+
+    def _send_json(obj: dict[str, ?value]):
+        w = ws
+        if w is not None:
+            w.send_text(json.encode(obj))
+
+    def _send_status(new_state: str, message: str):
+        _send_json({"type": "status", "state": new_state, "message": message})
+
+    def _send_error(message: str):
+        _send_json({"type": "error", "message": message})
+
+    def _teardown_ssh():
+        ch = channel
+        if ch is not None:
+            channel = None
+            ch.close()
+        c = client
+        if c is not None:
+            client = None
+            c.close()
+
+    def _close_ws(code: int, reason: str):
+        w = ws
+        if w is not None:
+            w.close(code, reason)
+
+    def _fail(message: str, code: int):
+        if state == STATE_CLOSED:
+            return
+        _log.info("Terminal session failed", {"device": target.device, "reason": message})
+        state = STATE_CLOSED
+        _send_error(message)
+        _close_ws(code, message[:120])
+        _teardown_ssh()
+
+    def _finish(message: str):
+        if state == STATE_CLOSED:
+            return
+        _log.debug("Terminal session finished", {"device": target.device, "reason": message})
+        state = STATE_CLOSED
+        _send_status("closed", message)
+        _close_ws(swws.CLOSE_NORMAL, message[:120])
+        _teardown_ssh()
+
+    # --- SSH side ----------------------------------------------------------
+
+    def _on_hostkey(c: ssh.Client, hk_state: str, info: ssh.HostKeyInfo):
+        # Same policy as the NETCONF adapter (skip_host_key_check=True): the
+        # orchestrator owns the device inventory and talks to it over the
+        # management network.
+        c.accept_hostkey()
+
+    def _on_ssh_connect(c: ssh.Client, err: ?str):
+        if state == STATE_CLOSED:
+            c.close()
+            return
+        if err is not None:
+            _fail("SSH connection to {target.address}:{target.port} failed: {err}", swws.CLOSE_INTERNAL)
+            return
+        channel = ssh.Channel(c, _on_ch_open, _on_ch_stdout, _on_ch_stderr, _on_ch_exit, _on_ch_close)
+
+    def _on_ssh_close(c: ssh.Client, reason: str):
+        client = None
+        _finish("SSH session closed: {reason}")
+
+    def _on_ch_open(ch: ssh.Channel, err: ?str):
+        if state == STATE_CLOSED:
+            ch.close()
+            return
+        if err is not None:
+            _fail("SSH channel open failed: {err}", swws.CLOSE_INTERNAL)
+            return
+        # There is no completion callback for the shell request; a device that
+        # refuses it closes the channel, which arrives as _on_ch_close.
+        ch.request_shell(term=term, cols=cols, rows=rows, width_px=0, height_px=0, with_pty=True)
+        state = STATE_SHELL
+        _send_status("connected", "")
+
+    def _on_ch_stdout(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            w = ws
+            if w is not None:
+                w.send_binary(data)
+
+    def _on_ch_stderr(ch: ssh.Channel, data: ?bytes):
+        # With a PTY the device merges the streams; anything here is shown too.
+        if data is not None:
+            w = ws
+            if w is not None:
+                w.send_binary(data)
+
+    def _on_ch_exit(ch: ssh.Channel, status: int, signal: ?str):
+        _log.debug("Terminal shell exited", {"device": target.device, "status": status, "signal": signal})
+
+    def _on_ch_close(ch: ssh.Channel, reason: str):
+        channel = None
+        if state == STATE_SHELL:
+            _finish("shell closed: {reason}")
+        else:
+            _fail("SSH channel closed before the shell was ready: {reason}", swws.CLOSE_INTERNAL)
+
+    # --- WebSocket side ----------------------------------------------------
+
+    def _handle_control(w: swws.ServerConnection, data: bytes):
+        msg: dict[str, ?value] = {}
+        try:
+            msg = json.decode(data.decode())
+        except Exception as e:
+            w.close(swws.CLOSE_BAD_DATA, "control message is not valid JSON")
+            return
+        kind = msg.get("type")
+        if isinstance(kind, str) and kind == "resize":
+            c = msg.get("cols")
+            r = msg.get("rows")
+            if isinstance(c, int) and isinstance(r, int):
+                cols = clamp_dim(c, cols)
+                rows = clamp_dim(r, rows)
+                # TODO: acton-ssh does not bind ssh_channel_change_pty_size yet,
+                # so the new size cannot be pushed to the device. It is kept so
+                # the protocol is stable once the binding exists.
+                _log.debug("Terminal resize requested (not applied)", {"device": target.device, "cols": cols, "rows": rows})
+        else:
+            _log.debug("Ignoring unknown terminal control message", {"device": target.device, "type": kind})
+
+    def _on_ws_message(w: swws.ServerConnection, data: bytes, is_binary: bool):
+        if is_binary:
+            ch = channel
+            if ch is not None and state == STATE_SHELL:
+                ch.write(data)
+            else:
+                _log.debug("Dropping terminal input, shell not ready", {"device": target.device, "bytes": len(data)})
+            return
+        _handle_control(w, data)
+
+    def _on_ws_close(w: swws.ServerConnection, code: int, reason: str):
+        _log.debug("Terminal WebSocket closed", {"device": target.device, "code": code, "reason": reason})
+        state = STATE_CLOSED
+        _teardown_ssh()
+
+    # --- Start -------------------------------------------------------------
+
+    ws_conn = swws.ServerConnection(conn.write, conn.close, _on_ws_message, _on_ws_close, log_handler)
+    ws = ws_conn
+    conn.accept_upgrade(ws_headers, ws_conn.on_data, ws_conn.on_transport_closed)
+    _log.info("Terminal session starting", {"device": target.device, "address": target.address, "port": target.port, "username": target.username})
+    _send_status("connecting", "Connecting to {target.address}:{target.port} as {target.username}")
+    client = ssh.Client(connect_cap,
+                        host=target.address,
+                        username=target.username,
+                        on_connect=_on_ssh_connect,
+                        on_close=_on_ssh_close,
+                        on_hostkey=_on_hostkey,
+                        password=target.password,
+                        port=u16(target.port),
+                        transport=target.transport,
+                        connect_timeout=connect_timeout)

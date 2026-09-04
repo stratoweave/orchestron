@@ -3,11 +3,17 @@ import http_router
 import json
 import logging
 import net
+import ssh
 
 import device as swdev
+from device_meta_config import stratoweave_rfs__device_entry as DeviceMetaConfig
+import http_conn as swhttp_conn
 import restconf as swrestconf
 import static_assets as swstatic
+import terminal as swterm
 import tmf_api as swtmf_api
+import websocket as swws
+from adapters.adapter import ssh_transport_config
 import ttt as ttt
 import yang.data as ydata
 import yang.gdata as ygdata
@@ -44,8 +50,20 @@ actor HttpServer(
     restconf_root: str = "/restconf",
     address: str = "::",
     port: int = 80,
-    static_assets: ?dict[str, str] = None
+    static_assets: ?dict[str, str] = None,
+    terminal_enabled: bool = False,
+    terminal_allowed_origins: list[str] = [],
+    connect_cap: ?net.TCPConnectCap = None,
+    on_listen: ?action(?str) -> None = None
 ):
+    """The StratoWeave HTTP API server.
+
+    `terminal_enabled` turns on the browser terminal endpoint
+    `GET /device/{name}/terminal` (WebSocket). It needs `connect_cap` to open
+    SSH sessions to devices. Browser origins whose host differs from the
+    request's Host header are refused unless listed in
+    `terminal_allowed_origins`.
+    """
     _ROUTER_CTX_DEVICE_KEY = "dev"
     http_log = logging.Logger(log_handler)
 
@@ -418,13 +436,113 @@ actor HttpServer(
     if assets is not None:
         swstatic.install(http_router_root, assets)
 
-    def _on_http_server_request(server, request, respond):
+    def _on_http_request(conn, request, respond):
         http_router_root.serve(request, respond)
 
-    def _on_http_accept(server):
-        server.cb_install(_on_http_server_request, _on_http_server_error)
+    # --- Browser terminal (WebSocket upgrade) ------------------------------
 
-    def _on_http_server_error(server, error):
-        print("Error: {error}")
+    def _query_params(path: str) -> dict[str, str]:
+        params: dict[str, str] = {}
+        q = path.find("?")
+        if q < 0:
+            return params
+        for part in path[q + 1:].split("&"):
+            if part == "":
+                continue
+            kv = part.split("=", 1)
+            params[kv[0]] = kv[1] if len(kv) == 2 else ""
+        return params
 
-    listener = http.Listener(listen_cap, address, port, _on_http_accept, log_handler=log_handler)
+    def _dim_param(params: dict[str, str], key: str, default: int) -> int:
+        v = params.get(key)
+        if v is not None:
+            if v != "" and v.isdecimal():
+                return swterm.clamp_dim(int(v), default)
+        return default
+
+    def _origin_allowed(origin: str, host: str) -> bool:
+        if origin in terminal_allowed_origins:
+            return True
+        oh = swws.origin_host(origin)
+        return oh is not None and host != "" and oh == swws.host_header_host(host)
+
+    def _reject(conn: swhttp_conn.HttpConnection, status: int, message: str):
+        conn.reject_upgrade(status, {"Content-Type": "application/json"}, json.encode({"error": message}))
+
+    def _open_terminal(conn: swhttp_conn.HttpConnection, request: http.Request, name: str,
+                       dmc: DeviceMetaConfig, address: str, password: str, cap: net.TCPConnectCap):
+        transport: ?ssh.TransportConfig = None
+        try:
+            transport = ssh_transport_config(dmc.ssh)
+        except ValueError as e:
+            _reject(conn, 409, "Invalid device SSH configuration: {e}")
+            return
+        params = _query_params(request.path)
+        target = swterm.TerminalTarget(name, address, int(dmc.terminal.port),
+                                       dmc.credentials.username, password, transport,
+                                       _dim_param(params, "cols", 80), _dim_param(params, "rows", 24))
+        key = request.headers.get_def("sec-websocket-key", "")
+        swterm.TerminalSession(conn, swws.accept_headers(key), cap, target, log_handler)
+
+    def _start_terminal(conn: swhttp_conn.HttpConnection, request: http.Request, name: str,
+                        dev: swdev.DeviceMgr, cap: net.TCPConnectCap):
+        dmc = dev.get_dmc()
+        addresses = list(dmc.address)
+        if len(addresses) == 0:
+            _reject(conn, 409, "Device has no address")
+            return
+        password = dmc.credentials.password
+        if password is not None:
+            _open_terminal(conn, request, name, dmc, addresses[0].address, password, cap)
+        else:
+            _reject(conn, 409, "Device has no password credential")
+
+    def _on_upgrade(conn: swhttp_conn.HttpConnection, request: http.Request):
+        path = request.path
+        q = path.find("?")
+        clean = path[:q] if q >= 0 else path
+        segs = [seg for seg in clean.split("/") if seg != ""]
+        if request.method.upper() != "GET" or len(segs) != 3 or segs[0] != "device" or segs[2] != "terminal":
+            _reject(conn, 404, "Not found")
+            return
+        name = segs[1]
+
+        err = swws.validate_upgrade(request.headers)
+        if err is not None:
+            _reject(conn, 400, err)
+            return
+
+        host = request.headers.get_def("host", "")
+        origin = request.headers.get("origin")
+        if origin is not None:
+            if not _origin_allowed(origin, host):
+                http_log.notice("Refusing terminal from foreign origin", {"origin": origin, "host": host})
+                _reject(conn, 403, "Origin not allowed")
+                return
+        else:
+            _reject(conn, 403, "Origin header required")
+            return
+
+        cap = connect_cap
+        dev = dev_registry.get(name)
+        if cap is not None and dev is not None:
+            _start_terminal(conn, request, name, dev, cap)
+        elif cap is None:
+            _reject(conn, 404, "Not found")
+        else:
+            _reject(conn, 404, "Unknown device")
+
+    upgrade_cb: ?action(swhttp_conn.HttpConnection, http.Request) -> None = None
+    if terminal_enabled:
+        if connect_cap is not None:
+            upgrade_cb = _on_upgrade
+            http_log.info("Browser terminal endpoint enabled", {"path": "/device/{{name}}/terminal"})
+        else:
+            http_log.warning("Browser terminal requested but no connect capability given, leaving it disabled", None)
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        cb = on_listen
+        if cb is not None:
+            cb(err)
+
+    listener = swhttp_conn.HttpListener(listen_cap, address, port, _on_http_request, upgrade_cb, _on_listen, log_handler)

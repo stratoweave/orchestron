@@ -1,0 +1,254 @@
+"""HTTP/1.x server connections with protocol-upgrade support.
+
+`HttpListener` and `HttpConnection` replace Acton's `http.Listener` and
+`http.Server` for the StratoWeave API port. They behave the same for ordinary
+requests (keep-alive rules, one-shot `respond(status, headers, body)`), and add
+what the standard library lacks: a request carrying `Connection: Upgrade` and
+`Upgrade: websocket` is handed to an `on_upgrade` callback, which can take the
+connection over (`accept_upgrade`) and receive the raw byte stream from then
+on, or decline with an ordinary HTTP response (`reject_upgrade`).
+
+Differences from `http.Server` beyond the upgrade path:
+- pipelined requests arriving in one TCP read are all dispatched;
+- responses are always written in request order (later responses are held
+  until earlier ones are sent) instead of being dropped;
+- a response arriving after the peer closed is discarded;
+- an unparsable request line yields 400 and a close, and more than
+  `MAX_HEADER_BYTES` without a blank line yields 431 and a close, so a
+  misbehaving client cannot grow the buffer without bound.
+"""
+
+import http
+import logging
+import net
+
+MODE_HTTP = 0
+MODE_UPGRADING = 1
+MODE_RAW = 2
+
+MAX_HEADER_BYTES = 65536
+
+
+def is_upgrade_request(request: http.Request) -> bool:
+    """True when the request asks to switch protocols to WebSocket."""
+    conn_tokens = [t.strip().lower() for t in request.headers.get_def("connection", "").split(",")]
+    return "upgrade" in conn_tokens and request.headers.get_def("upgrade", "").strip().lower() == "websocket"
+
+
+actor HttpConnection(
+    conn: net.TCPListenConnection,
+    on_request: action(HttpConnection, http.Request, action(int, dict[str, str], str) -> None) -> None,
+    on_upgrade: ?action(HttpConnection, http.Request) -> None,
+    log_handler: ?logging.Handler
+):
+    """One accepted TCP connection speaking HTTP/1.x.
+
+    Ordinary requests are delivered to `on_request(conn, request, respond)`.
+    Upgrade requests go to `on_upgrade(conn, request)` when it is set; the
+    callee must then call exactly one of `accept_upgrade` or `reject_upgrade`.
+    No further requests are parsed until it does. Without an `on_upgrade`
+    callback, upgrade requests are treated as ordinary requests.
+    """
+    _log = logging.Logger(log_handler)
+
+    var mode: int = MODE_HTTP
+    var buf: bytes = b""
+    var version: ?bytes = None
+    var close_connection: bool = True
+    var query_count: u64 = 0
+    var response_count: u64 = 0
+    var pending: dict[u64, (int, dict[str, str], str)] = {}
+    var raw_on_data: ?action(bytes) -> None = None
+    var raw_on_closed: ?action(?str) -> None = None
+    var closed: bool = False
+    var raw_closed_reported: bool = False
+
+    def _write_response(status_code: int, headers: dict[str, str], body: str):
+        if closed:
+            return
+        v = version
+        if v is not None:
+            conn.write(http.build_response(v, status_code, headers, body))
+        if close_connection:
+            closed = True
+            conn.close()
+
+    def _flush_pending():
+        while (response_count + 1) in pending:
+            r = pending[response_count + 1]
+            del pending[response_count + 1]
+            response_count += 1
+            _write_response(r.0, r.1, r.2)
+
+    def _respond_in_order(seq: u64, status_code: int, headers: dict[str, str], body: str):
+        if seq == response_count + 1:
+            response_count += 1
+            _write_response(status_code, headers, body)
+            _flush_pending()
+        else:
+            pending[seq] = (status_code, headers, body)
+
+    def _fail_request(status_code: int, body: str):
+        # No parsable request line, so no version to answer with; assume 1.1.
+        if version is None:
+            version = b"1.1"
+        close_connection = True
+        _write_response(status_code, {"Content-Type": "text/plain; charset=utf-8"}, body)
+
+    def _handle_request(req: http.Request):
+        v = version
+        if v is None:
+            version = req.version
+        elif v != req.version:
+            _log.debug("HTTP version changed mid-connection, closing", None)
+            closed = True
+            conn.close()
+            return
+
+        if req.version == b"1.0":
+            if "connection" in req.headers:
+                close_connection = req.headers["connection"] == "close"
+            else:
+                close_connection = True
+        else:
+            close_connection = "connection" in req.headers and req.headers["connection"] == "close"
+
+        if is_upgrade_request(req):
+            upgrade_cb = on_upgrade
+            if upgrade_cb is not None:
+                mode = MODE_UPGRADING
+                upgrade_cb(self, req)
+                return
+
+        query_count += 1
+        seq = query_count
+
+        def respond(status_code: int, headers: dict[str, str], body: str):
+            _respond_in_order(seq, status_code, headers, body)
+
+        on_request(self, req, respond)
+
+    def _drain():
+        while mode == MODE_HTTP and not closed:
+            req, rest = http.parse_request(buf, _log)
+            if req is not None:
+                buf = rest
+                _handle_request(req)
+            else:
+                if rest == b"" and len(buf) > 0:
+                    _log.debug("Unparsable HTTP request line, closing", None)
+                    _fail_request(400, "Bad Request")
+                elif len(buf) > MAX_HEADER_BYTES:
+                    _log.debug("Request headers too large, closing", None)
+                    _fail_request(431, "Request Header Fields Too Large")
+                return
+
+    action def on_receive(c: net.TCPListenConnection, data: bytes) -> None:
+        if closed:
+            return
+        if mode == MODE_RAW:
+            cb = raw_on_data
+            if cb is not None:
+                cb(data)
+            return
+        buf += data
+        if mode == MODE_UPGRADING:
+            return
+        _drain()
+
+    def _report_raw_closed(err: ?str):
+        if raw_closed_reported:
+            return
+        raw_closed_reported = True
+        cb = raw_on_closed
+        if cb is not None:
+            cb(err)
+
+    action def on_error(c: net.TCPListenConnection, error: str) -> None:
+        _log.trace("Connection error", {"error": error})
+        if mode == MODE_RAW:
+            closed = True
+            _report_raw_closed(error)
+
+    action def on_remote_close(c: net.TCPListenConnection) -> None:
+        closed = True
+        if mode == MODE_RAW:
+            _report_raw_closed(None)
+
+    action def accept_upgrade(headers: dict[str, str], on_data: action(bytes) -> None, on_closed: action(?str) -> None) -> None:
+        """Complete the upgrade: send 101 Switching Protocols with `headers`
+        and forward all further bytes to `on_data`. `on_closed(err)` fires once
+        when the transport ends."""
+        if mode != MODE_UPGRADING:
+            _log.notice("accept_upgrade called outside of an upgrade request", None)
+            return
+        if closed:
+            on_closed("connection closed before the upgrade completed")
+            return
+        res = b"HTTP/1.1 101 Switching Protocols\r\n"
+        for k, v in headers.items():
+            res += k.encode() + b": " + v.encode() + b"\r\n"
+        res += b"\r\n"
+        conn.write(res)
+        mode = MODE_RAW
+        close_connection = False
+        raw_on_data = on_data
+        raw_on_closed = on_closed
+        if len(buf) > 0:
+            leftover = buf
+            buf = b""
+            on_data(leftover)
+
+    action def reject_upgrade(status_code: int, headers: dict[str, str], body: str) -> None:
+        """Decline the upgrade with an ordinary HTTP response and resume
+        parsing requests on this connection."""
+        if mode != MODE_UPGRADING:
+            _log.notice("reject_upgrade called outside of an upgrade request", None)
+            return
+        mode = MODE_HTTP
+        query_count += 1
+        _respond_in_order(query_count, status_code, headers, body)
+        _drain()
+
+    action def write(data: bytes) -> None:
+        """Write raw bytes; for use by the protocol that took over the connection."""
+        if not closed:
+            conn.write(data)
+
+    action def close() -> None:
+        if not closed:
+            closed = True
+            conn.close()
+            if mode == MODE_RAW:
+                _report_raw_closed(None)
+
+    conn.cb_install(on_receive, on_error, on_remote_close)
+
+
+actor HttpListener(
+    cap: net.TCPListenCap,
+    address: str,
+    port: int,
+    on_request: action(HttpConnection, http.Request, action(int, dict[str, str], str) -> None) -> None,
+    on_upgrade: ?action(HttpConnection, http.Request) -> None = None,
+    on_listen: ?action(net.TCPListener, ?str) -> None = None,
+    log_handler: ?logging.Handler = None
+):
+    """Listen for TCP connections and wrap each in an `HttpConnection`.
+
+    `on_listen(listener, error)` mirrors `net.TCPListener`: it fires once with
+    `None` when the socket is listening, or with an error string.
+    """
+    _log = logging.Logger(log_handler)
+
+    def _on_listen(listener: net.TCPListener, error: ?str):
+        if error is not None:
+            _log.notice("There was an error with the listener socket", {"error": error})
+        cb = on_listen
+        if cb is not None:
+            cb(listener, error)
+
+    def _on_accept(c: net.TCPListenConnection):
+        HttpConnection(c, on_request, on_upgrade, log_handler)
+
+    _listener = net.TCPListener(cap, address, port, _on_listen, _on_accept)

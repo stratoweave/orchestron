@@ -145,7 +145,8 @@ def _start(sysspec: swapp.SysSpec, env: Env,
         if http:
             tcpl_cap = net.TCPListenCap(net.TCPCap(net.NetCap(env.cap)))
             enable_tmf = len(tmf.cfs.services_from_schema(top_schema)) > 0
-            swhttp.HttpServer(tcpl_cap, top_schema=top_schema, cfs=cfs, dev_registry=dev_registry, schema_for_layer=sysspec.schema_for_layer, static_assets=static_assets, enable_tmf_api=enable_tmf, log_handler=logh_http, port=system_settings.http_port)
+            swhttp.HttpServer(tcpl_cap, top_schema=top_schema, cfs=cfs, dev_registry=dev_registry, schema_for_layer=sysspec.schema_for_layer, static_assets=static_assets, enable_tmf_api=enable_tmf, log_handler=logh_http, port=system_settings.http_port,
+                              terminal_enabled=system_settings.terminal_enabled, terminal_allowed_origins=system_settings.terminal_allowed_origins, connect_cap=connect_cap)
 
         if netconf:
             nc_listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(env.cap)))

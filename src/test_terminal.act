@@ -1,0 +1,440 @@
+import http
+import json
+import logging
+import net
+import random
+import ssh
+import testing
+import ttt as ttt
+import yang
+import yang.gdata as gdata
+import yang.schema as yschema
+
+import device as swdev
+import http_conn as swhttp_conn
+import http_server as swhttp
+import terminal as swterm
+import websocket as swws
+
+_ADDR = "127.0.0.1"
+_SAMPLE_KEY = "dGhlIHNhbXBsZSBub25jZQ=="
+_SAMPLE_ACCEPT = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+
+DEMO_NS = "urn:demo"
+DEMO_YANG = r"""module demo {
+  yang-version "1.1";
+  namespace "urn:demo";
+  prefix d;
+  container system {
+    leaf hostname { type string; }
+  }
+}"""
+
+
+def _q(n: str) -> gdata.Id:
+    return gdata.Id(DEMO_NS, n)
+
+
+def _demo_schema() -> yschema.DRoot:
+    return yang.compile([DEMO_YANG])
+
+
+def _demo_layer() -> ttt.Layer:
+    return ttt.Layer("top", ttt.Container({
+        _q("system"): ttt.Transform(ttt.PassThrough),
+    }), None)
+
+
+def _random_port() -> int:
+    return random.randint(20000, 60000)
+
+
+def _upgrade_request(path: str, origin: str = "http://localhost:5173", version: str = "13", with_origin: bool = True) -> bytes:
+    # Note: passing None for an optional parameter with a default selects the
+    # default in Acton, hence the separate with_origin flag.
+    req = "GET {path} HTTP/1.1\r\nHost: localhost:3000\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: {version}\r\nSec-WebSocket-Key: {_SAMPLE_KEY}\r\n"
+    if with_origin:
+        req += "Origin: {origin}\r\n"
+    req += "\r\n"
+    return req.encode()
+
+
+def _mask(payload: bytes, key: bytes) -> bytes:
+    return bytes([payload[i] ^ key[i & 3] for i in range(len(payload))])
+
+
+def _client_frame(opcode: int, payload: bytes) -> bytes:
+    key = b"\x37\xfa\x21\x3d"
+    n = len(payload)
+    if n < 126:
+        hdr = bytes([0x80 | opcode, 0x80 | n])
+    else:
+        hdr = bytes([0x80 | opcode, 0x80 | 126, (n >> 8) & 0xff, n & 0xff])
+    return hdr + key + _mask(payload, key)
+
+
+class _WsClient(object):
+    """Client-side view of a WebSocket: consumes the 101, then server frames."""
+    buf: bytes
+    upgraded: bool
+    head: bytes
+    frames: list[(int, bytes)]
+
+    def __init__(self):
+        self.buf = b""
+        self.upgraded = False
+        self.head = b""
+        self.frames = []
+
+    def feed(self, data: bytes):
+        self.buf += data
+        if not self.upgraded:
+            end = self.buf.find(b"\r\n\r\n")
+            if end < 0:
+                return
+            self.head = self.buf[:end + 4]
+            self.buf = self.buf[end + 4:]
+            self.upgraded = True
+        while len(self.buf) >= 2:
+            b0 = self.buf[0]
+            plen = self.buf[1] & 0x7f
+            hl = 2
+            if plen == 126:
+                if len(self.buf) < 4:
+                    return
+                plen = (self.buf[2] << 8) | self.buf[3]
+                hl = 4
+            elif plen == 127:
+                if len(self.buf) < 10:
+                    return
+                plen = 0
+                for i in range(2, 10):
+                    plen = (plen << 8) | self.buf[i]
+                hl = 10
+            if len(self.buf) < hl + plen:
+                return
+            self.frames.append((b0 & 0x0f, self.buf[hl:hl + plen]))
+            self.buf = self.buf[hl + plen:]
+
+    def has_close(self) -> bool:
+        for f in self.frames:
+            if f.0 == swws.OP_CLOSE:
+                return True
+        return False
+
+    def close_code(self) -> int:
+        for f in self.frames:
+            if f.0 == swws.OP_CLOSE and len(f.1) >= 2:
+                return (f.1[0] << 8) | f.1[1]
+        return -1
+
+    def statuses(self) -> list[str]:
+        """The `state` of every status message plus "error" for error messages, in order."""
+        out: list[str] = []
+        for f in self.frames:
+            if f.0 == swws.OP_TEXT:
+                msg = json.decode(f.1.decode())
+                kind = msg.get("type")
+                if isinstance(kind, str):
+                    if kind == "status":
+                        st = msg.get("state")
+                        if isinstance(st, str):
+                            out.append(st)
+                    else:
+                        out.append(kind)
+        return out
+
+
+class _Responses(object):
+    buf: bytes
+    responses: list[http.Response]
+
+    def __init__(self):
+        self.buf = b""
+        self.responses = []
+
+    def feed(self, data: bytes, log: logging.Logger):
+        self.buf += data
+        while True:
+            res, rest = http.parse_response(self.buf, log)
+            if res is not None:
+                self.buf = rest
+                self.responses.append(res)
+            else:
+                break
+
+
+actor _test_terminal_unreachable_ssh(t: testing.EnvT):
+    """A device whose SSH port is closed: the client sees the 101, a
+    `connecting` status, an error message, then a 1011 close."""
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    var done = False
+    var attempts = 0
+    var port = 0
+    var listener: ?swhttp_conn.HttpListener = None
+    wsc = _WsClient()
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _on_request(conn: swhttp_conn.HttpConnection, req: http.Request, respond: action(int, dict[str, str], str) -> None):
+        respond(404, {}, "not found")
+
+    def _on_upgrade(conn: swhttp_conn.HttpConnection, req: http.Request):
+        # Port 1 (tcpmux) is closed on any sane test host.
+        target = swterm.TerminalTarget("r1", _ADDR, 1, "clab", "clab@123", None, 80, 24)
+        swterm.TerminalSession(conn, swws.accept_headers(req.headers.get_def("sec-websocket-key", "")), connect_cap, target, t.log_handler, connect_timeout=3.0)
+
+    def _on_receive(c: net.TCPConnection, data: bytes):
+        wsc.feed(data)
+        if wsc.has_close() and not done:
+            done = True
+            try:
+                testing.assertTrue(wsc.head.startswith(b"HTTP/1.1 101 "), "upgrade accepted")
+                testing.assertTrue(wsc.head.decode().find("Sec-WebSocket-Accept: {_SAMPLE_ACCEPT}") >= 0, "accept key computed")
+                testing.assertEqual(wsc.statuses(), ["connecting", "error"], "connecting then error")
+                testing.assertEqual(wsc.close_code(), swws.CLOSE_INTERNAL, "closed with 1011")
+                t.success()
+            except AssertionError as e:
+                t.failure(e)
+
+    def _on_connect(c: net.TCPConnection):
+        c.write(_upgrade_request("/device/r1/terminal?cols=100&rows=30"))
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            _start()
+            return
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect, _on_receive, _on_error, None)
+
+    def _start():
+        attempts += 1
+        if attempts > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port = _random_port()
+        listener = swhttp_conn.HttpListener(listen_cap, _ADDR, port, _on_request, _on_upgrade, _on_listen, t.log_handler)
+
+    _start()
+    after 15.0: fail(ValueError("timed out waiting for the terminal session to fail"))
+
+
+actor _test_terminal_shell_rejected(t: testing.EnvT):
+    """An SSH server that accepts auth and the channel but refuses the shell
+    request (acton-ssh's server has no shell support): the session reports
+    connecting, connected, then ends with a close frame and the SSH session is
+    torn down."""
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    var done = False
+    var attempts = 0
+    var port = 0
+    var ssh_port = 0
+    var listener: ?swhttp_conn.HttpListener = None
+    var ssh_server: ?ssh.Server = None
+    var sessions_opened = 0
+    var sessions_closed = 0
+    wsc = _WsClient()
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    # --- fake device (acton-ssh server) ---
+    def _ssh_on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            fail(ValueError("SSH server listen failed: {err}"))
+            return
+        ssh_port = int(await async s.bound_port())
+        _start()
+
+    def _ssh_on_close(s: ssh.Server, reason: str):
+        pass
+
+    def _ssh_on_session(sess: ssh.ServerSession):
+        sessions_opened += 1
+
+    def _ssh_on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def _ch_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def _ch_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def _ssh_on_channel_open(sess: ssh.ServerSession):
+        ch = ssh.ServerChannel(sess, _ch_on_data, _ch_on_data, _ch_on_close)
+        sess.accept_channel(ch)
+
+    def _ssh_on_session_close(sess: ssh.ServerSession, reason: str):
+        sessions_closed += 1
+        _maybe_finish()
+
+    # --- browser side ---
+    def _on_request(conn: swhttp_conn.HttpConnection, req: http.Request, respond: action(int, dict[str, str], str) -> None):
+        respond(404, {}, "not found")
+
+    def _on_upgrade(conn: swhttp_conn.HttpConnection, req: http.Request):
+        target = swterm.TerminalTarget("r1", _ADDR, ssh_port, "clab", "clab@123", None, 80, 24)
+        swterm.TerminalSession(conn, swws.accept_headers(req.headers.get_def("sec-websocket-key", "")), connect_cap, target, t.log_handler)
+
+    def _maybe_finish():
+        if done or not wsc.has_close() or sessions_closed == 0:
+            return
+        done = True
+        try:
+            testing.assertTrue(wsc.head.startswith(b"HTTP/1.1 101 "), "upgrade accepted")
+            sts = wsc.statuses()
+            testing.assertTrue(len(sts) >= 2, "at least connecting and connected: {sts}")
+            testing.assertEqual(sts[0], "connecting", "first status is connecting")
+            testing.assertEqual(sts[1], "connected", "shell was requested")
+            testing.assertTrue(sts[len(sts) - 1] == "error" or sts[len(sts) - 1] == "closed", "session ended with an error or closed status: {sts}")
+            testing.assertEqual(sessions_opened, 1, "exactly one SSH session was opened")
+            t.success()
+        except AssertionError as e:
+            t.failure(e)
+
+    def _on_receive(c: net.TCPConnection, data: bytes):
+        wsc.feed(data)
+        if wsc.has_close():
+            # The peer closed the WebSocket; give the SSH side a moment to
+            # tear down, then check.
+            after 0.5: _maybe_finish()
+
+    def _on_connect(c: net.TCPConnection):
+        c.write(_upgrade_request("/device/r1/terminal"))
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    def _on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            _start()
+            return
+        net.TCPConnection(connect_cap, _ADDR, port, _on_connect, _on_receive, _on_error, None)
+
+    def _start():
+        attempts += 1
+        if attempts > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port = _random_port()
+        listener = swhttp_conn.HttpListener(listen_cap, _ADDR, port, _on_request, _on_upgrade, _on_listen, t.log_handler)
+
+    ssh_server = ssh.Server(listen_cap, _ADDR, u16(0), _ssh_on_listen, _ssh_on_close, _ssh_on_session, _ssh_on_auth,
+                            _ssh_on_channel_open, on_session_close=_ssh_on_session_close)
+    after 20.0: fail(ValueError("timed out; statuses so far: {wsc.statuses()}, close={wsc.has_close()}, ssh closed={sessions_closed}"))
+
+
+actor _test_http_server_terminal_gating(t: testing.EnvT):
+    """HttpServer: the terminal endpoint is a 404 when disabled; when enabled,
+    a foreign Origin is 403, an unknown device 404 and bad upgrade headers
+    400, all as ordinary responses on a connection that keeps serving."""
+    log = logging.Logger(t.log_handler)
+    listen_cap = net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap)))
+    connect_cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+    schema = _demo_schema()
+    layer = _demo_layer()
+    registry = swdev.DeviceRegistry({}, connect_cap, t.log_handler)
+    var done = False
+    var attempts_a = 0
+    var attempts_b = 0
+    var port_a = 0
+    var port_b = 0
+    var server_a: ?swhttp.HttpServer = None
+    var server_b: ?swhttp.HttpServer = None
+    rx_a = _Responses()
+    rx_b = _Responses()
+
+    def fail(e: Exception):
+        if not done:
+            done = True
+            t.failure(e)
+
+    def _schema_for_layer(idx: int) -> yschema.DRoot:
+        return schema
+
+    # --- server A: terminal disabled ---
+    def _on_receive_a(c: net.TCPConnection, data: bytes):
+        rx_a.feed(data, log)
+        if len(rx_a.responses) == 1:
+            try:
+                testing.assertEqual(rx_a.responses[0].status, 404, "disabled terminal is not found")
+            except AssertionError as e:
+                fail(e)
+                return
+            c.close(_on_closed_a)
+
+    def _on_closed_a(c: net.TCPConnection):
+        _start_b()
+
+    def _on_connect_a(c: net.TCPConnection):
+        c.write(_upgrade_request("/device/r1/terminal"))
+
+    def _on_listen_a(err: ?str):
+        if err is not None:
+            _start_a()
+            return
+        net.TCPConnection(connect_cap, _ADDR, port_a, _on_connect_a, _on_receive_a, _on_error, None)
+
+    def _start_a():
+        attempts_a += 1
+        if attempts_a > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port_a = _random_port()
+        server_a = swhttp.HttpServer(listen_cap, t.log_handler, schema, layer, registry, _schema_for_layer,
+                                     address=_ADDR, port=port_a, terminal_enabled=False, connect_cap=connect_cap,
+                                     on_listen=_on_listen_a)
+
+    # --- server B: terminal enabled ---
+    def _on_receive_b(c: net.TCPConnection, data: bytes):
+        rx_b.feed(data, log)
+        if len(rx_b.responses) == 4 and not done:
+            done = True
+            try:
+                testing.assertEqual(rx_b.responses[0].status, 403, "foreign origin refused")
+                testing.assertEqual(rx_b.responses[1].status, 403, "missing origin refused")
+                testing.assertEqual(rx_b.responses[2].status, 404, "unknown device")
+                testing.assertEqual(rx_b.responses[3].status, 400, "bad websocket version")
+                t.success()
+            except AssertionError as e:
+                t.failure(e)
+
+    def _on_connect_b(c: net.TCPConnection):
+        # Four upgrade attempts pipelined on one connection; each rejection
+        # must let the next one be parsed.
+        c.write(_upgrade_request("/device/r1/terminal", origin="http://evil.example")
+                + _upgrade_request("/device/r1/terminal", with_origin=False)
+                + _upgrade_request("/device/nope/terminal", origin="http://localhost:5173")
+                + _upgrade_request("/device/nope/terminal", origin="http://localhost:5173", version="8"))
+
+    def _on_listen_b(err: ?str):
+        if err is not None:
+            _start_b()
+            return
+        net.TCPConnection(connect_cap, _ADDR, port_b, _on_connect_b, _on_receive_b, _on_error, None)
+
+    def _start_b():
+        attempts_b += 1
+        if attempts_b > 5:
+            fail(ValueError("could not find a free port"))
+            return
+        port_b = _random_port()
+        server_b = swhttp.HttpServer(listen_cap, t.log_handler, schema, layer, registry, _schema_for_layer,
+                                     address=_ADDR, port=port_b, terminal_enabled=True, connect_cap=connect_cap,
+                                     on_listen=_on_listen_b)
+
+    def _on_error(c: net.TCPConnection, err: str):
+        fail(ValueError("client error: {err}"))
+
+    _start_a()
+    after 15.0: fail(ValueError("timed out"))

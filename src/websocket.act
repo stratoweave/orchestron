@@ -1,0 +1,441 @@
+"""RFC 6455 WebSocket, server side.
+
+Pure helpers for the opening handshake (`validate_upgrade`, `accept_headers`),
+Origin/Host comparison (`origin_host`, `host_header_host`) and frame
+encoding/decoding, plus `ServerConnection`, an actor that turns a raw byte
+stream into messages and back.
+
+The transport is abstracted as two actions (`write` bytes, `close_transport`)
+so the actor can sit on top of `http_conn.HttpConnection` after an upgrade, or
+on top of a fake in tests.
+
+Text messages are handed to the consumer as raw bytes; callers `.decode()`
+them and treat a `ValueError` as a 1007 (bad data) condition. Binary messages
+never touch `str`.
+
+Acton has no SHA-1 in its standard library, so `sha1` is implemented here in
+plain Acton. It only ever hashes the 60-byte handshake key, so speed is not a
+concern.
+"""
+
+import base64
+import logging
+
+WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+OP_CONT = 0
+OP_TEXT = 1
+OP_BINARY = 2
+OP_CLOSE = 8
+OP_PING = 9
+OP_PONG = 10
+
+CLOSE_NORMAL = 1000
+CLOSE_GOING_AWAY = 1001
+CLOSE_PROTOCOL = 1002
+CLOSE_UNSUPPORTED = 1003
+CLOSE_NO_STATUS = 1005
+CLOSE_ABNORMAL = 1006
+CLOSE_BAD_DATA = 1007
+CLOSE_POLICY = 1008
+CLOSE_TOO_BIG = 1009
+CLOSE_INTERNAL = 1011
+
+_MASK32 = 0xFFFFFFFF
+_B64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+
+class ProtocolError(ValueError):
+    """The peer violated the framing rules; close with 1002."""
+    pass
+
+
+class TooBigError(ProtocolError):
+    """A frame or message exceeds the configured limit; close with 1009."""
+    pass
+
+
+# --- SHA-1 -----------------------------------------------------------------
+
+def _rotl(x: int, n: int) -> int:
+    return ((x << n) | (x >> (32 - n))) & _MASK32
+
+
+def _be32(b: bytes, i: int) -> int:
+    return (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]
+
+
+def _be32_bytes(x: int) -> list[int]:
+    return [(x >> 24) & 0xff, (x >> 16) & 0xff, (x >> 8) & 0xff, x & 0xff]
+
+
+def sha1(data: bytes) -> bytes:
+    """SHA-1 digest of `data` (20 bytes). Plain Acton, 32-bit words held in
+    64-bit ints and masked after every operation."""
+    ml = len(data) * 8
+    msg = data + b"\x80"
+    while len(msg) % 64 != 56:
+        msg += b"\x00"
+    msg += bytes([(ml >> (8 * k)) & 0xff for k in [7, 6, 5, 4, 3, 2, 1, 0]])
+
+    h0 = 0x67452301
+    h1 = 0xEFCDAB89
+    h2 = 0x98BADCFE
+    h3 = 0x10325476
+    h4 = 0xC3D2E1F0
+
+    off = 0
+    while off < len(msg):
+        w: list[int] = [_be32(msg, off + 4 * i) for i in range(16)]
+        for i in range(16, 80):
+            w.append(_rotl(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1))
+        a = h0
+        b = h1
+        c = h2
+        d = h3
+        e = h4
+        for i in range(80):
+            f = 0
+            k = 0
+            if i < 20:
+                f = ((b & c) | ((~b) & d)) & _MASK32
+                k = 0x5A827999
+            elif i < 40:
+                f = b ^ c ^ d
+                k = 0x6ED9EBA1
+            elif i < 60:
+                f = (b & c) | (b & d) | (c & d)
+                k = 0x8F1BBCDC
+            else:
+                f = b ^ c ^ d
+                k = 0xCA62C1D6
+            temp = (_rotl(a, 5) + f + e + k + w[i]) & _MASK32
+            e = d
+            d = c
+            c = _rotl(b, 30)
+            b = a
+            a = temp
+        h0 = (h0 + a) & _MASK32
+        h1 = (h1 + b) & _MASK32
+        h2 = (h2 + c) & _MASK32
+        h3 = (h3 + d) & _MASK32
+        h4 = (h4 + e) & _MASK32
+        off += 64
+
+    return bytes(_be32_bytes(h0) + _be32_bytes(h1) + _be32_bytes(h2) + _be32_bytes(h3) + _be32_bytes(h4))
+
+
+# --- Handshake -------------------------------------------------------------
+
+def handshake_accept(key: str) -> str:
+    """Sec-WebSocket-Accept value for a client Sec-WebSocket-Key."""
+    return base64.encode(sha1((key + WS_GUID).encode())).decode()
+
+
+def _header_tokens(value: str) -> list[str]:
+    return [t.strip().lower() for t in value.split(",") if t.strip() != ""]
+
+
+def is_upgrade_request(headers: dict[str, str]) -> bool:
+    """True when the (lower-cased) request headers ask for a WebSocket upgrade."""
+    return ("upgrade" in _header_tokens(headers.get_def("connection", ""))
+            and headers.get_def("upgrade", "").strip().lower() == "websocket")
+
+
+def _looks_like_16_byte_base64(key: str) -> bool:
+    # 16 random bytes base64-encode to 22 alphabet characters plus "==".
+    if len(key) != 24 or not key.endswith("=="):
+        return False
+    for i in range(22):
+        if _B64_ALPHABET.find(key[i:i + 1]) < 0:
+            return False
+    return True
+
+
+def validate_upgrade(headers: dict[str, str]) -> ?str:
+    """Check the client's upgrade headers. None when valid, else a reason."""
+    if headers.get_def("upgrade", "").strip().lower() != "websocket":
+        return "missing 'Upgrade: websocket' header"
+    if "upgrade" not in _header_tokens(headers.get_def("connection", "")):
+        return "missing 'Connection: Upgrade' header"
+    if headers.get_def("sec-websocket-version", "").strip() != "13":
+        return "unsupported Sec-WebSocket-Version, need 13"
+    key = headers.get_def("sec-websocket-key", "").strip()
+    if key == "":
+        return "missing Sec-WebSocket-Key header"
+    if not _looks_like_16_byte_base64(key):
+        return "malformed Sec-WebSocket-Key header"
+    return None
+
+
+def accept_headers(key: str) -> dict[str, str]:
+    """Response headers for the 101 Switching Protocols reply."""
+    return {
+        "Upgrade": "websocket",
+        "Connection": "Upgrade",
+        "Sec-WebSocket-Accept": handshake_accept(key.strip()),
+    }
+
+
+def _strip_port(hostport: str) -> str:
+    h = hostport.strip().lower()
+    if h.startswith("["):
+        end = h.find("]")
+        if end > 0:
+            return h[1:end]
+        return h
+    i = h.find(":")
+    if i >= 0:
+        return h[:i]
+    return h
+
+
+def origin_host(origin: str) -> ?str:
+    """Host part of an Origin header value ("https://a.b:8443" -> "a.b"),
+    lower-cased, port stripped, IPv6 brackets removed. None if unparsable."""
+    o = origin.strip()
+    i = o.find("://")
+    if i < 0:
+        return None
+    rest = o[i + 3:]
+    j = rest.find("/")
+    if j >= 0:
+        rest = rest[:j]
+    if rest == "":
+        return None
+    return _strip_port(rest)
+
+
+def host_header_host(host: str) -> str:
+    """Host part of a Host header value, lower-cased, port stripped."""
+    return _strip_port(host)
+
+
+# --- Frames ----------------------------------------------------------------
+
+class Frame(object):
+    fin: bool
+    opcode: int
+    payload: bytes
+
+    def __init__(self, fin: bool, opcode: int, payload: bytes):
+        self.fin = fin
+        self.opcode = opcode
+        self.payload = payload
+
+
+def decode_frame(buf: bytes, max_payload: int) -> (?Frame, bytes):
+    """Decode one client frame from the front of `buf`.
+
+    Returns (frame, rest) or (None, buf) when more bytes are needed. Raises
+    ProtocolError on malformed input and TooBigError when the payload length
+    exceeds `max_payload`.
+    """
+    n = len(buf)
+    if n < 2:
+        return (None, buf)
+    b0 = buf[0]
+    b1 = buf[1]
+    if (b0 & 0x70) != 0:
+        raise ProtocolError("reserved bits set without a negotiated extension")
+    opcode = b0 & 0x0f
+    if opcode not in [OP_CONT, OP_TEXT, OP_BINARY, OP_CLOSE, OP_PING, OP_PONG]:
+        raise ProtocolError("unknown opcode {opcode}")
+    fin = (b0 & 0x80) != 0
+    if (b1 & 0x80) == 0:
+        raise ProtocolError("client frame is not masked")
+    plen = b1 & 0x7f
+    hl = 2
+    if plen == 126:
+        if n < 4:
+            return (None, buf)
+        plen = (buf[2] << 8) | buf[3]
+        hl = 4
+    elif plen == 127:
+        if n < 10:
+            return (None, buf)
+        if (buf[2] & 0x80) != 0:
+            raise TooBigError("frame length does not fit in 63 bits")
+        plen = 0
+        for i in range(2, 10):
+            plen = (plen << 8) | buf[i]
+        hl = 10
+    if opcode >= OP_CLOSE:
+        if plen > 125:
+            raise ProtocolError("control frame payload longer than 125 bytes")
+        if not fin:
+            raise ProtocolError("fragmented control frame")
+    if plen > max_payload:
+        raise TooBigError("frame payload of {plen} bytes exceeds the limit of {max_payload}")
+    total = hl + 4 + plen
+    if n < total:
+        return (None, buf)
+    mask = buf[hl:hl + 4]
+    raw = buf[hl + 4:total]
+    payload = bytes([raw[i] ^ mask[i & 3] for i in range(plen)])
+    return (Frame(fin, opcode, payload), buf[total:])
+
+
+def encode_frame(opcode: int, payload: bytes, fin: bool = True) -> bytes:
+    """Encode a server frame (never masked)."""
+    b0 = (0x80 if fin else 0) | opcode
+    n = len(payload)
+    if n < 126:
+        hdr = bytes([b0, n])
+    elif n < 65536:
+        hdr = bytes([b0, 126, (n >> 8) & 0xff, n & 0xff])
+    else:
+        hdr = bytes([b0, 127] + [(n >> (8 * k)) & 0xff for k in [7, 6, 5, 4, 3, 2, 1, 0]])
+    return hdr + payload
+
+
+def close_payload(code: int, reason: str) -> bytes:
+    return bytes([(code >> 8) & 0xff, code & 0xff]) + reason.encode()
+
+
+# --- Connection ------------------------------------------------------------
+
+actor ServerConnection(
+    write: action(bytes) -> None,
+    close_transport: action() -> None,
+    on_message: action(ServerConnection, bytes, bool) -> None,
+    on_close: action(ServerConnection, int, str) -> None,
+    log_handler: ?logging.Handler = None,
+    max_frame_payload: int = 1048576,
+    max_message: int = 4194304,
+    close_grace: float = 2.0
+):
+    """One accepted WebSocket connection.
+
+    Feed inbound transport bytes to `on_data`; complete messages arrive via
+    `on_message(conn, payload, is_binary)`. `on_close(conn, code, reason)`
+    fires exactly once, whether the peer closed, we closed, the transport
+    dropped, or a protocol error occurred. `send_text`/`send_binary` write
+    frames; `close` starts the closing handshake and force-closes the
+    transport after `close_grace` seconds if the peer never answers.
+    """
+    _log = logging.Logger(log_handler)
+
+    var buf: bytes = b""
+    var frag_opcode: ?int = None
+    var frag_parts: list[bytes] = []
+    var frag_len: int = 0
+    var close_sent: bool = False
+    var close_code: int = CLOSE_ABNORMAL
+    var close_reason: str = ""
+    var close_reported: bool = False
+    var stopped: bool = False
+
+    def _report_close(code: int, reason: str):
+        if not close_reported:
+            close_reported = True
+            on_close(self, code, reason)
+
+    def _send_close(code: int, reason: str):
+        if not close_sent:
+            close_sent = True
+            close_code = code
+            close_reason = reason
+            write(encode_frame(OP_CLOSE, close_payload(code, reason)))
+
+    def _force_close():
+        if not close_reported:
+            close_transport()
+            _report_close(close_code, close_reason)
+
+    def _fail(code: int, reason: str):
+        _log.debug("WebSocket protocol failure", {"code": code, "reason": reason})
+        stopped = True
+        buf = b""
+        _send_close(code, reason)
+        after close_grace: _force_close()
+
+    def _handle_close_frame(payload: bytes):
+        code = CLOSE_NO_STATUS
+        reason = ""
+        if len(payload) == 1:
+            raise ProtocolError("close frame with a 1-byte payload")
+        if len(payload) >= 2:
+            code = (payload[0] << 8) | payload[1]
+            try:
+                reason = payload[2:].decode()
+            except ValueError as e:
+                raise ProtocolError("close reason is not valid UTF-8")
+        if not close_sent:
+            _send_close(CLOSE_NORMAL if code == CLOSE_NO_STATUS else code, "")
+        stopped = True
+        close_transport()
+        _report_close(code, reason)
+
+    def _dispatch(fr: Frame):
+        if fr.opcode == OP_TEXT or fr.opcode == OP_BINARY:
+            if frag_opcode is not None:
+                raise ProtocolError("new data frame in the middle of a fragmented message")
+            if fr.fin:
+                on_message(self, fr.payload, fr.opcode == OP_BINARY)
+            else:
+                frag_opcode = fr.opcode
+                frag_parts = [fr.payload]
+                frag_len = len(fr.payload)
+        elif fr.opcode == OP_CONT:
+            fo = frag_opcode
+            if fo is None:
+                raise ProtocolError("continuation frame without a started message")
+            frag_parts.append(fr.payload)
+            frag_len += len(fr.payload)
+            if frag_len > max_message:
+                raise TooBigError("fragmented message exceeds the limit of {max_message} bytes")
+            if fr.fin:
+                payload = b"".join(frag_parts)
+                frag_opcode = None
+                frag_parts = []
+                frag_len = 0
+                on_message(self, payload, fo == OP_BINARY)
+        elif fr.opcode == OP_PING:
+            if not close_sent:
+                write(encode_frame(OP_PONG, fr.payload))
+        elif fr.opcode == OP_PONG:
+            pass
+        elif fr.opcode == OP_CLOSE:
+            _handle_close_frame(fr.payload)
+
+    action def on_data(data: bytes) -> None:
+        """Inbound transport bytes."""
+        if stopped:
+            return
+        buf += data
+        try:
+            while not stopped:
+                fr, rest = decode_frame(buf, max_frame_payload)
+                if fr is not None:
+                    buf = rest
+                    _dispatch(fr)
+                else:
+                    break
+        except TooBigError as e:
+            _fail(CLOSE_TOO_BIG, "{e}")
+        except ProtocolError as e:
+            _fail(CLOSE_PROTOCOL, "{e}")
+
+    action def on_transport_closed(err: ?str) -> None:
+        """The underlying transport went away."""
+        stopped = True
+        if close_sent:
+            _report_close(close_code, close_reason)
+        else:
+            _report_close(CLOSE_ABNORMAL, err if err is not None else "connection closed")
+
+    action def send_text(text: str) -> None:
+        if not close_sent:
+            write(encode_frame(OP_TEXT, text.encode()))
+
+    action def send_binary(data: bytes) -> None:
+        if not close_sent:
+            write(encode_frame(OP_BINARY, data))
+
+    action def close(code: int = CLOSE_NORMAL, reason: str = "") -> None:
+        """Start the closing handshake."""
+        if close_sent:
+            return
+        _send_close(code, reason)
+        after close_grace: _force_close()
