@@ -110,7 +110,7 @@ actor _FleetOperPublisher(path: ttt.Path, update_oper: proc(?gdata.Node) -> None
             }))
 
 
-def _fleet_oper_publisher(params: ttt.TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None:
+def _fleet_oper_publisher(params: ttt.TransformActorParams) -> proc(gdata.Node, ?gdata.Node) -> None:
     act = _FleetOperPublisher(params.path, params.update_oper)
     return act.on_conf
 

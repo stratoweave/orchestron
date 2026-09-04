@@ -272,6 +272,45 @@ class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: 
 
 
 _breaker10: None = None
+class stratoweave_rfs__device__ssh(yadata.MNode):
+    cipher: list[str]
+    mac: list[str]
+    key_exchange: list[str]
+    host_key_algorithm: list[str]
+    public_key_algorithm: list[str]
+    compression_algorithm: list[str]
+    compression_level: ?u64
+    rekey_after_bytes: ?u64
+    rekey_after_seconds: ?u64
+    minimum_rsa_bits: ?u64
+
+    mut def __init__(self, cipher: ?list[str]=None, mac: ?list[str]=None, key_exchange: ?list[str]=None, host_key_algorithm: ?list[str]=None, public_key_algorithm: ?list[str]=None, compression_algorithm: ?list[str]=None, compression_level: ?u64, rekey_after_bytes: ?u64, rekey_after_seconds: ?u64, minimum_rsa_bits: ?u64) -> None:
+        self.cipher = cipher if cipher is not None else []
+        self.mac = mac if mac is not None else []
+        self.key_exchange = key_exchange if key_exchange is not None else []
+        self.host_key_algorithm = host_key_algorithm if host_key_algorithm is not None else []
+        self.public_key_algorithm = public_key_algorithm if public_key_algorithm is not None else []
+        self.compression_algorithm = compression_algorithm if compression_algorithm is not None else []
+        self.compression_level = compression_level
+        self.rekey_after_bytes = rekey_after_bytes
+        self.rekey_after_seconds = rekey_after_seconds
+        self.minimum_rsa_bits = minimum_rsa_bits
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['stratoweave-rfs:device', 'ssh'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> stratoweave_rfs__device__ssh:
+        if n is not None:
+            return stratoweave_rfs__device__ssh(cipher=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'cipher')), mac=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'mac')), key_exchange=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'key-exchange')), host_key_algorithm=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'host-key-algorithm')), public_key_algorithm=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'public-key-algorithm')), compression_algorithm=n.get_opt_strs(ygdata.Id(NS_stratoweave_rfs, 'compression-algorithm')), compression_level=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'compression-level')), rekey_after_bytes=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'rekey-after-bytes')), rekey_after_seconds=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'rekey-after-seconds')), minimum_rsa_bits=n.get_opt_u64(ygdata.Id(NS_stratoweave_rfs, 'minimum-rsa-bits')))
+        return stratoweave_rfs__device__ssh()
+
+    mut def copy(self) -> stratoweave_rfs__device__ssh:
+        """Create a deep copy of this adata object"""
+        return stratoweave_rfs__device__ssh.from_gdata(self.to_gdata())
+
+
+_breaker11: None = None
 class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
     name: str
     namespace: ?str
@@ -295,7 +334,7 @@ class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__device__mock__module_entry.from_gdata(self.to_gdata())
 
-_breaker11: None = None
+_breaker12: None = None
 class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_rfs__device__mock__module_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -330,7 +369,7 @@ class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_r
         return stratoweave_rfs__device__mock__module(elements=copied_elements)
 
 
-_breaker12: None = None
+_breaker13: None = None
 class stratoweave_rfs__device__mock(yadata.MNode):
     enabled: ?bool
     module: stratoweave_rfs__device__mock__module
@@ -353,7 +392,7 @@ class stratoweave_rfs__device__mock(yadata.MNode):
         return stratoweave_rfs__device__mock.from_gdata(self.to_gdata())
 
 
-_breaker13: None = None
+_breaker14: None = None
 class stratoweave_rfs__device__debug(yadata.MNode):
     connection: ?bool
 
@@ -374,7 +413,7 @@ class stratoweave_rfs__device__debug(yadata.MNode):
         return stratoweave_rfs__device__debug.from_gdata(self.to_gdata())
 
 
-_breaker14: None = None
+_breaker15: None = None
 class stratoweave_rfs__device__feature_flags(yadata.MNode):
     runtime_schema_fetch: ?bool
 
@@ -395,7 +434,7 @@ class stratoweave_rfs__device__feature_flags(yadata.MNode):
         return stratoweave_rfs__device__feature_flags.from_gdata(self.to_gdata())
 
 
-_breaker15: None = None
+_breaker16: None = None
 class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
     holder: str
     reason: ?str
@@ -415,7 +454,7 @@ class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__device__software__veto_entry.from_gdata(self.to_gdata())
 
-_breaker16: None = None
+_breaker17: None = None
 class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave_rfs__device__software__veto_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.holder == k, elements)
@@ -448,7 +487,7 @@ class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave
         return stratoweave_rfs__device__software__veto(elements=copied_elements)
 
 
-_breaker17: None = None
+_breaker18: None = None
 class stratoweave_rfs__device__software(yadata.MNode):
     upgrade_campaign: ?str
     target_release: ?str
@@ -477,7 +516,7 @@ class stratoweave_rfs__device__software(yadata.MNode):
         return stratoweave_rfs__device__software.from_gdata(self.to_gdata())
 
 
-_breaker18: None = None
+_breaker19: None = None
 class stratoweave_rfs__device_entry(yadata.MNode):
     name: str
     description: ?str
@@ -485,19 +524,21 @@ class stratoweave_rfs__device_entry(yadata.MNode):
     address: stratoweave_rfs__device__address
     credentials: stratoweave_rfs__device__credentials
     initial_credentials: stratoweave_rfs__device__initial_credentials
+    ssh: stratoweave_rfs__device__ssh
     approval_required: ?bool
     mock: stratoweave_rfs__device__mock
     debug: stratoweave_rfs__device__debug
     feature_flags: stratoweave_rfs__device__feature_flags
     software: stratoweave_rfs__device__software
 
-    mut def __init__(self, name: str, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, software: ?stratoweave_rfs__device__software=None) -> None:
+    mut def __init__(self, name: str, description: ?str, type: ?str, address: list[stratoweave_rfs__device__address_entry]=[], credentials: ?stratoweave_rfs__device__credentials=None, initial_credentials: list[stratoweave_rfs__device__initial_credentials_entry]=[], ssh: ?stratoweave_rfs__device__ssh=None, approval_required: ?bool, mock: ?stratoweave_rfs__device__mock=None, debug: ?stratoweave_rfs__device__debug=None, feature_flags: ?stratoweave_rfs__device__feature_flags=None, software: ?stratoweave_rfs__device__software=None) -> None:
         self.name = name
         self.description = description
         self.type = type
         self.address = stratoweave_rfs__device__address(elements=address)
         self.credentials = credentials if credentials is not None else stratoweave_rfs__device__credentials()
         self.initial_credentials = stratoweave_rfs__device__initial_credentials(elements=initial_credentials)
+        self.ssh = ssh if ssh is not None else stratoweave_rfs__device__ssh()
         self.approval_required = approval_required
         self.mock = mock if mock is not None else stratoweave_rfs__device__mock()
         self.debug = debug if debug is not None else stratoweave_rfs__device__debug()
@@ -509,13 +550,13 @@ class stratoweave_rfs__device_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> stratoweave_rfs__device_entry:
-        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), software=stratoweave_rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'software'))))
+        return stratoweave_rfs__device_entry(name=n.get_str(ygdata.Id(NS_stratoweave_rfs, 'name')), description=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'description')), type=n.get_opt_str(ygdata.Id(NS_stratoweave_rfs, 'type')), address=stratoweave_rfs__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'address'))), credentials=stratoweave_rfs__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'credentials'))), initial_credentials=stratoweave_rfs__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_stratoweave_rfs, 'initial-credentials'))), ssh=stratoweave_rfs__device__ssh.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'ssh'))), approval_required=n.get_opt_bool(ygdata.Id(NS_stratoweave_rfs, 'approval-required')), mock=stratoweave_rfs__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'mock'))), debug=stratoweave_rfs__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'debug'))), feature_flags=stratoweave_rfs__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'feature-flags'))), software=stratoweave_rfs__device__software.from_gdata(n.get_opt_cnt(ygdata.Id(NS_stratoweave_rfs, 'software'))))
 
     mut def copy(self) -> stratoweave_rfs__device_entry:
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__device_entry.from_gdata(self.to_gdata())
 
-_breaker19: None = None
+_breaker20: None = None
 class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -552,7 +593,7 @@ class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_ent
         return stratoweave_rfs__device(elements=copied_elements)
 
 
-_breaker20: None = None
+_breaker21: None = None
 class stratoweave_rfs__rfs_entry(yadata.MNode):
     name: str
 
@@ -570,7 +611,7 @@ class stratoweave_rfs__rfs_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return stratoweave_rfs__rfs_entry.from_gdata(self.to_gdata())
 
-_breaker21: None = None
+_breaker22: None = None
 class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
         yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
@@ -601,7 +642,7 @@ class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
         return stratoweave_rfs__rfs(elements=copied_elements)
 
 
-_breaker22: None = None
+_breaker23: None = None
 class root(yadata.MNode):
     device: stratoweave_rfs__device
     rfs: stratoweave_rfs__rfs

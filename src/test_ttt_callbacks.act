@@ -177,7 +177,7 @@ actor rfs_actor_notified_for_empty_output(t: testing.AsyncT):
     def notified():
         notifications += 1
 
-    def actor_ctor(_params: ttt.TransformActorParams) -> ?proc(gdata.Node, ?gdata.Node) -> None:
+    def actor_ctor(_params: ttt.TransformActorParams) -> proc(gdata.Node, ?gdata.Node) -> None:
         starts += 1
         act = EmptyOutputTransformActor(notified)
         return act.on_conf
