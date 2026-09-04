@@ -8,6 +8,7 @@ import testing
 def _test_stratoweave_system_settings():
     system_settings = [aon.decode("""
 db = "/var/lib/stratoweave"
+startup_config_files = ["base.xml"]
 http_port = 8081
 netconf_port = 1830
 netconf_user = "configured"
@@ -32,6 +33,10 @@ exit_on_done = True
 
     without_startup_config = swapp.SystemSettings.parse(["stratoweave"])
     testing.assertEqual(without_startup_config.startup_config_files, [])
+    testing.assertTrue(without_startup_config.db_spec is None)
+    testing.assertTrue(without_startup_config.netconf_host_key_path is None)
+    from_settings = swapp.SystemSettings.parse(["stratoweave"], system_settings)
+    testing.assertEqual(from_settings.startup_config_files, ["base.xml"])
 
 
 def _test_precedence_and_canonical_names():
@@ -61,7 +66,7 @@ network:
     }
     config = p.parse(
         ["app", "--network.netconf-port=400", "--no-network.tls",
-         "--network.tags", "cli-a", "--network.tags=cli-b", "serve"],
+         "--network.tags", "cli-a", "--network.tags=cli-b"],
         [system, user], environment
     )
 
@@ -75,7 +80,6 @@ network:
     testing.assertEqual(config.source("network.host"), "environment")
     testing.assertEqual(config.source("network.ratio"), "config")
     testing.assertEqual(config.source("workers"), "default")
-    testing.assertEqual(config.rest, ["serve"])
 
 
 def _test_environment_values_and_names():
@@ -188,10 +192,11 @@ def _test_short_options_and_repeated_lists():
 def _test_terminator_and_remaining_arguments():
     p = argconf.Parser()
     p.add_bool("verbose")
+    p.add_str_list("args", positional="ARG")
     testing.assertEqual(p.environment_variables(), [])
     config = p.parse(["app", "before", "--verbose", "--", "--unknown", "after"])
     testing.assertEqual(config.get_bool("verbose"), True)
-    testing.assertEqual(config.rest, ["before", "--unknown", "after"])
+    testing.assertEqual(config.get_str_list("args"), ["before", "--unknown", "after"])
 
 
 def _test_configuration_is_strict_and_structural():
@@ -263,7 +268,7 @@ def _test_schema_rejects_ambiguous_names():
 
 def _test_missing_and_invalid_values_are_errors():
     p = argconf.Parser("APP")
-    p.add_int("port")
+    p.add_int("port", required=True)
 
     try:
         p.parse(["app"])
@@ -294,13 +299,13 @@ def _test_missing_and_invalid_values_are_errors():
         raise ValueError("Expected an unknown command-line option to fail")
 
     lists = argconf.Parser()
-    lists.add_str_list("tags")
+    lists.add_str_list("tags", required=True)
     try:
         lists.parse(["app"])
     except argconf.ConfigurationError:
         pass
     else:
-        raise ValueError("Expected a string list without a default to be required")
+        raise ValueError("Expected a missing required string list to fail")
 
 
 def _test_typed_text_rejects_trailing_comments():
@@ -374,3 +379,296 @@ def _test_float_accepts_integer_configuration():
     p.add_float("ratio")
     config = p.parse(["app"], [{"ratio": 2}])
     testing.assertEqual(config.get_float("ratio"), 2.0)
+
+
+def _test_optional_settings_are_none_until_set():
+    p = argconf.Parser("APP")
+    p.add_str("db", help="Database path")
+    p.add_int("port")
+    p.add_str_list("tags")
+
+    unset = p.parse(["app"])
+    testing.assertTrue(unset.get_opt_str("db") is None, "db unset")
+    testing.assertTrue(unset.get_opt_int("port") is None, "port unset")
+    testing.assertTrue(unset.get_opt_str_list("tags") is None, "tags unset")
+    try:
+        unset.get_str("db")
+    except argconf.ConfigurationError as exc:
+        testing.assertTrue("Setting 'db' is not set" in str(exc), "not set message")
+    else:
+        raise ValueError("Expected get_str on an unset setting to fail")
+    try:
+        unset.get_opt_str("unknown")
+    except argconf.ConfigurationError as exc:
+        testing.assertTrue("Unknown setting 'unknown'" in str(exc), "unknown message")
+    else:
+        raise ValueError("Expected get_opt_str on an undeclared setting to fail")
+    try:
+        unset.get_opt_int("db")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected get_opt_int on a string setting to fail")
+
+    config = p.parse(
+        ["app", "--db", "/var/lib/app", "--port=8080", "--tags", "a"]
+    )
+    testing.assertEqual(config.get_str("db"), "/var/lib/app")
+    testing.assertEqual(config.get_opt_str("db")!, "/var/lib/app")
+    testing.assertEqual(config.get_int("port"), 8080)
+    testing.assertEqual(config.get_opt_int("port")!, 8080)
+    testing.assertEqual(config.get_str_list("tags"), ["a"])
+    testing.assertEqual(config.get_opt_str_list("tags")!, ["a"])
+    testing.assertEqual(config.source("db"), "command line")
+
+    help_text = p.get_help("app")
+    testing.assertTrue("env: APP_DB; optional" in help_text, "help db")
+
+
+def _test_required_settings():
+    p = argconf.Parser("APP")
+    p.add_int("port", required=True)
+    testing.assertTrue("env: APP_PORT; required" in p.get_help("app"))
+
+    try:
+        p.parse(["app"])
+    except argconf.ConfigurationError as exc:
+        testing.assertTrue(
+            "Missing required setting 'port' (--port or APP_PORT)" in str(exc)
+        )
+    else:
+        raise ValueError("Expected a missing required setting to fail")
+    testing.assertEqual(p.parse(["app", "--port=1"]).get_int("port"), 1)
+
+    try:
+        p.add_int("workers", default=2, required=True)
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a required setting with a default to fail")
+
+
+def _test_positional_assignment():
+    # cp-style: the list takes what the scalar after it does not need
+    p = argconf.Parser("APP")
+    p.add_str_list("src", positional="SRC", required=True)
+    p.add_str("dst", positional="DST", required=True)
+    config = p.parse(["app", "a", "b", "c"])
+    testing.assertEqual(config.get_str_list("src"), ["a", "b"])
+    testing.assertEqual(config.get_str("dst"), "c")
+    testing.assertEqual(config.source("dst"), "command line")
+
+    # two lists: the first takes the most
+    p = argconf.Parser("APP")
+    p.add_str_list("first", positional="FIRST", required=True)
+    p.add_str_list("second", positional="SECOND", required=True)
+    config = p.parse(["app", "1", "2", "3", "4"])
+    testing.assertEqual(config.get_str_list("first"), ["1", "2", "3"])
+    testing.assertEqual(config.get_str_list("second"), ["4"])
+
+    # an optional scalar yields to a required list
+    p = argconf.Parser("APP")
+    p.add_str("mode", positional="MODE")
+    p.add_str_list("files", positional="FILE", required=True)
+    one = p.parse(["app", "1"])
+    testing.assertTrue(one.get_opt_str("mode") is None, "mode yields")
+    testing.assertEqual(one.get_str_list("files"), ["1"])
+    two = p.parse(["app", "1", "2"])
+    testing.assertEqual(two.get_str("mode"), "1")
+    testing.assertEqual(two.get_str_list("files"), ["2"])
+
+    # a defaulted list between required scalars
+    p = argconf.Parser("APP")
+    p.add_str("first", positional="FIRST", required=True)
+    p.add_str_list("middle", positional="MIDDLE", default=[])
+    p.add_str("last", positional="LAST", required=True)
+    short_form = p.parse(["app", "1", "2"])
+    testing.assertEqual(short_form.get_str("first"), "1")
+    testing.assertEqual(short_form.get_str_list("middle"), [])
+    testing.assertEqual(short_form.get_str("last"), "2")
+    long_form = p.parse(["app", "1", "2", "3", "4"])
+    testing.assertEqual(long_form.get_str_list("middle"), ["2", "3"])
+    testing.assertEqual(long_form.get_str("last"), "4")
+
+    # typed, reachable from every source, and `--` protects dash values
+    p = argconf.Parser("APP")
+    p.add_int_list("numbers", positional="N")
+    testing.assertEqual(p.parse(["app", "1", "2"]).get_int_list("numbers"), [1, 2])
+    testing.assertEqual(p.parse(["app", "--", "-2"]).get_int_list("numbers"), [-2])
+    testing.assertEqual(
+        p.parse(["app"], environment={"APP_NUMBERS": "[3]"}).get_int_list("numbers"), [3]
+    )
+    testing.assertEqual(p.parse(["app", "4"], [{"numbers": [5]}]).get_int_list("numbers"), [4])
+    testing.assertTrue(p.parse(["app"]).get_opt_int_list("numbers") is None, "unset list")
+    try:
+        p.parse(["app", "x"])
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected an invalid positional integer to fail")
+
+    # leftover and missing arguments
+    p = argconf.Parser("APP")
+    p.add_str("only", positional="ONLY")
+    try:
+        p.parse(["app", "1", "2"])
+    except argconf.ConfigurationError as exc:
+        testing.assertTrue("Unexpected argument '2'" in str(exc), "leftover")
+    else:
+        raise ValueError("Expected a leftover argument to fail")
+    p = argconf.Parser("APP")
+    p.add_str("needed", positional="NEEDED", required=True)
+    try:
+        p.parse(["app"])
+    except argconf.ConfigurationError as exc:
+        testing.assertTrue(
+            "Missing required setting 'needed' (NEEDED or APP_NEEDED)" in str(exc), "missing"
+        )
+    else:
+        raise ValueError("Expected a missing required positional to fail")
+
+    # help
+    p = argconf.Parser("APP")
+    p.add_str("first", positional="FIRST", required=True)
+    p.add_str_list("rest", positional="REST", help="More values")
+    help_text = p.get_help("app")
+    testing.assertTrue("Usage: app [OPTIONS] [--] FIRST [REST ...]\n" in help_text, "usage")
+    testing.assertTrue("\nArguments:\n  FIRST\n      env: APP_FIRST; required\n" in help_text, "first")
+    testing.assertTrue("  REST ...\n      More values\n      env: APP_REST; optional\n" in help_text, "rest")
+
+
+def _test_positional_schema_rules():
+    p = argconf.Parser("APP")
+    try:
+        p.add_str("file", positional="FILE", short="f")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a positional with a short option to fail")
+
+    p = argconf.Parser("APP")
+    p.add_str("file", positional="FILE")
+    try:
+        p.add_command("run")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a command next to positionals to fail")
+
+    p = argconf.Parser("APP")
+    p.add_command("run")
+    try:
+        p.add_str("file", positional="FILE")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a positional next to commands to fail")
+    try:
+        p.add_str("run")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a setting named like a command to fail")
+    try:
+        p.add_command("run")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a duplicate command to fail")
+
+    p = argconf.Parser("APP")
+    p.add_str("run")
+    try:
+        p.add_command("run")
+    except argconf.ConfigurationError:
+        pass
+    else:
+        raise ValueError("Expected a command named like a setting to fail")
+
+
+def _test_commands():
+    p = argconf.Parser("IP")
+    p.add_bool("verbose", short="v")
+    route = p.add_command("route", help="Manage routes")
+    route.add_bool("ipv4", short="4", help="IPv4 only")
+    route_list = route.add_command("list", help="List routes")
+    route_list.add_str("table", default="main")
+    route_add = route.add_command("add", help="Add a route")
+    route_add.add_str("prefix", positional="PREFIX", required=True)
+    route_add.add_str("via", positional="GATEWAY")
+    addr = p.add_command("addr", help="Manage addresses")
+    addr.add_bool("ipv4", short="4")
+
+    config = p.parse(["ip", "--verbose", "route", "-4", "list"])
+    testing.assertEqual(config.command, "route.list")
+    testing.assertEqual(config.get_bool("verbose"), True)
+    testing.assertEqual(config.get_bool("route.ipv4"), True)
+    testing.assertEqual(config.get_bool("addr.ipv4"), False)
+    testing.assertEqual(config.get_str("route.list.table"), "main")
+
+    # options resolve outward from the innermost scope
+    outward = p.parse(["ip", "route", "list", "-4", "--verbose", "--table=local"])
+    testing.assertEqual(outward.get_bool("route.ipv4"), True)
+    testing.assertEqual(outward.get_bool("verbose"), True)
+    testing.assertEqual(outward.get_str("route.list.table"), "local")
+
+    # the full spelling works anywhere, and negation follows the scope
+    full = p.parse(["ip", "--route.list.table", "x", "--route.ipv4", "route", "--no-ipv4", "list"])
+    testing.assertEqual(full.get_str("route.list.table"), "x")
+    testing.assertEqual(full.get_bool("route.ipv4"), False)
+
+    added = p.parse(["ip", "route", "add", "10.0.0.0/8", "1.2.3.4"])
+    testing.assertEqual(added.command, "route.add")
+    testing.assertEqual(added.get_str("route.add.prefix"), "10.0.0.0/8")
+    testing.assertEqual(added.get_opt_str("route.add.via")!, "1.2.3.4")
+
+    # no command; a required setting under an unselected command is not enforced
+    none = p.parse(["ip"])
+    testing.assertTrue(none.command is None, "no command")
+    testing.assertTrue(none.get_opt_str("route.add.prefix") is None, "unselected")
+
+    # config and environment reach command settings
+    documented = p.parse(["ip", "route", "list"], [aon.decode("""
+route:
+    ipv4 = True
+    list:
+        table = "config"
+""")], {"IP_ROUTE__LIST__TABLE": "environment"})
+    testing.assertEqual(documented.get_bool("route.ipv4"), True)
+    testing.assertEqual(documented.get_str("route.list.table"), "environment")
+    testing.assertTrue("IP_ROUTE__ADD__PREFIX" in p.environment_variables(), "env names")
+
+    failures = [
+        (argv=["ip", "-4", "route", "list"], message="Unknown short option '-4'"),
+        (argv=["ip", "route", "--table", "x", "list"], message="Unknown command-line option '--table'"),
+        (argv=["ip", "route", "foo"], message="Unknown command 'foo'"),
+        (argv=["ip", "route", "add"], message="Missing required setting 'route.add.prefix' (PREFIX or IP_ROUTE__ADD__PREFIX)"),
+        (argv=["ip", "route", "list", "extra"], message="Unexpected argument 'extra'"),
+    ]
+    for failure in failures:
+        try:
+            p.parse(failure.argv)
+        except argconf.ConfigurationError as exc:
+            testing.assertTrue(failure.message in str(exc), failure.message + " but got: " + str(exc))
+        else:
+            raise ValueError("Expected failure: " + failure.message)
+
+    try:
+        p.parse(["ip", "route", "--help"])
+    except argconf.PrintHelp as exc:
+        text = str(exc)
+        testing.assertTrue("Usage: ip route [OPTIONS] COMMAND\n" in text, "route usage")
+        testing.assertTrue("\nCommands:\n  add\n      Add a route\n  list\n      List routes\n" in text, "route commands")
+        testing.assertTrue("  -4, --ipv4 / --no-ipv4\n      IPv4 only\n      env: IP_ROUTE__IPV4; default: False\n" in text, "route option")
+    else:
+        raise ValueError("Expected --help on a command")
+    try:
+        p.parse(["ip", "route", "add", "-h"])
+    except argconf.PrintHelp as exc:
+        testing.assertTrue("Usage: ip route add [OPTIONS] [--] PREFIX [GATEWAY]\n" in str(exc), "add usage")
+    else:
+        raise ValueError("Expected -h on a command")
+    root_help = p.get_help("ip")
+    testing.assertTrue("Usage: ip [OPTIONS] COMMAND\n" in root_help, "root usage")
+    testing.assertTrue("\nCommands:\n  addr\n      Manage addresses\n  route\n" in root_help, "root commands")
+    testing.assertTrue("  -v, --verbose / --no-verbose\n" in root_help, "root option")

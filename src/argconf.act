@@ -11,8 +11,24 @@ argv:   --network.netconf-port
 
 Values are resolved in a fixed order: defaults, configuration documents in
 the order supplied, environment, then command line. Unknown configuration
-keys and command-line options are errors. Only declared environment variable
-names are read.
+keys, command-line options, commands, and arguments are errors. Only declared
+environment variable names are read.
+
+A setting without a default is optional: `get_opt_*` returns None until a
+source sets it, and `get_*` raises. Declare `required=True` to make a missing
+setting a parse error. A boolean setting is always set; it defaults to False.
+
+A positional argument is a setting whose command-line spelling is a position
+instead of an option; `positional` gives its display name. Bare command-line
+values are assigned to the positionals in declaration order. Each takes as
+many values as it may, one for a scalar and any number for a list, while
+leaving the later ones the values they require.
+
+`add_command` declares a command word and returns a `Command` whose settings
+live under the command's path. An option resolves in the scope of the command
+words seen so far, innermost first, so a command's options follow its word
+while root options work anywhere. `Config.command` is the dotted path of the
+selected command. A command with sub-commands cannot have positionals.
 
 The parser is pure. It accepts AON documents decoded to dictionaries and an
 explicit environment dictionary; reading files and process state remains at
@@ -28,7 +44,9 @@ import aon
 p = argconf.Parser("MYAPP")
 p.add_int("network.netconf_port", default=830, short="p")
 p.add_str("network.host", default="localhost")
+p.add_str("network.host_key")
 p.add_bool("network.tls", default=True)
+p.add_str_list("files", positional="FILE", default=[])
 
 documents = [aon.decode(config_text, "settings.aon")]
 environment = {"MYAPP_NETWORK__HOST": "example.com"}
@@ -36,15 +54,31 @@ settings = p.parse(env.argv, documents, environment)
 
 port = settings.get_int("network.netconf_port")
 host = settings.get_str("network.host")
+host_key = settings.get_opt_str("network.host_key")
+files = settings.get_str_list("files")
+```
+
+Commands nest the way the command line does:
+
+```acton
+p = argconf.Parser("IP")
+p.add_bool("verbose", short="v")
+route = p.add_command("route", help="Manage routes")
+route.add_bool("ipv4", short="4")
+route_list = route.add_command("list", help="List routes")
+route_list.add_str("table", default="main")
+
+settings = p.parse(["ip", "--verbose", "route", "-4", "list"])
+settings.command                      # "route.list"
+settings.get_str("route.list.table")  # "main"; config: route / list / table
 ```
 
 Scalar boolean options always support `--name`, `--no-name`, and
 `--name=True|False`. Homogeneous boolean, integer, float, and string lists use
 array syntax in configuration and environment values, and repeat on the command
 line. Environment list values use AON value syntax, and boolean-list
-command-line values are explicit `True` or `False` items.
-Non-option command-line values are returned in `Config.rest`; `--` ends option
-processing.
+command-line values are explicit `True` or `False` items. `--` ends option
+processing; later values are arguments even when they start with `-`.
 """
 
 import aon
@@ -143,253 +177,514 @@ def _copy_value(val: ?value) -> ?value:
     return val
 
 
+def _negated_spellings(cli: str) -> list[str]:
+    """Return the `no-` spellings of a boolean option, one per scope depth."""
+    components = cli.split(".")
+    result: list[str] = []
+    for i in range(len(components)):
+        parts = components.copy()
+        parts[i] = "no-" + parts[i]
+        result.append(".".join(parts))
+    return result
+
+
 class _Option(object):
     name: str
     cli: str
     environment: ?str
     kind: str
     default: ?value
+    required: bool
     help: str
     short: ?str
+    scope: str
+    positional: ?str
 
     def __init__(self, name: str, cli: str, environment: ?str,
-                 kind: str, default: ?value,
-                 help: str, short: ?str):
+                 kind: str, default: ?value, required: bool,
+                 help: str, short: ?str, scope: str, positional: ?str):
         self.name = name
         self.cli = cli
         self.environment = environment
         self.kind = kind
         self.default = default
+        self.required = required
         self.help = help
         self.short = short
+        self.scope = scope
+        self.positional = positional
+
+
+class _Node(object):
+    """The root or one command: its sub-commands, positionals, and options."""
+
+    path: str
+    help: str
+    commands: dict[str, str]
+    positionals: list[str]
+    options: list[str]
+
+    def __init__(self, path: str, help: str):
+        self.path = path
+        self.help = help
+        self.commands = {}
+        self.positionals = []
+        self.options = []
 
 
 class Config(object):
-    """Resolved configuration values and remaining command-line arguments."""
+    """Resolved configuration values and the selected command."""
 
+    _kinds: dict[str, str]
     _values: dict[str, (kind: str, value: value, source: str)]
-    rest: list[str]
+    command: ?str
 
-    def __init__(self):
+    def __init__(self, kinds: dict[str, str]):
+        self._kinds = kinds
         self._values = {}
-        self.rest = []
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._values
+        self.command = None
 
     def _put(self, name: str, kind: str, val: value, source: str):
         self._values[name] = (kind=kind, value=val, source=source)
+
+    def _unset(self, name: str) -> ConfigurationError:
+        return ConfigurationError(f"Setting '{name}' is not set")
 
     def _entry(self, name: str) -> (kind: str, value: value, source: str):
         try:
             return self._values[name]
         except KeyError:
+            if name in self._kinds:
+                raise self._unset(name)
             raise ConfigurationError(f"Unknown setting '{name}'")
 
-    def _typed_value(self, name: str, kind: str) -> value:
-        entry = self._entry(name)
-        if entry.kind != kind:
+    def _opt_value(self, name: str, kind: str) -> ?value:
+        try:
+            declared = self._kinds[name]
+        except KeyError:
+            raise ConfigurationError(f"Unknown setting '{name}'")
+        if declared != kind:
             raise ConfigurationError(f"Setting '{name}' is not a {_kind_label(kind)}")
-        return entry.value
+        try:
+            return self._values[name].value
+        except KeyError:
+            return None
 
     def source(self, name: str) -> str:
         """Return `default`, `config`, `environment`, or `command line`."""
         return self._entry(name).source
 
     def get_bool(self, name: str) -> bool:
-        val = self._typed_value(name, "bool")
-        if isinstance(val, bool):
-            return val
-        raise ConfigurationError(f"Setting '{name}' does not contain a boolean")
+        val = self._opt_value(name, "bool")
+        if val is not None:
+            if isinstance(val, bool):
+                return val
+            raise ConfigurationError(f"Setting '{name}' does not contain a boolean")
+        raise self._unset(name)
+
+    def get_opt_int(self, name: str) -> ?int:
+        val = self._opt_value(name, "int")
+        if val is not None:
+            if isinstance(val, int):
+                return val
+            raise ConfigurationError(f"Setting '{name}' does not contain an integer")
+        return None
 
     def get_int(self, name: str) -> int:
-        val = self._typed_value(name, "int")
-        if isinstance(val, int):
+        val = self.get_opt_int(name)
+        if val is not None:
             return val
-        raise ConfigurationError(f"Setting '{name}' does not contain an integer")
+        raise self._unset(name)
+
+    def get_opt_float(self, name: str) -> ?float:
+        val = self._opt_value(name, "float")
+        if val is not None:
+            if isinstance(val, float):
+                return val
+            raise ConfigurationError(f"Setting '{name}' does not contain a float")
+        return None
 
     def get_float(self, name: str) -> float:
-        val = self._typed_value(name, "float")
-        if isinstance(val, float):
+        val = self.get_opt_float(name)
+        if val is not None:
             return val
-        raise ConfigurationError(f"Setting '{name}' does not contain a float")
+        raise self._unset(name)
+
+    def get_opt_str(self, name: str) -> ?str:
+        val = self._opt_value(name, "str")
+        if val is not None:
+            if isinstance(val, str):
+                return val
+            raise ConfigurationError(f"Setting '{name}' does not contain a string")
+        return None
 
     def get_str(self, name: str) -> str:
-        val = self._typed_value(name, "str")
-        if isinstance(val, str):
+        val = self.get_opt_str(name)
+        if val is not None:
             return val
-        raise ConfigurationError(f"Setting '{name}' does not contain a string")
+        raise self._unset(name)
+
+    def get_opt_bool_list(self, name: str) -> ?list[bool]:
+        val = self._opt_value(name, "bool_list")
+        if val is not None:
+            result: list[bool] = []
+            if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, bool):
+                        result.append(item)
+                    else:
+                        raise ConfigurationError(f"Setting '{name}' does not contain a boolean list")
+                return result
+            raise ConfigurationError(f"Setting '{name}' does not contain a boolean list")
+        return None
 
     def get_bool_list(self, name: str) -> list[bool]:
-        val = self._typed_value(name, "bool_list")
-        result: list[bool] = []
-        if isinstance(val, list):
-            for item in val:
-                if isinstance(item, bool):
-                    result.append(item)
-                else:
-                    raise ConfigurationError(f"Setting '{name}' does not contain a boolean list")
-            return result
-        raise ConfigurationError(f"Setting '{name}' does not contain a boolean list")
+        val = self.get_opt_bool_list(name)
+        if val is not None:
+            return val
+        raise self._unset(name)
+
+    def get_opt_int_list(self, name: str) -> ?list[int]:
+        val = self._opt_value(name, "int_list")
+        if val is not None:
+            result: list[int] = []
+            if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, int):
+                        result.append(item)
+                    else:
+                        raise ConfigurationError(f"Setting '{name}' does not contain an integer list")
+                return result
+            raise ConfigurationError(f"Setting '{name}' does not contain an integer list")
+        return None
 
     def get_int_list(self, name: str) -> list[int]:
-        val = self._typed_value(name, "int_list")
-        result: list[int] = []
-        if isinstance(val, list):
-            for item in val:
-                if isinstance(item, int):
-                    result.append(item)
-                else:
-                    raise ConfigurationError(f"Setting '{name}' does not contain an integer list")
-            return result
-        raise ConfigurationError(f"Setting '{name}' does not contain an integer list")
+        val = self.get_opt_int_list(name)
+        if val is not None:
+            return val
+        raise self._unset(name)
+
+    def get_opt_float_list(self, name: str) -> ?list[float]:
+        val = self._opt_value(name, "float_list")
+        if val is not None:
+            result: list[float] = []
+            if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, float):
+                        result.append(item)
+                    else:
+                        raise ConfigurationError(f"Setting '{name}' does not contain a float list")
+                return result
+            raise ConfigurationError(f"Setting '{name}' does not contain a float list")
+        return None
 
     def get_float_list(self, name: str) -> list[float]:
-        val = self._typed_value(name, "float_list")
-        result: list[float] = []
-        if isinstance(val, list):
-            for item in val:
-                if isinstance(item, float):
-                    result.append(item)
-                else:
-                    raise ConfigurationError(f"Setting '{name}' does not contain a float list")
-            return result
-        raise ConfigurationError(f"Setting '{name}' does not contain a float list")
+        val = self.get_opt_float_list(name)
+        if val is not None:
+            return val
+        raise self._unset(name)
+
+    def get_opt_str_list(self, name: str) -> ?list[str]:
+        val = self._opt_value(name, "str_list")
+        if val is not None:
+            result: list[str] = []
+            if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, str):
+                        result.append(item)
+                    else:
+                        raise ConfigurationError(f"Setting '{name}' does not contain a string list")
+                return result
+            raise ConfigurationError(f"Setting '{name}' does not contain a string list")
+        return None
 
     def get_str_list(self, name: str) -> list[str]:
-        val = self._typed_value(name, "str_list")
-        result: list[str] = []
-        if isinstance(val, list):
-            for item in val:
-                if isinstance(item, str):
-                    result.append(item)
-                else:
-                    raise ConfigurationError(f"Setting '{name}' does not contain a string list")
-            return result
-        raise ConfigurationError(f"Setting '{name}' does not contain a string list")
+        val = self.get_opt_str_list(name)
+        if val is not None:
+            return val
+        raise self._unset(name)
+
+
+class Command(object):
+    """A command scope; settings declared here live under the command's path."""
+
+    _parser: Parser
+    _path: str
+
+    def __init__(self, parser: Parser, path: str):
+        self._parser = parser
+        self._path = path
+
+    def add_bool(self, name: str, default: bool=False, help: str="",
+                 short: ?str=None):
+        self._parser._add(self._path, name, "bool", default, False, help, short, None)
+
+    def add_int(self, name: str, default: ?int=None, required: bool=False,
+                help: str="", short: ?str=None, positional: ?str=None):
+        self._parser._add(self._path, name, "int", default, required, help, short, positional)
+
+    def add_float(self, name: str, default: ?float=None, required: bool=False,
+                  help: str="", short: ?str=None, positional: ?str=None):
+        self._parser._add(self._path, name, "float", default, required, help, short, positional)
+
+    def add_str(self, name: str, default: ?str=None, required: bool=False,
+                help: str="", short: ?str=None, positional: ?str=None):
+        self._parser._add(self._path, name, "str", default, required, help, short, positional)
+
+    def add_bool_list(self, name: str, default: ?list[bool]=None,
+                      required: bool=False, help: str="", short: ?str=None):
+        self._parser._add(self._path, name, "bool_list", default, required, help, short, None)
+
+    def add_int_list(self, name: str, default: ?list[int]=None,
+                     required: bool=False, help: str="", short: ?str=None,
+                     positional: ?str=None):
+        self._parser._add(self._path, name, "int_list", default, required, help, short, positional)
+
+    def add_float_list(self, name: str, default: ?list[float]=None,
+                       required: bool=False, help: str="", short: ?str=None,
+                       positional: ?str=None):
+        self._parser._add(self._path, name, "float_list", default, required, help, short, positional)
+
+    def add_str_list(self, name: str, default: ?list[str]=None,
+                     required: bool=False, help: str="", short: ?str=None,
+                     positional: ?str=None):
+        self._parser._add(self._path, name, "str_list", default, required, help, short, positional)
+
+    def add_command(self, name: str, help: str="") -> Command:
+        return self._parser._add_command(self._path, name, help)
 
 
 class Parser(object):
     """A schema shared by configuration documents, environment, and argv."""
 
     _env_prefix: ?str
-    _arguments: str
     _options: dict[str, _Option]
-    _long_options: dict[str, (name: str, negated: bool)]
-    _short_options: dict[str, str]
+    _nodes: dict[str, _Node]
+    _long_options: dict[str, str]
+    _negated_options: dict[str, str]
+    _short_options: dict[str, dict[str, str]]
     _environment_options: dict[str, str]
     _leaf_paths: dict[str, str]
     _table_paths: set[str]
 
-    def __init__(self, env_prefix: ?str=None, arguments: str="[ARGS...]"):
+    def __init__(self, env_prefix: ?str=None):
         if env_prefix is not None:
             _validate_prefix(env_prefix)
         self._env_prefix = env_prefix
-        self._arguments = arguments
         self._options = {}
+        self._nodes = {"": _Node("", "")}
         self._long_options = {}
+        self._negated_options = {}
         self._short_options = {}
         self._environment_options = {}
         self._leaf_paths = {}
         self._table_paths = set()
 
-    def _add(self, name: str, kind: str, default: ?value,
-             help: str, short: ?str):
-        path = _validate_name(name)
-        cli = _cli_name(name)
+    def _add(self, scope: str, name: str, kind: str, default: ?value,
+             required: bool, help: str, short: ?str, positional: ?str):
+        if name == "help":
+            raise ConfigurationError("The setting name 'help' is reserved")
+        full = name if scope == "" else scope + "." + name
+        path = _validate_name(full)
+        cli = _cli_name(full)
         prefix = self._env_prefix
         environment = _environment_name(prefix, path) if prefix is not None else None
+        node = self._nodes[scope]
 
-        if cli == "help":
-            raise ConfigurationError("The setting name 'help' is reserved")
-        if name in self._options:
-            raise ConfigurationError(f"Setting '{name}' is already declared")
-        for existing in self._options.keys():
-            if name.startswith(existing + ".") or existing.startswith(name + "."):
-                raise ConfigurationError(
-                    f"Setting '{name}' conflicts with the scalar/table path '{existing}'"
-                )
-
-        spellings = [cli]
-        if kind == "bool":
-            spellings.append("no-" + cli)
-        for spelling in spellings:
-            if spelling in self._long_options:
-                raise ConfigurationError(f"Command-line option '--{spelling}' is already declared")
-
+        if full in self._options:
+            raise ConfigurationError(f"Setting '{full}' is already declared")
+        if required and default is not None:
+            raise ConfigurationError(f"Setting '{full}' has a default and cannot be required")
+        if _path_id(path) in self._table_paths:
+            raise ConfigurationError(f"Setting '{full}' conflicts with the table path '{full}'")
+        for i in range(1, len(path)):
+            if _path_id(path[:i]) in self._leaf_paths:
+                above = self._leaf_paths[_path_id(path[:i])]
+                raise ConfigurationError(f"Setting '{full}' conflicts with the scalar path '{above}'")
         if environment is not None and environment in self._environment_options:
             raise ConfigurationError(f"Environment variable '{environment}' is already declared")
 
-        if short is not None:
-            if (len(short) != 1 or
-                    short not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"):
-                raise ConfigurationError("Short option must be one ASCII letter or digit")
-            if short == "h":
-                raise ConfigurationError("Short option '-h' is reserved for help")
-            if short in self._short_options:
-                raise ConfigurationError(f"Short option '-{short}' is already declared")
+        negations: list[str] = []
+        if positional is not None:
+            if positional == "":
+                raise ConfigurationError(f"Setting '{full}' needs a display name to be positional")
+            if short is not None:
+                raise ConfigurationError(f"Positional setting '{full}' cannot have a short option")
+            if len(node.commands) > 0:
+                raise ConfigurationError(f"Setting '{full}' cannot be positional: '{scope}' has commands")
+        else:
+            if cli in self._negated_options:
+                raise ConfigurationError(f"Command-line option '--{cli}' is already declared")
+            if kind == "bool":
+                negations = _negated_spellings(cli)
+                for spelling in negations:
+                    if spelling in self._long_options or spelling in self._negated_options:
+                        raise ConfigurationError(f"Command-line option '--{spelling}' is already declared")
+            if short is not None:
+                if (len(short) != 1 or
+                        short not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"):
+                    raise ConfigurationError("Short option must be one ASCII letter or digit")
+                if short == "h":
+                    raise ConfigurationError("Short option '-h' is reserved for help")
+                if scope not in self._short_options:
+                    self._short_options[scope] = {}
+                shorts = self._short_options[scope]
+                if short in shorts:
+                    raise ConfigurationError(f"Short option '-{short}' is already declared")
+                shorts[short] = full
 
-        option = _Option(name, cli, environment, kind,
-                         _copy_value(default), help, short)
-        self._options[name] = option
-        self._long_options[cli] = (name=name, negated=False)
-        if kind == "bool":
-            self._long_options["no-" + cli] = (name=name, negated=True)
-        if short is not None:
-            self._short_options[short] = name
+        option = _Option(full, cli, environment, kind, _copy_value(default),
+                         required, help, short, scope, positional)
+        self._options[full] = option
+        if positional is not None:
+            node.positionals.append(full)
+        else:
+            node.options.append(full)
+            self._long_options[cli] = full
+            for spelling in negations:
+                self._negated_options[spelling] = full
         if environment is not None:
-            self._environment_options[environment] = name
-        self._leaf_paths[_path_id(path)] = name
+            self._environment_options[environment] = full
+        self._leaf_paths[_path_id(path)] = full
         for i in range(1, len(path)):
             self._table_paths.add(_path_id(path[:i]))
 
+    def _add_command(self, scope: str, name: str, help: str) -> Command:
+        if not _valid_component(name):
+            raise ConfigurationError(f"Invalid command name '{name}': use lower_snake_case")
+        parent = self._nodes[scope]
+        full = name if scope == "" else scope + "." + name
+        if full in self._nodes:
+            raise ConfigurationError(f"Command '{full}' is already declared")
+        if len(parent.positionals) > 0:
+            where = "the parser" if scope == "" else f"command '{scope}'"
+            raise ConfigurationError(f"Command '{full}' cannot be declared: {where} has positional arguments")
+        path = full.split(".")
+        if _path_id(path) in self._leaf_paths:
+            raise ConfigurationError(f"Command '{full}' conflicts with the setting '{full}'")
+        self._nodes[full] = _Node(full, help)
+        parent.commands[_cli_name(name)] = full
+        self._table_paths.add(_path_id(path))
+        return Command(self, full)
+
     def add_bool(self, name: str, default: bool=False, help: str="",
                  short: ?str=None):
-        self._add(name, "bool", default, help, short)
+        self._add("", name, "bool", default, False, help, short, None)
 
-    def add_int(self, name: str, default: ?int=None, help: str="",
-                short: ?str=None):
-        self._add(name, "int", default, help, short)
+    def add_int(self, name: str, default: ?int=None, required: bool=False,
+                help: str="", short: ?str=None, positional: ?str=None):
+        self._add("", name, "int", default, required, help, short, positional)
 
-    def add_float(self, name: str, default: ?float=None, help: str="",
-                  short: ?str=None):
-        self._add(name, "float", default, help, short)
+    def add_float(self, name: str, default: ?float=None, required: bool=False,
+                  help: str="", short: ?str=None, positional: ?str=None):
+        self._add("", name, "float", default, required, help, short, positional)
 
-    def add_str(self, name: str, default: ?str=None, help: str="",
-                short: ?str=None):
-        self._add(name, "str", default, help, short)
+    def add_str(self, name: str, default: ?str=None, required: bool=False,
+                help: str="", short: ?str=None, positional: ?str=None):
+        self._add("", name, "str", default, required, help, short, positional)
 
     def add_bool_list(self, name: str, default: ?list[bool]=None,
-                      help: str="", short: ?str=None):
-        self._add(name, "bool_list", default, help, short)
+                      required: bool=False, help: str="", short: ?str=None):
+        self._add("", name, "bool_list", default, required, help, short, None)
 
     def add_int_list(self, name: str, default: ?list[int]=None,
-                     help: str="", short: ?str=None):
-        self._add(name, "int_list", default, help, short)
+                     required: bool=False, help: str="", short: ?str=None,
+                     positional: ?str=None):
+        self._add("", name, "int_list", default, required, help, short, positional)
 
     def add_float_list(self, name: str, default: ?list[float]=None,
-                       help: str="", short: ?str=None):
-        self._add(name, "float_list", default, help, short)
+                       required: bool=False, help: str="", short: ?str=None,
+                       positional: ?str=None):
+        self._add("", name, "float_list", default, required, help, short, positional)
 
     def add_str_list(self, name: str, default: ?list[str]=None,
-                     help: str="", short: ?str=None):
-        self._add(name, "str_list", default, help, short)
+                     required: bool=False, help: str="", short: ?str=None,
+                     positional: ?str=None):
+        self._add("", name, "str_list", default, required, help, short, positional)
+
+    def add_command(self, name: str, help: str="") -> Command:
+        """Declare a command word and return the scope for its settings."""
+        return self._add_command("", name, help)
 
     def environment_variables(self) -> list[str]:
         """Return the environment names understood by this parser."""
         return sorted(self._environment_options.keys())
 
-    def get_help(self, prog: str="program") -> str:
-        """Format command-line help without reading or changing parser state."""
-        result = f"Usage: {prog} [OPTIONS]"
-        if self._arguments != "":
-            result += " [--] " + self._arguments
-        result += "\n\nOptions:\n"
-        for name in sorted(self._options.keys()):
+    def _relative_cli(self, option: _Option) -> str:
+        if option.scope == "":
+            return option.cli
+        return option.cli[len(_cli_name(option.scope)) + 1:]
+
+    def _positional_usage(self, option: _Option) -> str:
+        display = option.positional
+        if display is not None:
+            if option.kind.endswith("_list"):
+                if option.required:
+                    return display + " [" + display + " ...]"
+                return "[" + display + " ...]"
+            if option.required:
+                return display
+            return "[" + display + "]"
+        return ""
+
+    def _help_details(self, option: _Option) -> str:
+        result = ""
+        if option.help != "":
+            result += "      " + option.help + "\n"
+        result += "      "
+        environment = option.environment
+        if environment is not None:
+            result += "env: " + environment + "; "
+        default = option.default
+        if default is not None:
+            result += "default: " + str(default)
+        elif option.required:
+            result += "required"
+        else:
+            result += "optional"
+        return result + "\n"
+
+    def get_help(self, prog: str="program", command: str="") -> str:
+        """Format help for the parser, or for the command at a dotted path."""
+        try:
+            node = self._nodes[command]
+        except KeyError:
+            raise ConfigurationError(f"Unknown command '{command}'")
+        result = f"Usage: {prog}"
+        if node.path != "":
+            result += " " + _cli_name(node.path).replace(".", " ")
+        result += " [OPTIONS]"
+        if len(node.commands) > 0:
+            result += " COMMAND"
+        if len(node.positionals) > 0:
+            result += " [--]"
+            for name in node.positionals:
+                result += " " + self._positional_usage(self._options[name])
+        result += "\n"
+        if len(node.commands) > 0:
+            result += "\nCommands:\n"
+            for word in sorted(node.commands.keys()):
+                child = self._nodes[node.commands[word]]
+                result += "  " + word + "\n"
+                if child.help != "":
+                    result += "      " + child.help + "\n"
+        if len(node.positionals) > 0:
+            result += "\nArguments:\n"
+            for name in node.positionals:
+                option = self._options[name]
+                display = option.positional
+                if display is not None:
+                    result += "  " + display
+                    if option.kind.endswith("_list"):
+                        result += " ..."
+                    result += "\n" + self._help_details(option)
+        result += "\nOptions:\n"
+        for name in sorted(node.options):
             option = self._options[name]
-            spelling = "--" + option.cli
+            cli = self._relative_cli(option)
+            spelling = "--" + cli
             if option.kind == "bool":
-                spelling += " / --no-" + option.cli
+                spelling += " / --no-" + cli
             else:
                 spelling += " " + _metavar(option.kind)
                 if option.kind.endswith("_list"):
@@ -397,18 +692,7 @@ class Parser(object):
             short = option.short
             if short is not None:
                 spelling = "-" + short + ", " + spelling
-            result += "  " + spelling + "\n"
-            if option.help != "":
-                result += "      " + option.help + "\n"
-            environment = option.environment
-            result += "      "
-            if environment is not None:
-                result += "env: " + environment + "; "
-            if option.default is None:
-                result += "required"
-            else:
-                result += "default: " + str(option.default)
-            result += "\n"
+            result += "  " + spelling + "\n" + self._help_details(option)
         result += "  -h, --help\n      Show this help message\n"
         return result
 
@@ -537,22 +821,40 @@ class Parser(object):
             resolved = self._literal_value(option, text, "command line")
             result._put(option.name, option.kind, resolved, "command line")
 
-    def _parse_long(self, argv: list[str], index: int, result: Config,
-                    list_started: set[str]) -> int:
+    def _resolve_long(self, scopes: list[str], rel: str) -> (name: str, negated: bool):
+        i = len(scopes) - 1
+        while i >= 0:
+            scope_cli = _cli_name(scopes[i])
+            full = rel if scope_cli == "" else scope_cli + "." + rel
+            if full in self._long_options:
+                return (name=self._long_options[full], negated=False)
+            if full in self._negated_options:
+                return (name=self._negated_options[full], negated=True)
+            i -= 1
+        raise ConfigurationError(f"Unknown command-line option '--{rel}'")
+
+    def _resolve_short(self, scopes: list[str], short: str) -> str:
+        i = len(scopes) - 1
+        while i >= 0:
+            scope = scopes[i]
+            if scope in self._short_options and short in self._short_options[scope]:
+                return self._short_options[scope][short]
+            i -= 1
+        raise ConfigurationError(f"Unknown short option '-{short}'")
+
+    def _parse_long(self, argv: list[str], index: int, scopes: list[str],
+                    result: Config, list_started: set[str]) -> int:
         arg = argv[index]
         body = arg[2:]
         equals = body.find("=")
         has_value = equals != -1
-        name = body[:equals] if has_value else body
+        rel = body[:equals] if has_value else body
         text = body[equals+1:] if has_value else ""
-        try:
-            binding = self._long_options[name]
-        except KeyError:
-            raise ConfigurationError(f"Unknown command-line option '--{name}'")
+        binding = self._resolve_long(scopes, rel)
         option = self._options[binding.name]
         if binding.negated:
             if has_value:
-                raise ConfigurationError(f"Negated option '--{name}' does not take a value")
+                raise ConfigurationError(f"Negated option '--{rel}' does not take a value")
             result._put(option.name, option.kind, False, "command line")
             return index + 1
         if option.kind == "bool":
@@ -563,24 +865,21 @@ class Parser(object):
             return index + 1
         if not has_value:
             if index + 1 >= len(argv):
-                raise ConfigurationError(f"Missing value for command-line option '--{name}'")
+                raise ConfigurationError(f"Missing value for command-line option '--{rel}'")
             text = argv[index+1]
             index += 1
         self._put_cli(result, option, text, list_started)
         return index + 1
 
-    def _parse_short(self, argv: list[str], index: int, result: Config,
-                     list_started: set[str]) -> int:
+    def _parse_short(self, argv: list[str], index: int, scopes: list[str],
+                     result: Config, list_started: set[str]) -> int:
         body = argv[index][1:]
         position = 0
         while position < len(body):
             short = body[position]
             if short == "h":
-                raise PrintHelp(self.get_help(argv[0]))
-            try:
-                name = self._short_options[short]
-            except KeyError:
-                raise ConfigurationError(f"Unknown short option '-{short}'")
+                raise PrintHelp(self.get_help(argv[0], scopes[len(scopes)-1]))
+            name = self._resolve_short(scopes, short)
             option = self._options[name]
             if option.kind == "bool":
                 result._put(option.name, option.kind, True, "command line")
@@ -597,6 +896,56 @@ class Parser(object):
                 position = len(body)
         return index + 1
 
+    def _assign_positionals(self, node: _Node, bare: list[str], result: Config):
+        names = node.positionals
+        minimums: list[int] = []
+        for name in names:
+            minimums.append(1 if self._options[name].required else 0)
+        remaining = len(bare)
+        position = 0
+        for i in range(len(names)):
+            option = self._options[names[i]]
+            later = 0
+            for j in range(i + 1, len(names)):
+                later += minimums[j]
+            available = remaining - later
+            if available < 0:
+                available = 0
+            if option.kind.endswith("_list"):
+                count = available
+            else:
+                count = 1 if available >= 1 else 0
+            if count > 0:
+                values = bare[position:position+count]
+                if option.kind.endswith("_list"):
+                    items: list[?value] = []
+                    item_kind = option.kind[:-5]
+                    for text in values:
+                        items.append(self._scalar_literal(
+                            option.name, item_kind, text, "command line"
+                        ))
+                    result._put(option.name, option.kind, items, "command line")
+                else:
+                    resolved = self._scalar_literal(
+                        option.name, option.kind, values[0], "command line"
+                    )
+                    result._put(option.name, option.kind, resolved, "command line")
+                position += count
+                remaining -= count
+        if remaining > 0:
+            raise ConfigurationError(f"Unexpected argument '{bare[position]}'")
+
+    def _alternatives(self, option: _Option) -> str:
+        display = option.positional
+        if display is not None:
+            result = display
+        else:
+            result = "--" + self._relative_cli(option)
+        env_name = option.environment
+        if env_name is not None:
+            result += " or " + env_name
+        return result
+
     def parse(self, argv: list[str],
               configs: ?list[dict[str, ?value]]=None,
               environment: ?dict[str, str]=None) -> Config:
@@ -608,7 +957,10 @@ class Parser(object):
         """
         if len(argv) == 0:
             raise ConfigurationError("argv must include the program name")
-        result = Config()
+        kinds: dict[str, str] = {}
+        for name, option in self._options.items():
+            kinds[name] = option.kind
+        result = Config(kinds)
         for name, option in self._options.items():
             if option.default is not None:
                 default = _copy_value(option.default)
@@ -621,31 +973,43 @@ class Parser(object):
         if environment is not None:
             self._apply_environment(environment, result)
 
+        scopes: list[str] = [""]
+        node = self._nodes[""]
+        bare: list[str] = []
         list_started: set[str] = set()
+        options_done = False
         index = 1
         while index < len(argv):
             arg = argv[index]
-            if arg == "--":
-                result.rest.extend(argv[index+1:])
-                break
-            if arg == "--help":
-                raise PrintHelp(self.get_help(argv[0]))
-            if arg.startswith("--"):
-                index = self._parse_long(argv, index, result, list_started)
-            elif arg.startswith("-") and arg != "-":
-                index = self._parse_short(argv, index, result, list_started)
+            if not options_done:
+                if arg == "--":
+                    options_done = True
+                    index += 1
+                    continue
+                if arg == "--help":
+                    raise PrintHelp(self.get_help(argv[0], node.path))
+                if arg.startswith("--"):
+                    index = self._parse_long(argv, index, scopes, result, list_started)
+                    continue
+                if arg.startswith("-") and arg != "-":
+                    index = self._parse_short(argv, index, scopes, result, list_started)
+                    continue
+            if len(node.commands) > 0:
+                if arg not in node.commands:
+                    raise ConfigurationError(f"Unknown command '{arg}'")
+                node = self._nodes[node.commands[arg]]
+                scopes.append(node.path)
             else:
-                result.rest.append(arg)
-                index += 1
+                bare.append(arg)
+            index += 1
 
+        self._assign_positionals(node, bare, result)
         for name in sorted(self._options.keys()):
-            if name not in result._values:
-                option = self._options[name]
-                env_name = option.environment
-                alternatives = f"--{option.cli}"
-                if env_name is not None:
-                    alternatives += " or " + env_name
+            option = self._options[name]
+            if option.required and option.scope in scopes and name not in result._values:
                 raise ConfigurationError(
-                    f"Missing required setting '{name}' ({alternatives})"
+                    f"Missing required setting '{name}' ({self._alternatives(option)})"
                 )
+        if node.path != "":
+            result.command = node.path
         return result
