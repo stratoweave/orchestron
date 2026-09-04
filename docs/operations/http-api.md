@@ -307,9 +307,11 @@ forwarded to `HttpServer` and installed by the `static_assets` module.
 Behavior:
 
 - Every asset is served on `GET <path>` on the same listener and port as the
-  APIs. `GET /` serves `/index.html` when present. Assets are served from the
-  router's not-found handler, so registered API routes always take precedence
-  and can never be shadowed by an asset.
+  APIs. `GET /` serves `/index.html` when present. Assets are served by a
+  catch-all `GET /*path` route that the router ranks below every static or
+  parameterized route, so registered API routes always take precedence and can
+  never be shadowed by an asset. Installing fails if the application already
+  registered its own root-level `GET` wildcard.
 - Assets under `/_app/immutable/` (content-hashed filenames) are served with
   `Cache-Control: public, max-age=31536000, immutable`; everything else with
   `no-cache`.

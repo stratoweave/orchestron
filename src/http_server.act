@@ -411,8 +411,9 @@ actor HttpServer(
     if extra_routes is not None:
         extra_routes(http_router_root)
 
-    # Assets are served from the router's not-found handler, so the routes
-    # registered above always take precedence and can never be shadowed.
+    # Assets are served by a catch-all GET /*path route, which the router
+    # scores below every static or parameter route, so the routes registered
+    # above always take precedence and can never be shadowed.
     assets = static_assets
     if assets is not None:
         swstatic.install(http_router_root, assets)

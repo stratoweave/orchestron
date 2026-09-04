@@ -121,6 +121,8 @@ actor _test_spa_fallback_heuristic(t: testing.EnvT):
             200, _INDEX_BODY, {"Vary": "Accept"}, after_post)
 
     def after_no_accept():
+        # Other methods never reach the asset route; the router's default
+        # not-found handler answers.
         _serve_expect(t, r, _request("POST", "/services/foo", {"accept": "text/html"}), 404, "", {}, after_non_get)
 
     def after_api_accept():
@@ -166,10 +168,27 @@ def _test_rejects_relative_paths():
     testing.assertEqual(relative_raised, 1)
 
 
+def _test_rejects_existing_catch_all():
+    # The asset route is a root-level GET wildcard; a second one is a router
+    # overlap, reported at install time rather than silently losing.
+    def other(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        respond(200, {}, "other")
+
+    r = http_router.Router()
+    r.get("/*rest", other)
+    overlap_raised = 0
+    try:
+        swstatic.install(r, _assets())
+    except ValueError:
+        overlap_raised = 1
+    testing.assertEqual(overlap_raised, 1)
+
+
 actor _test_routes_always_beat_assets(t: testing.EnvT):
-    # Assets live in the not-found handler, so a registered GET route — even
-    # a param or wildcard route whose concrete instance collides with an
-    # asset path — always wins. The asset is unreachable, but the API can
+    # Assets live behind a catch-all GET /*path route, which the router
+    # scores below any static or param route, so a registered GET route —
+    # even a param or wildcard route whose concrete instance collides with
+    # an asset path — always wins. The asset is unreachable, but the API can
     # never be shadowed.
     r = http_router.Router()
 
