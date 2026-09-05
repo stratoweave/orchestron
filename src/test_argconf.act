@@ -1,23 +1,35 @@
 import argconf
 import aon
 import app as swapp
+import ssh
 
 import testing
+
+
+_NETCONF_SSH_AON: str = r"""
+netconf:
+    ssh:
+        cipher = ["aes256-ctr", "aes128-ctr"]
+        minimum_rsa_bits = 3072
+        rekey_after_seconds = 3600
+"""
 
 
 def _test_stratoweave_system_settings():
     system_settings = [aon.decode("""
 db = "/var/lib/stratoweave"
 startup_config_files = ["base.xml"]
-http_port = 8081
-netconf_port = 1830
-netconf_user = "configured"
 exit_on_done = True
+http:
+    port = 8081
+netconf:
+    port = 1830
+    user = "configured"
 """, "stratoweave.aon")]
     resolved_settings = swapp.SystemSettings.parse(
-        ["stratoweave", "--http-port=8080", "startup.xml"],
+        ["stratoweave", "--http.port=8080", "startup.xml"],
         system_settings,
-        {"STRATOWEAVE_NETCONF_USER": "environment"}
+        {"STRATOWEAVE_NETCONF__USER": "environment"}
     )
 
     testing.assertEqual(resolved_settings.startup_config_files, ["startup.xml"])
@@ -672,3 +684,53 @@ route:
     testing.assertTrue("Usage: ip [OPTIONS] COMMAND\n" in root_help, "root usage")
     testing.assertTrue("\nCommands:\n  addr\n      Manage addresses\n  route\n" in root_help, "root commands")
     testing.assertTrue("  -v, --verbose / --no-verbose\n" in root_help, "root option")
+
+
+def _test_netconf_ssh_defaults_to_library_defaults():
+    """Unset SSH settings leave the SSH library's own defaults in place."""
+    settings = swapp.SystemSettings.parse(["stratoweave"])
+    ssh_settings = settings.netconf_ssh
+    testing.assertEqual(ssh_settings.ciphers, [])
+    testing.assertEqual(ssh_settings.rekey_after_bytes, None)
+    testing.assertEqual(ssh_settings.rekey_after_seconds, None)
+    testing.assertEqual(ssh_settings.compression_level, 7)
+    testing.assertEqual(ssh_settings.minimum_rsa_bits, 1024)
+
+    tc = ssh_settings.transport_config()
+    testing.assertEqual([str(c) for c in tc.ciphers], [str(c) for c in ssh.cipher.default])
+    testing.assertEqual(tc.rekey_after_bytes, None)
+    testing.assertEqual(tc.rekey_after_seconds, None)
+
+
+def _test_netconf_ssh_from_all_three_sources():
+    """SSH settings resolve from configuration, environment, and argv."""
+    system_settings = [aon.decode(_NETCONF_SSH_AON, "stratoweave.aon")]
+    settings = swapp.SystemSettings.parse(
+        ["stratoweave", "--netconf.ssh.key-exchange=curve25519-sha256"],
+        system_settings,
+        {"STRATOWEAVE_NETCONF__SSH__COMPRESSION_LEVEL": "3"}
+    )
+
+    ssh_settings = settings.netconf_ssh
+    testing.assertEqual(ssh_settings.ciphers, ["aes256-ctr", "aes128-ctr"])
+    testing.assertEqual(ssh_settings.key_exchanges, ["curve25519-sha256"])
+    testing.assertEqual(ssh_settings.compression_level, 3)
+    testing.assertEqual(ssh_settings.minimum_rsa_bits, 3072)
+    testing.assertEqual(ssh_settings.rekey_after_seconds, 3600)
+    testing.assertEqual(ssh_settings.rekey_after_bytes, None)
+
+    tc = ssh_settings.transport_config()
+    testing.assertEqual([str(c) for c in tc.ciphers], ["aes256-ctr", "aes128-ctr"])
+    testing.assertEqual([str(k) for k in tc.key_exchanges], ["curve25519-sha256"])
+    testing.assertEqual(tc.rekey_after_seconds, 3600)
+
+
+def _test_netconf_ssh_rejects_unsupported_algorithm():
+    """An unsupported algorithm name fails when the transport is built."""
+    settings = swapp.SystemSettings.parse(
+        ["stratoweave", "--netconf.ssh.cipher=rot13-cbc"])
+    try:
+        settings.netconf_ssh.transport_config()
+    except ValueError:
+        return
+    testing.error("expected ValueError for an unsupported cipher")

@@ -1,0 +1,38 @@
+"""Build SSH transport configuration from plain values.
+
+Both directions need the same mapping: the southbound adapters read it from a
+device's `ssh` container in the intent tree, the northbound NETCONF server from
+system settings. This module holds the one mapping they share.
+"""
+
+import ssh
+
+
+def transport_config(ciphers: list[str],
+                     macs: list[str],
+                     key_exchanges: list[str],
+                     host_key_algorithms: list[str],
+                     public_key_algorithms: list[str],
+                     compression_algorithms: list[str],
+                     compression_level: int,
+                     rekey_after_bytes: ?int,
+                     rekey_after_seconds: ?int,
+                     minimum_rsa_bits: int) -> ssh.TransportConfig:
+    """Build an SSH TransportConfig from algorithm names and numeric limits.
+
+    An empty algorithm list means "no preference": pass None so the SSH library
+    uses its own default list rather than an empty negotiation set. The library
+    validates the algorithm names and the numeric ranges, raising ValueError on
+    anything it does not support.
+    """
+    return ssh.TransportConfig(
+        ciphers=[ssh.Cipher(n) for n in ciphers] if len(ciphers) > 0 else None,
+        macs=[ssh.Mac(n) for n in macs] if len(macs) > 0 else None,
+        key_exchanges=[ssh.KeyExchange(n) for n in key_exchanges] if len(key_exchanges) > 0 else None,
+        host_key_algorithms=[ssh.HostKeyAlgorithm(n) for n in host_key_algorithms] if len(host_key_algorithms) > 0 else None,
+        public_key_algorithms=[ssh.PublicKeyAlgorithm(n) for n in public_key_algorithms] if len(public_key_algorithms) > 0 else None,
+        compression_algorithms=[ssh.CompressionAlgorithm(n) for n in compression_algorithms] if len(compression_algorithms) > 0 else None,
+        compression_level=compression_level,
+        rekey_after_bytes=rekey_after_bytes,
+        rekey_after_seconds=rekey_after_seconds,
+        minimum_rsa_bits=minimum_rsa_bits)

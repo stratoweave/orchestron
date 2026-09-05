@@ -1,6 +1,7 @@
 import logging
 import net
 import ssh
+import ssh_config
 import testing
 import std.xml as xml
 
@@ -19,28 +20,22 @@ CONNECTED     = 2
 TRANSACTION   = 3
 
 def ssh_transport_config(cfg: DeviceMetaConfigSsh) -> ssh.TransportConfig:
-    """Build an SSH TransportConfig from a device's ssh container.
-
-    An empty algorithm leaf-list means "no preference": pass None so the SSH
-    library uses its own default list rather than an empty negotiation set.
-    The library validates the algorithm names and the numeric ranges, raising
-    ValueError on anything it does not support.
-    """
+    """Build an SSH TransportConfig from a device's ssh container."""
     # Bind the optionals to locals: narrowing does not carry through an
     # attribute access.
     rekey_bytes = cfg.rekey_after_bytes
     rekey_seconds = cfg.rekey_after_seconds
-    return ssh.TransportConfig(
-        ciphers=[ssh.Cipher(n) for n in cfg.cipher] if len(cfg.cipher) > 0 else None,
-        macs=[ssh.Mac(n) for n in cfg.mac] if len(cfg.mac) > 0 else None,
-        key_exchanges=[ssh.KeyExchange(n) for n in cfg.key_exchange] if len(cfg.key_exchange) > 0 else None,
-        host_key_algorithms=[ssh.HostKeyAlgorithm(n) for n in cfg.host_key_algorithm] if len(cfg.host_key_algorithm) > 0 else None,
-        public_key_algorithms=[ssh.PublicKeyAlgorithm(n) for n in cfg.public_key_algorithm] if len(cfg.public_key_algorithm) > 0 else None,
-        compression_algorithms=[ssh.CompressionAlgorithm(n) for n in cfg.compression_algorithm] if len(cfg.compression_algorithm) > 0 else None,
-        compression_level=int(cfg.compression_level),
-        rekey_after_bytes=int(rekey_bytes) if rekey_bytes is not None else None,
-        rekey_after_seconds=int(rekey_seconds) if rekey_seconds is not None else None,
-        minimum_rsa_bits=int(cfg.minimum_rsa_bits))
+    return ssh_config.transport_config(
+        cfg.cipher,
+        cfg.mac,
+        cfg.key_exchange,
+        cfg.host_key_algorithm,
+        cfg.public_key_algorithm,
+        cfg.compression_algorithm,
+        int(cfg.compression_level),
+        int(rekey_bytes) if rekey_bytes is not None else None,
+        int(rekey_seconds) if rekey_seconds is not None else None,
+        int(cfg.minimum_rsa_bits))
 
 
 class MockRoot(yadata.MNode):

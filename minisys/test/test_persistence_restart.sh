@@ -37,7 +37,7 @@ wait_for_http() {
 start_mini() {
     (
         cd "$ROOT_DIR"
-        exec "$BIN_FILE" --db "$DB_PATH" --http-port "$PORT"
+        exec "$BIN_FILE" --db "$DB_PATH" --http.port "$PORT"
     ) >/dev/null 2>&1 &
     PID=$!
     wait_for_http
