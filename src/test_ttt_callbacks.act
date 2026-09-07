@@ -151,6 +151,8 @@ class EmptyOutputRFSTransform(ttt.RFSFunction):
 actor EmptyOutputTransformActor(notify: action() -> None):
     def on_conf(_conf: gdata.Node, _memory: ?gdata.Node):
         notify()
+    def shutdown(memory: ?gdata.Node):
+        pass
 
 rfs_fail_cfg = gdata.Container({
     q("rfs"): gdata.List([q("name")], [
@@ -180,7 +182,7 @@ actor rfs_actor_notified_for_empty_output(t: testing.AsyncT):
     def actor_ctor(_params: ttt.TransformActorParams) -> ttt.TransformActor:
         starts += 1
         act = EmptyOutputTransformActor(notified)
-        return ttt.TransformActor(act.on_conf)
+        return ttt.TransformActor(act.on_conf, act.shutdown)
 
     stack = ttt.Layer("rfs", ttt.Container({
         q("rfs"): ttt.List(ttt.Container({

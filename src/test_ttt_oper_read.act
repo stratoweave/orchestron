@@ -32,11 +32,13 @@ actor OperPublisher(path: ttt.Path, update_oper: proc(?gdata.Node) -> None):
                 q("rx"): gdata.Leaf(u64(len(name!))),
             }),
         }))
+    def shutdown(memory: ?gdata.Node):
+        pass
 
 
 def OperPublisherCtor(params: ttt.TransformActorParams) -> ttt.TransformActor:
     act = OperPublisher(params.path, params.update_oper)
-    return ttt.TransformActor(act.on_conf)
+    return ttt.TransformActor(act.on_conf, act.shutdown)
 
 
 def _service_cfg() -> gdata.Node:

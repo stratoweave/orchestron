@@ -845,6 +845,8 @@ actor DynstateActor(path: ttt.Path, update_dynstate: proc(?adata.MNode)->None, t
                 update_dynstate(GDataWrapper(gdata.Leaf(41)))
             elif memory is not None and memory == gdata.Leaf(42):
                 t.success()
+    def shutdown(memory: ?gdata.Node):
+        pass
 
 class DynstateTransform(ttt.TransformFunction):
     def transform_wrapper(self, cfg: gdata.Node, linked: gdata.Node, memory: ?gdata.Node, dynstate: ?gdata.Node):
@@ -859,7 +861,7 @@ actor transform_dynstate(t: testing.AsyncT):
         def update_dynstate_wrapper(dynstate: ?adata.MNode):
             params.update_dynstate(dynstate.to_gdata() if dynstate is not None else None)
         act = DynstateActor(params.path, update_dynstate_wrapper, t)
-        return ttt.TransformActor(act.on_conf)
+        return ttt.TransformActor(act.on_conf, act.shutdown)
 
     router = ttt.Layer("top:", ttt.Container({q("leaf"): ttt.Transform(DynstateTransform, DynstateActorCtor)}), None)
     s1 = router.newsession()

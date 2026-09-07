@@ -2278,11 +2278,11 @@ class TransformActorParams:
 class TransformActor:
     @property
     on_conf: proc(gdata.Node, ?gdata.Node) -> None
-#    @property
-#    shutdown: proc(?gdata.Node) -> None
-    def __init__(self, on_conf):
+    @property
+    shutdown: proc(?gdata.Node) -> None
+    def __init__(self, on_conf, shutdown):
         self.on_conf = on_conf
-#        self.shutdown = shutdown
+        self.shutdown = shutdown
 
 def Transform(function, act: ?(proc(TransformActorParams) -> TransformActor)=None, build_links: ?proc(gdata.Node) -> list[TaggedPath]=None, lower: ?Layer=None, log_handler: ?logging.Handler=None) -> proc(Path, ?Layer)->Node:
     proc def _create_transform_node(path, lower):
@@ -2360,6 +2360,8 @@ class _TransformTransaction(_TransformTransactionBase):
         # Run transform.on_conf only When we have an updated running config
         if self.running:
             self.function.on_conf(self.get(), self.memory)
+        else:
+            self.function.shutdown(self.memory)
 
 class TransformFunction(object):
     transform_wrapper: mut(gdata.Node, gdata.Node, ?gdata.Node, ?gdata.Node) -> (gdata.Node, ?gdata.Node)
@@ -2391,6 +2393,16 @@ class TransformFunction(object):
             inst = actgen()
             self.actinst = inst
             inst.on_conf(conf, memory)
+    
+    proc def shutdown(self, memory: ?gdata.Node):
+        actgen = self.actgen
+        actinst = self.actinst
+        if actinst is not None:
+            actinst.shutdown(memory)
+        elif actgen is not None:
+            inst = actgen()
+            self.actinst = inst
+            inst.shutdown(memory)
 
 
 ################# RFSTransform ###################
@@ -2518,6 +2530,8 @@ class _RFSTransaction(_TransformTransactionBase):
         #print('####', tid, '(_TransformTransaction)', _format_path(self.path), 'finalize', actorid(), err=True)
         if self.running:
             self.function.on_conf(self.get(), self.memory)
+        else:
+            self.function.shutdown(self.memory)
 
 class DeviceInfo(object):
     name: str
@@ -2557,6 +2571,16 @@ class RFSFunction(object):
             inst = actgen()
             self.actinst = inst
             inst.on_conf(conf, memory)
+
+    proc def shutdown(self, memory: ?gdata.Node):
+        actgen = self.actgen
+        actinst = self.actinst
+        if actinst is not None:
+            actinst.shutdown(memory)
+        elif actgen is not None:
+            inst = actgen()
+            self.actinst = inst
+            inst.shutdown(memory)
 
 
 ################# Device #####################
