@@ -543,8 +543,12 @@ class DeviceTreeProvider(ygdata.TreeProvider):
     proc def rpc(self, cb: action(?ygdata.Node, ?Exception) -> None, gdata_rpc: ygdata.Node):
         self.dev.rpc(cb, gdata_rpc)
 
-    proc def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
-        self.dev.declare_subscriptions(owner_id, cb, want)
+    proc def declare_subscriptions(self, owner_id: str, cb: proc(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], synced: ?action(str) -> None):
+        for spec in want:
+            if spec.root is not None:
+                cb(None, ValueError("a destination rooted at a node is served by a TTT layer, not by a device"))
+                return
+        self.dev.declare_subscriptions(owner_id, cb, want, synced)
 
     proc def remove_subscriptions(self, owner_id: str):
         self.dev.remove_subscriptions(owner_id)
@@ -1188,8 +1192,8 @@ actor DeviceMgr(dev_types: dict[str, DeviceType]={}, connect_cap: ?net.TCPConnec
         value is watched continuously."""
         adapter.get(cb, filt)
 
-    def declare_subscriptions(owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
-        adapter.declare_subscriptions(owner_id, cb, want)
+    def declare_subscriptions(owner_id: str, cb: proc(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], synced: ?action(str) -> None=None):
+        adapter.declare_subscriptions(owner_id, cb, want, synced)
 
     def remove_subscriptions(owner_id: str):
         adapter.remove_subscriptions(owner_id)

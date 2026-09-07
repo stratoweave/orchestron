@@ -465,17 +465,23 @@ class LayerSharedSubscription(object):
 
 
 class LayerSubscriptionOwner(object):
-    """One logical subscriber and its merged delivery state."""
+    """One logical subscriber and its merged delivery state. `synced` is
+    called with the owner id after its first delivery, once."""
     @property
-    cb: action(?gdata.Node, ?Exception) -> None
+    cb: proc(?gdata.Node, ?Exception) -> None
+    @property
+    synced: ?action(str) -> None
     want: set[gdata.SubscriptionSpec]
     last_merged: ?gdata.Node
+    synced_done: bool
 
-    def __init__(self, cb: action(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec], last_merged: ?gdata.Node=None):
+    def __init__(self, cb: proc(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec], last_merged: ?gdata.Node=None, synced: ?action(str) -> None=None, synced_done: bool=False):
         """Track the callback, desired specs, and last delivered tree."""
         self.cb = cb
+        self.synced = synced
         self.want = set(want)
         self.last_merged = last_merged
+        self.synced_done = synced_done
 
 def layer_subscription_delay(spec: gdata.SubscriptionSpec) -> float:
     """Return the actor delay, in seconds, for a normalized spec period."""
@@ -786,6 +792,11 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
             owner.last_merged = merged
             sub_owners[owner_id] = owner
             owner.cb(merged, err)
+            if not owner.synced_done:
+                owner.synced_done = True            # the first delivery is the first pass
+                s = owner.synced
+                if s is not None:
+                    s(owner_id)
 
     def _sub_cancel(spec: gdata.SubscriptionSpec):
         """Stop tracking a shared spec and invalidate already scheduled ticks."""
@@ -848,26 +859,33 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         else:
             subs[spec] = st
 
-    def declare_subscriptions(owner_id: str, cb: action(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec]):
+    def declare_subscriptions(owner_id: str, cb: proc(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec], synced: ?action(str) -> None=None):
         """Replace one owner's desired subscription set.
 
         SubscriptionManager declarations are full-state declarations, not
         incremental updates. Specs removed from the desired set release this
         owner from the shared sampler; new specs attach the owner and start
-        sampling as needed.
+        sampling as needed. `synced` is called with the owner id after the
+        owner's first delivery. A spec rooted at a node is not served yet.
         """
+        for spec in want:
+            if spec.root is not None:
+                cb(None, ValueError("a destination rooted at a node is not served by a TTT layer yet"))
+                return
         old_want = set()
         last_merged = None
+        synced_done = False
         if owner_id in sub_owners:
             owner = sub_owners[owner_id]
             old_want = owner.want
             last_merged = owner.last_merged
+            synced_done = owner.synced_done
 
         for spec in old_want:
             if spec not in want:
                 _remove_owner_spec(owner_id, spec)
 
-        sub_owners[owner_id] = LayerSubscriptionOwner(cb, want, last_merged)
+        sub_owners[owner_id] = LayerSubscriptionOwner(cb, want, last_merged, synced, synced_done)
 
         for spec in want:
             if spec not in old_want:
@@ -1055,8 +1073,8 @@ class LayerTreeProvider(gdata.TreeProvider):
     proc def rpc(self, cb: action(?gdata.Node, ?Exception) -> None, gdata_rpc: gdata.Node):
         cb(None, ValueError("TTT layer TreeProvider does not support RPC"))
 
-    proc def declare_subscriptions(self, owner_id: str, cb: action(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec]):
-        self.layer.declare_subscriptions(owner_id, cb, want)
+    proc def declare_subscriptions(self, owner_id: str, cb: proc(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec], synced: ?action(str) -> None):
+        self.layer.declare_subscriptions(owner_id, cb, want, synced)
 
     proc def remove_subscriptions(self, owner_id: str):
         self.layer.remove_subscriptions(owner_id)
