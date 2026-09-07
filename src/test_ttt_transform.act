@@ -855,11 +855,11 @@ class DynstateTransform(ttt.TransformFunction):
         return (cfg, memory)
 
 actor transform_dynstate(t: testing.AsyncT):
-    def DynstateActorCtor(params: ttt.TransformActorParams) -> proc(gdata.Node, ?gdata.Node) -> None:
+    def DynstateActorCtor(params: ttt.TransformActorParams) -> ttt.TransformActor:
         def update_dynstate_wrapper(dynstate: ?adata.MNode):
             params.update_dynstate(dynstate.to_gdata() if dynstate is not None else None)
         act = DynstateActor(params.path, update_dynstate_wrapper, t)
-        return act.on_conf
+        return ttt.TransformActor(act.on_conf)
 
     router = ttt.Layer("top:", ttt.Container({q("leaf"): ttt.Transform(DynstateTransform, DynstateActorCtor)}), None)
     s1 = router.newsession()

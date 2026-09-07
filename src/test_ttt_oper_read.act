@@ -34,9 +34,9 @@ actor OperPublisher(path: ttt.Path, update_oper: proc(?gdata.Node) -> None):
         }))
 
 
-def OperPublisherCtor(params: ttt.TransformActorParams) -> proc(gdata.Node, ?gdata.Node) -> None:
+def OperPublisherCtor(params: ttt.TransformActorParams) -> ttt.TransformActor:
     act = OperPublisher(params.path, params.update_oper)
-    return act.on_conf
+    return ttt.TransformActor(act.on_conf)
 
 
 def _service_cfg() -> gdata.Node:
