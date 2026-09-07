@@ -18,10 +18,10 @@ def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: 
     r = ttt.Container({ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "device"): ttt.List(ttt.Device(dev_registry, log_handler), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs'), ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "rfs"): ttt.List(ttt.Container({ygdata.Id("http://example.com/mini-rfs", "base-config"): ttt.RFSTransform(rfs.BaseConfig, dev_registry, BaseConfigTransformCtor, lower, log_handler), ygdata.Id("http://example.com/mini-rfs", "l3vpn-endpoint"): ttt.List(ttt.RFSTransform(rfs.L3vpnEndpoint, dev_registry, None, lower, log_handler), [ygdata.Id("http://example.com/mini-rfs", "interface-name")], ns='http://example.com/mini-rfs', module='mini-rfs')}), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs')})
     return r
 
-def BaseConfigTransformCtor(params: ttt.TransformActorParams) -> proc(ygdata.Node, ?ygdata.Node) -> None:
+def BaseConfigTransformCtor(params: ttt.TransformActorParams) -> ttt.TransformActor:
     def update_dynstate_type_wrapper(dynstate: ?stratoweave_rfs__rfs__base_config__dynstate):
         params.update_dynstate(dynstate.to_gdata() if dynstate is not None else None)
     def update_oper_type_wrapper(oper: ?y_1_oper.stratoweave_rfs__rfs__base_config):
         params.update_oper(oper.to_gdata() if oper is not None else None)
     act = rfs.BaseConfigTransform(params.path, update_dynstate_type_wrapper, update_oper_type_wrapper, params.dev!)
-    return proc lambda c, m: act.on_conf(stratoweave_rfs__rfs__base_config.from_gdata(c))
+    return ttt.TransformActor(lambda c, m: act.on_conf(stratoweave_rfs__rfs__base_config.from_gdata(c)))
