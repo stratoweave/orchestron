@@ -444,62 +444,134 @@ def exact_list_filter_branches(filters: list[gdata.FNode], key_names: list[gdata
             return None
     return branches
 
-class LayerSharedSubscription(object):
-    """Runtime state for one periodic layer subscription spec.
+##################### Subscriptions #####################
 
-    The same SubscriptionSpec can be declared by multiple owners. The layer
-    reads it once per period, stores the latest filtered tree here, and lets
-    each owner merge that result with any other specs it declared.
-    """
-    spec: gdata.SubscriptionSpec
+def _delay(period: u64) -> float:
+    return float(period) / 1000000000.0
+
+def fold(want: set[gdata.SubscriptionSpec]) -> dict[u64, ?gdata.FNode]:
+    """One filter per period: the union of the filters a consumer declared
+    with that period, so one read serves them all. A filter that names
+    nothing, or no filter, is everything."""
+    branches: dict[u64, list[gdata.FNode]] = {}
+    whole: set[u64] = set()
+    for spec in gdata.hack_sorted(iter(want)):           # a canonical union, whatever the set order
+        period = spec.period
+        if period is not None:
+            if period not in branches:
+                branches[period] = []
+            f = root_filter(spec.filt)
+            if f is not None and len(f.children) > 0:
+                branches[period].extend(f.children)
+            else:
+                whole.add(period)
+    folded: dict[u64, ?gdata.FNode] = {}
+    for period, bs in branches.items():
+        if period in whole:
+            folded[period] = None
+        else:
+            folded[period] = gdata.FNode(children=gdata.filter_merge_list(bs))
+    return folded
+
+
+class Read(object):
+    """One read of a consumer's actor: a folded filter, read on its period,
+    and the latest tree it gave."""
+    filt: ?gdata.FNode
     latest: ?gdata.Node
-    owners: set[str]
-    active: bool
+    done: bool                  # has run at least once
+    active: bool                # False once replaced or dropped, so its timer ends
 
-    def __init__(self, spec: gdata.SubscriptionSpec):
-        """Copy the public spec into provider-owned mutable state."""
-        self.spec = gdata.SubscriptionSpec(spec.filt, period=spec.period)
+    def __init__(self, filt: ?gdata.FNode):
+        self.filt = filt
         self.latest = None
-        self.owners = set()
+        self.done = False
         self.active = True
 
 
-class LayerSubscriptionOwner(object):
-    """One logical subscriber and its merged delivery state. `synced` is
-    called with the owner id after its first delivery, once."""
-    @property
-    cb: proc(?gdata.Node, ?Exception) -> None
-    @property
-    synced: ?action(str) -> None
-    want: set[gdata.SubscriptionSpec]
-    last_merged: ?gdata.Node
-    synced_done: bool
+actor Subscription(owner: str, node: Node, cb0: proc(?gdata.Node, ?Exception) -> None):
+    """One consumer's subscriptions, served outside the Layer actor.
 
-    def __init__(self, cb: proc(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec], last_merged: ?gdata.Node=None, synced: ?action(str) -> None=None, synced_done: bool=False):
-        """Track the callback, desired specs, and last delivered tree."""
-        self.cb = cb
-        self.synced = synced
-        self.want = set(want)
-        self.last_merged = last_merged
-        self.synced_done = synced_done
+    The consumer's filters fold into one read per period. Each read runs
+    on its period, and every delivery is the reads' latest trees merged
+    into one view, sent straight to the consumer. synced is called once per
+    declaration, when every read has run once. The reads and the waiting
+    happen here, never in the Layer actor that runs transactions.
+    """
+    var reads: dict[u64, Read] = {}
+    var cb = cb0
+    var synced: ?action(str) -> None = None
+    var owed = False                            # a synced for the current declaration
+    var active = True
 
-def layer_subscription_delay(spec: gdata.SubscriptionSpec) -> float:
-    """Return the actor delay, in seconds, for a normalized spec period."""
-    pn = spec.period
-    if pn is not None:
-        return float(pn) / 1000000000.0
-    return float(1)
+    def declare(want: set[gdata.SubscriptionSpec], cb1: proc(?gdata.Node, ?Exception) -> None, synced1: ?action(str) -> None):
+        """Replace the want set: reads no longer wanted stop, changed ones
+        start over, unchanged ones keep their latest tree."""
+        cb = cb1
+        synced = synced1
+        folded = fold(want)
+        dropped = False
+        for period in list(reads.keys()):
+            if period not in folded:
+                reads[period].active = False
+                del reads[period]
+                dropped = True
+        for period, filt in folded.items():
+            replace = True
+            old = reads.get(period)
+            if old is not None:
+                if old.filt == filt:
+                    replace = False
+                else:
+                    old.active = False
+            if replace:
+                fresh = Read(filt)
+                reads[period] = fresh
+                _read(fresh, period)
+        if dropped:
+            _deliver(None)                      # the narrowed view
+        owed = True
+        _synced_if_done()
 
-def merge_subscription_tree(want: set[gdata.SubscriptionSpec], subs: dict[gdata.SubscriptionSpec, LayerSharedSubscription]) -> ?gdata.Node:
-    """Merge latest samples for all specs owned by one subscriber."""
-    merged = None
-    for spec in gdata.hack_sorted(iter(want)):
-        if spec in subs:
-            sub = subs[spec]
-            if sub.latest is not None:
-                base = merged if merged is not None else gdata.Container({})
-                merged = gdata.patch(base, sub.latest)
-    return merged
+    def _read(r: Read, period: u64):
+        if active and r.active:
+            try:
+                tree = node.get_data(r.filt)
+                if tree != r.latest:
+                    r.latest = tree
+                    _deliver(None)
+            except Exception as e:
+                _deliver(e)
+            r.done = True
+            _synced_if_done()
+            after _delay(period): _read(r, period)
+
+    def _deliver(err: ?Exception):
+        """The reads' latest trees as one view, by reference for one read."""
+        merged: ?gdata.Node = None
+        for period in sorted(reads.keys()):
+            t = reads[period].latest
+            if t is not None:
+                m = merged
+                if m is not None:
+                    merged = gdata.patch(m, t)
+                else:
+                    merged = t
+        cb(merged, err)
+
+    def _synced_if_done():
+        if owed:
+            for r in reads.values():
+                if not r.done:
+                    return
+            owed = False
+            s = synced
+            if s is not None:
+                s(owner)
+
+    def stop():
+        active = False
+
 
 def _db_path(path: Path) -> list[value]:
     if isinstance(path, PathElem):
@@ -754,8 +826,7 @@ actor LayerRestore(
 actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg: ?swdb.Store=None):
     root = rootgen(PathRoot(name), lower)
     root.bind_db(db_arg)
-    var subs: dict[gdata.SubscriptionSpec, LayerSharedSubscription] = {}
-    var sub_owners: dict[str, LayerSubscriptionOwner] = {}
+    var subscribers: dict[str, Subscription] = {}
 
     def load_from_db(done: action(?Exception) -> None, top_only=False) -> None:
         db = db_arg
@@ -782,125 +853,32 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     def tree_provider() -> gdata.TreeProvider:
         return LayerTreeProvider(self)
 
-    def _owner_publish(owner_id: str, err: ?Exception=None):
-        """Deliver an owner's merged tree when it changed or an error occurred."""
-        if owner_id not in sub_owners:
-            return
-        owner = sub_owners[owner_id]
-        merged = merge_subscription_tree(owner.want, subs)
-        if err is not None or merged != owner.last_merged:
-            owner.last_merged = merged
-            sub_owners[owner_id] = owner
-            owner.cb(merged, err)
-            if not owner.synced_done:
-                owner.synced_done = True            # the first delivery is the first pass
-                s = owner.synced
-                if s is not None:
-                    s(owner_id)
-
-    def _sub_cancel(spec: gdata.SubscriptionSpec):
-        """Stop tracking a shared spec and invalidate already scheduled ticks."""
-        if spec in subs:
-            subs[spec].active = False
-            del subs[spec]
-
-    def _sub_schedule_next(spec: gdata.SubscriptionSpec):
-        """Schedule the next sample for an active shared subscription."""
-        if spec not in subs:
-            return
-        st = subs[spec]
-        if not st.active:
-            return
-        after layer_subscription_delay(st.spec): _sub_tick(spec)
-
-    def _sub_tick(spec: gdata.SubscriptionSpec):
-        """Sample one shared spec and publish the result to interested owners."""
-        if spec not in subs:
-            return
-        st = subs[spec]
-        if not st.active:
-            return
-        if st.spec.period is None:
-            err = ValueError("TTT layer TreeProvider only supports periodic subscriptions")
-            for owner_id in st.owners:
-                _owner_publish(owner_id, err)
-            _sub_cancel(spec)
-            return
-
-        try:
-            st.latest = get_data(st.spec.filt)
-            subs[spec] = st
-            for owner_id in st.owners:
-                _owner_publish(owner_id)
-        except Exception as e:
-            for owner_id in st.owners:
-                _owner_publish(owner_id, e)
-        _sub_schedule_next(spec)
-
-    def _add_owner_spec(owner_id: str, spec: gdata.SubscriptionSpec):
-        """Attach an owner to a shared spec, creating and starting it if needed."""
-        if spec in subs:
-            st = subs[spec]
-        else:
-            st = LayerSharedSubscription(spec)
-        st.owners.add(owner_id)
-        subs[spec] = st
-        if st.latest is None and len(st.owners) == 1:
-            _sub_tick(spec)
-
-    def _remove_owner_spec(owner_id: str, spec: gdata.SubscriptionSpec):
-        """Detach an owner from a shared spec and cancel unused sampling."""
-        if spec not in subs:
-            return
-        st = subs[spec]
-        st.owners.discard(owner_id)
-        if len(st.owners) == 0:
-            _sub_cancel(spec)
-        else:
-            subs[spec] = st
-
     def declare_subscriptions(owner_id: str, cb: proc(?gdata.Node, ?Exception) -> None, want: set[gdata.SubscriptionSpec], synced: ?action(str) -> None=None):
-        """Replace one owner's desired subscription set.
-
-        SubscriptionManager declarations are full-state declarations, not
-        incremental updates. Specs removed from the desired set release this
-        owner from the shared sampler; new specs attach the owner and start
-        sampling as needed. `synced` is called with the owner id after the
-        owner's first delivery. A spec rooted at a node is not served yet.
-        """
+        """Replace one consumer's want set. A Subscription actor of the
+        consumer's own serves it and calls `synced` with the owner id once
+        every read of the declaration has run. A layer serves periodic
+        specs; a spec rooted at a node is not served yet."""
         for spec in want:
+            if spec.period is None:
+                cb(None, ValueError("TTT layer TreeProvider only supports periodic subscriptions"))
+                return
             if spec.root is not None:
                 cb(None, ValueError("a destination rooted at a node is not served by a TTT layer yet"))
                 return
-        old_want = set()
-        last_merged = None
-        synced_done = False
-        if owner_id in sub_owners:
-            owner = sub_owners[owner_id]
-            old_want = owner.want
-            last_merged = owner.last_merged
-            synced_done = owner.synced_done
-
-        for spec in old_want:
-            if spec not in want:
-                _remove_owner_spec(owner_id, spec)
-
-        sub_owners[owner_id] = LayerSubscriptionOwner(cb, want, last_merged, synced, synced_done)
-
-        for spec in want:
-            if spec not in old_want:
-                _add_owner_spec(owner_id, spec)
-
-        _owner_publish(owner_id)
+        sub = subscribers.get(owner_id)
+        if sub is not None:
+            sub.declare(want, cb, synced)
+        else:
+            fresh = Subscription(owner_id, root, cb)
+            subscribers[owner_id] = fresh
+            fresh.declare(want, cb, synced)
 
     def remove_subscriptions(owner_id: str):
-        """Remove an owner and release every shared spec it referenced."""
-        if owner_id not in sub_owners:
-            return
-        old_want = sub_owners[owner_id].want
-        del sub_owners[owner_id]
-        for spec in old_want:
-            _remove_owner_spec(owner_id, spec)
+        """Drop a consumer and stop its reads."""
+        sub = subscribers.get(owner_id)
+        if sub is not None:
+            sub.stop()
+            del subscribers[owner_id]
 
 
 actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, dbuf_arg: ?swdb.Buffer=None):

@@ -224,55 +224,16 @@ rejected by that driver.
 
 ## Internal Model
 
-`SubscriptionManager` is the declarative owner-facing API. Internally,
-StratoWeave splits subscriptions into two layers:
+`SubscriptionManager` is the declarative owner-facing API. Below it, a TTT
+layer serves each consumer from a `Subscription` actor of the consumer's
+own, outside the Layer actor. The consumer's filters fold into one read
+per period: the union of the filters declared with that period, read in
+one pass. Each read runs on its period, and every delivery is the reads'
+latest trees merged into one view, sent straight to the consumer, by
+reference when there is one read. The Layer keeps only which actor serves
+which consumer.
 
-- `SubscriptionOwner`: one logical subscriber with one callback and one
-  desired `set[SubscriptionSpec]`
-- `SharedSubscription`: one physical device subscription keyed by the
-  canonical `SubscriptionSpec` and shared by one or more owners
-
-This means two transforms can declare the same `SubscriptionSpec` and
-the device layer will only keep one physical poll running. Each
-`SharedSubscription` tracks its current `latest` subtree and the set of
-owner ids that depend on it.
-
-Each `declare(...)` call is treated as the owner's complete desired
-state. The device layer diffs the previous and new sets, removes dropped
-specs from the owner's membership, creates newly needed shared
-subscriptions, and reuses unchanged ones. The owner does not manage
-handles or explicit cancellation.
-
-## Merged Tree Delivery
-
-The owner callback receives one merged operational tree rather than one
-callback per subscription. Internally, `_merge_subscription_tree(...)`
-walks the owner's desired `SubscriptionSpec` set, looks up the latest
-subtree for each active shared subscription, and patches those subtrees
-together into one gdata tree.
-
-The merge order is made deterministic by sorting the owner's spec set
-before merging. This avoids depending on set iteration order when
-combining overlapping subtrees.
-
-Today the merge starts from an empty `Container({})` and repeatedly
-applies `yang.gdata.patch(...)` for each available subtree. There is a
-TODO in `yang.gdata.patch(...)` to accept `None` as the empty base so
-callers do not need to synthesize that root container.
-
-## Change Detection And Snapshots
-
-After building the merged tree, the device layer compares it to the
-owner's previously delivered merged tree. If the merged tree changed, or
-if an error is being reported, the callback is invoked.
-
-The cached previous tree is currently stored as a detached snapshot, not
-as a direct reference to the last merged tree. The reason is that
-`yang.gdata.Node` is not yet a truly immutable persistent tree. Patch
-and merge operations can still reuse mutable internals, so retaining an
-older tree by reference is not a safe snapshot boundary.
-
-The current workaround is to snapshot the merged tree before caching it.
-That is intentionally conservative. The longer-term fix is to make
-`yang.gdata.Node` properly immutable, likely with Merkle-style structure
-sharing and cheap change detection, so this extra snapshot can go away.
+Each `declare(...)` call is the consumer's complete desired state. The
+actor drops the reads no longer wanted, starts changed ones over, keeps
+the rest with their latest trees, and calls `synced` once every read of
+the declaration has run.
