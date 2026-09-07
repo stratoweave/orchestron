@@ -25,25 +25,24 @@ class PContainer(base.PContainer):
 
 
 actor RouterTransform(path: ttt.Path, update_dynstate: proc(?y_0.netinfra__netinfra__router__dynstate)->None, update_oper: proc(?y0_oper.netinfra__netinfra__router_entry)->None, lower_tree_provider: ?ygdata.TreeProvider):
+    """Publishes the router's state from its RFS entry below, delivered
+    rooted at the entry, so the callback gets that one entry."""
     oper = base.Router.new_state(path)
     _subs = ygdata.SubscriptionManager(lower_tree_provider!, str(path))
 
-    def on_rfs_state(root: ?y1_oper.root, err: ?Exception, router_name: str):
+    def on_rfs_state(keys, rfs, err):
+        # rfs is the one entry the filter selects, holding the leaves it selected; keys names it
         if err is not None:
             print("RouterTransform RFS subscription error: {err}", err=True)
             return
-
-        r = root!.rfs.get(router_name)
-        if r is not None:
-            oper.state.current_datetime = r.base_config?.state.current_datetime
+        oper.state.current_datetime = rfs?.base_config?.state.current_datetime
         update_oper(oper)
 
     def subscribe(router_name: str):
-        want: set[ygdata.Delivery] = set()
-        dst = y1_oper.dst(lambda r, e: on_rfs_state(r, e, router_name))
-        rfs = y1_oper.subs.rfs.entry(router_name)
-        want.add(dst.deliver({
-            rfs.base_config.state.current_datetime.subscribe(period=0.1)
+        want = set()
+        rfs = y1_oper.subs.rfs
+        want.add(rfs.dst(on_rfs_state).deliver({
+            rfs.entry(router_name).base_config.state.current_datetime.subscribe(period=0.1)
         }))
         _subs.declare(want)
 

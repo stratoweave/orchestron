@@ -476,27 +476,38 @@ def fold(want: set[gdata.SubscriptionSpec]) -> dict[u64, ?gdata.FNode]:
 
 class Read(object):
     """One read of a consumer's actor: a folded filter, read on its period,
-    and the latest tree it gave."""
+    and what it gave last: the tree, or rooted, the instances by key, each
+    with its spine."""
     filt: ?gdata.FNode
     latest: ?gdata.Node
+    held: dict[str, (gdata.Node, gdata.Node)]
     done: bool                  # has run at least once
     active: bool                # False once replaced or dropped, so its timer ends
 
     def __init__(self, filt: ?gdata.FNode):
         self.filt = filt
         self.latest = None
+        self.held = {}
         self.done = False
         self.active = True
 
 
-actor Subscription(owner: str, node: Node, cb0: proc(?gdata.Node, ?Exception) -> None):
+actor Subscription(owner: str, node: Node, cb0: proc(?gdata.Node, ?Exception) -> None, point: list[gdata.Id]):
     """One consumer's subscriptions, served outside the Layer actor.
 
     The consumer's filters fold into one read per period. Each read runs
     on its period, and every delivery is the reads' latest trees merged
     into one view, sent straight to the consumer. synced is called once per
-    declaration, when every read has run once. The reads and the waiting
-    happen here, never in the Layer actor that runs transactions.
+    declaration, when every read has run once.
+
+    Rooted at a point, a path of node names from the top, the consumer
+    gets the instances of that node instead of one view: after each read,
+    every instance that differs from the last read, as a tree from the top
+    down to that one instance, and every instance gone, as that tree with
+    an Absent holding its keys where the entry was.
+
+    The reads and the waiting happen here, never in the Layer actor that
+    runs transactions.
     """
     var reads: dict[u64, Read] = {}
     var cb = cb0
@@ -526,9 +537,11 @@ actor Subscription(owner: str, node: Node, cb0: proc(?gdata.Node, ?Exception) ->
                     old.active = False
             if replace:
                 fresh = Read(filt)
+                if old is not None:
+                    fresh.held = old.held       # so the next read reports only what changed
                 reads[period] = fresh
                 _read(fresh, period)
-        if dropped:
+        if dropped and len(point) == 0:
             _deliver(None)                      # the narrowed view
         owed = True
         _synced_if_done()
@@ -537,14 +550,31 @@ actor Subscription(owner: str, node: Node, cb0: proc(?gdata.Node, ?Exception) ->
         if active and r.active:
             try:
                 tree = node.get_data(r.filt)
-                if tree != r.latest:
+                if len(point) > 0:
+                    _read_rooted(r, tree)
+                elif tree != r.latest:
                     r.latest = tree
                     _deliver(None)
             except Exception as e:
-                _deliver(e)
+                if len(point) > 0:
+                    cb(None, e)
+                else:
+                    _deliver(e)
             r.done = True
             _synced_if_done()
             after _delay(period): _read(r, period)
+
+    def _read_rooted(r: Read, tree: ?gdata.Node):
+        """Deliver the instances that differ from the last read, and those gone."""
+        now: dict[str, (gdata.Node, gdata.Node)] = {}
+        for i in gdata.instances(tree, point):
+            now[i.0] = (i.1, i.2)
+            if i.0 not in r.held or r.held[i.0].1 != i.2:
+                cb(i.1, None)
+        for k, h in r.held.items():
+            if k not in now:
+                cb(gdata.gone(h.0, point), None)
+        r.held = now
 
     def _deliver(err: ?Exception):
         """The reads' latest trees as one view, by reference for one read."""
@@ -827,6 +857,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
     root = rootgen(PathRoot(name), lower)
     root.bind_db(db_arg)
     var subscribers: dict[str, Subscription] = {}
+    var roots: dict[str, ?gdata.FNode] = {}
 
     def load_from_db(done: action(?Exception) -> None, top_only=False) -> None:
         db = db_arg
@@ -857,21 +888,35 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         """Replace one consumer's want set. A Subscription actor of the
         consumer's own serves it and calls `synced` with the owner id once
         every read of the declaration has run. A layer serves periodic
-        specs; a spec rooted at a node is not served yet."""
-        for spec in want:
-            if spec.period is None:
-                cb(None, ValueError("TTT layer TreeProvider only supports periodic subscriptions"))
-                return
-            if spec.root is not None:
-                cb(None, ValueError("a destination rooted at a node is not served by a TTT layer yet"))
-                return
+        specs. Specs rooted at a node share one root, and one period."""
+        point: list[gdata.Id] = []
+        root_of: ?gdata.FNode = None
+        first = True
+        try:
+            for spec in want:
+                if spec.period is None:
+                    raise ValueError("TTT layer TreeProvider only supports periodic subscriptions")
+                if first:
+                    root_of = spec.root
+                    first = False
+                elif root_of != spec.root:
+                    raise ValueError("a consumer's filters share one root")
+            point = gdata.root_names(root_of)
+            if len(point) > 0 and len(fold(want)) > 1:
+                raise ValueError("a rooted destination is read on one period")
+        except Exception as e:
+            cb(None, e)
+            return
         sub = subscribers.get(owner_id)
         if sub is not None:
-            sub.declare(want, cb, synced)
-        else:
-            fresh = Subscription(owner_id, root, cb)
-            subscribers[owner_id] = fresh
-            fresh.declare(want, cb, synced)
+            if roots[owner_id] == root_of:
+                sub.declare(want, cb, synced)
+                return
+            sub.stop()                              # a new root is a new actor
+        fresh = Subscription(owner_id, root, cb, point)
+        subscribers[owner_id] = fresh
+        roots[owner_id] = root_of
+        fresh.declare(want, cb, synced)
 
     def remove_subscriptions(owner_id: str):
         """Drop a consumer and stop its reads."""
@@ -879,6 +924,7 @@ actor Layer(name: str, rootgen: proc(Path, ?Layer)->Node, lower: ?Layer, db_arg:
         if sub is not None:
             sub.stop()
             del subscribers[owner_id]
+            del roots[owner_id]
 
 
 actor Session(name: str, rootnode: Node, lowerlayer: ?Layer, db: ?swdb.Store, dbuf_arg: ?swdb.Buffer=None):

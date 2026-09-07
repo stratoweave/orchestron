@@ -9,7 +9,8 @@ reconciled by `yang.gdata.SubscriptionManager`.
 - one stable owner id
 - one update callback
 
-The callback receives one merged gdata tree for that owner.
+The callback receives one merged gdata tree for that owner or, for a
+destination rooted at a node, one instance of that node per call.
 
 The public shape is intentionally small:
 
@@ -147,6 +148,78 @@ want = set([
 subs.declare(want)
 ```
 
+### Where A Destination Is Rooted
+
+A destination decides where each delivered tree starts. The module-level
+`dst` is rooted at the top: the callback receives the whole subscribed
+tree, as above. Every generated container and keyed list has a `dst` of
+its own, rooted at that node: the callback receives one instance of the
+node at a time. Its arguments are the keys of every list on the way
+down, as a named tuple with a field per key named after the list and
+the key; the instance itself, typed, or `None` when it is gone; and an
+error, as on the top-rooted callback. A node with no list above it has
+no keys argument. The types come with the `dst`, so the callback needs
+no annotations.
+
+```acton
+import mini.layers.y_1_oper as y1_oper
+
+def on_device(keys, device, err):
+    if err is not None:
+        ...
+    elif keys is not None:
+        if device is None:
+            forget(keys.device_name)    # the device is gone
+        else:
+            record(keys.device_name, device)
+
+def on_synced():
+    ...                             # every device held at declaration has been delivered
+
+dev = y1_oper.subs.device
+subs.declare({
+    dev.dst(on_device).deliver({
+        dev.subscribe(period=1.0),
+    }),
+}, synced=on_synced)
+```
+
+Rooted below another list, the keys tuple carries that list's keys too:
+a destination at `devices.device.interfaces.interface` hands its
+callback `keys.device_name`, `keys.interface_name` and the interface.
+
+The first pass delivers every instance the filter selects, one call each,
+and then calls `synced`. After that each read delivers the instances that
+changed since the last one, whatever the size of the list, so a
+subscriber to a hundred thousand devices is called with one device. The
+filters handed to a rooted destination must lead to its node, and they
+are read on one period. A destination rooted at a container receives
+that container, or `None` when it is gone.
+
+`synced` belongs to the declaration, not to one destination: it is
+called once, when every delivery in that `declare` has had its first
+pass, the first read of each spec. A first read that ends in an error
+still counts: the error, then `synced`. A declaration that adds nothing
+new installs the new callbacks and nothing more: nothing is delivered
+again and `synced` fires at once, since there is nothing to wait for. A
+rooted destination is served by a TTT layer; a device provider answers it
+with an error, and counts its first read as its first pass.
+
+At the gdata level the root is an `FNode` path with one child per level
+and no predicates, carried by `Dst(deliver, root=...)`; the destination
+stamps it on the specs it delivers, so two destinations with the same
+filters but different roots are served apart. A rooted delivery is a
+spine: a tree from the top down to the one instance, every list on the
+way holding one entry with its keys, with an `Absent` holding its keys
+where a list entry is gone and nothing where a container is gone.
+`gdata.instances` splits a tree into such spines and `gdata.gone` turns
+one into the report of its instance gone. A generated `dst` wraps the
+callback in a lambda that converts the spine to the keys and the
+instance first; the provider calls it, so the conversion runs in the
+provider and no actor stands between provider and consumer. After an owner's first pass the provider
+calls `synced` with the owner id, sent after the data so it arrives after
+it; the manager counts those for the declaration.
+
 ### On-Change Subscriptions
 
 Omitting `period` creates an on-change `SubscriptionSpec`:
@@ -237,3 +310,8 @@ Each `declare(...)` call is the consumer's complete desired state. The
 actor drops the reads no longer wanted, starts changed ones over, keeps
 the rest with their latest trees, and calls `synced` once every read of
 the declaration has run.
+
+A consumer rooted at a node has one read, and instead of one view gets,
+after each read, every instance that differs from the last read and
+every instance gone, each as a tree from the top down to that one
+instance.
