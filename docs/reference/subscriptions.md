@@ -9,7 +9,8 @@ reconciled by `yang.gdata.SubscriptionManager`.
 - one stable owner id
 - one update callback
 
-The callback receives one merged gdata tree for that owner.
+The callback receives one merged gdata tree for that owner or, for a
+destination rooted at a node, one instance of that node per call.
 
 The public shape is intentionally small:
 
@@ -147,6 +148,78 @@ want = set([
 subs.declare(want)
 ```
 
+### Where A Destination Is Rooted
+
+A destination decides where each delivered tree starts. The module-level
+`dst` is rooted at the top: the callback receives the whole subscribed
+tree, as above. Every generated container and keyed list has a `dst` of
+its own, rooted at that node: the callback receives one instance of the
+node at a time. Its arguments are the keys of every list on the way
+down, as a named tuple with a field per key named after the list and
+the key; the instance itself, typed, or `None` when it is gone; and an
+error, as on the top-rooted callback. A node with no list above it has
+no keys argument. The types come with the `dst`, so the callback needs
+no annotations.
+
+```acton
+import mini.layers.y_1_oper as y1_oper
+
+def on_device(keys, device, err):
+    if err is not None:
+        ...
+    elif keys is not None:
+        if device is None:
+            forget(keys.device_name)    # the device is gone
+        else:
+            record(keys.device_name, device)
+
+def on_synced():
+    ...                             # every device held at declaration has been delivered
+
+dev = y1_oper.subs.device
+subs.declare({
+    dev.dst(on_device).deliver({
+        dev.subscribe(period=1.0),
+    }),
+}, synced=on_synced)
+```
+
+Rooted below another list, the keys tuple carries that list's keys too:
+a destination at `devices.device.interfaces.interface` hands its
+callback `keys.device_name`, `keys.interface_name` and the interface.
+
+The first pass delivers every instance the filter selects, one call each,
+and then calls `synced`. After that each read delivers the instances that
+changed since the last one, whatever the size of the list, so a
+subscriber to a hundred thousand devices is called with one device. The
+filters handed to a rooted destination must lead to its node, and they
+are read on one period. A destination rooted at a container receives
+that container, or `None` when it is gone.
+
+`synced` belongs to the declaration, not to one destination: it is
+called once, when every delivery in that `declare` has had its first
+pass, the first read of each spec. A first read that ends in an error
+still counts: the error, then `synced`. A declaration that adds nothing
+new installs the new callbacks and nothing more: nothing is delivered
+again and `synced` fires at once, since there is nothing to wait for. A
+rooted destination is served by a TTT layer; a device provider answers it
+with an error, and counts its first read as its first pass.
+
+At the gdata level the root is an `FNode` path with one child per level
+and no predicates, carried by `Dst(deliver, root=...)`; the destination
+stamps it on the specs it delivers, so two destinations with the same
+filters but different roots are served apart. A rooted delivery is a
+spine: a tree from the top down to the one instance, every list on the
+way holding one entry with its keys, with an `Absent` holding its keys
+where a list entry is gone and nothing where a container is gone.
+`gdata.instances` splits a tree into such spines and `gdata.gone` turns
+one into the report of its instance gone. A generated `dst` wraps the
+callback in a lambda that converts the spine to the keys and the
+instance first; the provider calls it, so the conversion runs in the
+provider and no actor stands between provider and consumer. After an owner's first pass the provider
+calls `synced` with the owner id, sent after the data so it arrives after
+it; the manager counts those for the declaration.
+
 ### On-Change Subscriptions
 
 Omitting `period` creates an on-change `SubscriptionSpec`:
@@ -224,55 +297,21 @@ rejected by that driver.
 
 ## Internal Model
 
-`SubscriptionManager` is the declarative owner-facing API. Internally,
-StratoWeave splits subscriptions into two layers:
+`SubscriptionManager` is the declarative owner-facing API. Below it, a TTT
+layer serves each consumer from a `Subscription` actor of the consumer's
+own, outside the Layer actor. The consumer's filters fold into one read
+per period: the union of the filters declared with that period, read in
+one pass. Each read runs on its period, and every delivery is the reads'
+latest trees merged into one view, sent straight to the consumer, by
+reference when there is one read. The Layer keeps only which actor serves
+which consumer.
 
-- `SubscriptionOwner`: one logical subscriber with one callback and one
-  desired `set[SubscriptionSpec]`
-- `SharedSubscription`: one physical device subscription keyed by the
-  canonical `SubscriptionSpec` and shared by one or more owners
+Each `declare(...)` call is the consumer's complete desired state. The
+actor drops the reads no longer wanted, starts changed ones over, keeps
+the rest with their latest trees, and calls `synced` once every read of
+the declaration has run.
 
-This means two transforms can declare the same `SubscriptionSpec` and
-the device layer will only keep one physical poll running. Each
-`SharedSubscription` tracks its current `latest` subtree and the set of
-owner ids that depend on it.
-
-Each `declare(...)` call is treated as the owner's complete desired
-state. The device layer diffs the previous and new sets, removes dropped
-specs from the owner's membership, creates newly needed shared
-subscriptions, and reuses unchanged ones. The owner does not manage
-handles or explicit cancellation.
-
-## Merged Tree Delivery
-
-The owner callback receives one merged operational tree rather than one
-callback per subscription. Internally, `_merge_subscription_tree(...)`
-walks the owner's desired `SubscriptionSpec` set, looks up the latest
-subtree for each active shared subscription, and patches those subtrees
-together into one gdata tree.
-
-The merge order is made deterministic by sorting the owner's spec set
-before merging. This avoids depending on set iteration order when
-combining overlapping subtrees.
-
-Today the merge starts from an empty `Container({})` and repeatedly
-applies `yang.gdata.patch(...)` for each available subtree. There is a
-TODO in `yang.gdata.patch(...)` to accept `None` as the empty base so
-callers do not need to synthesize that root container.
-
-## Change Detection And Snapshots
-
-After building the merged tree, the device layer compares it to the
-owner's previously delivered merged tree. If the merged tree changed, or
-if an error is being reported, the callback is invoked.
-
-The cached previous tree is currently stored as a detached snapshot, not
-as a direct reference to the last merged tree. The reason is that
-`yang.gdata.Node` is not yet a truly immutable persistent tree. Patch
-and merge operations can still reuse mutable internals, so retaining an
-older tree by reference is not a safe snapshot boundary.
-
-The current workaround is to snapshot the merged tree before caching it.
-That is intentionally conservative. The longer-term fix is to make
-`yang.gdata.Node` properly immutable, likely with Merkle-style structure
-sharing and cheap change detection, so this extra snapshot can go away.
+A consumer rooted at a node has one read, and instead of one view gets,
+after each read, every instance that differs from the last read and
+every instance gone, each as a tree from the top down to that one
+instance.

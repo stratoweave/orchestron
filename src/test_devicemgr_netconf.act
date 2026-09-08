@@ -1157,3 +1157,85 @@ actor _test_subscription_manager_idempotent(t: testing.EnvT):
     start()
 
     after 2.0: fail("Timed out waiting for idempotent subscription manager test")
+
+
+actor _test_device_refuses_rooted_destination_and_syncs_once(t: testing.EnvT):
+    """A device provider serves no rooted destination: the callback hears one
+    error and no data. Its synced fires after the first read, and an equal
+    redeclaration does not repeat it."""
+    var done = False
+    var errors = 0
+    var updates = 0
+    var synced = 0
+    var subs: ?ygdata.SubscriptionManager = None
+    var rooted_subs: ?ygdata.SubscriptionManager = None
+
+    def noop_on_reconf(name: str):
+        pass
+    dev = new_netconf_mock_device_mgr(t, "dev-rooted-refused", noop_on_reconf)
+
+    def close_subs():
+        if subs is not None:
+            subs.close()
+        if rooted_subs is not None:
+            rooted_subs.close()
+
+    def fail(msg: str):
+        if done:
+            return
+        done = True
+        close_subs()
+        t.failure(ValueError(msg))
+
+    def finish():
+        if done:
+            return
+        done = True
+        close_subs()
+        if errors == 1 and synced == 1 and updates > 0:
+            t.success()
+        else:
+            t.failure(ValueError("errors={errors} synced={synced} updates={updates}"))
+
+    def on_rooted(n: ?ygdata.Node, err: ?Exception):
+        if err is not None:
+            errors += 1
+        else:
+            fail("data delivered to a rooted destination on a device")
+
+    def on_update(n: ?ygdata.Node, err: ?Exception):
+        if err is not None:
+            fail("subscription error: {err}")
+            return
+        updates += 1
+        if updates == 1:
+            declare_clock()                         # the same set again
+            after 0.3: finish()
+
+    def on_synced():
+        synced += 1
+
+    def declare_clock():
+        subs!.declare({ygdata.Dst(on_update).deliver({
+            ygdata.SubscriptionSpec(_current_datetime_filter(), period=0.05)
+        })}, synced=on_synced)
+
+    def start():
+        adapter = dev.get_adapter()
+        if isinstance(adapter, swna.NetconfAdapter):
+            ms0 = adapter.get_mock_server()
+            if ms0 is None:
+                fail("Expected NetconfMockServer from NetconfAdapter")
+                return
+            ms0!.set_oper_ds(_mock_oper_ds("2026-02-21T10:11:12Z", "2025-12-31T00:00:00Z"))
+            rooted_subs = ygdata.SubscriptionManager(dev.tree_provider(), "rooted-refused")
+            root = ygdata.FNode(ygdata.Id("urn:ietf:params:xml:ns:yang:ietf-system", "system-state"))
+            rooted_subs!.declare({ygdata.Dst(on_rooted, root=root).deliver({ygdata.SubscriptionSpec(None, period=0.05)})})
+            subs = ygdata.SubscriptionManager(dev.tree_provider(), "synced-once")
+            declare_clock()
+        else:
+            fail("Expected NetconfAdapter from DeviceMgr")
+
+    start()
+
+    after 2.0: fail("Timed out (errors={errors} synced={synced} updates={updates})")

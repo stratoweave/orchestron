@@ -1666,6 +1666,11 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
             owner.last_merged = merged
             sub_owners[owner_id] = owner
             owner.cb(merged, err)
+            if not owner.synced_done:
+                owner.synced_done = True            # the first delivery is the first pass
+                s = owner.synced
+                if s is not None:
+                    s(owner_id)
 
     def _apply_push_change(spec: ygdata.SubscriptionSpec, sid: int, pcu: yp.PushChangeUpdate):
         # Replay the push-change-update's yang-patch onto the subscription's latest
@@ -1885,19 +1890,21 @@ actor NetconfDriver(dev: swdev.DeviceMgr, bundled_schema: DeviceSchema, init_dmc
         else:
             subs[spec] = st
 
-    def declare_subscriptions(owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
+    def declare_subscriptions(owner_id: str, cb: proc(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], synced: ?action(str) -> None):
         old_want = set()
         last_merged = None
+        synced_done = False
         if owner_id in sub_owners:
             owner = sub_owners[owner_id]
             old_want = owner.want
             last_merged = owner.last_merged
+            synced_done = owner.synced_done
 
         for spec in old_want:
             if spec not in want:
                 _remove_owner_spec(owner_id, spec)
 
-        sub_owners[owner_id] = SubscriptionOwner(cb, want, last_merged)
+        sub_owners[owner_id] = SubscriptionOwner(cb, want, last_merged, synced, synced_done)
 
         for spec in want:
             if spec not in old_want:
@@ -1964,8 +1971,8 @@ class NetconfAdapter(DeviceAdapter):
     def get(self, cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
         self._driver.get(cb, filt)
 
-    def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
-        self._driver.declare_subscriptions(owner_id, cb, want)
+    def declare_subscriptions(self, owner_id: str, cb: proc(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], synced: ?action(str) -> None):
+        self._driver.declare_subscriptions(owner_id, cb, want, synced)
 
     def remove_subscriptions(self, owner_id: str):
         self._driver.remove_subscriptions(owner_id)

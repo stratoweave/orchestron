@@ -192,16 +192,22 @@ class SharedSubscription(object):
 
 
 class SubscriptionOwner(object):
-    """One logical subscriber and its merged delivery state."""
+    """One logical subscriber and its merged delivery state. `synced` is
+    called with the owner id after its first delivery, once."""
     @property
-    cb: action(?ygdata.Node, ?Exception) -> None
+    cb: proc(?ygdata.Node, ?Exception) -> None
+    @property
+    synced: ?action(str) -> None
     want: set[ygdata.SubscriptionSpec]
     last_merged: ?ygdata.Node
+    synced_done: bool
 
-    def __init__(self, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], last_merged: ?ygdata.Node=None):
+    def __init__(self, cb: proc(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], last_merged: ?ygdata.Node=None, synced: ?action(str) -> None=None, synced_done: bool=False):
         self.cb = cb
+        self.synced = synced
         self.want = set(want)
         self.last_merged = last_merged
+        self.synced_done = synced_done
 
 
 # subscription_method() / SubscriptionStatus.method values: the transport used to
@@ -306,7 +312,7 @@ class DeviceAdapter(object):
     ## subscription is the better choice for anything watched continuously.
     get: proc(cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode) -> None
 
-    declare_subscriptions: proc(str, action(?ygdata.Node, ?Exception) -> None, set[ygdata.SubscriptionSpec]) -> None
+    declare_subscriptions: proc(str, proc(?ygdata.Node, ?Exception) -> None, set[ygdata.SubscriptionSpec], ?action(str) -> None) -> None
     remove_subscriptions: proc(str) -> None
 
 
@@ -348,8 +354,11 @@ class NoAdapter(DeviceAdapter):
     def get(self, cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
         cb(None, NotConnectedError())
 
-    def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
+    def declare_subscriptions(self, owner_id: str, cb: proc(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], synced: ?action(str) -> None):
         cb(None, NotConnectedError())
+        s = synced
+        if s is not None:
+            s(owner_id)
 
     def remove_subscriptions(self, owner_id: str):
         pass
@@ -397,9 +406,12 @@ class MockAdapter(DeviceAdapter):
     def get(self, cb: action(?ygdata.Node, ?Exception) -> None, filt: ?ygdata.FNode=None) -> None:
         return self._driver.get(cb, filt)
 
-    def declare_subscriptions(self, owner_id: str, cb: action(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec]):
+    def declare_subscriptions(self, owner_id: str, cb: proc(?ygdata.Node, ?Exception) -> None, want: set[ygdata.SubscriptionSpec], synced: ?action(str) -> None):
         # TODO: can / should subscriptions do something on a MockAdapter ?
         cb(None, NotConnectedError())
+        s = synced
+        if s is not None:
+            s(owner_id)
 
     def remove_subscriptions(self, owner_id: str):
         pass
