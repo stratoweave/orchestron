@@ -24,4 +24,5 @@ def BaseConfigTransformCtor(params: ttt.TransformActorParams) -> ttt.TransformAc
     def update_oper_type_wrapper(oper: ?y_1_oper.stratoweave_rfs__rfs__base_config):
         params.update_oper(oper.to_gdata() if oper is not None else None)
     act = rfs.BaseConfigTransform(params.path, update_dynstate_type_wrapper, update_oper_type_wrapper, params.dev!)
-    return ttt.TransformActor(lambda c, m: act.on_conf(stratoweave_rfs__rfs__base_config.from_gdata(c)))
+    return ttt.TransformActor(lambda c, m: act.on_conf(stratoweave_rfs__rfs__base_config.from_gdata(c)),
+                              lambda m: act.shutdown())

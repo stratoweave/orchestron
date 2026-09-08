@@ -192,7 +192,8 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
             transform_actor_fq = transform.fqname + "Transform"
             transform_actor_ctor = transform.name + "TransformCtor"
             transform_actor_handle = "params.dev!" if ext.name == "rfs-transform" else "params.lower_tree_provider"
-            memory_conv = ", {memory_class}.from_gdata(m) if m is not None else None" if memory_class is not None else ""
+            memory_conv = "{memory_class}.from_gdata(m) if m is not None else None" if memory_class is not None else ""
+            and_memory_conv = ", {memory_conv}" if memory_conv else ""
 
             wrappers = ""
             actor_args = ["params.path"]
@@ -212,7 +213,8 @@ def dschema_to_tttsrc(sn: schema.DNode, spath: list[schema.DNode], root: schema.
             actor_args_s = ", ".join(actor_args)
             act_defs.append("""def {transform_actor_ctor}(params: ttt.TransformActorParams) -> ttt.TransformActor:
 {wrappers}    act = {transform_actor_fq}({actor_args_s})
-    return ttt.TransformActor(lambda c, m: act.on_conf({input_class}.from_gdata(c){bang}{memory_conv}))
+    return ttt.TransformActor(lambda c, m: act.on_conf({input_class}.from_gdata(c){bang}{and_memory_conv}),
+                              lambda m: act.shutdown({memory_conv}))
 """)
         else:
             transform_actor_ctor = "None"

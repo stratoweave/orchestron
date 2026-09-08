@@ -22,4 +22,5 @@ def BBInterfaceTransformCtor(params: ttt.TransformActorParams) -> ttt.TransformA
     def update_dynstate_type_wrapper(dynstate: ?stratoweave_rfs__rfs__backbone_interface__dynstate):
         params.update_dynstate(dynstate.to_gdata() if dynstate is not None else None)
     act = rfs.BBInterfaceTransform(params.path, update_dynstate_type_wrapper, params.dev!)
-    return ttt.TransformActor(lambda c, m: act.on_conf(stratoweave_rfs__rfs__backbone_interface_entry.from_gdata(c), stratoweave_rfs__rfs__backbone_interface__memory.from_gdata(m) if m is not None else None))
+    return ttt.TransformActor(lambda c, m: act.on_conf(stratoweave_rfs__rfs__backbone_interface_entry.from_gdata(c), stratoweave_rfs__rfs__backbone_interface__memory.from_gdata(m) if m is not None else None),
+                              lambda m: act.shutdown(stratoweave_rfs__rfs__backbone_interface__memory.from_gdata(m) if m is not None else None))

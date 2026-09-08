@@ -50,6 +50,9 @@ actor RouterTransform(path: ttt.Path, update_dynstate: proc(?y_0.netinfra__netin
     def on_conf(conf: y_0.netinfra__netinfra__router_entry):
         subscribe(conf.name)
 
+    def shutdown():
+        pass
+
 class Router(base.Router):
     def transform(self, i, linked, dynstate):
         asn = y_0.root.from_gdata(linked).netinfra.global_settings.asn

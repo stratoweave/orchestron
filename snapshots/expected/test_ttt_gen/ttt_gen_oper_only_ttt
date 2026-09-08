@@ -21,4 +21,5 @@ def OperOnlyTransformCtor(params: ttt.TransformActorParams) -> ttt.TransformActo
     def update_oper_type_wrapper(oper: ?y_0_oper.foo__netinfra__router_entry):
         params.update_oper(oper.to_gdata() if oper is not None else None)
     act = cfs.OperOnlyTransform(params.path, update_oper_type_wrapper, params.lower_tree_provider)
-    return ttt.TransformActor(lambda c, m: act.on_conf(foo__netinfra__router_entry.from_gdata(c)))
+    return ttt.TransformActor(lambda c, m: act.on_conf(foo__netinfra__router_entry.from_gdata(c)),
+                              lambda m: act.shutdown())

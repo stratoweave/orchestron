@@ -42,4 +42,5 @@ def RouterTransformCtor(params: ttt.TransformActorParams) -> ttt.TransformActor:
     def update_oper_type_wrapper(oper: ?y_0_oper.netinfra__netinfra__router_entry):
         params.update_oper(oper.to_gdata() if oper is not None else None)
     act = cfs.RouterTransform(params.path, update_dynstate_type_wrapper, update_oper_type_wrapper, params.lower_tree_provider)
-    return ttt.TransformActor(lambda c, m: act.on_conf(netinfra__netinfra__router_entry.from_gdata(c)))
+    return ttt.TransformActor(lambda c, m: act.on_conf(netinfra__netinfra__router_entry.from_gdata(c)),
+                              lambda m: act.shutdown())
