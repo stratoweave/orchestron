@@ -53,11 +53,14 @@ def entry_name(p: ttt.Path) -> str:
 actor Pusher(hub: Hub, path: ttt.Path, update_oper: action(?gdata.Node) -> None):
     def on_conf(conf: gdata.Node, memory: ?gdata.Node):
         hub.register(entry_name(path), update_oper)
+    def shutdown(memory: ?gdata.Node):
+        pass
 
 
-def pusher_ctor(hub: Hub) -> proc(ttt.TransformActorParams) -> proc(gdata.Node, ?gdata.Node) -> None:
-    def ctor(params: ttt.TransformActorParams) -> proc(gdata.Node, ?gdata.Node) -> None:
-        return Pusher(hub, params.path, params.update_oper).on_conf
+def pusher_ctor(hub: Hub) -> proc(ttt.TransformActorParams) -> ttt.TransformActor:
+    def ctor(params: ttt.TransformActorParams) -> ttt.TransformActor:
+        p = Pusher(hub, params.path, params.update_oper)
+        return ttt.TransformActor(p.on_conf, p.shutdown)
     return ctor
 
 
