@@ -18,8 +18,9 @@ def get_ttt(lower: ?ttt.Layer, dev_registry: swdev.DeviceRegistry, log_handler: 
     r = ttt.Container({ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "device"): ttt.List(ttt.Device(dev_registry, log_handler), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs'), ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "rfs"): ttt.List(ttt.Container({ygdata.Id("http://example.com/foo", "backbone-interface"): ttt.List(ttt.RFSTransform(rfs.BBInterface, dev_registry, BBInterfaceTransformCtor, lower, log_handler), [ygdata.Id("http://example.com/foo", "name")], ns='http://example.com/foo', module='foo'), ygdata.Id("http://example.com/foo", "some-config"): ttt.RFSTransform(rfs.SomeConfig, dev_registry, None, lower, log_handler)}), [ygdata.Id("http://stratoweave.org/yang/stratoweave-rfs", "name")], ns='http://stratoweave.org/yang/stratoweave-rfs', module='stratoweave-rfs')})
     return r
 
-def BBInterfaceTransformCtor(params: ttt.TransformActorParams) -> proc(ygdata.Node, ?ygdata.Node) -> None:
+def BBInterfaceTransformCtor(params: ttt.TransformActorParams) -> ttt.TransformActor:
     def update_dynstate_type_wrapper(dynstate: ?stratoweave_rfs__rfs__backbone_interface__dynstate):
         params.update_dynstate(dynstate.to_gdata() if dynstate is not None else None)
     act = rfs.BBInterfaceTransform(params.path, update_dynstate_type_wrapper, params.dev!)
-    return proc lambda c, m: act.on_conf(stratoweave_rfs__rfs__backbone_interface_entry.from_gdata(c), stratoweave_rfs__rfs__backbone_interface__memory.from_gdata(m) if m is not None else None)
+    return ttt.TransformActor(lambda c, m: act.on_conf(stratoweave_rfs__rfs__backbone_interface_entry.from_gdata(c), stratoweave_rfs__rfs__backbone_interface__memory.from_gdata(m) if m is not None else None),
+                              lambda m: act.shutdown(stratoweave_rfs__rfs__backbone_interface__memory.from_gdata(m) if m is not None else None))

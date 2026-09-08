@@ -151,6 +151,8 @@ class EmptyOutputRFSTransform(ttt.RFSFunction):
 actor EmptyOutputTransformActor(notify: action() -> None):
     def on_conf(_conf: gdata.Node, _memory: ?gdata.Node):
         notify()
+    def shutdown(memory: ?gdata.Node):
+        pass
 
 rfs_fail_cfg = gdata.Container({
     q("rfs"): gdata.List([q("name")], [
@@ -177,10 +179,10 @@ actor rfs_actor_notified_for_empty_output(t: testing.AsyncT):
     def notified():
         notifications += 1
 
-    def actor_ctor(_params: ttt.TransformActorParams) -> proc(gdata.Node, ?gdata.Node) -> None:
+    def actor_ctor(_params: ttt.TransformActorParams) -> ttt.TransformActor:
         starts += 1
         act = EmptyOutputTransformActor(notified)
-        return act.on_conf
+        return ttt.TransformActor(act.on_conf, act.shutdown)
 
     stack = ttt.Layer("rfs", ttt.Container({
         q("rfs"): ttt.List(ttt.Container({
@@ -256,3 +258,57 @@ actor rfs_transform_exception(t: testing.AsyncT):
 
 
 ########################
+
+actor ShutdownTransformActor(success):
+    var on_confs = 0
+    def on_conf(_conf: gdata.Node, _memory: ?gdata.Node):
+        on_confs += 1
+    def shutdown(memory: ?gdata.Node):
+        if on_confs == 1:
+            success()
+
+rfs_empty_cfg = gdata.Container({
+    q("rfs"): gdata.List([q("name")], [
+        gdata.Container({
+            q("name"): gdata.Leaf("k1"),
+            q("base"): gdata.List([q("id")], [
+                gdata.Absent({
+                    q("id"): gdata.Leaf("A")
+                })
+            ])
+        })
+    ])
+})
+
+actor rfs_actor_notified_on_shutdown(t: testing.AsyncT):
+    dev_registry = swdev.DeviceRegistry(log_handler=t.log_handler)
+
+    def actor_ctor(_params: ttt.TransformActorParams) -> ttt.TransformActor:
+        act = ShutdownTransformActor(t.success)
+        return ttt.TransformActor(act.on_conf, act.shutdown)
+
+    stack = ttt.Layer("rfs", ttt.Container({
+        q("rfs"): ttt.List(ttt.Container({
+            q("base"): ttt.List(ttt.RFSTransform(
+                EmptyOutputRFSTransform,
+                dev_registry,
+                actor_ctor,
+            ), [q("id")]),
+        }), [q("name")]),
+    }), None)
+
+    def configured(result: value):
+        stack.edit_config(rfs_empty_cfg)
+
+    def reconf_cb(dev):
+        if dev == "k1":
+            stack.edit_config(rfs_fail_cfg, configured)
+
+    dev_registry.on_reconf(reconf_cb)
+    dmc = DeviceMetaConfig("k1", Credentials("admin", "admin"), mock=mock_with_module())
+    dev_registry.get_or_create("k1").set_dmc(dmc)
+
+    def timeout():
+        t.failure(AssertionError("Timed out waiting for shutdown notification"))
+
+    after 3: timeout()

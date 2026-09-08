@@ -60,6 +60,8 @@ actor BaseConfigTransform(path, update_dynstate: proc(?BaseConfigDynstate)->None
             }))
         _subs.declare(want)
 
+    def shutdown():
+        pass
 
 class L3vpnEndpoint(base.L3vpnEndpoint):
     def transform(self, i: y1.stratoweave_rfs__rfs__l3vpn_endpoint_entry, di):
