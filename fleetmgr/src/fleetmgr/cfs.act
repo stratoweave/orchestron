@@ -43,6 +43,17 @@ class Node(base.Node):
                 key=credentials.key,
             ))
 
+        dev.ssh.cipher = i.ssh.cipher
+        dev.ssh.mac = i.ssh.mac
+        dev.ssh.key_exchange = i.ssh.key_exchange
+        dev.ssh.host_key_algorithm = i.ssh.host_key_algorithm
+        dev.ssh.public_key_algorithm = i.ssh.public_key_algorithm
+        dev.ssh.compression_algorithm = i.ssh.compression_algorithm
+        dev.ssh.compression_level = i.ssh.compression_level
+        dev.ssh.rekey_after_bytes = i.ssh.rekey_after_bytes
+        dev.ssh.rekey_after_seconds = i.ssh.rekey_after_seconds
+        dev.ssh.minimum_rsa_bits = i.ssh.minimum_rsa_bits
+
         dev.mock.enabled = i.mock.enabled
         for module in i.mock.module:
             out_module = dev.mock.module.create(
@@ -94,6 +105,17 @@ class Device(base.Device):
                 password=credentials.password,
                 key=credentials.key,
             ))
+
+        dev.ssh.cipher = i.ssh.cipher
+        dev.ssh.mac = i.ssh.mac
+        dev.ssh.key_exchange = i.ssh.key_exchange
+        dev.ssh.host_key_algorithm = i.ssh.host_key_algorithm
+        dev.ssh.public_key_algorithm = i.ssh.public_key_algorithm
+        dev.ssh.compression_algorithm = i.ssh.compression_algorithm
+        dev.ssh.compression_level = i.ssh.compression_level
+        dev.ssh.rekey_after_bytes = i.ssh.rekey_after_bytes
+        dev.ssh.rekey_after_seconds = i.ssh.rekey_after_seconds
+        dev.ssh.minimum_rsa_bits = i.ssh.minimum_rsa_bits
 
         dev.mock.enabled = i.mock.enabled
         for module in i.mock.module:

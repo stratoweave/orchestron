@@ -62,22 +62,12 @@ stratoweave = r"""module stratoweave {
 }"""
 
 
-rfs = r"""module stratoweave-rfs {
+ssh = r"""module stratoweave-ssh {
   yang-version "1.1";
-  namespace "http://stratoweave.org/yang/stratoweave-rfs";
-  prefix "sw-rfs";
+  namespace "http://stratoweave.org/yang/stratoweave-ssh";
+  prefix "sw-ssh";
 
-  import stratoweave {
-    prefix sw;
-  }
-  import ietf-inet-types {
-    prefix inet;
-  }
-  import ietf-yang-types {
-    prefix yang;
-  }
-
-  description "RFS services";
+  description "Reusable SSH client transport types and groupings.";
 
   typedef ssh-cipher {
     type enumeration {
@@ -206,21 +196,21 @@ rfs = r"""module stratoweave-rfs {
     leaf-list cipher {
       description
         "Symmetric ciphers to offer, most preferred first.";
-      type sw-rfs:ssh-cipher;
+      type sw-ssh:ssh-cipher;
       ordered-by user;
     }
 
     leaf-list mac {
       description
         "MAC algorithms to offer, most preferred first.";
-      type sw-rfs:ssh-mac;
+      type sw-ssh:ssh-mac;
       ordered-by user;
     }
 
     leaf-list key-exchange {
       description
         "Key exchange algorithms to offer, most preferred first.";
-      type sw-rfs:ssh-key-exchange;
+      type sw-ssh:ssh-key-exchange;
       ordered-by user;
     }
 
@@ -228,7 +218,7 @@ rfs = r"""module stratoweave-rfs {
       description
         "Server host key algorithms to accept, most preferred first. This is
          what decides which host key type the device presents.";
-      type sw-rfs:ssh-host-key-algorithm;
+      type sw-ssh:ssh-host-key-algorithm;
       ordered-by user;
     }
 
@@ -236,7 +226,7 @@ rfs = r"""module stratoweave-rfs {
       description
         "Public key algorithms to offer for publickey authentication, most
          preferred first.";
-      type sw-rfs:ssh-public-key-algorithm;
+      type sw-ssh:ssh-public-key-algorithm;
       ordered-by user;
     }
 
@@ -244,7 +234,7 @@ rfs = r"""module stratoweave-rfs {
       description
         "Compression algorithms to offer, most preferred first. 'none' first
          disables compression against peers that also offer it.";
-      type sw-rfs:ssh-compression-algorithm;
+      type sw-ssh:ssh-compression-algorithm;
       ordered-by user;
     }
 
@@ -283,6 +273,28 @@ rfs = r"""module stratoweave-rfs {
       default 1024;
     }
   }
+}"""
+
+
+rfs = r"""module stratoweave-rfs {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave-rfs";
+  prefix "sw-rfs";
+
+  import stratoweave {
+    prefix sw;
+  }
+  import stratoweave-ssh {
+    prefix sw-ssh;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  description "RFS services";
 
   grouping check-result {
     leaf verdict {
@@ -376,7 +388,7 @@ rfs = r"""module stratoweave-rfs {
       description
         "SSH transport parameters used when connecting to this device. Applies
          to every SSH-based adapter (NETCONF over SSH, CLI, ...).";
-      uses sw-rfs:ssh-client-config;
+      uses sw-ssh:ssh-client-config;
     }
 
     leaf approval-required {

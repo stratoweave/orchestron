@@ -139,6 +139,22 @@ its transport settings from the device's `ssh` container. Leave it out and the
 SSH library's defaults apply; set it to deal with devices that need something
 narrower or older.
 
+To expose these settings in another model, import `stratoweave-ssh` and use
+its `ssh-client-config` grouping inside an `ssh` container:
+
+```yang
+import stratoweave-ssh {
+  prefix sw-ssh;
+}
+
+container ssh {
+  uses sw-ssh:ssh-client-config;
+}
+```
+
+Include `swyang.ssh` in the layer's models when generating the application,
+and copy the settings to `dev.ssh` in its transform.
+
 ```acton title="src/sorespo/cfs.act"
 dev.ssh.cipher = ["aes128-ctr"]
 dev.ssh.key_exchange = ["diffie-hellman-group14-sha256"]

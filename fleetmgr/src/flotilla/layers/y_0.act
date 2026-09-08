@@ -59,12 +59,12 @@ SRC_DNODE_CHILD_6: DList = DList(module='stratoweave-rfs', namespace='http://str
 ])
 
 SRC_DNODE_CHILD_7: DContainer = DContainer(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='ssh', config=True, description='SSH transport parameters used when connecting to this device. Applies\nto every SSH-based adapter (NETCONF over SSH, CLI, ...).', presence=False, children=[
-    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='cipher', config=True, description='Symmetric ciphers to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-rfs:ssh-cipher', description='Symmetric cipher, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'chacha20-poly1305@openssh.com':0, 'aes256-gcm@openssh.com':1, 'aes128-gcm@openssh.com':2, 'aes256-ctr':3, 'aes192-ctr':4, 'aes128-ctr':5, 'aes256-cbc':6, 'aes192-cbc':7, 'aes128-cbc':8, '3des-cbc':9, 'none':10})),
-    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='mac', config=True, description='MAC algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-rfs:ssh-mac', description='Message authentication code, as negotiated in the SSH transport\nprotocol. Not used with AEAD ciphers, which authenticate themselves.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'hmac-sha2-256-etm@openssh.com':0, 'hmac-sha2-512-etm@openssh.com':1, 'hmac-sha1-etm@openssh.com':2, 'hmac-sha2-256':3, 'hmac-sha2-512':4, 'hmac-sha1':5, 'none':6})),
-    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='key-exchange', config=True, description='Key exchange algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-rfs:ssh-key-exchange', description='Key exchange algorithm, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'diffie-hellman-group-exchange-sha1':0, 'mlkem768x25519-sha256':1, 'mlkem768nistp256-sha256':2, 'sntrup761x25519-sha512':3, 'sntrup761x25519-sha512@openssh.com':4, 'curve25519-sha256':5, 'curve25519-sha256@libssh.org':6, 'ecdh-sha2-nistp256':7, 'ecdh-sha2-nistp384':8, 'ecdh-sha2-nistp521':9, 'diffie-hellman-group18-sha512':10, 'diffie-hellman-group16-sha512':11, 'diffie-hellman-group-exchange-sha256':12, 'diffie-hellman-group14-sha256':13, 'diffie-hellman-group14-sha1':14, 'diffie-hellman-group1-sha1':15})),
-    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='host-key-algorithm', config=True, description='Server host key algorithms to accept, most preferred first. This is\nwhat decides which host key type the device presents.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-rfs:ssh-host-key-algorithm', description='Server host key algorithm, i.e. the key type we are willing to accept\nfrom the far end and verify the session signature with.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
-    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='public-key-algorithm', config=True, description='Public key algorithms to offer for publickey authentication, most\npreferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-rfs:ssh-public-key-algorithm', description='Public key algorithm offered during publickey authentication.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
-    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='compression-algorithm', config=True, description="Compression algorithms to offer, most preferred first. 'none' first\ndisables compression against peers that also offer it.", min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-rfs:ssh-compression-algorithm', description='Transport compression algorithm.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'none':0, 'zlib@openssh.com':1, 'zlib':2})),
+    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='cipher', config=True, description='Symmetric ciphers to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-cipher', description='Symmetric cipher, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'chacha20-poly1305@openssh.com':0, 'aes256-gcm@openssh.com':1, 'aes128-gcm@openssh.com':2, 'aes256-ctr':3, 'aes192-ctr':4, 'aes128-ctr':5, 'aes256-cbc':6, 'aes192-cbc':7, 'aes128-cbc':8, '3des-cbc':9, 'none':10})),
+    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='mac', config=True, description='MAC algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-mac', description='Message authentication code, as negotiated in the SSH transport\nprotocol. Not used with AEAD ciphers, which authenticate themselves.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'hmac-sha2-256-etm@openssh.com':0, 'hmac-sha2-512-etm@openssh.com':1, 'hmac-sha1-etm@openssh.com':2, 'hmac-sha2-256':3, 'hmac-sha2-512':4, 'hmac-sha1':5, 'none':6})),
+    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='key-exchange', config=True, description='Key exchange algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-key-exchange', description='Key exchange algorithm, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'diffie-hellman-group-exchange-sha1':0, 'mlkem768x25519-sha256':1, 'mlkem768nistp256-sha256':2, 'sntrup761x25519-sha512':3, 'sntrup761x25519-sha512@openssh.com':4, 'curve25519-sha256':5, 'curve25519-sha256@libssh.org':6, 'ecdh-sha2-nistp256':7, 'ecdh-sha2-nistp384':8, 'ecdh-sha2-nistp521':9, 'diffie-hellman-group18-sha512':10, 'diffie-hellman-group16-sha512':11, 'diffie-hellman-group-exchange-sha256':12, 'diffie-hellman-group14-sha256':13, 'diffie-hellman-group14-sha1':14, 'diffie-hellman-group1-sha1':15})),
+    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='host-key-algorithm', config=True, description='Server host key algorithms to accept, most preferred first. This is\nwhat decides which host key type the device presents.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-host-key-algorithm', description='Server host key algorithm, i.e. the key type we are willing to accept\nfrom the far end and verify the session signature with.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
+    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='public-key-algorithm', config=True, description='Public key algorithms to offer for publickey authentication, most\npreferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-public-key-algorithm', description='Public key algorithm offered during publickey authentication.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
+    DLeafList(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='compression-algorithm', config=True, description="Compression algorithms to offer, most preferred first. 'none' first\ndisables compression against peers that also offer it.", min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-compression-algorithm', description='Transport compression algorithm.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'none':0, 'zlib@openssh.com':1, 'zlib':2})),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='compression-level', config=True, description='zlib compression level, 1 (fastest) to 9 (smallest). Only relevant\nwhen a zlib compression algorithm is negotiated.', default='7', mandatory=False, type=DTypeIntegerUnsigned(name='uint8', description=None, reference=None, exts=[], builtin_type='uint8', default=None, ranges=Ranges([(1, 9)]))),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rekey-after-bytes', config=True, description='Rekey after this many bytes have passed over the session. Absent\nmeans the RFC 4344 volume limit of the negotiated cipher. A value\ncan only lower that limit, never raise it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
     DLeaf(module='stratoweave-rfs', namespace='http://stratoweave.org/yang/stratoweave-rfs', prefix='sw-rfs', name='rekey-after-seconds', config=True, description='Rekey after this many seconds. Absent disables time-based rekeying.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967)]))),
@@ -114,7 +114,7 @@ SRC_DNODE: DRoot = DRoot(
     children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_13],
     identities=[],
     rpcs=[],
-    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None)},
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-yang-types':('ietf-yang-types', '2025-12-22'), 'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave-ssh':('stratoweave-ssh', None), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'http://stratoweave.org/yang/stratoweave-rfs':('stratoweave-rfs', None)},
 )
 
 SRC_YANG_0: str = r"""module stratoweave {
@@ -188,6 +188,9 @@ SRC_YANG_1: str = r"""module stratoweave-rfs {
   import stratoweave {
     prefix sw;
   }
+  import stratoweave-ssh {
+    prefix sw-ssh;
+  }
   import ietf-inet-types {
     prefix inet;
   }
@@ -196,211 +199,6 @@ SRC_YANG_1: str = r"""module stratoweave-rfs {
   }
 
   description "RFS services";
-
-  typedef ssh-cipher {
-    type enumeration {
-      enum "chacha20-poly1305@openssh.com";
-      enum "aes256-gcm@openssh.com";
-      enum "aes128-gcm@openssh.com";
-      enum "aes256-ctr";
-      enum "aes192-ctr";
-      enum "aes128-ctr";
-      enum "aes256-cbc";
-      enum "aes192-cbc";
-      enum "aes128-cbc";
-      enum "3des-cbc";
-      enum "none";
-    }
-    description
-      "Symmetric cipher, as negotiated in the SSH transport protocol.";
-  }
-
-  typedef ssh-mac {
-    type enumeration {
-      enum "hmac-sha2-256-etm@openssh.com";
-      enum "hmac-sha2-512-etm@openssh.com";
-      enum "hmac-sha1-etm@openssh.com";
-      enum "hmac-sha2-256";
-      enum "hmac-sha2-512";
-      enum "hmac-sha1";
-      enum "none";
-    }
-    description
-      "Message authentication code, as negotiated in the SSH transport
-     protocol. Not used with AEAD ciphers, which authenticate themselves.";
-  }
-
-  typedef ssh-key-exchange {
-    type enumeration {
-      enum "diffie-hellman-group-exchange-sha1";
-      enum "mlkem768x25519-sha256";
-      enum "mlkem768nistp256-sha256";
-      enum "sntrup761x25519-sha512";
-      enum "sntrup761x25519-sha512@openssh.com";
-      enum "curve25519-sha256";
-      enum "curve25519-sha256@libssh.org";
-      enum "ecdh-sha2-nistp256";
-      enum "ecdh-sha2-nistp384";
-      enum "ecdh-sha2-nistp521";
-      enum "diffie-hellman-group18-sha512";
-      enum "diffie-hellman-group16-sha512";
-      enum "diffie-hellman-group-exchange-sha256";
-      enum "diffie-hellman-group14-sha256";
-      enum "diffie-hellman-group14-sha1";
-      enum "diffie-hellman-group1-sha1";
-    }
-    description
-      "Key exchange algorithm, as negotiated in the SSH transport protocol.";
-  }
-
-  typedef ssh-host-key-algorithm {
-    type enumeration {
-      enum "ssh-ed25519-cert-v01@openssh.com";
-      enum "sk-ssh-ed25519-cert-v01@openssh.com";
-      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
-      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
-      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
-      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
-      enum "rsa-sha2-512-cert-v01@openssh.com";
-      enum "rsa-sha2-256-cert-v01@openssh.com";
-      enum "ssh-rsa-cert-v01@openssh.com";
-      enum "ssh-ed25519";
-      enum "ecdsa-sha2-nistp521";
-      enum "ecdsa-sha2-nistp384";
-      enum "ecdsa-sha2-nistp256";
-      enum "sk-ssh-ed25519@openssh.com";
-      enum "sk-ecdsa-sha2-nistp256@openssh.com";
-      enum "rsa-sha2-512";
-      enum "rsa-sha2-256";
-      enum "ssh-rsa";
-    }
-    description
-      "Server host key algorithm, i.e. the key type we are willing to accept
-     from the far end and verify the session signature with.";
-  }
-
-  typedef ssh-public-key-algorithm {
-    type enumeration {
-      enum "ssh-ed25519-cert-v01@openssh.com";
-      enum "sk-ssh-ed25519-cert-v01@openssh.com";
-      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
-      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
-      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
-      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
-      enum "rsa-sha2-512-cert-v01@openssh.com";
-      enum "rsa-sha2-256-cert-v01@openssh.com";
-      enum "ssh-rsa-cert-v01@openssh.com";
-      enum "ssh-ed25519";
-      enum "ecdsa-sha2-nistp521";
-      enum "ecdsa-sha2-nistp384";
-      enum "ecdsa-sha2-nistp256";
-      enum "sk-ssh-ed25519@openssh.com";
-      enum "sk-ecdsa-sha2-nistp256@openssh.com";
-      enum "rsa-sha2-512";
-      enum "rsa-sha2-256";
-      enum "ssh-rsa";
-    }
-    description
-      "Public key algorithm offered during publickey authentication.";
-  }
-
-  typedef ssh-compression-algorithm {
-    type enumeration {
-      enum "none";
-      enum "zlib@openssh.com";
-      enum "zlib";
-    }
-    description
-      "Transport compression algorithm.";
-  }
-
-  grouping ssh-client-config {
-    description
-      "SSH client transport parameters, shared by every adapter that talks to
-       a device over SSH (NETCONF, CLI, ...). Each algorithm leaf-list is the
-       ordered preference list sent in the SSH key exchange; leaving one empty
-       means the SSH library picks its own default set.";
-
-    leaf-list cipher {
-      description
-        "Symmetric ciphers to offer, most preferred first.";
-      type sw-rfs:ssh-cipher;
-      ordered-by user;
-    }
-
-    leaf-list mac {
-      description
-        "MAC algorithms to offer, most preferred first.";
-      type sw-rfs:ssh-mac;
-      ordered-by user;
-    }
-
-    leaf-list key-exchange {
-      description
-        "Key exchange algorithms to offer, most preferred first.";
-      type sw-rfs:ssh-key-exchange;
-      ordered-by user;
-    }
-
-    leaf-list host-key-algorithm {
-      description
-        "Server host key algorithms to accept, most preferred first. This is
-         what decides which host key type the device presents.";
-      type sw-rfs:ssh-host-key-algorithm;
-      ordered-by user;
-    }
-
-    leaf-list public-key-algorithm {
-      description
-        "Public key algorithms to offer for publickey authentication, most
-         preferred first.";
-      type sw-rfs:ssh-public-key-algorithm;
-      ordered-by user;
-    }
-
-    leaf-list compression-algorithm {
-      description
-        "Compression algorithms to offer, most preferred first. 'none' first
-         disables compression against peers that also offer it.";
-      type sw-rfs:ssh-compression-algorithm;
-      ordered-by user;
-    }
-
-    leaf compression-level {
-      description
-        "zlib compression level, 1 (fastest) to 9 (smallest). Only relevant
-         when a zlib compression algorithm is negotiated.";
-      type uint8 {
-        range "1..9";
-      }
-      default 7;
-    }
-
-    leaf rekey-after-bytes {
-      description
-        "Rekey after this many bytes have passed over the session. Absent
-         means the RFC 4344 volume limit of the negotiated cipher. A value
-         can only lower that limit, never raise it.";
-      type uint64;
-    }
-
-    leaf rekey-after-seconds {
-      description
-        "Rekey after this many seconds. Absent disables time-based rekeying.";
-      type uint32 {
-        range "0..4294967";
-      }
-    }
-
-    leaf minimum-rsa-bits {
-      description
-        "Reject RSA host and public keys shorter than this.";
-      type uint32 {
-        range "1024..2147483647";
-      }
-      default 1024;
-    }
-  }
 
   grouping check-result {
     leaf verdict {
@@ -494,7 +292,7 @@ SRC_YANG_1: str = r"""module stratoweave-rfs {
       description
         "SSH transport parameters used when connecting to this device. Applies
          to every SSH-based adapter (NETCONF over SSH, CLI, ...).";
-      uses sw-rfs:ssh-client-config;
+      uses sw-ssh:ssh-client-config;
     }
 
     leaf approval-required {
@@ -689,7 +487,220 @@ SRC_YANG_1: str = r"""module stratoweave-rfs {
 }
 """
 
-SRC_YANG_2: str = r"""module ietf-inet-types {
+SRC_YANG_2: str = r"""module stratoweave-ssh {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave-ssh";
+  prefix "sw-ssh";
+
+  description "Reusable SSH client transport types and groupings.";
+
+  typedef ssh-cipher {
+    type enumeration {
+      enum "chacha20-poly1305@openssh.com";
+      enum "aes256-gcm@openssh.com";
+      enum "aes128-gcm@openssh.com";
+      enum "aes256-ctr";
+      enum "aes192-ctr";
+      enum "aes128-ctr";
+      enum "aes256-cbc";
+      enum "aes192-cbc";
+      enum "aes128-cbc";
+      enum "3des-cbc";
+      enum "none";
+    }
+    description
+      "Symmetric cipher, as negotiated in the SSH transport protocol.";
+  }
+
+  typedef ssh-mac {
+    type enumeration {
+      enum "hmac-sha2-256-etm@openssh.com";
+      enum "hmac-sha2-512-etm@openssh.com";
+      enum "hmac-sha1-etm@openssh.com";
+      enum "hmac-sha2-256";
+      enum "hmac-sha2-512";
+      enum "hmac-sha1";
+      enum "none";
+    }
+    description
+      "Message authentication code, as negotiated in the SSH transport
+     protocol. Not used with AEAD ciphers, which authenticate themselves.";
+  }
+
+  typedef ssh-key-exchange {
+    type enumeration {
+      enum "diffie-hellman-group-exchange-sha1";
+      enum "mlkem768x25519-sha256";
+      enum "mlkem768nistp256-sha256";
+      enum "sntrup761x25519-sha512";
+      enum "sntrup761x25519-sha512@openssh.com";
+      enum "curve25519-sha256";
+      enum "curve25519-sha256@libssh.org";
+      enum "ecdh-sha2-nistp256";
+      enum "ecdh-sha2-nistp384";
+      enum "ecdh-sha2-nistp521";
+      enum "diffie-hellman-group18-sha512";
+      enum "diffie-hellman-group16-sha512";
+      enum "diffie-hellman-group-exchange-sha256";
+      enum "diffie-hellman-group14-sha256";
+      enum "diffie-hellman-group14-sha1";
+      enum "diffie-hellman-group1-sha1";
+    }
+    description
+      "Key exchange algorithm, as negotiated in the SSH transport protocol.";
+  }
+
+  typedef ssh-host-key-algorithm {
+    type enumeration {
+      enum "ssh-ed25519-cert-v01@openssh.com";
+      enum "sk-ssh-ed25519-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "rsa-sha2-512-cert-v01@openssh.com";
+      enum "rsa-sha2-256-cert-v01@openssh.com";
+      enum "ssh-rsa-cert-v01@openssh.com";
+      enum "ssh-ed25519";
+      enum "ecdsa-sha2-nistp521";
+      enum "ecdsa-sha2-nistp384";
+      enum "ecdsa-sha2-nistp256";
+      enum "sk-ssh-ed25519@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256@openssh.com";
+      enum "rsa-sha2-512";
+      enum "rsa-sha2-256";
+      enum "ssh-rsa";
+    }
+    description
+      "Server host key algorithm, i.e. the key type we are willing to accept
+     from the far end and verify the session signature with.";
+  }
+
+  typedef ssh-public-key-algorithm {
+    type enumeration {
+      enum "ssh-ed25519-cert-v01@openssh.com";
+      enum "sk-ssh-ed25519-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "rsa-sha2-512-cert-v01@openssh.com";
+      enum "rsa-sha2-256-cert-v01@openssh.com";
+      enum "ssh-rsa-cert-v01@openssh.com";
+      enum "ssh-ed25519";
+      enum "ecdsa-sha2-nistp521";
+      enum "ecdsa-sha2-nistp384";
+      enum "ecdsa-sha2-nistp256";
+      enum "sk-ssh-ed25519@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256@openssh.com";
+      enum "rsa-sha2-512";
+      enum "rsa-sha2-256";
+      enum "ssh-rsa";
+    }
+    description
+      "Public key algorithm offered during publickey authentication.";
+  }
+
+  typedef ssh-compression-algorithm {
+    type enumeration {
+      enum "none";
+      enum "zlib@openssh.com";
+      enum "zlib";
+    }
+    description
+      "Transport compression algorithm.";
+  }
+
+  grouping ssh-client-config {
+    description
+      "SSH client transport parameters, shared by every adapter that talks to
+       a device over SSH (NETCONF, CLI, ...). Each algorithm leaf-list is the
+       ordered preference list sent in the SSH key exchange; leaving one empty
+       means the SSH library picks its own default set.";
+
+    leaf-list cipher {
+      description
+        "Symmetric ciphers to offer, most preferred first.";
+      type sw-ssh:ssh-cipher;
+      ordered-by user;
+    }
+
+    leaf-list mac {
+      description
+        "MAC algorithms to offer, most preferred first.";
+      type sw-ssh:ssh-mac;
+      ordered-by user;
+    }
+
+    leaf-list key-exchange {
+      description
+        "Key exchange algorithms to offer, most preferred first.";
+      type sw-ssh:ssh-key-exchange;
+      ordered-by user;
+    }
+
+    leaf-list host-key-algorithm {
+      description
+        "Server host key algorithms to accept, most preferred first. This is
+         what decides which host key type the device presents.";
+      type sw-ssh:ssh-host-key-algorithm;
+      ordered-by user;
+    }
+
+    leaf-list public-key-algorithm {
+      description
+        "Public key algorithms to offer for publickey authentication, most
+         preferred first.";
+      type sw-ssh:ssh-public-key-algorithm;
+      ordered-by user;
+    }
+
+    leaf-list compression-algorithm {
+      description
+        "Compression algorithms to offer, most preferred first. 'none' first
+         disables compression against peers that also offer it.";
+      type sw-ssh:ssh-compression-algorithm;
+      ordered-by user;
+    }
+
+    leaf compression-level {
+      description
+        "zlib compression level, 1 (fastest) to 9 (smallest). Only relevant
+         when a zlib compression algorithm is negotiated.";
+      type uint8 {
+        range "1..9";
+      }
+      default 7;
+    }
+
+    leaf rekey-after-bytes {
+      description
+        "Rekey after this many bytes have passed over the session. Absent
+         means the RFC 4344 volume limit of the negotiated cipher. A value
+         can only lower that limit, never raise it.";
+      type uint64;
+    }
+
+    leaf rekey-after-seconds {
+      description
+        "Rekey after this many seconds. Absent disables time-based rekeying.";
+      type uint32 {
+        range "0..4294967";
+      }
+    }
+
+    leaf minimum-rsa-bits {
+      description
+        "Reject RSA host and public keys shorter than this.";
+      type uint32 {
+        range "1024..2147483647";
+      }
+      default 1024;
+    }
+  }
+}"""
+
+SRC_YANG_3: str = r"""module ietf-inet-types {
 
   namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
   prefix "inet";
@@ -1149,7 +1160,7 @@ SRC_YANG_2: str = r"""module ietf-inet-types {
 }
 """
 
-SRC_YANG_3: str = r"""module ietf-yang-types {
+SRC_YANG_4: str = r"""module ietf-yang-types {
   namespace "urn:ietf:params:xml:ns:yang:ietf-yang-types";
   prefix yang;
 
@@ -1921,11 +1932,13 @@ pure def src_yang() -> list[str]:
         SRC_YANG_1,
         SRC_YANG_2,
         SRC_YANG_3,
+        SRC_YANG_4,
     ]
 
 
 NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
 NS_stratoweave_rfs: str = 'http://stratoweave.org/yang/stratoweave-rfs'
+NS_stratoweave_ssh: str = 'http://stratoweave.org/yang/stratoweave-ssh'
 NS_ietf_inet_types: str = 'urn:ietf:params:xml:ns:yang:ietf-inet-types'
 NS_ietf_yang_types: str = 'urn:ietf:params:xml:ns:yang:ietf-yang-types'
 
@@ -1955,7 +1968,7 @@ class stratoweave_rfs__device__address__initial_credentials_entry(yadata.MNode):
 _breaker2: None = None
 class stratoweave_rfs__device__address__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__address__initial_credentials_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__address__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__address__initial_credentials_entry:
         e = self.get(key_)
@@ -1963,7 +1976,7 @@ class stratoweave_rfs__device__address__initial_credentials(yadata.MKeyedList[(u
             return e
         (username=username, password=password, key=key) = key_
         res = stratoweave_rfs__device__address__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2010,7 +2023,7 @@ class stratoweave_rfs__device__address_entry(yadata.MNode):
 _breaker4: None = None
 class stratoweave_rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__device__address_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, address: str, port: ?u64=None) -> stratoweave_rfs__device__address_entry:
         e = self.get(key)
@@ -2021,7 +2034,7 @@ class stratoweave_rfs__device__address(yadata.MKeyedList[str, stratoweave_rfs__d
             return e
         name = key
         res = stratoweave_rfs__device__address_entry(name=name, address=address, port=port)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2064,7 +2077,7 @@ class stratoweave_rfs__device__credentials__key_entry(yadata.MNode):
 _breaker6: None = None
 class stratoweave_rfs__device__credentials__key(yadata.MKeyedList[str, stratoweave_rfs__device__credentials__key_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__credentials__key_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.key == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.key, elements)
 
     mut def create(self, key_: str, private_key: ?str=None) -> stratoweave_rfs__device__credentials__key_entry:
         e = self.get(key_)
@@ -2074,7 +2087,7 @@ class stratoweave_rfs__device__credentials__key(yadata.MKeyedList[str, stratowea
             return e
         key = key_
         res = stratoweave_rfs__device__credentials__key_entry(key=key, private_key=private_key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2144,7 +2157,7 @@ class stratoweave_rfs__device__initial_credentials_entry(yadata.MNode):
 _breaker9: None = None
 class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), stratoweave_rfs__device__initial_credentials_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> stratoweave_rfs__device__initial_credentials_entry:
         e = self.get(key_)
@@ -2152,7 +2165,7 @@ class stratoweave_rfs__device__initial_credentials(yadata.MKeyedList[(username: 
             return e
         (username=username, password=password, key=key) = key_
         res = stratoweave_rfs__device__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2238,7 +2251,7 @@ class stratoweave_rfs__device__mock__module_entry(yadata.MNode):
 _breaker12: None = None
 class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_rfs__device__mock__module_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__mock__module_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, namespace: str, revision: ?str=None) -> stratoweave_rfs__device__mock__module_entry:
         e = self.get(key)
@@ -2249,7 +2262,7 @@ class stratoweave_rfs__device__mock__module(yadata.MKeyedList[str, stratoweave_r
             return e
         name = key
         res = stratoweave_rfs__device__mock__module_entry(name=name, namespace=namespace, revision=revision)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2357,7 +2370,7 @@ class stratoweave_rfs__device__software__veto_entry(yadata.MNode):
 _breaker17: None = None
 class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave_rfs__device__software__veto_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device__software__veto_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.holder == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.holder, elements)
 
     mut def create(self, key: str, reason: ?str=None) -> stratoweave_rfs__device__software__veto_entry:
         e = self.get(key)
@@ -2367,7 +2380,7 @@ class stratoweave_rfs__device__software__veto(yadata.MKeyedList[str, stratoweave
             return e
         holder = key
         res = stratoweave_rfs__device__software__veto_entry(holder=holder, reason=reason)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2459,7 +2472,7 @@ class stratoweave_rfs__device_entry(yadata.MNode):
 _breaker20: None = None
 class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__device_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, credentials: stratoweave_rfs__device__credentials, description: ?str=None, type: ?str=None, approval_required: ?bool=None) -> stratoweave_rfs__device_entry:
         e = self.get(key)
@@ -2474,7 +2487,7 @@ class stratoweave_rfs__device(yadata.MKeyedList[str, stratoweave_rfs__device_ent
             return e
         name = key
         res = stratoweave_rfs__device_entry(name=name, credentials=credentials, description=description, type=type, approval_required=approval_required)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2515,7 +2528,7 @@ class stratoweave_rfs__rfs_entry(yadata.MNode):
 _breaker22: None = None
 class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
     mut def __init__(self, elements: list[stratoweave_rfs__rfs_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str) -> stratoweave_rfs__rfs_entry:
         e = self.get(key)
@@ -2523,7 +2536,7 @@ class stratoweave_rfs__rfs(yadata.MKeyedList[str, stratoweave_rfs__rfs_entry]):
             return e
         name = key
         res = stratoweave_rfs__rfs_entry(name=name)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod

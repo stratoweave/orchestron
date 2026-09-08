@@ -56,9 +56,22 @@ SRC_DNODE_CHILD_6: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:flee
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 ])
 
-SRC_DNODE_CHILD_7: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='approval-required', config=True, description='Require approval of each individual configuration change to this device', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+SRC_DNODE_CHILD_7: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='ssh', config=True, description='SSH transport parameters used when connecting to this device. Applies\nto every SSH-based adapter (NETCONF over SSH, CLI, ...).', presence=False, children=[
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='cipher', config=True, description='Symmetric ciphers to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-cipher', description='Symmetric cipher, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'chacha20-poly1305@openssh.com':0, 'aes256-gcm@openssh.com':1, 'aes128-gcm@openssh.com':2, 'aes256-ctr':3, 'aes192-ctr':4, 'aes128-ctr':5, 'aes256-cbc':6, 'aes192-cbc':7, 'aes128-cbc':8, '3des-cbc':9, 'none':10})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='mac', config=True, description='MAC algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-mac', description='Message authentication code, as negotiated in the SSH transport\nprotocol. Not used with AEAD ciphers, which authenticate themselves.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'hmac-sha2-256-etm@openssh.com':0, 'hmac-sha2-512-etm@openssh.com':1, 'hmac-sha1-etm@openssh.com':2, 'hmac-sha2-256':3, 'hmac-sha2-512':4, 'hmac-sha1':5, 'none':6})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='key-exchange', config=True, description='Key exchange algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-key-exchange', description='Key exchange algorithm, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'diffie-hellman-group-exchange-sha1':0, 'mlkem768x25519-sha256':1, 'mlkem768nistp256-sha256':2, 'sntrup761x25519-sha512':3, 'sntrup761x25519-sha512@openssh.com':4, 'curve25519-sha256':5, 'curve25519-sha256@libssh.org':6, 'ecdh-sha2-nistp256':7, 'ecdh-sha2-nistp384':8, 'ecdh-sha2-nistp521':9, 'diffie-hellman-group18-sha512':10, 'diffie-hellman-group16-sha512':11, 'diffie-hellman-group-exchange-sha256':12, 'diffie-hellman-group14-sha256':13, 'diffie-hellman-group14-sha1':14, 'diffie-hellman-group1-sha1':15})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='host-key-algorithm', config=True, description='Server host key algorithms to accept, most preferred first. This is\nwhat decides which host key type the device presents.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-host-key-algorithm', description='Server host key algorithm, i.e. the key type we are willing to accept\nfrom the far end and verify the session signature with.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='public-key-algorithm', config=True, description='Public key algorithms to offer for publickey authentication, most\npreferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-public-key-algorithm', description='Public key algorithm offered during publickey authentication.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='compression-algorithm', config=True, description="Compression algorithms to offer, most preferred first. 'none' first\ndisables compression against peers that also offer it.", min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-compression-algorithm', description='Transport compression algorithm.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'none':0, 'zlib@openssh.com':1, 'zlib':2})),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='compression-level', config=True, description='zlib compression level, 1 (fastest) to 9 (smallest). Only relevant\nwhen a zlib compression algorithm is negotiated.', default='7', mandatory=False, type=DTypeIntegerUnsigned(name='uint8', description=None, reference=None, exts=[], builtin_type='uint8', default=None, ranges=Ranges([(1, 9)]))),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='rekey-after-bytes', config=True, description='Rekey after this many bytes have passed over the session. Absent\nmeans the RFC 4344 volume limit of the negotiated cipher. A value\ncan only lower that limit, never raise it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='rekey-after-seconds', config=True, description='Rekey after this many seconds. Absent disables time-based rekeying.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967)]))),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='minimum-rsa-bits', config=True, description='Reject RSA host and public keys shorter than this.', default='1024', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(1024, 2147483647)])))
+])
 
-SRC_DNODE_CHILD_8: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='mock', config=True, presence=False, children=[
+SRC_DNODE_CHILD_8: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='approval-required', config=True, description='Require approval of each individual configuration change to this device', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+
+SRC_DNODE_CHILD_9: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='mock', config=True, presence=False, children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='enabled', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
     DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='module', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
         DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -68,27 +81,27 @@ SRC_DNODE_CHILD_8: DContainer = DContainer(module='fleetmgr', namespace='urn:fle
     ])
 ])
 
-SRC_DNODE_CHILD_9: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='debug', config=True, presence=False, children=[
+SRC_DNODE_CHILD_10: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='debug', config=True, presence=False, children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='connection', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
 ])
 
-SRC_DNODE_CHILD_10: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='feature-flags', config=True, presence=False, children=[
+SRC_DNODE_CHILD_11: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='feature-flags', config=True, presence=False, children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='runtime-schema-fetch', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
 ])
 
 SRC_DNODE_CHILD_1: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='node', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='fleetmgr.cfs.Node', exts=[])
-    ], children=[SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10])
+    ], children=[SRC_DNODE_CHILD_2, SRC_DNODE_CHILD_3, SRC_DNODE_CHILD_4, SRC_DNODE_CHILD_5, SRC_DNODE_CHILD_6, SRC_DNODE_CHILD_7, SRC_DNODE_CHILD_8, SRC_DNODE_CHILD_9, SRC_DNODE_CHILD_10, SRC_DNODE_CHILD_11])
 
-SRC_DNODE_CHILD_12: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+SRC_DNODE_CHILD_13: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_13: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='type', config=True, description='Device platform type understood by the owning flotilla.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+SRC_DNODE_CHILD_14: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='type', config=True, description='Device platform type understood by the owning flotilla.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_14: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='shard', config=True, description='Name of the flotilla node that owns this device.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+SRC_DNODE_CHILD_15: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='shard', config=True, description='Name of the flotilla node that owns this device.', mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_15: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='description', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+SRC_DNODE_CHILD_16: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='description', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 
-SRC_DNODE_CHILD_16: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='address', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
+SRC_DNODE_CHILD_17: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='address', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='name', config=True, description="Name of address, e.g. 'loopback' or 'OOB'", mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='address', config=True, mandatory=True, type=DTypeUnion(name='inet:host', description='The host type represents either an IP address or a DNS\ndomain name.', reference=None, exts=[], builtin_type='union', default=None, types=[DTypeString(name='inet:ipv4-address', description='The ipv4-address type represents an IPv4 address in\ndotted-quad notation.  The IPv4 address may include a zone\nindex, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format for the zone index is the numerical\nformat', reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?', pcre='^((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){{3}}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False)]), DTypeString(name='inet:ipv6-address', description='The ipv6-address type represents an IPv6 address in full,\nmixed, shortened, and shortened-mixed notation.  The IPv6\naddress may include a zone index, separated by a % sign.\n\nThe zone index is used to disambiguate identical address\nvalues.  For link-local addresses, the zone index will\ntypically be the interface index number or the name of an\ninterface.  If the zone index is not present, the default\nzone of the device will be used.\n\nThe canonical format of IPv6 addresses uses the textual\nrepresentation defined in Section 4 of RFC 5952.  The\ncanonical format for the zone index is the numerical\nformat as described in Section 11.2 of RFC 4007.', reference='RFC 4291: IP Version 6 Addressing Architecture\nRFC 4007: IPv6 Scoped Address Architecture\nRFC 5952: A Recommendation for IPv6 Address Text\n          Representation', exts=[], builtin_type='string', default=None, length=None, patterns=[YangPattern(yang_regex='((:|[0-9a-fA-F]{{0,4}}):)([0-9a-fA-F]{{0,4}}:){{0,5}}((([0-9a-fA-F]{{0,4}}:)?(:|[0-9a-fA-F]{{0,4}}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){{3}}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{{N}}\\p{{L}}]+)?', pcre='^(((:|[0-9a-fA-F]{{0,4}}):)([0-9a-fA-F]{{0,4}}:){{0,5}}((([0-9a-fA-F]{{0,4}}:)?(:|[0-9a-fA-F]{{0,4}}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){{3}}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{{N}}\\p{{L}}]+)?)$', invert=False), YangPattern(yang_regex='(([^:]+:){{6}}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?', pcre='^((([^\\:]+:){{6}}(([^\\:]+:[^\\:]+)|(.*\\..*)))|((([^\\:]+:)*[^\\:]+)?::(([^\\:]+:)*[^\\:]+)?)(%.+)?)$', invert=False)]), DTypeString(name='inet:domain-name', description='The domain-name type represents a DNS domain name.  The\nname SHOULD be fully qualified whenever possible.\n\nInternet domain names are only loosely specified.  Section\n3.5 of RFC 1034 recommends a syntax (modified in Section\n2.1 of RFC 1123).  The pattern above is intended to allow\nfor current practice in domain name use, and some possible\nfuture expansion.  It is designed to hold various types of\ndomain names, including names used for A or AAAA records\n(host names) and other records, such as SRV records.  Note\nthat Internet host names have a stricter syntax (described\nin RFC 952) than the DNS recommendations in RFCs 1034 and\n1123, and that systems that want to store host names in\nschema nodes using the domain-name type are recommended to\nadhere to this stricter standard to ensure interoperability.\n\nThe encoding of DNS names in the DNS protocol is limited\nto 255 characters.  Since the encoding consists of labels\nprefixed by a length bytes and there is a trailing NULL\nbyte, only 253 characters can appear in the textual dotted\nnotation.\n\nThe description clause of schema nodes using the domain-name\ntype MUST describe when and how these names are resolved to\nIP addresses.  Note that the resolution of a domain-name value\nmay require to query multiple DNS records (e.g., A for IPv4\nand AAAA for IPv6).  The order of the resolution process and\nwhich DNS record takes precedence can either be defined\nexplicitly or may depend on the configuration of the\nresolver.\n\nDomain-name values use the US-ASCII encoding.  Their canonical\nformat uses lowercase US-ASCII characters.  Internationalized\ndomain names MUST be A-labels as per RFC 5890.', reference='RFC  952: DoD Internet Host Table Specification\nRFC 1034: Domain Names - Concepts and Facilities\nRFC 1123: Requirements for Internet Hosts -- Application\n          and Support\nRFC 2782: A DNS RR for specifying the location of services\n          (DNS SRV)\nRFC 5890: Internationalized Domain Names in Applications\n          (IDNA): Definitions and Document Framework', exts=[], builtin_type='string', default=None, length=Ranges([(1, 253)]), patterns=[YangPattern(yang_regex='((([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.)*([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.?)|\\.', pcre='^(((([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.)*([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){{0,61}})?[a-zA-Z0-9]\\.?)|\\.)$', invert=False)])])),
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='port', config=True, mandatory=False, type=DTypeIntegerUnsigned(name='uint16', description=None, reference=None, exts=[], builtin_type='uint16', default=None, ranges=Ranges([(0, 65535)]))),
@@ -103,7 +116,7 @@ SRC_DNODE_CHILD_16: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fle
     ])
 ])
 
-SRC_DNODE_CHILD_17: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='credentials', config=True, presence=False, children=[
+SRC_DNODE_CHILD_18: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='credentials', config=True, presence=False, children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='username', config=True, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='password', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='key', key=['key'], config=True, min_elements=0, ordered_by='system', children=[
@@ -112,7 +125,7 @@ SRC_DNODE_CHILD_17: DContainer = DContainer(module='fleetmgr', namespace='urn:fl
     ])
 ])
 
-SRC_DNODE_CHILD_18: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='initial-credentials', key=[
+SRC_DNODE_CHILD_19: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='initial-credentials', key=[
 'username',
 'password',
 'key'
@@ -122,9 +135,22 @@ SRC_DNODE_CHILD_18: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fle
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='key', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
 ])
 
-SRC_DNODE_CHILD_19: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='approval-required', config=True, description='Require approval of each individual configuration change to this device', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+SRC_DNODE_CHILD_20: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='ssh', config=True, description='SSH transport parameters used when connecting to this device. Applies\nto every SSH-based adapter (NETCONF over SSH, CLI, ...).', presence=False, children=[
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='cipher', config=True, description='Symmetric ciphers to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-cipher', description='Symmetric cipher, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'chacha20-poly1305@openssh.com':0, 'aes256-gcm@openssh.com':1, 'aes128-gcm@openssh.com':2, 'aes256-ctr':3, 'aes192-ctr':4, 'aes128-ctr':5, 'aes256-cbc':6, 'aes192-cbc':7, 'aes128-cbc':8, '3des-cbc':9, 'none':10})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='mac', config=True, description='MAC algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-mac', description='Message authentication code, as negotiated in the SSH transport\nprotocol. Not used with AEAD ciphers, which authenticate themselves.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'hmac-sha2-256-etm@openssh.com':0, 'hmac-sha2-512-etm@openssh.com':1, 'hmac-sha1-etm@openssh.com':2, 'hmac-sha2-256':3, 'hmac-sha2-512':4, 'hmac-sha1':5, 'none':6})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='key-exchange', config=True, description='Key exchange algorithms to offer, most preferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-key-exchange', description='Key exchange algorithm, as negotiated in the SSH transport protocol.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'diffie-hellman-group-exchange-sha1':0, 'mlkem768x25519-sha256':1, 'mlkem768nistp256-sha256':2, 'sntrup761x25519-sha512':3, 'sntrup761x25519-sha512@openssh.com':4, 'curve25519-sha256':5, 'curve25519-sha256@libssh.org':6, 'ecdh-sha2-nistp256':7, 'ecdh-sha2-nistp384':8, 'ecdh-sha2-nistp521':9, 'diffie-hellman-group18-sha512':10, 'diffie-hellman-group16-sha512':11, 'diffie-hellman-group-exchange-sha256':12, 'diffie-hellman-group14-sha256':13, 'diffie-hellman-group14-sha1':14, 'diffie-hellman-group1-sha1':15})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='host-key-algorithm', config=True, description='Server host key algorithms to accept, most preferred first. This is\nwhat decides which host key type the device presents.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-host-key-algorithm', description='Server host key algorithm, i.e. the key type we are willing to accept\nfrom the far end and verify the session signature with.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='public-key-algorithm', config=True, description='Public key algorithms to offer for publickey authentication, most\npreferred first.', min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-public-key-algorithm', description='Public key algorithm offered during publickey authentication.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'ssh-ed25519-cert-v01@openssh.com':0, 'sk-ssh-ed25519-cert-v01@openssh.com':1, 'ecdsa-sha2-nistp521-cert-v01@openssh.com':2, 'ecdsa-sha2-nistp384-cert-v01@openssh.com':3, 'ecdsa-sha2-nistp256-cert-v01@openssh.com':4, 'sk-ecdsa-sha2-nistp256-cert-v01@openssh.com':5, 'rsa-sha2-512-cert-v01@openssh.com':6, 'rsa-sha2-256-cert-v01@openssh.com':7, 'ssh-rsa-cert-v01@openssh.com':8, 'ssh-ed25519':9, 'ecdsa-sha2-nistp521':10, 'ecdsa-sha2-nistp384':11, 'ecdsa-sha2-nistp256':12, 'sk-ssh-ed25519@openssh.com':13, 'sk-ecdsa-sha2-nistp256@openssh.com':14, 'rsa-sha2-512':15, 'rsa-sha2-256':16, 'ssh-rsa':17})),
+    DLeafList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='compression-algorithm', config=True, description="Compression algorithms to offer, most preferred first. 'none' first\ndisables compression against peers that also offer it.", min_elements=0, ordered_by='user', type=DTypeEnum(name='sw-ssh:ssh-compression-algorithm', description='Transport compression algorithm.', reference=None, exts=[], builtin_type='enumeration', default=None, name_to_val={'none':0, 'zlib@openssh.com':1, 'zlib':2})),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='compression-level', config=True, description='zlib compression level, 1 (fastest) to 9 (smallest). Only relevant\nwhen a zlib compression algorithm is negotiated.', default='7', mandatory=False, type=DTypeIntegerUnsigned(name='uint8', description=None, reference=None, exts=[], builtin_type='uint8', default=None, ranges=Ranges([(1, 9)]))),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='rekey-after-bytes', config=True, description='Rekey after this many bytes have passed over the session. Absent\nmeans the RFC 4344 volume limit of the negotiated cipher. A value\ncan only lower that limit, never raise it.', mandatory=False, type=DTypeIntegerUnsigned(name='uint64', description=None, reference=None, exts=[], builtin_type='uint64', default=None, ranges=Ranges([(0, 18446744073709551615)]))),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='rekey-after-seconds', config=True, description='Rekey after this many seconds. Absent disables time-based rekeying.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(0, 4294967)]))),
+    DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='minimum-rsa-bits', config=True, description='Reject RSA host and public keys shorter than this.', default='1024', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(1024, 2147483647)])))
+])
 
-SRC_DNODE_CHILD_20: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='mock', config=True, presence=False, children=[
+SRC_DNODE_CHILD_21: DLeaf = DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='approval-required', config=True, description='Require approval of each individual configuration change to this device', default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
+
+SRC_DNODE_CHILD_22: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='mock', config=True, presence=False, children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='enabled', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None)),
     DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='module', key=['name'], config=True, min_elements=0, ordered_by='system', children=[
         DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='name', config=True, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
@@ -134,21 +160,21 @@ SRC_DNODE_CHILD_20: DContainer = DContainer(module='fleetmgr', namespace='urn:fl
     ])
 ])
 
-SRC_DNODE_CHILD_21: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='debug', config=True, presence=False, children=[
+SRC_DNODE_CHILD_23: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='debug', config=True, presence=False, children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='connection', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
 ])
 
-SRC_DNODE_CHILD_22: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='feature-flags', config=True, presence=False, children=[
+SRC_DNODE_CHILD_24: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='feature-flags', config=True, presence=False, children=[
     DLeaf(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='runtime-schema-fetch', config=True, default='false', mandatory=False, type=DTypeBoolean(name='boolean', description=None, reference=None, exts=[], builtin_type='boolean', default=None))
 ])
 
-SRC_DNODE_CHILD_11: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
+SRC_DNODE_CHILD_12: DList = DList(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='device', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
         DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='fleetmgr.cfs.Device', exts=[])
-    ], children=[SRC_DNODE_CHILD_12, SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15, SRC_DNODE_CHILD_16, SRC_DNODE_CHILD_17, SRC_DNODE_CHILD_18, SRC_DNODE_CHILD_19, SRC_DNODE_CHILD_20, SRC_DNODE_CHILD_21, SRC_DNODE_CHILD_22])
+    ], children=[SRC_DNODE_CHILD_13, SRC_DNODE_CHILD_14, SRC_DNODE_CHILD_15, SRC_DNODE_CHILD_16, SRC_DNODE_CHILD_17, SRC_DNODE_CHILD_18, SRC_DNODE_CHILD_19, SRC_DNODE_CHILD_20, SRC_DNODE_CHILD_21, SRC_DNODE_CHILD_22, SRC_DNODE_CHILD_23, SRC_DNODE_CHILD_24])
 
-SRC_DNODE_CHILD_0: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='fleet', config=True, presence=False, children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_11])
+SRC_DNODE_CHILD_0: DContainer = DContainer(module='fleetmgr', namespace='urn:fleetmgr:fleetmgr', prefix='fleetmgr', name='fleet', config=True, presence=False, children=[SRC_DNODE_CHILD_1, SRC_DNODE_CHILD_12])
 
-SRC_DNODE_CHILD_23: DContainer = DContainer(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='software', config=True, presence=False, children=[
+SRC_DNODE_CHILD_25: DContainer = DContainer(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='software', config=True, presence=False, children=[
     DList(module='software', namespace='urn:fleetmgr:software', prefix='sw-cfs', name='upgrade-campaign', key=['name'], config=True, min_elements=0, ordered_by='system', exts=[
             DExt(module='stratoweave', namespace='http://stratoweave.org/yang/stratoweave', prefix='sw', name='transform', arg='fleetmgr.cfs.UpgradeCampaign', exts=[])
         ], children=[
@@ -166,10 +192,10 @@ SRC_DNODE_CHILD_23: DContainer = DContainer(module='software', namespace='urn:fl
 ])
 
 SRC_DNODE: DRoot = DRoot(
-    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_23],
+    children=[SRC_DNODE_CHILD_0, SRC_DNODE_CHILD_25],
     identities=[],
     rpcs=[],
-    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'urn:fleetmgr:types':('fleetmgr-types', None), 'urn:fleetmgr:fleetmgr':('fleetmgr', None), 'urn:fleetmgr:software':('software', None)},
+    module_metadata={'urn:ietf:params:xml:ns:yang:ietf-inet-types':('ietf-inet-types', '2013-07-15'), 'http://stratoweave.org/yang/stratoweave-ssh':('stratoweave-ssh', None), 'http://stratoweave.org/yang/stratoweave':('stratoweave', '2026-04-01'), 'urn:fleetmgr:types':('fleetmgr-types', None), 'urn:fleetmgr:fleetmgr':('fleetmgr', None), 'urn:fleetmgr:software':('software', None)},
 )
 
 SRC_YANG_0: str = r"""module fleetmgr {
@@ -319,6 +345,9 @@ SRC_YANG_2: str = r"""module fleetmgr-types {
   import ietf-inet-types {
     prefix inet;
   }
+  import stratoweave-ssh {
+    prefix sw-ssh;
+  }
 
   grouping device-options {
     leaf description {
@@ -382,6 +411,13 @@ SRC_YANG_2: str = r"""module fleetmgr-types {
       leaf key {
         type string;
       }
+    }
+
+    container ssh {
+      description
+        "SSH transport parameters used when connecting to this device. Applies
+         to every SSH-based adapter (NETCONF over SSH, CLI, ...).";
+      uses sw-ssh:ssh-client-config;
     }
 
     leaf approval-required {
@@ -520,7 +556,220 @@ SRC_YANG_3: str = r"""module stratoweave {
   }
 }"""
 
-SRC_YANG_4: str = r"""module ietf-inet-types {
+SRC_YANG_4: str = r"""module stratoweave-ssh {
+  yang-version "1.1";
+  namespace "http://stratoweave.org/yang/stratoweave-ssh";
+  prefix "sw-ssh";
+
+  description "Reusable SSH client transport types and groupings.";
+
+  typedef ssh-cipher {
+    type enumeration {
+      enum "chacha20-poly1305@openssh.com";
+      enum "aes256-gcm@openssh.com";
+      enum "aes128-gcm@openssh.com";
+      enum "aes256-ctr";
+      enum "aes192-ctr";
+      enum "aes128-ctr";
+      enum "aes256-cbc";
+      enum "aes192-cbc";
+      enum "aes128-cbc";
+      enum "3des-cbc";
+      enum "none";
+    }
+    description
+      "Symmetric cipher, as negotiated in the SSH transport protocol.";
+  }
+
+  typedef ssh-mac {
+    type enumeration {
+      enum "hmac-sha2-256-etm@openssh.com";
+      enum "hmac-sha2-512-etm@openssh.com";
+      enum "hmac-sha1-etm@openssh.com";
+      enum "hmac-sha2-256";
+      enum "hmac-sha2-512";
+      enum "hmac-sha1";
+      enum "none";
+    }
+    description
+      "Message authentication code, as negotiated in the SSH transport
+     protocol. Not used with AEAD ciphers, which authenticate themselves.";
+  }
+
+  typedef ssh-key-exchange {
+    type enumeration {
+      enum "diffie-hellman-group-exchange-sha1";
+      enum "mlkem768x25519-sha256";
+      enum "mlkem768nistp256-sha256";
+      enum "sntrup761x25519-sha512";
+      enum "sntrup761x25519-sha512@openssh.com";
+      enum "curve25519-sha256";
+      enum "curve25519-sha256@libssh.org";
+      enum "ecdh-sha2-nistp256";
+      enum "ecdh-sha2-nistp384";
+      enum "ecdh-sha2-nistp521";
+      enum "diffie-hellman-group18-sha512";
+      enum "diffie-hellman-group16-sha512";
+      enum "diffie-hellman-group-exchange-sha256";
+      enum "diffie-hellman-group14-sha256";
+      enum "diffie-hellman-group14-sha1";
+      enum "diffie-hellman-group1-sha1";
+    }
+    description
+      "Key exchange algorithm, as negotiated in the SSH transport protocol.";
+  }
+
+  typedef ssh-host-key-algorithm {
+    type enumeration {
+      enum "ssh-ed25519-cert-v01@openssh.com";
+      enum "sk-ssh-ed25519-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "rsa-sha2-512-cert-v01@openssh.com";
+      enum "rsa-sha2-256-cert-v01@openssh.com";
+      enum "ssh-rsa-cert-v01@openssh.com";
+      enum "ssh-ed25519";
+      enum "ecdsa-sha2-nistp521";
+      enum "ecdsa-sha2-nistp384";
+      enum "ecdsa-sha2-nistp256";
+      enum "sk-ssh-ed25519@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256@openssh.com";
+      enum "rsa-sha2-512";
+      enum "rsa-sha2-256";
+      enum "ssh-rsa";
+    }
+    description
+      "Server host key algorithm, i.e. the key type we are willing to accept
+     from the far end and verify the session signature with.";
+  }
+
+  typedef ssh-public-key-algorithm {
+    type enumeration {
+      enum "ssh-ed25519-cert-v01@openssh.com";
+      enum "sk-ssh-ed25519-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp521-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp384-cert-v01@openssh.com";
+      enum "ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com";
+      enum "rsa-sha2-512-cert-v01@openssh.com";
+      enum "rsa-sha2-256-cert-v01@openssh.com";
+      enum "ssh-rsa-cert-v01@openssh.com";
+      enum "ssh-ed25519";
+      enum "ecdsa-sha2-nistp521";
+      enum "ecdsa-sha2-nistp384";
+      enum "ecdsa-sha2-nistp256";
+      enum "sk-ssh-ed25519@openssh.com";
+      enum "sk-ecdsa-sha2-nistp256@openssh.com";
+      enum "rsa-sha2-512";
+      enum "rsa-sha2-256";
+      enum "ssh-rsa";
+    }
+    description
+      "Public key algorithm offered during publickey authentication.";
+  }
+
+  typedef ssh-compression-algorithm {
+    type enumeration {
+      enum "none";
+      enum "zlib@openssh.com";
+      enum "zlib";
+    }
+    description
+      "Transport compression algorithm.";
+  }
+
+  grouping ssh-client-config {
+    description
+      "SSH client transport parameters, shared by every adapter that talks to
+       a device over SSH (NETCONF, CLI, ...). Each algorithm leaf-list is the
+       ordered preference list sent in the SSH key exchange; leaving one empty
+       means the SSH library picks its own default set.";
+
+    leaf-list cipher {
+      description
+        "Symmetric ciphers to offer, most preferred first.";
+      type sw-ssh:ssh-cipher;
+      ordered-by user;
+    }
+
+    leaf-list mac {
+      description
+        "MAC algorithms to offer, most preferred first.";
+      type sw-ssh:ssh-mac;
+      ordered-by user;
+    }
+
+    leaf-list key-exchange {
+      description
+        "Key exchange algorithms to offer, most preferred first.";
+      type sw-ssh:ssh-key-exchange;
+      ordered-by user;
+    }
+
+    leaf-list host-key-algorithm {
+      description
+        "Server host key algorithms to accept, most preferred first. This is
+         what decides which host key type the device presents.";
+      type sw-ssh:ssh-host-key-algorithm;
+      ordered-by user;
+    }
+
+    leaf-list public-key-algorithm {
+      description
+        "Public key algorithms to offer for publickey authentication, most
+         preferred first.";
+      type sw-ssh:ssh-public-key-algorithm;
+      ordered-by user;
+    }
+
+    leaf-list compression-algorithm {
+      description
+        "Compression algorithms to offer, most preferred first. 'none' first
+         disables compression against peers that also offer it.";
+      type sw-ssh:ssh-compression-algorithm;
+      ordered-by user;
+    }
+
+    leaf compression-level {
+      description
+        "zlib compression level, 1 (fastest) to 9 (smallest). Only relevant
+         when a zlib compression algorithm is negotiated.";
+      type uint8 {
+        range "1..9";
+      }
+      default 7;
+    }
+
+    leaf rekey-after-bytes {
+      description
+        "Rekey after this many bytes have passed over the session. Absent
+         means the RFC 4344 volume limit of the negotiated cipher. A value
+         can only lower that limit, never raise it.";
+      type uint64;
+    }
+
+    leaf rekey-after-seconds {
+      description
+        "Rekey after this many seconds. Absent disables time-based rekeying.";
+      type uint32 {
+        range "0..4294967";
+      }
+    }
+
+    leaf minimum-rsa-bits {
+      description
+        "Reject RSA host and public keys shorter than this.";
+      type uint32 {
+        range "1024..2147483647";
+      }
+      default 1024;
+    }
+  }
+}"""
+
+SRC_YANG_5: str = r"""module ietf-inet-types {
 
   namespace "urn:ietf:params:xml:ns:yang:ietf-inet-types";
   prefix "inet";
@@ -987,10 +1236,12 @@ pure def src_yang() -> list[str]:
         SRC_YANG_2,
         SRC_YANG_3,
         SRC_YANG_4,
+        SRC_YANG_5,
     ]
 
 
 NS_stratoweave: str = 'http://stratoweave.org/yang/stratoweave'
+NS_stratoweave_ssh: str = 'http://stratoweave.org/yang/stratoweave-ssh'
 NS_fleetmgr: str = 'urn:fleetmgr:fleetmgr'
 NS_software: str = 'urn:fleetmgr:software'
 NS_fleetmgr_types: str = 'urn:fleetmgr:types'
@@ -1022,7 +1273,7 @@ class fleetmgr__fleet__node__address__initial_credentials_entry(yadata.MNode):
 _breaker2: None = None
 class fleetmgr__fleet__node__address__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), fleetmgr__fleet__node__address__initial_credentials_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__node__address__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> fleetmgr__fleet__node__address__initial_credentials_entry:
         e = self.get(key_)
@@ -1030,7 +1281,7 @@ class fleetmgr__fleet__node__address__initial_credentials(yadata.MKeyedList[(use
             return e
         (username=username, password=password, key=key) = key_
         res = fleetmgr__fleet__node__address__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1077,7 +1328,7 @@ class fleetmgr__fleet__node__address_entry(yadata.MNode):
 _breaker4: None = None
 class fleetmgr__fleet__node__address(yadata.MKeyedList[str, fleetmgr__fleet__node__address_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__node__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, address: ?str=None, port: ?u64=None) -> fleetmgr__fleet__node__address_entry:
         e = self.get(key)
@@ -1089,7 +1340,7 @@ class fleetmgr__fleet__node__address(yadata.MKeyedList[str, fleetmgr__fleet__nod
             return e
         name = key
         res = fleetmgr__fleet__node__address_entry(name=name, address=address, port=port)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1132,7 +1383,7 @@ class fleetmgr__fleet__node__credentials__key_entry(yadata.MNode):
 _breaker6: None = None
 class fleetmgr__fleet__node__credentials__key(yadata.MKeyedList[str, fleetmgr__fleet__node__credentials__key_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__node__credentials__key_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.key == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.key, elements)
 
     mut def create(self, key_: str, private_key: ?str=None) -> fleetmgr__fleet__node__credentials__key_entry:
         e = self.get(key_)
@@ -1142,7 +1393,7 @@ class fleetmgr__fleet__node__credentials__key(yadata.MKeyedList[str, fleetmgr__f
             return e
         key = key_
         res = fleetmgr__fleet__node__credentials__key_entry(key=key, private_key=private_key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1212,7 +1463,7 @@ class fleetmgr__fleet__node__initial_credentials_entry(yadata.MNode):
 _breaker9: None = None
 class fleetmgr__fleet__node__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), fleetmgr__fleet__node__initial_credentials_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__node__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> fleetmgr__fleet__node__initial_credentials_entry:
         e = self.get(key_)
@@ -1220,7 +1471,7 @@ class fleetmgr__fleet__node__initial_credentials(yadata.MKeyedList[(username: st
             return e
         (username=username, password=password, key=key) = key_
         res = fleetmgr__fleet__node__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1241,6 +1492,45 @@ class fleetmgr__fleet__node__initial_credentials(yadata.MKeyedList[(username: st
 
 
 _breaker10: None = None
+class fleetmgr__fleet__node__ssh(yadata.MNode):
+    cipher: list[str]
+    mac: list[str]
+    key_exchange: list[str]
+    host_key_algorithm: list[str]
+    public_key_algorithm: list[str]
+    compression_algorithm: list[str]
+    compression_level: ?u64
+    rekey_after_bytes: ?u64
+    rekey_after_seconds: ?u64
+    minimum_rsa_bits: ?u64
+
+    mut def __init__(self, cipher: ?list[str]=None, mac: ?list[str]=None, key_exchange: ?list[str]=None, host_key_algorithm: ?list[str]=None, public_key_algorithm: ?list[str]=None, compression_algorithm: ?list[str]=None, compression_level: ?u64, rekey_after_bytes: ?u64, rekey_after_seconds: ?u64, minimum_rsa_bits: ?u64) -> None:
+        self.cipher = cipher if cipher is not None else []
+        self.mac = mac if mac is not None else []
+        self.key_exchange = key_exchange if key_exchange is not None else []
+        self.host_key_algorithm = host_key_algorithm if host_key_algorithm is not None else []
+        self.public_key_algorithm = public_key_algorithm if public_key_algorithm is not None else []
+        self.compression_algorithm = compression_algorithm if compression_algorithm is not None else []
+        self.compression_level = compression_level
+        self.rekey_after_bytes = rekey_after_bytes
+        self.rekey_after_seconds = rekey_after_seconds
+        self.minimum_rsa_bits = minimum_rsa_bits
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['fleetmgr:fleet', 'node', 'ssh'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> fleetmgr__fleet__node__ssh:
+        if n is not None:
+            return fleetmgr__fleet__node__ssh(cipher=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'cipher')), mac=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'mac')), key_exchange=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'key-exchange')), host_key_algorithm=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'host-key-algorithm')), public_key_algorithm=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'public-key-algorithm')), compression_algorithm=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'compression-algorithm')), compression_level=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'compression-level')), rekey_after_bytes=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'rekey-after-bytes')), rekey_after_seconds=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'rekey-after-seconds')), minimum_rsa_bits=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'minimum-rsa-bits')))
+        return fleetmgr__fleet__node__ssh()
+
+    mut def copy(self) -> fleetmgr__fleet__node__ssh:
+        """Create a deep copy of this adata object"""
+        return fleetmgr__fleet__node__ssh.from_gdata(self.to_gdata())
+
+
+_breaker11: None = None
 class fleetmgr__fleet__node__mock__module_entry(yadata.MNode):
     name: str
     namespace: ?str
@@ -1264,10 +1554,10 @@ class fleetmgr__fleet__node__mock__module_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__node__mock__module_entry.from_gdata(self.to_gdata())
 
-_breaker11: None = None
+_breaker12: None = None
 class fleetmgr__fleet__node__mock__module(yadata.MKeyedList[str, fleetmgr__fleet__node__mock__module_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__node__mock__module_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, namespace: ?str=None, revision: ?str=None) -> fleetmgr__fleet__node__mock__module_entry:
         e = self.get(key)
@@ -1279,7 +1569,7 @@ class fleetmgr__fleet__node__mock__module(yadata.MKeyedList[str, fleetmgr__fleet
             return e
         name = key
         res = fleetmgr__fleet__node__mock__module_entry(name=name, namespace=namespace, revision=revision)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1299,7 +1589,7 @@ class fleetmgr__fleet__node__mock__module(yadata.MKeyedList[str, fleetmgr__fleet
         return fleetmgr__fleet__node__mock__module(elements=copied_elements)
 
 
-_breaker12: None = None
+_breaker13: None = None
 class fleetmgr__fleet__node__mock(yadata.MNode):
     enabled: ?bool
     module: fleetmgr__fleet__node__mock__module
@@ -1322,7 +1612,7 @@ class fleetmgr__fleet__node__mock(yadata.MNode):
         return fleetmgr__fleet__node__mock.from_gdata(self.to_gdata())
 
 
-_breaker13: None = None
+_breaker14: None = None
 class fleetmgr__fleet__node__debug(yadata.MNode):
     connection: ?bool
 
@@ -1343,7 +1633,7 @@ class fleetmgr__fleet__node__debug(yadata.MNode):
         return fleetmgr__fleet__node__debug.from_gdata(self.to_gdata())
 
 
-_breaker14: None = None
+_breaker15: None = None
 class fleetmgr__fleet__node__feature_flags(yadata.MNode):
     runtime_schema_fetch: ?bool
 
@@ -1364,24 +1654,26 @@ class fleetmgr__fleet__node__feature_flags(yadata.MNode):
         return fleetmgr__fleet__node__feature_flags.from_gdata(self.to_gdata())
 
 
-_breaker15: None = None
+_breaker16: None = None
 class fleetmgr__fleet__node_entry(yadata.MNode):
     name: str
     description: ?str
     address: fleetmgr__fleet__node__address
     credentials: fleetmgr__fleet__node__credentials
     initial_credentials: fleetmgr__fleet__node__initial_credentials
+    ssh: fleetmgr__fleet__node__ssh
     approval_required: ?bool
     mock: fleetmgr__fleet__node__mock
     debug: fleetmgr__fleet__node__debug
     feature_flags: fleetmgr__fleet__node__feature_flags
 
-    mut def __init__(self, name: str, description: ?str, address: list[fleetmgr__fleet__node__address_entry]=[], credentials: ?fleetmgr__fleet__node__credentials=None, initial_credentials: list[fleetmgr__fleet__node__initial_credentials_entry]=[], approval_required: ?bool, mock: ?fleetmgr__fleet__node__mock=None, debug: ?fleetmgr__fleet__node__debug=None, feature_flags: ?fleetmgr__fleet__node__feature_flags=None) -> None:
+    mut def __init__(self, name: str, description: ?str, address: list[fleetmgr__fleet__node__address_entry]=[], credentials: ?fleetmgr__fleet__node__credentials=None, initial_credentials: list[fleetmgr__fleet__node__initial_credentials_entry]=[], ssh: ?fleetmgr__fleet__node__ssh=None, approval_required: ?bool, mock: ?fleetmgr__fleet__node__mock=None, debug: ?fleetmgr__fleet__node__debug=None, feature_flags: ?fleetmgr__fleet__node__feature_flags=None) -> None:
         self.name = name
         self.description = description
         self.address = fleetmgr__fleet__node__address(elements=address)
         self.credentials = credentials if credentials is not None else fleetmgr__fleet__node__credentials()
         self.initial_credentials = fleetmgr__fleet__node__initial_credentials(elements=initial_credentials)
+        self.ssh = ssh if ssh is not None else fleetmgr__fleet__node__ssh()
         self.approval_required = approval_required
         self.mock = mock if mock is not None else fleetmgr__fleet__node__mock()
         self.debug = debug if debug is not None else fleetmgr__fleet__node__debug()
@@ -1392,16 +1684,16 @@ class fleetmgr__fleet__node_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> fleetmgr__fleet__node_entry:
-        return fleetmgr__fleet__node_entry(name=n.get_str(ygdata.Id(NS_fleetmgr, 'name')), description=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'description')), address=fleetmgr__fleet__node__address.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'address'))), credentials=fleetmgr__fleet__node__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'credentials'))), initial_credentials=fleetmgr__fleet__node__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_fleetmgr, 'approval-required')), mock=fleetmgr__fleet__node__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'mock'))), debug=fleetmgr__fleet__node__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'debug'))), feature_flags=fleetmgr__fleet__node__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'feature-flags'))))
+        return fleetmgr__fleet__node_entry(name=n.get_str(ygdata.Id(NS_fleetmgr, 'name')), description=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'description')), address=fleetmgr__fleet__node__address.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'address'))), credentials=fleetmgr__fleet__node__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'credentials'))), initial_credentials=fleetmgr__fleet__node__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'initial-credentials'))), ssh=fleetmgr__fleet__node__ssh.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'ssh'))), approval_required=n.get_opt_bool(ygdata.Id(NS_fleetmgr, 'approval-required')), mock=fleetmgr__fleet__node__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'mock'))), debug=fleetmgr__fleet__node__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'debug'))), feature_flags=fleetmgr__fleet__node__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'feature-flags'))))
 
     mut def copy(self) -> fleetmgr__fleet__node_entry:
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__node_entry.from_gdata(self.to_gdata())
 
-_breaker16: None = None
+_breaker17: None = None
 class fleetmgr__fleet__node(yadata.MKeyedList[str, fleetmgr__fleet__node_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__node_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, description: ?str=None, approval_required: ?bool=None) -> fleetmgr__fleet__node_entry:
         e = self.get(key)
@@ -1413,7 +1705,7 @@ class fleetmgr__fleet__node(yadata.MKeyedList[str, fleetmgr__fleet__node_entry])
             return e
         name = key
         res = fleetmgr__fleet__node_entry(name=name, description=description, approval_required=approval_required)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1433,7 +1725,7 @@ class fleetmgr__fleet__node(yadata.MKeyedList[str, fleetmgr__fleet__node_entry])
         return fleetmgr__fleet__node(elements=copied_elements)
 
 
-_breaker17: None = None
+_breaker18: None = None
 class fleetmgr__fleet__device__address__initial_credentials_entry(yadata.MNode):
     username: str
     password: str
@@ -1455,10 +1747,10 @@ class fleetmgr__fleet__device__address__initial_credentials_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__device__address__initial_credentials_entry.from_gdata(self.to_gdata())
 
-_breaker18: None = None
+_breaker19: None = None
 class fleetmgr__fleet__device__address__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), fleetmgr__fleet__device__address__initial_credentials_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__device__address__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> fleetmgr__fleet__device__address__initial_credentials_entry:
         e = self.get(key_)
@@ -1466,7 +1758,7 @@ class fleetmgr__fleet__device__address__initial_credentials(yadata.MKeyedList[(u
             return e
         (username=username, password=password, key=key) = key_
         res = fleetmgr__fleet__device__address__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1486,7 +1778,7 @@ class fleetmgr__fleet__device__address__initial_credentials(yadata.MKeyedList[(u
         return fleetmgr__fleet__device__address__initial_credentials(elements=copied_elements)
 
 
-_breaker19: None = None
+_breaker20: None = None
 class fleetmgr__fleet__device__address_entry(yadata.MNode):
     name: str
     address: ?str
@@ -1510,10 +1802,10 @@ class fleetmgr__fleet__device__address_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__device__address_entry.from_gdata(self.to_gdata())
 
-_breaker20: None = None
+_breaker21: None = None
 class fleetmgr__fleet__device__address(yadata.MKeyedList[str, fleetmgr__fleet__device__address_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__device__address_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, address: ?str=None, port: ?u64=None) -> fleetmgr__fleet__device__address_entry:
         e = self.get(key)
@@ -1525,7 +1817,7 @@ class fleetmgr__fleet__device__address(yadata.MKeyedList[str, fleetmgr__fleet__d
             return e
         name = key
         res = fleetmgr__fleet__device__address_entry(name=name, address=address, port=port)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1545,7 +1837,7 @@ class fleetmgr__fleet__device__address(yadata.MKeyedList[str, fleetmgr__fleet__d
         return fleetmgr__fleet__device__address(elements=copied_elements)
 
 
-_breaker21: None = None
+_breaker22: None = None
 class fleetmgr__fleet__device__credentials__key_entry(yadata.MNode):
     key: str
     private_key: ?str
@@ -1565,10 +1857,10 @@ class fleetmgr__fleet__device__credentials__key_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__device__credentials__key_entry.from_gdata(self.to_gdata())
 
-_breaker22: None = None
+_breaker23: None = None
 class fleetmgr__fleet__device__credentials__key(yadata.MKeyedList[str, fleetmgr__fleet__device__credentials__key_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__device__credentials__key_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.key == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.key, elements)
 
     mut def create(self, key_: str, private_key: ?str=None) -> fleetmgr__fleet__device__credentials__key_entry:
         e = self.get(key_)
@@ -1578,7 +1870,7 @@ class fleetmgr__fleet__device__credentials__key(yadata.MKeyedList[str, fleetmgr_
             return e
         key = key_
         res = fleetmgr__fleet__device__credentials__key_entry(key=key, private_key=private_key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1598,7 +1890,7 @@ class fleetmgr__fleet__device__credentials__key(yadata.MKeyedList[str, fleetmgr_
         return fleetmgr__fleet__device__credentials__key(elements=copied_elements)
 
 
-_breaker23: None = None
+_breaker24: None = None
 class fleetmgr__fleet__device__credentials(yadata.MNode):
     username: ?str
     password: ?str
@@ -1623,7 +1915,7 @@ class fleetmgr__fleet__device__credentials(yadata.MNode):
         return fleetmgr__fleet__device__credentials.from_gdata(self.to_gdata())
 
 
-_breaker24: None = None
+_breaker25: None = None
 class fleetmgr__fleet__device__initial_credentials_entry(yadata.MNode):
     username: str
     password: str
@@ -1645,10 +1937,10 @@ class fleetmgr__fleet__device__initial_credentials_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__device__initial_credentials_entry.from_gdata(self.to_gdata())
 
-_breaker25: None = None
+_breaker26: None = None
 class fleetmgr__fleet__device__initial_credentials(yadata.MKeyedList[(username: str, password: str, key: str), fleetmgr__fleet__device__initial_credentials_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__device__initial_credentials_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.username == k.username and e.password == k.password and e.key == k.key, elements)
+        yadata.MKeyedList.__init__(self, lambda e: (username=e.username, password=e.password, key=e.key), elements)
 
     mut def create(self, key_: (username: str, password: str, key: str)) -> fleetmgr__fleet__device__initial_credentials_entry:
         e = self.get(key_)
@@ -1656,7 +1948,7 @@ class fleetmgr__fleet__device__initial_credentials(yadata.MKeyedList[(username: 
             return e
         (username=username, password=password, key=key) = key_
         res = fleetmgr__fleet__device__initial_credentials_entry(username=username, password=password, key=key)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1676,7 +1968,46 @@ class fleetmgr__fleet__device__initial_credentials(yadata.MKeyedList[(username: 
         return fleetmgr__fleet__device__initial_credentials(elements=copied_elements)
 
 
-_breaker26: None = None
+_breaker27: None = None
+class fleetmgr__fleet__device__ssh(yadata.MNode):
+    cipher: list[str]
+    mac: list[str]
+    key_exchange: list[str]
+    host_key_algorithm: list[str]
+    public_key_algorithm: list[str]
+    compression_algorithm: list[str]
+    compression_level: ?u64
+    rekey_after_bytes: ?u64
+    rekey_after_seconds: ?u64
+    minimum_rsa_bits: ?u64
+
+    mut def __init__(self, cipher: ?list[str]=None, mac: ?list[str]=None, key_exchange: ?list[str]=None, host_key_algorithm: ?list[str]=None, public_key_algorithm: ?list[str]=None, compression_algorithm: ?list[str]=None, compression_level: ?u64, rekey_after_bytes: ?u64, rekey_after_seconds: ?u64, minimum_rsa_bits: ?u64) -> None:
+        self.cipher = cipher if cipher is not None else []
+        self.mac = mac if mac is not None else []
+        self.key_exchange = key_exchange if key_exchange is not None else []
+        self.host_key_algorithm = host_key_algorithm if host_key_algorithm is not None else []
+        self.public_key_algorithm = public_key_algorithm if public_key_algorithm is not None else []
+        self.compression_algorithm = compression_algorithm if compression_algorithm is not None else []
+        self.compression_level = compression_level
+        self.rekey_after_bytes = rekey_after_bytes
+        self.rekey_after_seconds = rekey_after_seconds
+        self.minimum_rsa_bits = minimum_rsa_bits
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['fleetmgr:fleet', 'device', 'ssh'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> fleetmgr__fleet__device__ssh:
+        if n is not None:
+            return fleetmgr__fleet__device__ssh(cipher=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'cipher')), mac=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'mac')), key_exchange=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'key-exchange')), host_key_algorithm=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'host-key-algorithm')), public_key_algorithm=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'public-key-algorithm')), compression_algorithm=n.get_opt_strs(ygdata.Id(NS_fleetmgr, 'compression-algorithm')), compression_level=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'compression-level')), rekey_after_bytes=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'rekey-after-bytes')), rekey_after_seconds=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'rekey-after-seconds')), minimum_rsa_bits=n.get_opt_u64(ygdata.Id(NS_fleetmgr, 'minimum-rsa-bits')))
+        return fleetmgr__fleet__device__ssh()
+
+    mut def copy(self) -> fleetmgr__fleet__device__ssh:
+        """Create a deep copy of this adata object"""
+        return fleetmgr__fleet__device__ssh.from_gdata(self.to_gdata())
+
+
+_breaker28: None = None
 class fleetmgr__fleet__device__mock__module_entry(yadata.MNode):
     name: str
     namespace: ?str
@@ -1700,10 +2031,10 @@ class fleetmgr__fleet__device__mock__module_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__device__mock__module_entry.from_gdata(self.to_gdata())
 
-_breaker27: None = None
+_breaker29: None = None
 class fleetmgr__fleet__device__mock__module(yadata.MKeyedList[str, fleetmgr__fleet__device__mock__module_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__device__mock__module_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, namespace: ?str=None, revision: ?str=None) -> fleetmgr__fleet__device__mock__module_entry:
         e = self.get(key)
@@ -1715,7 +2046,7 @@ class fleetmgr__fleet__device__mock__module(yadata.MKeyedList[str, fleetmgr__fle
             return e
         name = key
         res = fleetmgr__fleet__device__mock__module_entry(name=name, namespace=namespace, revision=revision)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1735,7 +2066,7 @@ class fleetmgr__fleet__device__mock__module(yadata.MKeyedList[str, fleetmgr__fle
         return fleetmgr__fleet__device__mock__module(elements=copied_elements)
 
 
-_breaker28: None = None
+_breaker30: None = None
 class fleetmgr__fleet__device__mock(yadata.MNode):
     enabled: ?bool
     module: fleetmgr__fleet__device__mock__module
@@ -1758,7 +2089,7 @@ class fleetmgr__fleet__device__mock(yadata.MNode):
         return fleetmgr__fleet__device__mock.from_gdata(self.to_gdata())
 
 
-_breaker29: None = None
+_breaker31: None = None
 class fleetmgr__fleet__device__debug(yadata.MNode):
     connection: ?bool
 
@@ -1779,7 +2110,7 @@ class fleetmgr__fleet__device__debug(yadata.MNode):
         return fleetmgr__fleet__device__debug.from_gdata(self.to_gdata())
 
 
-_breaker30: None = None
+_breaker32: None = None
 class fleetmgr__fleet__device__feature_flags(yadata.MNode):
     runtime_schema_fetch: ?bool
 
@@ -1800,7 +2131,7 @@ class fleetmgr__fleet__device__feature_flags(yadata.MNode):
         return fleetmgr__fleet__device__feature_flags.from_gdata(self.to_gdata())
 
 
-_breaker31: None = None
+_breaker33: None = None
 class fleetmgr__fleet__device_entry(yadata.MNode):
     name: str
     type: ?str
@@ -1809,12 +2140,13 @@ class fleetmgr__fleet__device_entry(yadata.MNode):
     address: fleetmgr__fleet__device__address
     credentials: fleetmgr__fleet__device__credentials
     initial_credentials: fleetmgr__fleet__device__initial_credentials
+    ssh: fleetmgr__fleet__device__ssh
     approval_required: ?bool
     mock: fleetmgr__fleet__device__mock
     debug: fleetmgr__fleet__device__debug
     feature_flags: fleetmgr__fleet__device__feature_flags
 
-    mut def __init__(self, name: str, type: ?str, shard: ?str, description: ?str, address: list[fleetmgr__fleet__device__address_entry]=[], credentials: ?fleetmgr__fleet__device__credentials=None, initial_credentials: list[fleetmgr__fleet__device__initial_credentials_entry]=[], approval_required: ?bool, mock: ?fleetmgr__fleet__device__mock=None, debug: ?fleetmgr__fleet__device__debug=None, feature_flags: ?fleetmgr__fleet__device__feature_flags=None) -> None:
+    mut def __init__(self, name: str, type: ?str, shard: ?str, description: ?str, address: list[fleetmgr__fleet__device__address_entry]=[], credentials: ?fleetmgr__fleet__device__credentials=None, initial_credentials: list[fleetmgr__fleet__device__initial_credentials_entry]=[], ssh: ?fleetmgr__fleet__device__ssh=None, approval_required: ?bool, mock: ?fleetmgr__fleet__device__mock=None, debug: ?fleetmgr__fleet__device__debug=None, feature_flags: ?fleetmgr__fleet__device__feature_flags=None) -> None:
         self.name = name
         self.type = type
         self.shard = shard
@@ -1822,6 +2154,7 @@ class fleetmgr__fleet__device_entry(yadata.MNode):
         self.address = fleetmgr__fleet__device__address(elements=address)
         self.credentials = credentials if credentials is not None else fleetmgr__fleet__device__credentials()
         self.initial_credentials = fleetmgr__fleet__device__initial_credentials(elements=initial_credentials)
+        self.ssh = ssh if ssh is not None else fleetmgr__fleet__device__ssh()
         self.approval_required = approval_required
         self.mock = mock if mock is not None else fleetmgr__fleet__device__mock()
         self.debug = debug if debug is not None else fleetmgr__fleet__device__debug()
@@ -1832,16 +2165,16 @@ class fleetmgr__fleet__device_entry(yadata.MNode):
 
     @staticmethod
     mut def from_gdata(n: ygdata.Node) -> fleetmgr__fleet__device_entry:
-        return fleetmgr__fleet__device_entry(name=n.get_str(ygdata.Id(NS_fleetmgr, 'name')), type=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'type')), shard=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'shard')), description=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'description')), address=fleetmgr__fleet__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'address'))), credentials=fleetmgr__fleet__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'credentials'))), initial_credentials=fleetmgr__fleet__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'initial-credentials'))), approval_required=n.get_opt_bool(ygdata.Id(NS_fleetmgr, 'approval-required')), mock=fleetmgr__fleet__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'mock'))), debug=fleetmgr__fleet__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'debug'))), feature_flags=fleetmgr__fleet__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'feature-flags'))))
+        return fleetmgr__fleet__device_entry(name=n.get_str(ygdata.Id(NS_fleetmgr, 'name')), type=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'type')), shard=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'shard')), description=n.get_opt_str(ygdata.Id(NS_fleetmgr, 'description')), address=fleetmgr__fleet__device__address.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'address'))), credentials=fleetmgr__fleet__device__credentials.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'credentials'))), initial_credentials=fleetmgr__fleet__device__initial_credentials.from_gdata(n.get_opt_list(ygdata.Id(NS_fleetmgr, 'initial-credentials'))), ssh=fleetmgr__fleet__device__ssh.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'ssh'))), approval_required=n.get_opt_bool(ygdata.Id(NS_fleetmgr, 'approval-required')), mock=fleetmgr__fleet__device__mock.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'mock'))), debug=fleetmgr__fleet__device__debug.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'debug'))), feature_flags=fleetmgr__fleet__device__feature_flags.from_gdata(n.get_opt_cnt(ygdata.Id(NS_fleetmgr, 'feature-flags'))))
 
     mut def copy(self) -> fleetmgr__fleet__device_entry:
         """Create a deep copy of this adata object"""
         return fleetmgr__fleet__device_entry.from_gdata(self.to_gdata())
 
-_breaker32: None = None
+_breaker34: None = None
 class fleetmgr__fleet__device(yadata.MKeyedList[str, fleetmgr__fleet__device_entry]):
     mut def __init__(self, elements: list[fleetmgr__fleet__device_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, type: ?str=None, shard: ?str=None, description: ?str=None, approval_required: ?bool=None) -> fleetmgr__fleet__device_entry:
         e = self.get(key)
@@ -1857,7 +2190,7 @@ class fleetmgr__fleet__device(yadata.MKeyedList[str, fleetmgr__fleet__device_ent
             return e
         name = key
         res = fleetmgr__fleet__device_entry(name=name, type=type, shard=shard, description=description, approval_required=approval_required)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1877,7 +2210,7 @@ class fleetmgr__fleet__device(yadata.MKeyedList[str, fleetmgr__fleet__device_ent
         return fleetmgr__fleet__device(elements=copied_elements)
 
 
-_breaker33: None = None
+_breaker35: None = None
 class fleetmgr__fleet(yadata.MNode):
     node: fleetmgr__fleet__node
     device: fleetmgr__fleet__device
@@ -1900,7 +2233,7 @@ class fleetmgr__fleet(yadata.MNode):
         return fleetmgr__fleet.from_gdata(self.to_gdata())
 
 
-_breaker34: None = None
+_breaker36: None = None
 class software__software__upgrade_campaign__device_entry(yadata.MNode):
     name: str
 
@@ -1918,10 +2251,10 @@ class software__software__upgrade_campaign__device_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return software__software__upgrade_campaign__device_entry.from_gdata(self.to_gdata())
 
-_breaker35: None = None
+_breaker37: None = None
 class software__software__upgrade_campaign__device(yadata.MKeyedList[str, software__software__upgrade_campaign__device_entry]):
     mut def __init__(self, elements: list[software__software__upgrade_campaign__device_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str) -> software__software__upgrade_campaign__device_entry:
         e = self.get(key)
@@ -1929,7 +2262,7 @@ class software__software__upgrade_campaign__device(yadata.MKeyedList[str, softwa
             return e
         name = key
         res = software__software__upgrade_campaign__device_entry(name=name)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -1949,7 +2282,7 @@ class software__software__upgrade_campaign__device(yadata.MKeyedList[str, softwa
         return software__software__upgrade_campaign__device(elements=copied_elements)
 
 
-_breaker36: None = None
+_breaker38: None = None
 class software__software__upgrade_campaign_entry(yadata.MNode):
     name: str
     target_release: ?str
@@ -1977,10 +2310,10 @@ class software__software__upgrade_campaign_entry(yadata.MNode):
         """Create a deep copy of this adata object"""
         return software__software__upgrade_campaign_entry.from_gdata(self.to_gdata())
 
-_breaker37: None = None
+_breaker39: None = None
 class software__software__upgrade_campaign(yadata.MKeyedList[str, software__software__upgrade_campaign_entry]):
     mut def __init__(self, elements: list[software__software__upgrade_campaign_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, target_release: ?str=None, image_url: ?str=None, allow_staging: ?bool=None, admin_state: ?str=None) -> software__software__upgrade_campaign_entry:
         e = self.get(key)
@@ -1996,7 +2329,7 @@ class software__software__upgrade_campaign(yadata.MKeyedList[str, software__soft
             return e
         name = key
         res = software__software__upgrade_campaign_entry(name=name, target_release=target_release, image_url=image_url, allow_staging=allow_staging, admin_state=admin_state)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -2016,7 +2349,7 @@ class software__software__upgrade_campaign(yadata.MKeyedList[str, software__soft
         return software__software__upgrade_campaign(elements=copied_elements)
 
 
-_breaker38: None = None
+_breaker40: None = None
 class software__software(yadata.MNode):
     upgrade_campaign: software__software__upgrade_campaign
 
@@ -2037,7 +2370,7 @@ class software__software(yadata.MNode):
         return software__software.from_gdata(self.to_gdata())
 
 
-_breaker39: None = None
+_breaker41: None = None
 class root(yadata.MNode):
     fleet: fleetmgr__fleet
     software: software__software

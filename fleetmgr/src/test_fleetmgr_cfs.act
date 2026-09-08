@@ -1,11 +1,20 @@
 import testing
+import std.xml as xml
+import yang.xml as yxml
 
 import stratoweave
+import stratoweave.adapters.adapter as swadapt
+import stratoweave.ttt as ttt
+from stratoweave.device_meta_config import \
+    stratoweave_rfs__device_entry as DeviceMetaConfig
 
 import fleetmgr.cfs as cfs
+import fleetmgr.rfs as rfs
 import fleetmgr.layers.y_0 as y_0
+import fleetmgr.layers.y_1 as y_1_config
 import fleetmgr.layers.y_1_loose as y_1
 import fleetmgr.sysspec as sysspec
+import flotilla.layers.y_0 as flotilla_rfs
 from fleetmgr.layers.y_0 import \
     fleetmgr__fleet__device__address_entry as InputAddress, \
     fleetmgr__fleet__device__credentials as InputCredentials, \
@@ -31,6 +40,10 @@ actor _test_node_transform(t: testing.AsyncT):
         credentials=NodeCredentials(username="admin", password="admin"),
     )
     address = i.address.create("primary", address="127.0.0.1", port=u64(12031))
+    i.ssh.cipher = ["aes256-ctr", "aes128-ctr"]
+    i.ssh.key_exchange = ["curve25519-sha256"]
+    i.ssh.minimum_rsa_bits = u64(3072)
+    i.ssh.rekey_after_seconds = u64(0)
 
     transform: cfs.Node = cfs.Node()
     o: y_1.root = y_1.root.from_gdata(transform.transform(i).to_gdata())
@@ -43,10 +56,102 @@ actor _test_node_transform(t: testing.AsyncT):
         t.failure(ValueError("flotilla address was not preserved"))
     elif dev.credentials.username != "admin" or dev.credentials.password != "admin":
         t.failure(ValueError("flotilla credentials were not preserved"))
+    elif dev.ssh.cipher != ["aes256-ctr", "aes128-ctr"] or \
+         dev.ssh.key_exchange != ["curve25519-sha256"] or \
+         dev.ssh.minimum_rsa_bits != 3072 or \
+         dev.ssh.rekey_after_seconds != 0:
+        t.failure(ValueError("flotilla SSH options were not preserved"))
     elif o.rfs.get("flotilla-1")!.flotilla_status.enabled != True:
         t.failure(ValueError("flotilla status collector was not enabled"))
     else:
         t.success()
+
+
+def _test_device_ssh_propagation():
+    """CFS SSH options survive both transforms and the flotilla XML boundary."""
+    config = xml.decode("""<config>
+      <fleet xmlns="urn:fleetmgr:fleetmgr">
+        <device>
+          <name>configured</name>
+          <type>iosxe</type>
+          <shard>flotilla-1</shard>
+          <credentials><username>admin</username></credentials>
+          <ssh>
+            <cipher>aes256-ctr</cipher>
+            <cipher>aes128-ctr</cipher>
+            <mac>hmac-sha2-512</mac>
+            <mac>hmac-sha2-256</mac>
+            <key-exchange>ecdh-sha2-nistp384</key-exchange>
+            <key-exchange>curve25519-sha256</key-exchange>
+            <host-key-algorithm>ssh-ed25519</host-key-algorithm>
+            <host-key-algorithm>rsa-sha2-512</host-key-algorithm>
+            <public-key-algorithm>ssh-ed25519</public-key-algorithm>
+            <public-key-algorithm>rsa-sha2-256</public-key-algorithm>
+            <compression-algorithm>zlib@openssh.com</compression-algorithm>
+            <compression-algorithm>none</compression-algorithm>
+            <compression-level>3</compression-level>
+            <rekey-after-bytes>1048576</rekey-after-bytes>
+            <rekey-after-seconds>3600</rekey-after-seconds>
+            <minimum-rsa-bits>3072</minimum-rsa-bits>
+          </ssh>
+        </device>
+        <device>
+          <name>defaults</name>
+          <type>iosxe</type>
+          <shard>flotilla-1</shard>
+          <credentials><username>admin</username></credentials>
+        </device>
+      </fleet>
+    </config>""")
+    inputs = y_0.root.from_gdata(yxml.from_xml(y_0.SRC_DNODE, config))
+    di = ttt.DeviceInfo("flotilla-1", {
+        "stratoweave-rfs": swadapt.ModCap(
+            "stratoweave-rfs",
+            "http://stratoweave.org/yang/stratoweave-rfs",
+        )
+    })
+    devices: dict[str, DeviceMetaConfig] = {}
+    for i in inputs.fleet.device:
+        lower = y_1_config.root.from_gdata(cfs.Device().transform(i).to_gdata())
+        entry = lower.rfs.get("flotilla-1")!.device.get(i.name)!
+        rendered = rfs.Device().transform(entry, di).to_gdata()
+        wire = xml.Node("config", children=rendered.to_xml())
+        received = flotilla_rfs.root.from_gdata(
+            yxml.from_xml(flotilla_rfs.SRC_DNODE, xml.decode(xml.encode(wire)))
+        )
+        devices[i.name] = DeviceMetaConfig.from_gdata(
+            received.device.get(i.name)!.to_gdata()
+        )
+
+    configured = swadapt.ssh_transport_config(devices["configured"].ssh)
+    testing.assertEqual([str(c) for c in configured.ciphers],
+                        ["aes256-ctr", "aes128-ctr"])
+    testing.assertEqual([str(m) for m in configured.macs],
+                        ["hmac-sha2-512", "hmac-sha2-256"])
+    testing.assertEqual([str(k) for k in configured.key_exchanges],
+                        ["ecdh-sha2-nistp384", "curve25519-sha256"])
+    testing.assertEqual([str(k) for k in configured.host_key_algorithms],
+                        ["ssh-ed25519", "rsa-sha2-512"])
+    testing.assertEqual([str(k) for k in configured.public_key_algorithms],
+                        ["ssh-ed25519", "rsa-sha2-256"])
+    testing.assertEqual([str(c) for c in configured.compression_algorithms],
+                        ["zlib@openssh.com", "none"])
+    testing.assertEqual(configured.compression_level, 3)
+    testing.assertEqual(configured.rekey_after_bytes, 1048576)
+    testing.assertEqual(configured.rekey_after_seconds, 3600)
+    testing.assertEqual(configured.minimum_rsa_bits, 3072)
+
+    defaults = devices["defaults"].ssh
+    testing.assertEqual(defaults.cipher, [])
+    testing.assertEqual(defaults.mac, [])
+    testing.assertEqual(defaults.key_exchange, [])
+    testing.assertEqual(defaults.host_key_algorithm, [])
+    testing.assertEqual(defaults.public_key_algorithm, [])
+    testing.assertEqual(defaults.compression_algorithm, [])
+    testing.assertEqual(defaults.compression_level, u64(7))
+    testing.assertEqual(defaults.rekey_after_bytes, None)
+    testing.assertEqual(defaults.rekey_after_seconds, None)
+    testing.assertEqual(defaults.minimum_rsa_bits, u64(1024))
 
 
 actor _test_campaign_transform(t: testing.AsyncT):

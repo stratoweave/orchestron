@@ -19,8 +19,8 @@ an IOS XE device.
         -> fleetmgr CFS /software/upgrade-campaign/state
 
 There is no range expansion. A flotilla assigned 500 devices receives 500
-complete `/device` entries, including addresses, credentials, policy, mock and
-debug settings, feature flags, and software intent.
+complete `/device` entries, including addresses, credentials, SSH options, policy,
+mock and debug settings, feature flags, and software intent.
 
 ## Build and regenerate
 
@@ -86,6 +86,12 @@ The `fleetmgr` CFS has two inventory lists:
 - `/fleet/device`: complete device configuration plus a string `shard` and an
   explicit device `type`. Its
   transform writes the entry under `/rfs{shard}/device`.
+
+Both lists expose an `ssh` container using the shared
+`stratoweave-ssh:ssh-client-config` grouping. Set SSH client options under
+`/fleet/device/ssh` to pass them through to the device's owning flotilla, or
+under `/fleet/node/ssh` to configure the top's connection to that flotilla.
+Algorithm preference order is preserved through both transforms.
 
 The generic `software` model remains separate from inventory. Each campaign
 device list entry links its name to the referenced `/fleet/device` entry,
