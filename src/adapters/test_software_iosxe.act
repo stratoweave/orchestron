@@ -103,6 +103,53 @@ def _test_reported_release_spells_like_the_banner():
                        "the banner spelling must compare equal to the request")
 
 
+def _test_op_seconds_keeps_the_measured_proportions():
+    """Each operation gets its measured share of the upgrade duration; 0
+    completes at once. The slowest operation sizes the adapter's polls."""
+    testing.assertEqual(swxemock.FAST, swxemock.op_seconds("xcopy", 0.0),
+                        "duration 0 must complete after FAST")
+    testing.assertEqual(130.0, swxemock.op_seconds("xcopy", 395.0),
+                        "the measured duration must give the measured staging time")
+    testing.assertEqual(480.0, swxemock.op_seconds("activate", 790.0),
+                        "twice the duration must double the reload")
+    staging = swxemock.op_seconds("xcopy", 60.0)
+    testing.assertTrue(staging > 19.7 and staging < 19.8,
+                       "a 60 s upgrade must stage for its share, about 19.7 s")
+    testing.assertEqual(240.0, swxemock.longest_op_seconds(395.0),
+                        "the reload is the slowest operation")
+    testing.assertEqual(swxemock.FAST, swxemock.longest_op_seconds(0.0),
+                        "at duration 0 nothing is slower than FAST")
+
+
+def _test_delay_for_prefers_the_upgrade_duration():
+    """A positive upgrade duration decides the delay; without one a caller's
+    fixed delay applies, and without either the mock is instant."""
+    testing.assertEqual(swxemock.FAST, swxemock.delay_for("xcopy", 0.0, None),
+                        "no duration and no fixed delay must be instant")
+    testing.assertEqual(0.5, swxemock.delay_for("xcopy", 0.0, 0.5),
+                        "a fixed delay applies without a duration")
+    testing.assertEqual(130.0, swxemock.delay_for("xcopy", 395.0, 0.5),
+                        "the duration wins over a fixed delay")
+    testing.assertEqual(265.0, swxemock.one_shot_seconds(395.0),
+                        "one-shot adds, activates and commits")
+
+
+def _test_failed_record_stops_at_the_failed_stage():
+    """A device reports a failed operation with the stages it ran, the last of
+    them failed and nothing after it; the adapter reads that as a failure."""
+    rec = swxemock.operation_record("u1", "1", swxemock.OP_FAIL, swxe.OP_COMPLETE,
+                                    ["install-txn-dwnld-precheck",
+                                     "install-txn-download"],
+                                    "install-txn-dwnld-precheck")
+    ds = _oper_ds(OLD_RELEASE, [rec])
+    got = swxe.records_for(ds, "u1")
+    testing.assertEqual(1, len(got), "one record expected")
+    testing.assertEqual(["install-txn-dwnld-precheck"], got[0].stages,
+                        "stages after the failed one must be absent")
+    v = swxe.aggregate(ds, "u1", swxe.STAGE_DOWNLOAD)
+    testing.assertTrue(v.done and v.failed, "a failed record is a finished failure")
+
+
 def _test_running_release_comes_out_of_the_banner():
     """The leaf carries a whole line, not a version."""
     got = swxe.running_release(_hw_ds(OLD_RELEASE))
@@ -359,7 +406,7 @@ actor _test_iosxe_upgrade_through_the_software_manager(t: testing.EnvT):
             ms = dev_adapter.get_mock_server()
             if ms is not None:
                 # Uncommitted, the mock reverts after a second; the run must commit first.
-                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler, auto_abort_after=1.0)
+                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler)
                 mock = m
                 m.attach()
                 # Intent: the release, and where the device fetches it from.
@@ -434,7 +481,7 @@ actor _test_iosxe_device_already_on_target_sends_nothing(t: testing.EnvT):
             if ms is not None:
                 # The device is already there, in its own spelling.
                 m = swxemock.IosXeSoftwareMock(ms!, t.log_handler,
-                                               start_release=NEW_REPORTED)
+                                               running=NEW_REPORTED)
                 mock = m
                 m.attach()
                 dmc = DeviceMetaConfig("d1", Credentials("admin", "admin"),
@@ -465,7 +512,8 @@ actor _test_iosxe_reply_is_not_completion(t: testing.EnvT):
 
     So immediately after the RPCs are accepted the device still reports the old
     release. An adapter that treated the reply as completion would report the
-    upgrade done here.
+    upgrade done here. A second look 0.2 s later shows the copy still running,
+    which is what a configured upgrade duration must do.
     """
     var dev_ref: ?swdev.DeviceMgr = None
     var mock: ?swxemock.IosXeSoftwareMock = None
@@ -474,20 +522,33 @@ actor _test_iosxe_reply_is_not_completion(t: testing.EnvT):
     def on_reconf(n: str) -> None:
         pass
 
-    def check_then_succeed() -> None:
+    def still_copying() -> None:
+        m = mock
+        if finished or m is None:
+            return
+        finished = True
+        try:
+            testing.assertEqual(OLD_RELEASE, m!.get_running(),
+                                "the release must not move while the copy runs")
+            testing.assertEqual(["xcopy"], m!.get_rpcs(),
+                                "no install may be sent while the copy runs")
+            t.success()
+        except Exception as e:
+            t.failure(e)
+
+    def check_then_wait() -> None:
         m = mock
         if finished or m is None:
             return
         if "xcopy" not in m!.get_rpcs():
-            after 0.01: check_then_succeed()
+            after 0.01: check_then_wait()
             return
-        finished = True
-        # The xcopy has been accepted. The mock holds its completion for a whole
-        # second, so nothing can have changed yet -- and would not have on a
-        # device either, where the transfer takes minutes.
+        # Accepted, but with 40 s for the whole upgrade the copy takes 13 s, so
+        # nothing can have changed yet, nor 0.2 s from now, however loaded the
+        # machine is.
         testing.assertEqual(OLD_RELEASE, m!.get_running(),
                             "an accepted RPC must not have moved the release")
-        t.success()
+        after 0.2: still_copying()
 
     def start() -> None:
         d = dev_ref
@@ -501,7 +562,7 @@ actor _test_iosxe_reply_is_not_completion(t: testing.EnvT):
         if isinstance(dev_adapter, swna.NetconfAdapter):
             ms = dev_adapter.get_mock_server()
             if ms is not None:
-                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler, None, 1.0)
+                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler, upgrade_duration=40.0)
                 mock = m
                 m.attach()
                 dmc = DeviceMetaConfig("d2", Credentials("admin", "admin"),
@@ -510,7 +571,7 @@ actor _test_iosxe_reply_is_not_completion(t: testing.EnvT):
                                                          IMAGE_URL))
                 dmc.mock.enabled = True
                 d!.set_dmc(dmc)
-                after 0.01: check_then_succeed()
+                after 0.01: check_then_wait()
                 return
         t.failure(ValueError("no mock server on the device adapter"))
 
@@ -519,8 +580,8 @@ actor _test_iosxe_reply_is_not_completion(t: testing.EnvT):
     after 2.5: t.failure(ValueError("timed out"))
 
 
-actor _test_iosxe_device_refusal_is_reported(t: testing.EnvT):
-    """A device-side refusal on the impacting RPC surfaces as a failed run,
+actor _test_iosxe_device_failure_is_reported(t: testing.EnvT):
+    """A device-side failure of the add operation surfaces as a failed run,
     and the manager never claims success."""
     var dev_ref: ?swdev.DeviceMgr = None
     var finished = False
@@ -539,7 +600,7 @@ actor _test_iosxe_device_refusal_is_reported(t: testing.EnvT):
             return
         if st == "succeeded":
             finished = True
-            t.failure(ValueError("a refused install must not report succeeded"))
+            t.failure(ValueError("a failed add must not report succeeded"))
             return
         after 0.05: assess()
 
@@ -555,7 +616,8 @@ actor _test_iosxe_device_refusal_is_reported(t: testing.EnvT):
         if isinstance(dev_adapter, swna.NetconfAdapter):
             ms = dev_adapter.get_mock_server()
             if ms is not None:
-                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler, "install")
+                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler,
+                                               failure=swxemock.FAILURE_ADD)
                 m.attach()
                 dmc = DeviceMetaConfig("d3", Credentials("admin", "admin"),
                                        type="iosxe",
@@ -682,7 +744,8 @@ actor _test_iosxe_activate_refusal_is_failed(t: testing.EnvT):
         if isinstance(dev_adapter, swna.NetconfAdapter):
             ms = dev_adapter.get_mock_server()
             if ms is not None:
-                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler, "activate")
+                m = swxemock.IosXeSoftwareMock(
+                    ms!, t.log_handler, failure=swxemock.FAILURE_ACTIVATE_REFUSED)
                 mock = m
                 m.attach()
                 dmc = DeviceMetaConfig("d5", Credentials("admin", "admin"),
@@ -698,3 +761,150 @@ actor _test_iosxe_activate_refusal_is_failed(t: testing.EnvT):
     dev_ref = new_iosxe_mock_device_mgr(t, "d5", on_reconf)
     after 0.01: start()
     after 2.5: t.failure(ValueError("timed out"))
+
+
+actor _UpgradeRun(t: testing.EnvT, name: str, upgrade_duration: float,
+                  failure: str, running: str, target: str, image_url: str,
+                  settled: action(swxemock.IosXeSoftwareMock, swdev.DeviceMgr,
+                                  str) -> None,
+                  timeout: float=2.5):
+    """Drive one mock device from software intent to a settled status, then
+    call `settled` with the mock, the device and the status. The timeout
+    failure dumps what the device saw."""
+    var dev_ref: ?swdev.DeviceMgr = None
+    var mock: ?swxemock.IosXeSoftwareMock = None
+    var finished = False
+
+    def on_reconf(n: str) -> None:
+        pass
+
+    def poll() -> None:
+        m = mock
+        d = dev_ref
+        if finished or m is None or d is None:
+            return
+        st = d!.get_swmgr().get_status()
+        if st == "unknown" or st == "in-progress":
+            after 0.02: poll()
+            return
+        finished = True
+        settled(m!, d!, st)
+
+    def start() -> None:
+        d = dev_ref
+        if d is None:
+            return
+        if "Cisco-IOS-XE-install-oper" not in d!.get_modules().0:
+            after 0.01: start()
+            return
+        msg = async d!.get_adapter()
+        dev_adapter = await msg
+        if isinstance(dev_adapter, swna.NetconfAdapter):
+            ms = dev_adapter.get_mock_server()
+            if ms is not None:
+                m = swxemock.IosXeSoftwareMock(ms!, t.log_handler,
+                                               upgrade_duration=upgrade_duration,
+                                               failure=failure, running=running)
+                mock = m
+                m.attach()
+                dmc = DeviceMetaConfig(name, Credentials("admin", "admin"),
+                                       type="iosxe",
+                                       software=Software("camp-1", target, image_url))
+                dmc.mock.enabled = True
+                d!.set_dmc(dmc)
+                after 0.02: poll()
+                return
+        finished = True
+        t.failure(ValueError("no mock server on the device adapter"))
+
+    def report_timeout() -> None:
+        if finished:
+            return
+        finished = True
+        m = mock
+        d = dev_ref
+        rpcs = m!.get_rpcs() if m is not None else []
+        run = m!.get_running() if m is not None else "?"
+        st = d!.get_swmgr().get_status() if d is not None else "?"
+        t.failure(ValueError("timed out: rpcs={rpcs} running={run} status={st}"))
+
+    dev_ref = new_iosxe_mock_device_mgr(t, name, on_reconf)
+    after 0.01: start()
+    after timeout: report_timeout()
+
+
+actor _test_iosxe_download_failure_fails_in_prepare(t: testing.EnvT):
+    """The device accepts the copy and the download fails later, as with a bad
+    URL; the run fails in prepare and nothing is installed."""
+    def settled(m: swxemock.IosXeSoftwareMock, d: swdev.DeviceMgr, status: str) -> None:
+        try:
+            testing.assertEqual("failed", status, "a failed download is a failed run")
+            testing.assertEqual(["xcopy"], m.get_rpcs(),
+                                "nothing may be installed after a failed download")
+            testing.assertEqual(OLD_RELEASE, m.get_running(),
+                                "the device must still run the old release")
+            t.success()
+        except Exception as e:
+            t.failure(e)
+
+    _UpgradeRun(t, "d-download", 0.0, swxemock.FAILURE_DOWNLOAD, OLD_RELEASE,
+                NEW_REQUESTED, IMAGE_URL, settled)
+
+
+actor _test_iosxe_commit_failure_rolls_back(t: testing.EnvT):
+    """A failed commit makes the manager abort; the device reloads the committed
+    release and the run ends rolled back, not failed."""
+    def settled(m: swxemock.IosXeSoftwareMock, d: swdev.DeviceMgr, status: str) -> None:
+        try:
+            testing.assertEqual("rolled-back", status, "a failed commit must roll back")
+            testing.assertEqual(["xcopy", "install", "activate", "install-commit", "abort"],
+                                m.get_rpcs(), "the manager must abort after the commit")
+            testing.assertEqual(OLD_RELEASE, m.get_running(),
+                                "the abort must reload the committed release")
+            testing.assertEqual(OLD_RELEASE, m.get_committed(),
+                                "nothing may have been committed")
+            t.success()
+        except Exception as e:
+            t.failure(e)
+
+    _UpgradeRun(t, "d-commit", 0.0, swxemock.FAILURE_COMMIT, OLD_RELEASE,
+                NEW_REQUESTED, IMAGE_URL, settled)
+
+
+actor _test_iosxe_revert_before_commit_is_failed(t: testing.EnvT):
+    """When the abort timer beats the commit, the commit has nothing to do and
+    the abort nothing to abort; the run is a plain failure."""
+    def settled(m: swxemock.IosXeSoftwareMock, d: swdev.DeviceMgr, status: str) -> None:
+        try:
+            testing.assertEqual("failed", status, "a reverted device is a failed run")
+            testing.assertEqual(["xcopy", "install", "activate", "install-commit", "abort"],
+                                m.get_rpcs(), "the manager must try to commit and abort")
+            testing.assertEqual(OLD_RELEASE, m.get_running(),
+                                "the device must run the committed release again")
+            testing.assertEqual(OLD_RELEASE, m.get_committed(),
+                                "the target may not have been committed")
+            t.success()
+        except Exception as e:
+            t.failure(e)
+
+    _UpgradeRun(t, "d-revert", 0.0, swxemock.FAILURE_REVERTS, OLD_RELEASE,
+                NEW_REQUESTED, IMAGE_URL, settled)
+
+
+actor _test_iosxe_release_follows_the_image(t: testing.EnvT):
+    """The device ends up on the image it installed, so a campaign to any
+    release reports the right running release."""
+    def settled(m: swxemock.IosXeSoftwareMock, d: swdev.DeviceMgr, status: str) -> None:
+        try:
+            testing.assertEqual("succeeded", status, "the upgrade must succeed")
+            testing.assertEqual("17.18.4", m.get_running(),
+                                "the running release must come from the image name")
+            testing.assertEqual("17.18.4", m.get_committed(),
+                                "the committed release must come from the image name")
+            t.success()
+        except Exception as e:
+            t.failure(e)
+
+    _UpgradeRun(t, "d-image", 0.0, swxemock.FAILURE_NONE, OLD_RELEASE, "17.18.04",
+                "scp://root:labpass@10.0.0.9:/images/c8000v-universalk9.17.18.04.bin",
+                settled)
