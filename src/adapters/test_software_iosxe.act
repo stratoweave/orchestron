@@ -79,6 +79,30 @@ def _test_releases_equal_ignores_zero_padding():
                         "an unknown release equals nothing")
 
 
+def _test_release_from_filename_reads_the_version_run():
+    """The mock reports whatever image it installed, so the release must come
+    out of the file name, whatever the platform prefix and suffix are."""
+    testing.assertEqual("17.18.03a", swxe.release_from_filename(IMAGE_FILE),
+                        "release not found in the c8000v image name")
+    testing.assertEqual("17.18.04",
+                        swxe.release_from_filename("c8000v-universalk9.17.18.04.bin"),
+                        "release not found without the SPA marker")
+    testing.assertTrue(swxe.release_from_filename("recovery.bin") is None,
+                       "a name without a version run is no release")
+
+
+def _test_reported_release_spells_like_the_banner():
+    """The banner drops leading zeros per component, and the adapter compares
+    per component, so both spellings name one release."""
+    testing.assertEqual(NEW_REPORTED, swxe.reported_release(NEW_REQUESTED),
+                        "leading zero must be dropped")
+    testing.assertEqual("17.18.4", swxe.reported_release("17.18.04"),
+                        "a component without suffix must still lose its zero")
+    testing.assertTrue(swxe.releases_equal(swxe.reported_release(NEW_REQUESTED),
+                                           NEW_REQUESTED),
+                       "the banner spelling must compare equal to the request")
+
+
 def _test_running_release_comes_out_of_the_banner():
     """The leaf carries a whole line, not a version."""
     got = swxe.running_release(_hw_ds(OLD_RELEASE))

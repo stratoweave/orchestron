@@ -122,6 +122,41 @@ def releases_equal(a: ?str, b: ?str) -> bool:
     return True
 
 
+def release_from_filename(filename: str) -> ?str:
+    """The release an image file is named for, or None.
+
+    The mock reports whatever image it installed, and a campaign may target any
+    catalogue release, so the release has to come out of the file name:
+    c8000v-universalk9.17.18.03a.SPA.bin gives 17.18.03a. It is the run of
+    dot-separated components that start with a digit, whatever the platform
+    prefix and the suffix are; fewer than two such components is no release.
+    """
+    run: list[str] = []
+    for part in filename.split("."):
+        if len(part) > 0 and part[0] in DIGITS:
+            run.append(part)
+        elif len(run) > 0:
+            break
+    if len(run) < 2:
+        return None
+    return ".".join(run)
+
+
+def reported_release(release: str) -> str:
+    """How the device banner spells a release: leading zeros dropped from each
+    component, so 17.18.03a becomes 17.18.3a. Equal to the input under
+    releases_equal."""
+    out: list[str] = []
+    for c in release.split("."):
+        s = _split_component(c)
+        n = s.num
+        if n is not None:
+            out.append(str(n!) + s.suffix)
+        else:
+            out.append(c)
+    return ".".join(out)
+
+
 def running_release(root: ?ygdata.Node) -> ?str:
     """The release the device reports running, from device-hardware-oper.
 
