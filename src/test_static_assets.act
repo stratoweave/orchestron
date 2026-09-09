@@ -1,0 +1,225 @@
+import http
+import http_router
+import testing
+
+import static_assets as swstatic
+
+
+class _ResponseCapture(object):
+    def __init__(self, on_done: ?proc(_ResponseCapture) -> None = None):
+        self.status = 0
+        self.headers = {}
+        self.body = ""
+        self.on_done = on_done
+
+    def respond(self, status: int, headers: dict[str, str], body: str):
+        self.status = status
+        self.headers = headers
+        self.body = body
+        on_done = self.on_done
+        if on_done is not None:
+            on_done(self)
+
+
+def _request(method: str, path: str, headers: dict[str, str] = {}, body: bytes = b"") -> http.Request:
+    return http.Request(method, path, b"1.1", headers, body)
+
+
+def _serve_expect(
+    t: testing.EnvT,
+    r: http_router.Router,
+    request: http.Request,
+    expected_status: int,
+    expected_body: str,
+    expected_headers: dict[str, str],
+    next: ?proc() -> None = None
+):
+    def done(res: _ResponseCapture):
+        try:
+            testing.assertEqual(res.status, expected_status)
+            testing.assertEqual(res.body, expected_body)
+            for name, val in expected_headers.items():
+                testing.assertEqual(res.headers.get_def(name, "<missing header>"), val)
+            cont = next
+            if cont is not None:
+                cont()
+            else:
+                t.success()
+        except Exception as e:
+            t.failure(e)
+
+    try:
+        res = _ResponseCapture(done)
+        r.serve(request, res.respond)
+    except Exception as e:
+        t.failure(e)
+
+
+_INDEX_BODY = "<!doctype html><title>ui</title>"
+
+
+def _assets() -> dict[str, str]:
+    return {
+        "/index.html": _INDEX_BODY,
+        "/_app/version.json": r'{"version":"0.2.0"}',
+        "/_app/immutable/chunks/a.js": "console.log(1)",
+    }
+
+
+def _test_content_type():
+    testing.assertEqual(swstatic.content_type("/index.html"), "text/html; charset=utf-8")
+    testing.assertEqual(swstatic.content_type("/_app/immutable/chunks/a.js"), "text/javascript; charset=utf-8")
+    testing.assertEqual(swstatic.content_type("/_app/immutable/entry/start.mjs"), "text/javascript; charset=utf-8")
+    testing.assertEqual(swstatic.content_type("/_app/immutable/assets/root.css"), "text/css; charset=utf-8")
+    testing.assertEqual(swstatic.content_type("/_app/version.json"), "application/json")
+    testing.assertEqual(swstatic.content_type("/chunk.js.map"), "application/json")
+    testing.assertEqual(swstatic.content_type("/logo.svg"), "image/svg+xml")
+    testing.assertEqual(swstatic.content_type("/robots.txt"), "text/plain; charset=utf-8")
+    testing.assertEqual(swstatic.content_type("/no-extension"), "text/plain; charset=utf-8")
+    testing.assertEqual(swstatic.content_type("/unknown.bin"), "text/plain; charset=utf-8")
+
+
+actor _test_serves_assets_with_cache_headers(t: testing.EnvT):
+    r = http_router.Router()
+
+    def after_index_alias():
+        _serve_expect(t, r, _request("GET", "/index.html"), 200, _INDEX_BODY,
+            {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache"})
+
+    def after_root():
+        _serve_expect(t, r, _request("GET", "/"), 200, _INDEX_BODY,
+            {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache"}, after_index_alias)
+
+    def after_version():
+        _serve_expect(t, r, _request("GET", "/_app/version.json"), 200, r'{"version":"0.2.0"}',
+            {"Content-Type": "application/json", "Cache-Control": "no-cache"}, after_root)
+
+    try:
+        swstatic.install(r, _assets())
+        _serve_expect(t, r, _request("GET", "/_app/immutable/chunks/a.js"), 200, "console.log(1)",
+            {"Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=31536000, immutable"},
+            after_version)
+    except Exception as e:
+        t.failure(e)
+
+
+actor _test_spa_fallback_heuristic(t: testing.EnvT):
+    r = http_router.Router()
+
+    def after_zero_quality():
+        _serve_expect(t, r, _request("GET", "/services/foo", {"accept": "TEXT/HTML"}),
+            200, _INDEX_BODY, {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", "Vary": "Accept"})
+
+    def after_post():
+        # An explicit q=0 means that HTML is not acceptable.
+        _serve_expect(t, r, _request("GET", "/services/foo", {"accept": "application/json, text/html;q=0"}),
+            404, "", {"Vary": "Accept"}, after_zero_quality)
+
+    def after_non_get():
+        # Query strings do not confuse the fallback.
+        _serve_expect(t, r, _request("GET", "/services/l3vpn-site/new?clone=x", {"accept": "text/html"}),
+            200, _INDEX_BODY, {"Vary": "Accept"}, after_post)
+
+    def after_no_accept():
+        # Other methods never reach the asset route; the router's default
+        # not-found handler answers.
+        _serve_expect(t, r, _request("POST", "/services/foo", {"accept": "text/html"}), 404, "", {}, after_non_get)
+
+    def after_api_accept():
+        _serve_expect(t, r, _request("GET", "/services/foo"), 404, "", {"Vary": "Accept"}, after_no_accept)
+
+    def after_navigation():
+        _serve_expect(t, r, _request("GET", "/services/foo", {"accept": "*/*"}), 404, "", {"Vary": "Accept"}, after_api_accept)
+
+    try:
+        swstatic.install(r, _assets())
+        _serve_expect(t, r, _request("GET", "/services/foo", {"accept": "text/html,application/xhtml+xml;q=0.9"}),
+            200, _INDEX_BODY, {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", "Vary": "Accept"},
+            after_navigation)
+    except Exception as e:
+        t.failure(e)
+
+
+actor _test_api_routes_not_shadowed(t: testing.EnvT):
+    r = http_router.Router()
+
+    def api_handler(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        respond(200, {"Content-Type": "application/json"}, r'{"devices": []}')
+
+    def after_api():
+        # An unknown API-ish path from a non-browser client stays a real 404.
+        _serve_expect(t, r, _request("GET", "/device/nope/info"), 404, "", {})
+
+    try:
+        r.get("/device", api_handler)
+        swstatic.install(r, _assets())
+        _serve_expect(t, r, _request("GET", "/device"), 200, r'{"devices": []}',
+            {"Content-Type": "application/json"}, after_api)
+    except Exception as e:
+        t.failure(e)
+
+
+def _test_rejects_relative_paths():
+    relative_raised = 0
+    try:
+        swstatic.install(http_router.Router(), {"index.html": "x"})
+    except ValueError:
+        relative_raised = 1
+    testing.assertEqual(relative_raised, 1)
+
+
+def _test_rejects_existing_catch_all():
+    # The asset route is a root-level GET wildcard; a second one is a router
+    # overlap, reported at install time rather than silently losing.
+    def other(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        respond(200, {}, "other")
+
+    r = http_router.Router()
+    r.get("/*rest", other)
+    overlap_raised = 0
+    try:
+        swstatic.install(r, _assets())
+    except ValueError:
+        overlap_raised = 1
+    testing.assertEqual(overlap_raised, 1)
+
+
+actor _test_routes_always_beat_assets(t: testing.EnvT):
+    # Assets live behind a catch-all GET /*path route, which the router
+    # scores below any static or param route, so a registered GET route —
+    # even a param or wildcard route whose concrete instance collides with
+    # an asset path — always wins. The asset is unreachable, but the API can
+    # never be shadowed.
+    r = http_router.Router()
+
+    def api_handler(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        respond(200, {"Content-Type": "text/plain"}, "api")
+
+    def after_param():
+        _serve_expect(t, r, _request("GET", "/restconf/data/foo.json"), 200, "api", {})
+
+    def after_static():
+        _serve_expect(t, r, _request("GET", "/device/r1/info"), 200, "api", {}, after_param)
+
+    try:
+        r.get("/index.html", api_handler)
+        r.get("/device/{{name}}/info", api_handler)
+        r.get("/restconf/data/*rest_path", api_handler)
+        swstatic.install(r, _assets())
+        # /index.html: the route wins over the asset with the same path.
+        _serve_expect(t, r, _request("GET", "/index.html"), 200, "api", {}, after_static)
+    except Exception as e:
+        t.failure(e)
+
+
+actor _test_no_index_no_fallback(t: testing.EnvT):
+    r = http_router.Router()
+
+    def after_missing():
+        _serve_expect(t, r, _request("GET", "/", {"accept": "text/html"}), 404, "", {})
+
+    try:
+        swstatic.install(r, {"/_app/immutable/chunks/a.js": "console.log(1)"})
+        _serve_expect(t, r, _request("GET", "/services/foo", {"accept": "text/html"}), 404, "", {}, after_missing)
+    except Exception as e:
+        t.failure(e)

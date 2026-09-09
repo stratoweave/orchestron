@@ -6,6 +6,7 @@ import net
 
 import device as swdev
 import restconf as swrestconf
+import static_assets as swstatic
 import tmf_api as swtmf_api
 import ttt as ttt
 import yang.data as ydata
@@ -42,7 +43,8 @@ actor HttpServer(
     enable_tmf_api: bool = False,
     restconf_root: str = "/restconf",
     address: str = "::",
-    port: int = 80
+    port: int = 80,
+    static_assets: ?dict[str, str] = None
 ):
     _ROUTER_CTX_DEVICE_KEY = "dev"
     http_log = logging.Logger(log_handler)
@@ -408,6 +410,13 @@ actor HttpServer(
     extra_routes = install_extra_routes
     if extra_routes is not None:
         extra_routes(http_router_root)
+
+    # Assets are served by a catch-all GET /*path route, which the router
+    # scores below every static or parameter route, so the routes registered
+    # above always take precedence and can never be shadowed.
+    assets = static_assets
+    if assets is not None:
+        swstatic.install(http_router_root, assets)
 
     def _on_http_server_request(server, request, respond):
         http_router_root.serve(request, respond)

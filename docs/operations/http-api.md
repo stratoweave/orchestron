@@ -296,3 +296,40 @@ specific transform layer. Use `/device/<name>/target` and
 southbound device config with the device's current running config. Use
 `/device/<name>/diff` and `/config-queue` when you are diagnosing rollout or
 approval behavior.
+
+## Embedded static assets (web UI)
+
+Applications can embed a built web UI (or any set of text files) into their
+binary and have the HTTP server serve it alongside the APIs. Pass a
+`static_assets` map (URL path -> file content) to `stratoweave.main()`; it is
+forwarded to `HttpServer` and installed by the `static_assets` module.
+
+Behavior:
+
+- Every asset is served on `GET <path>` on the same listener and port as the
+  APIs. `GET /` serves `/index.html` when present. Assets are served by a
+  catch-all `GET /*path` route that the router ranks below every static or
+  parameterized route, so registered API routes always take precedence and can
+  never be shadowed by an asset. Installing fails if the application already
+  registered its own root-level `GET` wildcard.
+- Assets under `/_app/immutable/` (content-hashed filenames) are served with
+  `Cache-Control: public, max-age=31536000, immutable`; everything else with
+  `no-cache`.
+- SPA fallback: a `GET` request that matches no route and carries an `Accept`
+  header that explicitly allows `text/html` (a browser navigation) receives
+  `/index.html`, so
+  client-side routed pages survive a browser refresh. Requests without such an
+  `Accept` header — API clients, curl — keep receiving a plain `404`, and
+  registered API routes always win over the fallback.
+- The flip side of route precedence: an asset whose path an existing GET
+  route already matches — including parameterized and wildcard routes such as
+  `/device/{name}/info` or `/restconf/data/*` — is unreachable. Keep asset
+  paths (`/index.html`, `/_app/...`) out of the API namespace.
+
+Limitations:
+
+- Only text assets can be served (response bodies are UTF-8 strings). Binary
+  files such as images or fonts must be inlined by the frontend build, e.g. as
+  data URIs.
+- `HEAD` is not supported by the HTTP server; use `curl -sD- -o /dev/null`
+  rather than `curl -I` when inspecting response headers.

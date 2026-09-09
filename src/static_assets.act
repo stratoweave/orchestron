@@ -1,0 +1,135 @@
+# Serving of embedded static assets (e.g. a built web UI) alongside the API
+# routes of an http_router.Router. Assets are plain in-memory strings served
+# by a catch-all `GET /*path` route. The router scores static and parameter
+# segments above wildcards, so every registered route takes precedence — an
+# asset can never shadow an API endpoint. The converse also holds: an asset
+# whose path an existing GET route matches (static, param or wildcard) is
+# unreachable; keep asset paths out of the API namespace. Registering the
+# catch-all fails at install time if another root-level GET wildcard exists.
+#
+# Only text content can be served (the http respond path UTF-8-encodes str
+# bodies); binary files (images, fonts, precompressed archives) must be
+# inlined by the asset build (e.g. as data URIs) before being embedded.
+
+import http_router
+
+
+_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+_DEFAULT_CACHE = "no-cache"
+_FALLBACK_CONTENT_TYPE = "text/plain; charset=utf-8"
+_HTML_CONTENT_TYPE = "text/html; charset=utf-8"
+
+_CONTENT_TYPES: dict[str, str] = {
+    ".html": _HTML_CONTENT_TYPE,
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json",
+    ".map": "application/json",
+    ".svg": "image/svg+xml",
+    ".xml": "application/xml",
+    ".webmanifest": "application/manifest+json",
+    ".txt": _FALLBACK_CONTENT_TYPE,
+}
+
+
+def content_type(path: str) -> str:
+    """Best-effort Content-Type derived from the asset path's file extension."""
+    idx = path.rfind(".")
+    if idx < 0:
+        return _FALLBACK_CONTENT_TYPE
+    return _CONTENT_TYPES.get_def(path[idx:].lower(), _FALLBACK_CONTENT_TYPE)
+
+
+def _accepts_html(accept: str) -> bool:
+    """Whether Accept explicitly allows the text/html media type."""
+    for media_range in accept.split(","):
+        parts = media_range.split(";")
+        if parts[0].strip().lower() != "text/html":
+            continue
+
+        quality = 1.0
+        idx = 1
+        while idx < len(parts):
+            parameter = parts[idx].strip()
+            if "=" in parameter:
+                pair = parameter.split("=", 1)
+                if pair[0].strip().lower() == "q":
+                    try:
+                        quality = float(pair[1].strip())
+                    except ValueError:
+                        quality = 0.0
+                    break
+            idx += 1
+
+        if quality > 0.0 and quality <= 1.0:
+            return True
+    return False
+
+
+def _make_asset_handler(
+    prepared: dict[str, (body: str, ctype: str, cache: str)],
+    index_body: ?str,
+    spa_fallback: bool
+) -> proc(http_router.Context, proc(int, dict[str, str], str) -> None) -> None:
+    """Handler for the catch-all GET route: exact asset, SPA fallback, or 404."""
+    def handler(ctx: http_router.Context, respond: proc(int, dict[str, str], str) -> None):
+        entry = prepared.get(ctx.path)
+        if entry is not None:
+            respond(200, {"Content-Type": entry.ctype, "Cache-Control": entry.cache}, entry.body)
+            return
+        # Serve the SPA entry page only for navigation-like requests whose
+        # Accept header explicitly allows text/html. Everything else (API
+        # clients, subresource fetches) keeps getting a plain 404.
+        idx = index_body
+        if spa_fallback and idx is not None:
+            accept = ctx.request.headers.get("accept")
+            if accept is not None and _accepts_html(accept):
+                respond(200, {"Content-Type": _HTML_CONTENT_TYPE, "Cache-Control": _DEFAULT_CACHE, "Vary": "Accept"}, idx)
+                return
+            # A cache must keep this response separate from the HTML
+            # representation selected for the same URL by Accept.
+            respond(404, {"Vary": "Accept"}, "")
+            return
+        respond(404, {}, "")
+    return handler
+
+
+def install(
+    router: http_router.Router,
+    assets: dict[str, str],
+    index_path: str = "/index.html",
+    immutable_prefix: str = "/_app/immutable/",
+    spa_fallback: bool = True
+):
+    """Serve embedded static assets, optionally with a SPA fallback.
+
+    Assets (normalized URL path -> content) are served by a catch-all
+    `GET /*path` route. The router prefers static and parameter segments over
+    wildcards, so registered routes always win and API endpoints can never be
+    shadowed by an asset. The flip side: an asset whose path an existing GET
+    route already matches is unreachable — keep asset paths (e.g. /index.html
+    and a hashed-asset subtree) out of the API namespace.
+
+    Assets under immutable_prefix get a long-lived immutable Cache-Control
+    (content-hashed filenames); everything else is no-cache. When index_path
+    is present in assets, "/" serves it, and with spa_fallback enabled any
+    other unmatched GET request that accepts text/html gets it too
+    (client-side routed pages survive a browser refresh).
+
+    Raises ValueError if the router already has a root-level GET wildcard
+    route. Requests for other methods are not affected and still reach the
+    router's not-found handler.
+    """
+    prepared: dict[str, (body: str, ctype: str, cache: str)] = {}
+    for path, body in assets.items():
+        if not path.startswith("/"):
+            raise ValueError("Embedded asset path must start with '/': " + path)
+        cache = _IMMUTABLE_CACHE if path.startswith(immutable_prefix) else _DEFAULT_CACHE
+        prepared[path] = (body=body, ctype=content_type(path), cache=cache)
+
+    index_body = assets.get(index_path)
+    if index_body is not None:
+        prepared["/"] = (body=index_body, ctype=_HTML_CONTENT_TYPE, cache=_DEFAULT_CACHE)
+
+    router.get("/*path", _make_asset_handler(prepared, index_body, spa_fallback))
