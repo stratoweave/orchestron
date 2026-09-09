@@ -407,8 +407,31 @@ The mock keeps the running and committed release, the staged and added image,
 and the operation history. It replies to an RPC before changing operational
 state, so an adapter that treats `<ok/>` as completion fails the tests. State
 changes are published through the mock operational datastore and observed by
-later `get` calls. With `auto_abort_after` set, an activation that is not
-committed in time reverts, like the device's timer.
+later `get` calls. The release after an install comes from the image file
+name, spelled as the device banner spells it.
+
+Two arguments make the mock behave like a particular device; a device entry
+carries them as `mock/software/upgrade-duration`, `mock/software/failure`
+and `mock/software/running-release` for the device type's adapter factory
+to pass on. A
+factory that passes `complete_after` instead gets a fixed delay per
+operation. `upgrade_duration` is the seconds a whole
+upgrade takes; the mock spreads it over the operations in the proportions
+measured on a c8000v with a 962 MB image (staging 130 s, add 20 s, a 240 s
+reload for activate and for abort, commit 5 s, 395 s in all), so 395 is as
+slow as the device and 0 completes each operation at once. `failure`
+reproduces one IOS XE failure:
+
+| failure | device behavior | manager ends |
+|---|---|---|
+| `download-failed` | `xcopy` accepted, then the download stage fails | `failed`, nothing installed |
+| `add-failed` | `install` accepted, then the verify stage fails | `failed` |
+| `activate-refused` | `activate` rejected | `failed`, no abort |
+| `commit-failed` | `install-commit` accepted, then the commit stage fails | `rolled-back` after `abort` |
+| `reverts` | the abort timer ran out before the commit, so the commit finds nothing to do | `failed`, nothing to abort |
+
+A failed operation is recorded as the device records it: the stages that ran,
+the failed one marked, and nothing after it.
 
 Current coverage includes:
 
@@ -418,12 +441,19 @@ Current coverage includes:
 - record aggregation across UUIDs and multiple stages, and reverted records;
 - preservation of multiple keyless history records by the current filter;
 - a complete `xcopy`, `install`, `activate`, `install-commit` run through
-  `DeviceMgr` and `SoftwareManager`, committed before the mock's timer;
+  `DeviceMgr` and `SoftwareManager`;
 - a failing post-check ending in `abort` and `rolled-back`;
+- a failed commit ending in `abort` and `rolled-back`;
+- a device that reverted before the commit ending in `failed`;
 - a refused `activate` ending in `failed` with no abort;
+- a download that fails after the copy was accepted, ending in `failed` with
+  nothing installed;
+- propagation of a device-side add failure to manager status `failed`;
 - no RPCs when the device already runs an equivalent release;
-- proof that RPC acceptance is not completion;
-- propagation of a device-side RPC refusal to manager status `failed`;
+- the running release following the image file name;
+- the choice of delay between the upgrade duration, a fixed delay and instant;
+- proof that RPC acceptance is not completion, and that a copy is still
+  running 0.2 s later under an upgrade duration;
 - publication of software status and running release as operational data.
 
 `src/test_swmgr.act` covers the manager against the in-memory adapter:

@@ -402,6 +402,46 @@ rfs = r"""module stratoweave-rfs {
         type boolean;
         default "false";
       }
+      container software {
+        description
+          "How the mock behaves during a software upgrade.";
+        leaf upgrade-duration {
+          description
+            "Seconds a whole mock software upgrade takes, spread over its
+             operations as measured on a real device. Absent or 0 completes
+             each operation at once.";
+          units "seconds";
+          type uint16;
+        }
+        leaf failure {
+          description
+            "IOS XE failure the mock reproduces during an upgrade.";
+          type enumeration {
+            enum none;
+            enum download-failed {
+              description "The download fails after xcopy was accepted.";
+            }
+            enum add-failed {
+              description "The verify stage fails after install add was accepted.";
+            }
+            enum activate-refused {
+              description "activate is rejected, as when the image was not added.";
+            }
+            enum commit-failed {
+              description "The commit stage fails after install-commit was accepted.";
+            }
+            enum reverts {
+              description "The abort timer runs out before the commit.";
+            }
+          }
+          default "none";
+        }
+        leaf running-release {
+          description
+            "Release the mock runs before any upgrade. Absent means 17.18.02.";
+          type string;
+        }
+      }
       list module {
         key "name";
         leaf name {

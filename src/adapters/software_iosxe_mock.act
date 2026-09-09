@@ -2,7 +2,9 @@
 
 The mock sits behind NetconfAdapter's in-process NETCONF server. It replies to
 RPCs before their asynchronous operation records complete, just like IOS XE,
-and publishes both install history and the running software banner.
+and publishes install history, the image inventory and the running software
+banner. `upgrade_duration` and `failure` make it behave like a particular
+device; see IosXeSoftwareMock.
 """
 
 import logging
@@ -22,17 +24,92 @@ NEW_REPORTED = "17.18.3a"
 IMAGE_FILE = "c8000v-universalk9.17.18.03a.SPA.bin"
 IMAGE_URL = "scp://root:labpass@10.0.0.9:/images/" + IMAGE_FILE
 
-# The device names an image by a version string, and activate takes that, not
-# the path. The first three components match the release the operator asked for.
-OLD_VERSION = "17.18.02.0.4112"
+
+def device_version(release: str) -> str:
+    """The inventory spelling of an image, <release>.0.<build>, which activate
+    takes instead of the path. The adapter matches the first three components,
+    so one build number serves every release."""
+    return release + ".0.5540"
+
+
+OLD_VERSION = "17.18.02.0.5540"
 NEW_VERSION = "17.18.03a.0.5540"
 
+# Seconds each operation took on a lab c8000v; an upgrade duration is shared
+# out in these proportions. See docs/reference/software-upgrade.md.
+C8000V_SECONDS: dict[str, float] = {
+    "xcopy": 130.0,
+    "install": 20.0,
+    "activate": 240.0,
+    "install-commit": 5.0,
+    "abort": 240.0,
+}
+# Staging, add, activate and commit; the abort is the way back.
+C8000V_UPGRADE_SECONDS = 395.0
+
+# Completion delay for an instant upgrade; a reply is still not a completion.
+FAST = 0.05
+
+FAILURE_NONE = "none"
+FAILURE_DOWNLOAD = "download-failed"
+FAILURE_ADD = "add-failed"
+FAILURE_ACTIVATE_REFUSED = "activate-refused"
+FAILURE_COMMIT = "commit-failed"
+FAILURE_REVERTS = "reverts"
+FAILURES = [FAILURE_NONE, FAILURE_DOWNLOAD, FAILURE_ADD,
+            FAILURE_ACTIVATE_REFUSED, FAILURE_COMMIT, FAILURE_REVERTS]
+
+# Device vocabulary for a failed operation (Cisco-IOS-XE-install-oper-types).
+OP_FAIL = "install-op-fail"
+TXN_SUCC = "install-txn-sts-succ"
+TXN_FAIL = "install-txn-sts-fail"
+
+HISTORY_MAX = 20
+RPCS_MAX = 50
+
+_DOWNLOAD_STAGES = ["install-txn-dwnld-precheck", "install-txn-download"]
 _ADD_STAGES = ["install-txn-add-prechk", "install-txn-copy", "install-txn-verify",
                "install-txn-extract", "install-txn-add-postchk"]
 _ACT_STAGES = ["install-txn-act-prechk", "install-txn-img-act", "install-txn-reload"]
 _COMMIT_STAGES = ["install-txn-commit-prechk", "install-txn-commit",
                   "install-txn-commit-postchk"]
 _ABORT_STAGES = ["install-txn-rbk-prechk", "install-txn-reload"]
+STAGE_VERIFY = "install-txn-verify"
+STAGE_COMMIT = "install-txn-commit"
+
+
+def op_seconds(rpc: str, upgrade_duration: float) -> float:
+    """The operation's share of the upgrade duration; FAST when that is 0."""
+    if upgrade_duration <= 0.0:
+        return FAST
+    return C8000V_SECONDS[rpc] * upgrade_duration / C8000V_UPGRADE_SECONDS
+
+
+def one_shot_seconds(upgrade_duration: float) -> float:
+    """install one-shot adds, activates and commits as one operation."""
+    if upgrade_duration <= 0.0:
+        return FAST
+    total = op_seconds("install", upgrade_duration) + op_seconds("activate", upgrade_duration)
+    return total + op_seconds("install-commit", upgrade_duration)
+
+
+def longest_op_seconds(upgrade_duration: float) -> float:
+    """The slowest single operation; it sizes the adapter's polls."""
+    longest = FAST
+    for rpc in C8000V_SECONDS.keys():
+        secs = op_seconds(rpc, upgrade_duration)
+        if secs > longest:
+            longest = secs
+    return longest
+
+
+def delay_for(rpc: str, upgrade_duration: float, complete_after: ?float) -> float:
+    """The delay before an operation completes: its share of a positive upgrade
+    duration, else the caller's fixed delay, else FAST."""
+    if upgrade_duration > 0.0:
+        return op_seconds(rpc, upgrade_duration)
+    c = complete_after
+    return c! if c is not None else FAST
 
 
 def _banner(version: str) -> str:
@@ -58,19 +135,27 @@ def hardware_datastore(version: str) -> ygdata.Node:
 
 
 def operation_record(uuid: str, op_id: str, status: str, done: str,
-                     stages: list[str]) -> ygdata.Node:
-    """Return one finished IOS XE install operation record."""
+                     stages: list[str], failed_stage: ?str=None) -> ygdata.Node:
+    """Return one finished IOS XE install operation record. With failed_stage
+    the stages stop there, the last one failed, as the device reports an
+    operation that got no further."""
     def q(n: str) -> ygdata.Id:
         return ygdata.Id(ixoper.NS_Cisco_IOS_XE_install_oper, n)
     ns = ixoper.NS_Cisco_IOS_XE_install_oper
     mod = "Cisco-IOS-XE-install-oper"
     txns: list[ygdata.Node] = []
+    stop = False
     for stage in stages:
+        txn_status = TXN_SUCC
+        if failed_stage is not None and stage == failed_stage!:
+            txn_status = TXN_FAIL
+            stop = True
         txns.append(ygdata.Container({
             q("txn-cmd"): ygdata.Leaf(stage, ns=ns, module=mod),
-            q("txn-status"): ygdata.Leaf("install-txn-sts-succ",
-                                          ns=ns, module=mod),
+            q("txn-status"): ygdata.Leaf(txn_status, ns=ns, module=mod),
         }, ns=ns, module=mod))
+        if stop:
+            break
     return ygdata.Container({
         q("op-uuid"): ygdata.Leaf(uuid, ns=ns, module=mod),
         q("op-id"): ygdata.Leaf(op_id, ns=ns, module=mod),
@@ -78,6 +163,7 @@ def operation_record(uuid: str, op_id: str, status: str, done: str,
         q("op-done"): ygdata.Leaf(done, ns=ns, module=mod),
         q("install-txn-sum-op-hist"): ygdata.List([], txns),
     }, ns=ns, module=mod)
+
 
 def version_state_info(state: str, version: str) -> ygdata.Node:
     """One install-version-state-info entry, naming a known image version."""
@@ -125,27 +211,49 @@ def _leaf_of(request: xml.Node, name: str) -> ?str:
     return None
 
 
+def _release_of(path: ?str) -> ?str:
+    """The release an install path names, e.g. bootflash:<image file>."""
+    if path is None:
+        return None
+    p = path!
+    if p.startswith("bootflash:"):
+        p = p[len("bootflash:"):]
+    return swxe.release_from_filename(p)
+
+
 actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
                         log_handler: logging.Handler,
-                        fail_rpc: ?str=None,
-                        complete_after: float=0.05,
-                        start_release: str=OLD_RELEASE,
-                        target_release: str=NEW_REPORTED,
-                        auto_abort_after: ?float=None):
+                        upgrade_duration: float=0.0,
+                        failure: str=FAILURE_NONE,
+                        running: str=OLD_RELEASE,
+                        complete_after: ?float=None):
     """Model the staged and added image, running and committed release, and
     install history.
 
     Without one-shot, install only adds; activate boots the added image by its
-    version and leaves it uncommitted with an abort timer; install-commit keeps
-    it, abort reloads back. With auto_abort_after, an activation not committed
-    in time reverts, as the device timer would.
+    version and leaves it uncommitted; install-commit keeps it, abort reloads
+    back. The release after an install is the one the image file is named for,
+    spelled the way the banner spells it.
+
+    `upgrade_duration` is the seconds a whole upgrade takes, shared out in the
+    C8000V_SECONDS proportions; 0 completes each operation after FAST, or after
+    `complete_after` when a caller gives a fixed delay per operation instead.
+    `failure` reproduces one IOS XE failure:
+
+      download-failed   xcopy accepted, then the download stage fails
+      add-failed        install accepted, then the verify stage fails
+      activate-refused  activate rejected, as when the image was not added
+      commit-failed     install-commit accepted, then the commit stage fails
+      reverts           the abort timer runs out before the commit, so the
+                        device is back on the committed release
     """
     _log = logging.Logger(log_handler)
 
-    var running: str = start_release
-    var committed: str = start_release
+    var cur: str = running
+    var committed: str = running
     var staged: ?str = None
     var added: ?str = None
+    var act_uuid: ?str = None
     var history: list[ygdata.Node] = []
     var rpcs: list[str] = []
     var last_source: ?str = None
@@ -155,76 +263,119 @@ actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
     var last_act_version: ?str = None
     var last_timer: ?str = None
 
-    def _ver_str(release: str) -> str:
-        return NEW_VERSION if release == target_release else OLD_VERSION
+    if failure not in FAILURES:
+        _log.error("IOS XE software mock: unknown failure, behaving as none",
+                   {"failure": failure})
+
+    def _delay(rpc: str) -> float:
+        return delay_for(rpc, upgrade_duration, complete_after)
+
+    def _one_shot_delay() -> float:
+        if upgrade_duration > 0.0:
+            return one_shot_seconds(upgrade_duration)
+        return delay_for("install", 0.0, complete_after)
 
     def _publish() -> None:
         vstates = [version_state_info(
-            "install-version-state-provisioned-committed", _ver_str(committed))]
-        if added is not None and committed != target_release:
+            "install-version-state-provisioned-committed", device_version(committed))]
+        a = added
+        if a is not None and not swxe.releases_equal(a!, committed):
             vstates.append(version_state_info(
-                "install-version-state-provisioned-uncommitted", NEW_VERSION))
-        mock_server.set_oper_ds(operational_datastore(running, history, vstates))
+                "install-version-state-provisioned-uncommitted", device_version(a!)))
+        mock_server.set_oper_ds(operational_datastore(cur, history, vstates))
+
+    def _remember(record: ygdata.Node) -> None:
+        # Copy on write: the published datastore still holds the old list.
+        new = history + [record]
+        if len(new) > HISTORY_MAX:
+            new = new[len(new) - HISTORY_MAX:]
+        history = new
 
     def _record(uuid: str, op_id: str, stages: list[str]) -> None:
-        history = history + [operation_record(
-            uuid, op_id, swxe.OP_SUCC, swxe.OP_COMPLETE, stages)]
+        _remember(operation_record(uuid, op_id, swxe.OP_SUCC, swxe.OP_COMPLETE, stages))
+
+    def _fail(uuid: str, op_id: str, stages: list[str], stage: str) -> None:
+        _remember(operation_record(uuid, op_id, OP_FAIL, swxe.OP_COMPLETE, stages, stage))
+
+    def _noop(uuid: str, stages: list[str]) -> None:
+        _remember(operation_record(uuid, "1", swxe.OP_MARKED_SUCC, swxe.OP_COMPLETE, stages))
+
+    def _note(tag: str) -> None:
+        new = rpcs + [tag]
+        if len(new) > RPCS_MAX:
+            new = new[len(new) - RPCS_MAX:]
+        rpcs = new
 
     def _finish_xcopy(uuid: str) -> None:
-        staged = last_destination
-        _record(uuid, "1", ["install-txn-dwnld-precheck", "install-txn-download"])
+        if failure == FAILURE_DOWNLOAD:
+            _fail(uuid, "1", _DOWNLOAD_STAGES, swxe.STAGE_DOWNLOAD)
+        else:
+            staged = last_destination
+            _record(uuid, "1", _DOWNLOAD_STAGES)
         _publish()
 
-    def _finish_add(uuid: str) -> None:
-        added = staged
-        _record(uuid, "1", _ADD_STAGES)
+    def _finish_add(uuid: str, release: str) -> None:
+        if failure == FAILURE_ADD:
+            _fail(uuid, "1", _ADD_STAGES, STAGE_VERIFY)
+        else:
+            added = release
+            _record(uuid, "1", _ADD_STAGES)
         _publish()
 
-    def _finish_install(uuid: str) -> None:
-        """one-shot: add, activate, commit, reload."""
-        _record(uuid, "1", _ADD_STAGES)
-        _record(uuid, "2", ["install-txn-act-prechk", "install-txn-img-act",
-                            "install-txn-commit", "install-txn-reload"])
-        running = target_release
-        committed = target_release
+    def _finish_install(uuid: str, release: str) -> None:
+        """one-shot: add, activate, commit, reload as one operation."""
+        if failure == FAILURE_ADD:
+            _fail(uuid, "1", _ADD_STAGES, STAGE_VERIFY)
+        else:
+            _record(uuid, "1", _ADD_STAGES)
+            _record(uuid, "2", ["install-txn-act-prechk", "install-txn-img-act",
+                                "install-txn-commit", "install-txn-reload"])
+            cur = swxe.reported_release(release)
+            committed = cur
         _publish()
 
     def _finish_activate(uuid: str) -> None:
-        _record(uuid, "1", _ACT_STAGES)
-        running = target_release
-        _publish()
-        a = auto_abort_after
-        if a is not None:
-            after a!: _auto_abort(uuid)
-
-    def _auto_abort(uuid: str) -> None:
-        if running == committed:
+        a = added
+        if a is None:
             return
-        history = history + [operation_record(
-            uuid, "2", swxe.OP_FAIL_REVERT, swxe.OP_REVERTED, _ABORT_STAGES)]
-        running = committed
+        act_uuid = uuid
+        _record(uuid, "1", _ACT_STAGES)
+        cur = swxe.reported_release(a!)
         _publish()
+
+    def _revert() -> None:
+        """The abort timer ran out: the device boots the committed release again."""
+        u = act_uuid
+        if u is not None:
+            _remember(operation_record(u!, "2", swxe.OP_FAIL_REVERT,
+                                       swxe.OP_REVERTED, _ABORT_STAGES))
+        cur = committed
 
     def _finish_commit(uuid: str) -> None:
-        committed = running
-        _record(uuid, "1", _COMMIT_STAGES)
+        if failure == FAILURE_REVERTS and cur != committed:
+            # The timer beat the commit; a commit with nothing to do is marked
+            # successful.
+            _revert()
+            _noop(uuid, _COMMIT_STAGES)
+        elif failure == FAILURE_COMMIT:
+            _fail(uuid, "1", _COMMIT_STAGES, STAGE_COMMIT)
+        elif cur == committed:
+            _noop(uuid, _COMMIT_STAGES)
+        else:
+            committed = cur
+            _record(uuid, "1", _COMMIT_STAGES)
         _publish()
 
     def _finish_abort(uuid: str) -> None:
         _record(uuid, "1", _ABORT_STAGES)
-        running = committed
+        cur = committed
         _publish()
 
     def _on_rpc(request: xml.Node,
                 respond: action(children: ?list[xml.Node], tag: ?str,
                                 message: ?str) -> None) -> None:
-        rpcs.append(request.tag)
+        _note(request.tag)
         uuid = _uuid_of(request)
-
-        if fail_rpc == request.tag:
-            respond(tag="operation-failed", message="mock: {request.tag} failed")
-            return
-
         if uuid is None:
             respond(tag="missing-element", message="no uuid in request")
             return
@@ -237,7 +388,8 @@ actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
                 nsdefs=[(None, "http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc")],
                 text=uuid!,
             )])
-            after complete_after: _finish_xcopy(uuid!)
+            delay = _delay("xcopy")
+            after delay: _finish_xcopy(uuid!)
             return
 
         if request.tag == "install":
@@ -246,35 +398,50 @@ actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
             if staged is None:
                 respond(tag="operation-failed", message="no image has been staged")
                 return
+            release = _release_of(last_path)
+            if release is None:
+                respond(tag="operation-failed",
+                        message="no release in the image name: {last_path}")
+                return
             respond([])
             if last_one_shot == "true":
-                after complete_after: _finish_install(uuid!)
+                delay = _one_shot_delay()
+                after delay: _finish_install(uuid!, release!)
             else:
-                after complete_after: _finish_add(uuid!)
+                delay = _delay("install")
+                after delay: _finish_add(uuid!, release!)
             return
 
         if request.tag == "activate":
             last_act_version = _leaf_of(request, "version")
             last_timer = _leaf_of(request, "auto-abort-timer-val")
-            if added is None or last_act_version != NEW_VERSION:
+            if failure == FAILURE_ACTIVATE_REFUSED:
+                respond(tag="operation-failed",
+                        message="install-smu-not-added: mock refuses to activate")
+                return
+            a = added
+            if a is None or last_act_version != device_version(a!):
                 respond(tag="operation-failed",
                         message="no added image with that version")
                 return
             respond([])
-            after complete_after: _finish_activate(uuid!)
+            delay = _delay("activate")
+            after delay: _finish_activate(uuid!)
             return
 
         if request.tag == "install-commit":
             respond([])
-            after complete_after: _finish_commit(uuid!)
+            delay = _delay("install-commit")
+            after delay: _finish_commit(uuid!)
             return
 
         if request.tag == "abort":
-            if running == committed:
+            if cur == committed:
                 respond(tag="operation-failed", message="nothing to abort")
                 return
             respond([])
-            after complete_after: _finish_abort(uuid!)
+            delay = _delay("abort")
+            after delay: _finish_abort(uuid!)
             return
 
         respond(tag="operation-not-supported",
@@ -288,7 +455,7 @@ actor IosXeSoftwareMock(mock_server: swna.NetconfMockServer,
         return rpcs
 
     def get_running() -> str:
-        return running
+        return cur
 
     def get_committed() -> str:
         return committed
