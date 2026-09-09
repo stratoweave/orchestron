@@ -58,6 +58,26 @@ def lst(data: ?value, context: str) -> list[?value]:
     raise ValueError("Etcd returned an invalid {context}")
 
 
+def obvious_response_kind(data: ?value) -> ?str:
+    # etcd's JSON gateway omits default-valued fields, so a failed transaction
+    # and an empty range are both header-only. Only classify an unambiguous
+    # envelope; leave a header-only response to the endpoint decoder.
+    if isinstance(data, dict):
+        if "succeeded" in data or "responses" in data:
+            return "txn"
+        if "kvs" in data or "more" in data or "count" in data:
+            return "range"
+    return None
+
+
+def response_kind(path: str) -> str:
+    if path == "/v3/kv/txn":
+        return "txn"
+    if path == "/v3/kv/range":
+        return "range"
+    raise ValueError("Unsupported etcd request path: {path}")
+
+
 def as_bytes(data: ?value, context: str, required: bool=False) -> bytes:
     """Decode a base64 field; a missing field is empty unless required."""
     if data is None and not required:
@@ -77,40 +97,102 @@ def end_key(prefix: bytes, end: ?bytes) -> bytes:
 actor EtcdClient(cap: net.TCPConnectCap, host: str, port: int):
     """Send etcd JSON requests over one pipelined HTTP connection.
 
-    Many requests can be in flight at once; answers come back in order.
-    If the connection fails, every request waiting for an answer fails
-    with the same error, as does every later request.
+    Requests wait for the connection, then go out in order and their answers
+    return in order. http.Client resends whatever is still outstanding when
+    it connects, so handing it a request earlier sends it twice and desyncs
+    answers from callbacks. On failure every waiting request, and every later
+    one, fails with the same error. A response that unambiguously belongs to
+    the other request family means the stream is out of sync, so the client
+    fails everything and closes rather than passing on a mismatched answer.
     """
 
-    var pending: list[action(?value, ?Exception) -> None] = []
+    var pending: list[(kind: str, done: action(?value, ?Exception) -> None)] = []
+    var queued: list[(path: str, body: bytes, kind: str, done: action(?value, ?Exception) -> None)] = []
+    var ready = False
     var sent = 0
     var failure: ?Exception = None
     var closed = False
     var client: ?http.Client = None
 
-    def connected(_client: http.Client) -> None:
-        pass
+    def dispatch(c: http.Client, path: str, body: bytes, kind: str, done: action(?value, ?Exception) -> None) -> None:
+        pending.append((kind=kind, done=done))
+        sent += 1
+        c.post(path, body, response, {"Content-Type": "application/json"})
+
+    def connected(c: http.Client) -> None:
+        if closed or failure is not None:
+            c.close()
+            return
+        ready = True
+        waiting = queued
+        queued = []
+        for req in waiting:
+            dispatch(c, req.path, req.body, req.kind, req.done)
 
     def failed(_client: http.Client, message: str) -> None:
+        # http.Client does not reconnect after an error, so close it rather than
+        # leave a dead connection open in a client that can no longer be used.
+        # Only close when this is the first death, since poison() or close()
+        # already closed the client and this error is the socket tearing down.
+        already_dead = failure is not None or closed
+        ready = False
         if failure is None:
             failure = ValueError("Etcd connection failed: {message}")
-        callbacks = pending
+        callbacks = [p.done for p in pending] + [req.done for req in queued]
         pending = []
+        queued = []
         for callback in callbacks:
             callback(None, failure)
+        c = client
+        if c is not None and not already_dead:
+            c.close()
+
+    def poison(error: Exception) -> None:
+        # An out-of-sync stream cannot be trusted, so fail everything with one
+        # error and close rather than guessing how to realign it.
+        if failure is None:
+            failure = error
+        ready = False
+        callbacks = [p.done for p in pending] + [req.done for req in queued]
+        pending = []
+        queued = []
+        for callback in callbacks:
+            callback(None, failure)
+        c = client
+        if c is not None:
+            c.close()
 
     def response(_client: http.Client, result: http.Response) -> None:
+        # After a failure, poison, or close the stream is dead; drop the response.
+        if failure is not None or closed:
+            return
+        # Connection: close makes http.Client reconnect; hold later requests until then.
+        if "connection" in result.headers and result.headers["connection"] == "close":
+            ready = False
         if len(pending) == 0:
             return
-        callback = pending[0]
-        del pending[0]
+        # Keep the request at the head until it is validated; on a mismatch
+        # poison() then fails it and everything after it in request order.
+        req = pending[0]
         if result.status < 200 or result.status >= 300:
-            callback(None, ValueError("Etcd request failed with HTTP {result.status}: {result.body.decode()}"))
-        else:
+            del pending[0]
             try:
-                callback(result.decode_json(), None)
-            except Exception as e:
-                callback(None, e)
+                req.done(None, ValueError("Etcd request failed with HTTP {result.status}: {result.body.decode()}"))
+            except Exception:
+                # A non-UTF-8 error body must not swallow the callback.
+                req.done(None, ValueError("Etcd request failed with HTTP {result.status}"))
+            return
+        try:
+            decoded = result.decode_json()
+            observed = obvious_response_kind(decoded)
+            if observed is not None and observed != req.kind:
+                poison(ValueError("Etcd returned a {observed} response for a pending {req.kind} request; the stream is out of sync"))
+                return
+            del pending[0]
+            req.done(decoded, None)
+        except Exception as e:
+            del pending[0]
+            req.done(None, e)
 
     client = http.Client(cap, host, connected, failed, scheme="http", port=port, log_handler=None)
 
@@ -122,12 +204,18 @@ actor EtcdClient(cap: net.TCPConnectCap, host: str, port: int):
             done(None, failure)
             return
         try:
+            # Resolve the kind now so an unknown path fails its own post rather
+            # than stranding sibling queued requests when connected() dispatches.
+            kind = response_kind(path)
             encoded = json.encode(body, pretty=False).encode()
             c = client
             if c is not None:
-                pending.append(done)
-                sent += 1
-                c.post(path, encoded, response, {"Content-Type": "application/json"})
+                if ready:
+                    dispatch(c, path, encoded, kind, done)
+                else:
+                    queued.append((path=path, body=encoded, kind=kind, done=done))
+            else:
+                done(None, ValueError("Etcd client is not connected"))
         except Exception as e:
             done(None, e)
 
@@ -140,10 +228,12 @@ actor EtcdClient(cap: net.TCPConnectCap, host: str, port: int):
             done(None)
             return
         closed = True
-        callbacks = pending
+        ready = False
+        callbacks = [p.done for p in pending] + [req.done for req in queued]
         pending = []
+        queued = []
         for callback in callbacks:
-            callback(None, ValueError("Etcd store closed with a request in flight"))
+            callback(None, ValueError("Etcd store closed with a request pending"))
         try:
             c = client
             if c is not None:
