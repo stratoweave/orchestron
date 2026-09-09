@@ -97,6 +97,73 @@ class Cisco_IOS_XE_install_rpc__install__input(yadata.MNode):
 
 
 _breaker4: None = None
+class Cisco_IOS_XE_install_rpc__activate__input(yadata.MNode):
+    uuid: ?str
+    auto_abort_timer_val: ?u64
+    version: ?str
+
+    mut def __init__(self, uuid: ?str, auto_abort_timer_val: ?u64, version: ?str) -> None:
+        self.uuid = uuid
+        self.auto_abort_timer_val = auto_abort_timer_val
+        self.version = version
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-rpc:activate', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_rpc__activate__input:
+        if n is not None:
+            return Cisco_IOS_XE_install_rpc__activate__input(uuid=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'uuid')), auto_abort_timer_val=n.get_opt_u64(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'auto-abort-timer-val')), version=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'version')))
+        return Cisco_IOS_XE_install_rpc__activate__input()
+
+    mut def copy(self) -> Cisco_IOS_XE_install_rpc__activate__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_rpc__activate__input.from_gdata(self.to_gdata())
+
+
+_breaker5: None = None
+class Cisco_IOS_XE_install_rpc__install_commit__input(yadata.MNode):
+    uuid: ?str
+
+    mut def __init__(self, uuid: ?str) -> None:
+        self.uuid = uuid
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-rpc:install-commit', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_rpc__install_commit__input:
+        if n is not None:
+            return Cisco_IOS_XE_install_rpc__install_commit__input(uuid=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'uuid')))
+        return Cisco_IOS_XE_install_rpc__install_commit__input()
+
+    mut def copy(self) -> Cisco_IOS_XE_install_rpc__install_commit__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_rpc__install_commit__input.from_gdata(self.to_gdata())
+
+
+_breaker6: None = None
+class Cisco_IOS_XE_install_rpc__abort__input(yadata.MNode):
+    uuid: ?str
+
+    mut def __init__(self, uuid: ?str) -> None:
+        self.uuid = uuid
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=True, root_path=['Cisco-IOS-XE-install-rpc:abort', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_rpc__abort__input:
+        if n is not None:
+            return Cisco_IOS_XE_install_rpc__abort__input(uuid=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'uuid')))
+        return Cisco_IOS_XE_install_rpc__abort__input()
+
+    mut def copy(self) -> Cisco_IOS_XE_install_rpc__abort__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_rpc__abort__input.from_gdata(self.to_gdata())
+
+
+_breaker7: None = None
 class Cisco_IOS_XE_xcopy_rpc__xcopy__input(yadata.MNode):
     uuid: ?str
     source_path: ?str
@@ -121,7 +188,7 @@ class Cisco_IOS_XE_xcopy_rpc__xcopy__input(yadata.MNode):
         return Cisco_IOS_XE_xcopy_rpc__xcopy__input.from_gdata(self.to_gdata())
 
 
-_breaker5: None = None
+_breaker8: None = None
 class Cisco_IOS_XE_xcopy_rpc__xcopy__output(yadata.MNode):
     uuid: ?str
 
@@ -149,6 +216,30 @@ actor rpc_root(tp: ygdata.TreeProvider):
         if inp is not None:
             rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["Cisco-IOS-XE-install-rpc:install", "input"])
         rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'install'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    activate: action(cb: action(?Exception) -> None, inp: Cisco_IOS_XE_install_rpc__activate__input) -> None
+    def activate(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["Cisco-IOS-XE-install-rpc:activate", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'activate'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    install_commit: action(cb: action(?Exception) -> None, inp: Cisco_IOS_XE_install_rpc__install_commit__input) -> None
+    def install_commit(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["Cisco-IOS-XE-install-rpc:install-commit", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'install-commit'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    abort: action(cb: action(?Exception) -> None, inp: Cisco_IOS_XE_install_rpc__abort__input) -> None
+    def abort(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, True, ["Cisco-IOS-XE-install-rpc:abort", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'abort'): rpc_input})
         tp.rpc(lambda _, err: cb(err), rpc_gdata)
 
     xcopy: action(cb: action(?Cisco_IOS_XE_xcopy_rpc__xcopy__output, ?Exception) -> None, inp: ?Cisco_IOS_XE_xcopy_rpc__xcopy__input) -> None

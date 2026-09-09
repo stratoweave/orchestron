@@ -1,17 +1,18 @@
 #
 # IOS XE software adapter.
 #
-# Current IOS XE workflow:
+# IOS XE workflow:
 #
-#   prepare  = xcopy   the image onto bootflash          non-impacting
-#   install  = install one-shot: add, activate, commit,
-#              and the device reloads                    impacting
+#   prepare  = xcopy the image onto bootflash                non-impacting
+#   install  = install (add), then activate with an
+#              auto-abort timer; the device reloads          impacting
+#   commit   = install-commit, stops the timer
+#   rollback = abort; the device reloads on the old release  impacting
 #
-# With `one-shot=true`, `install` adds, activates, commits, and reloads. The
-# adapter does not send a separate `activate` RPC.
+# Without a commit the device reverts on its own when the timer runs out.
 #
-# Rollback, cleanup, pre/post checks, retry, and abort are not implemented.
-# Recovery is manual. Cleanup leaves the previous image on the device.
+# Cleanup and retry are not implemented. Cleanup leaves the previous image on
+# the device.
 #
 # Install RPCs are asynchronous. An <ok/> reply means accepted, not complete.
 # The adapter polls operational state for completion.
@@ -33,20 +34,31 @@ from device_meta_config import stratoweave_rfs__device_entry as DeviceMetaConfig
 
 # install-oper op-status. MARKED_SUCC means the device had nothing to do, which
 # is not confirmation that what we asked for happened -- but it is not a failure
-# either.
+# either. FAIL_REVERT means the device is undoing the operation.
 OP_SUCC = "install-op-succ"
 OP_MARKED_SUCC = "install-op-marked-succ"
+OP_FAIL_REVERT = "install-op-fail-revert"
+# install-oper op-done.
 OP_COMPLETE = "op-complete"
+OP_REVERTED = "op-reverted"
 
-# The stage an xcopy produces. A pure file copy really does report through the
-# install records.
+# The stage that ends each records-polled job. A pure file copy really does
+# report through the install records.
 STAGE_DOWNLOAD = "install-txn-download"
+STAGE_ADD_END = "install-txn-add-postchk"
 
 POLL_PERIOD = 10.0
 RELOAD_POLL_PERIOD = 20.0
-# Generous: the transfer and the add each take minutes, and a reload plus a late
-# NETCONF listener can take many more.
+# Generous: the transfer and the add each take minutes.
 MAX_POLLS = 180
+
+# Minutes the device waits for install-commit after activation before it
+# reverts. 30 is the smallest value it accepts.
+AUTO_ABORT_TIMER_MIN = 30
+# Reload polls stop a little past the abort timer: by then the device has
+# reverted and the release we wait for cannot appear. Roughly (30 + 5) minutes
+# over the 20 s reload poll period.
+VERSION_MAX_POLLS = (AUTO_ABORT_TIMER_MIN + 5) * 3
 
 # Wall-clock estimates in seconds, measured on a c8000v with a 962 MB image.
 ESTIMATE_TRANSFER = 150
@@ -176,19 +188,26 @@ def records_for(root: ?ygdata.Node, uuid: str) -> list[(status: str,
     return out
 
 
-def aggregate(root: ?ygdata.Node, uuid: str,
-              expect_stage: str) -> (done: bool, failed: bool, detail: str):
+def aggregate(root: ?ygdata.Node, uuid: str, expect_stage: str,
+              allow_noop: bool=True) -> (done: bool, failed: bool, detail: str):
     """Return completion and failure state for an operation UUID.
 
     Completion requires terminal records and the expected final stage. A later
     record may not have appeared yet even when all current records succeeded.
+    An empty `expect_stage` skips that wait, for operations with one record.
+    With `allow_noop` False, `install-op-marked-succ` is a failure: the device
+    found nothing to do.
     """
     recs = records_for(root, uuid)
     if len(recs) == 0:
         return (done=False, failed=False, detail="no records yet")
     saw_end = False
     for r in recs:
+        if r.done == OP_REVERTED or r.status == OP_FAIL_REVERT:
+            return (done=True, failed=True, detail="operation reverted: {r.status}")
         finished = r.done == OP_COMPLETE
+        if finished and r.status == OP_MARKED_SUCC and not allow_noop:
+            return (done=True, failed=True, detail="nothing to do: {r.status}")
         if finished and r.status != OP_SUCC and r.status != OP_MARKED_SUCC:
             return (done=True, failed=True, detail="stage failed: {r.status}")
         if not finished:
@@ -196,7 +215,7 @@ def aggregate(root: ?ygdata.Node, uuid: str,
         for s in r.stages:
             if s == expect_stage:
                 saw_end = True
-    if not saw_end:
+    if expect_stage != "" and not saw_end:
         return (done=False, failed=False, detail="waiting for {expect_stage}")
     return (done=True, failed=False, detail="")
 
@@ -223,6 +242,34 @@ def records_filter() -> ygdata.FNode:
     paths = ixoper.subs.install_oper_data
     return paths.subscribe(select=[paths.install_oper,
                                    paths.install_oper_hist]).filt!
+
+
+def versions_filter() -> ygdata.FNode:
+    """Select the per-location version state, which names the added image.
+
+    Selecting the whole location list, like `records_filter`, keeps every
+    keyless entry and drops the large install-packages sibling.
+    """
+    paths = ixoper.subs.install_oper_data
+    return paths.subscribe(select=[paths.install_location_information]).filt!
+
+
+def added_version(root: ?ygdata.Node, release: str) -> ?str:
+    """The device's version string for an added image of `release`.
+
+    The device names an added image like 17.18.03a.0.5540, which `activate`
+    needs; the running image is there too, so match on the release the version
+    starts with rather than on the state, which changes through the add.
+    """
+    iod = ixoper.root.from_gdata(root).install_oper_data
+    for loc in iod.install_location_information:
+        for v in loc.install_version_state_info:
+            ver = v.version
+            if ver is not None:
+                parts = ver.split(".")
+                if len(parts) >= 3 and releases_equal(".".join(parts[:3]), release):
+                    return ver
+    return None
 
 
 def image_filename(url: str) -> str:
@@ -271,14 +318,29 @@ def xcopy_input(uuid: str, url: str, filename: str) -> ixrpc.Cisco_IOS_XE_xcopy_
 
 
 def install_input(uuid: str, filename: str) -> ixrpc.Cisco_IOS_XE_install_rpc__install__input:
-    """Add the staged file and activate it in one call.
+    """Add the staged file without activating it.
 
-    `one_shot` is what makes this the whole impacting step: the device adds,
-    activates, commits and reloads. `path` needs the `bootflash:` prefix, the
-    opposite convention to xcopy's destination.
+    `path` needs the `bootflash:` prefix, the opposite convention to xcopy's
+    destination.
     """
     return ixrpc.Cisco_IOS_XE_install_rpc__install__input(
-        uuid=uuid, one_shot=True, path="bootflash:" + filename)
+        uuid=uuid, one_shot=False, path="bootflash:" + filename)
+
+
+def activate_input(uuid: str, version: str,
+                   timer_min: int) -> ixrpc.Cisco_IOS_XE_install_rpc__activate__input:
+    """Boot an added image by version. The device reverts unless install-commit
+    arrives within `timer_min` minutes."""
+    return ixrpc.Cisco_IOS_XE_install_rpc__activate__input(
+        uuid=uuid, auto_abort_timer_val=u64(timer_min), version=version)
+
+
+def commit_input(uuid: str) -> ixrpc.Cisco_IOS_XE_install_rpc__install_commit__input:
+    return ixrpc.Cisco_IOS_XE_install_rpc__install_commit__input(uuid=uuid)
+
+
+def abort_input(uuid: str) -> ixrpc.Cisco_IOS_XE_install_rpc__abort__input:
+    return ixrpc.Cisco_IOS_XE_install_rpc__abort__input(uuid=uuid)
 
 
 #############################################################################
@@ -288,24 +350,41 @@ def install_input(uuid: str, filename: str) -> ixrpc.Cisco_IOS_XE_install_rpc__i
 actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
                           poll_period: float=POLL_PERIOD,
                           reload_poll_period: float=RELOAD_POLL_PERIOD):
-    """Serializes IOS XE software jobs and owns their polling state."""
+    """Serializes IOS XE software jobs and owns their polling state.
+
+    One job at a time. Install is two phases: add, then activate the added
+    image by the version the device assigned it. Record phases poll
+    install-oper-data until the expected stage completes; version phases poll
+    the running release until it reaches the target.
+    """
     _log = logging.Logger(log_handler)
     # The adapter is built inside DeviceMgr.set_dmc. Calling dev.tree_provider()
     # synchronously here would call back into the same actor and deadlock.
     _rpcs = ixrpc.rpc_root(swdev.DeviceTreeProvider(dev))
 
-    var _phase = ""
+    var _phase = ""          # stage | add | activate | commit | abort
     var _gen = 0
     var _polls = 0
     var _release = ""
     var _uuid = ""
     var _filename = ""
+    var _expect_stage = ""
+    var _allow_noop = True
+    # Release a version phase waits for. None while aborting with the previous
+    # release unknown: then any release but the aborted one will do.
+    var _want: ?str = None
     var _done: ?action(?Exception) -> None = None
+    # Activate has run and the device is reloading, so poll the release now
+    # instead of the operation record.
+    var _activate_booting = False
+    # Monotonic seconds when activate was sent; the device timer runs from there.
+    var _activated_at: ?int = None
 
     def _finish(err: ?Exception) -> None:
         d = _done
         _phase = ""
         _done = None
+        _activate_booting = False
         _gen += 1
         if d is not None:
             d!(err)
@@ -314,7 +393,7 @@ actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
         return _phase != ""
 
     def _new_token() -> str:
-        """Return a timestamp token with microsecond resolution."""
+        """A timestamp token with microsecond resolution."""
         secs, nanos = time.get_realtime()
         return "{secs}-{nanos // 1000}"
 
@@ -325,22 +404,38 @@ actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
             return None
         return url
 
-    def _begin(phase: str, done: action(?Exception) -> None, release: str) -> ?str:
-        """Initialize a job and return its image URL, or report an error."""
+    def _start(phase: str, done: action(?Exception) -> None, release: str) -> bool:
+        """Claim the driver for a job. False, after reporting, if one is running."""
         if _busy():
             done(ValueError("software job already running: {_phase}"))
-            return None
-        url = _image_url()
-        if url is None:
-            done(ValueError("no image-url configured for release {release}"))
-            return None
+            return False
         _done = done
         _release = release
-        _filename = image_filename(url!)
-        _uuid = job_uuid(phase, release, _new_token())
+        _enter(phase)
+        return True
+
+    def _enter(phase: str) -> None:
+        """Begin a phase under a fresh uuid. Bumping _gen drops the previous
+        phase's pending polls."""
+        _gen += 1
         _phase = phase
+        _uuid = job_uuid(phase, _release, _new_token())
         _polls = 0
-        return url
+        _expect_stage = ""
+        _allow_noop = True
+        _want = None
+        _activate_booting = False
+
+    def _on_rpc(gen: int, period: float) -> action(?Exception) -> None:
+        """Reply handler for an input-only RPC: start polling once accepted."""
+        def cb(err: ?Exception) -> None:
+            if gen != _gen:
+                return
+            if err is not None:
+                _finish(err)
+                return
+            after period: _poll(gen)
+        return cb
 
     ####################################################################
     # check
@@ -359,16 +454,19 @@ actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
     ####################################################################
 
     def prepare(done: action(?Exception) -> None, release: str) -> None:
-        url = _begin("stage", done, release)
-        if url is None:
+        if not _start("stage", done, release):
             return
+        url = _image_url()
+        if url is None:
+            _finish(ValueError("no image-url configured for release {release}"))
+            return
+        _filename = image_filename(url!)
+        _expect_stage = STAGE_DOWNLOAD
         gen = _gen
         _log.info("software: staging image",
                   {"url": redact_url(url!), "uuid": _uuid})
         def on_rpc(out: ?ixrpc.Cisco_IOS_XE_xcopy_rpc__xcopy__output,
                    err: ?Exception) -> None:
-            # The output echoes the uuid we sent and says nothing about the
-            # copy, so it is ignored: progress comes from install-oper-data.
             if gen != _gen:
                 return
             if err is not None:
@@ -378,25 +476,82 @@ actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
         _rpcs.xcopy(on_rpc, xcopy_input(_uuid, url!, _filename))
 
     ####################################################################
-    # install: add and activate in one call, device reloads
+    # install: add, then activate the added image; device reloads
     ####################################################################
 
     def install(done: action(?Exception) -> None, release: str) -> None:
         # TODO: Verify the image is still staged and repeat prepare if needed.
-        url = _begin("install", done, release)
-        if url is None:
+        if not _start("add", done, release):
             return
+        url = _image_url()
+        if url is None:
+            _finish(ValueError("no image-url configured for release {release}"))
+            return
+        _filename = image_filename(url!)
+        _expect_stage = STAGE_ADD_END
+        _activated_at = None
+        _log.info("software: adding image", {"file": _filename, "uuid": _uuid})
+        _rpcs.install(_on_rpc(_gen, poll_period), install_input(_uuid, _filename))
+
+    def _after_add() -> None:
+        # An added image is activated by the version the device assigned it,
+        # not by its bootflash path, so read the version state first.
         gen = _gen
-        _log.info("software: installing, device will reload",
-                  {"file": _filename, "uuid": _uuid})
-        def on_rpc(err: ?Exception) -> None:
+        def on_versions(root: ?ygdata.Node, err: ?Exception) -> None:
             if gen != _gen:
                 return
             if err is not None:
                 _finish(err)
                 return
-            after reload_poll_period: _poll(gen)
-        _rpcs.install(on_rpc, install_input(_uuid, _filename))
+            ver = added_version(root, _release)
+            if ver is None:
+                _finish(ValueError("added image for {_release} not found"))
+                return
+            _activate(ver!)
+        dev.get(on_versions, versions_filter())
+
+    def _activate(version: str) -> None:
+        _enter("activate")
+        _want = _release
+        secs, nanos = time.get_monotonic()
+        _activated_at = secs
+        _log.info("software: activating, device will reload",
+                  {"version": version, "uuid": _uuid})
+        _rpcs.activate(_on_rpc(_gen, poll_period),
+                       activate_input(_uuid, version, AUTO_ABORT_TIMER_MIN))
+
+    ####################################################################
+    # commit: keep the activated release, stop the abort timer
+    ####################################################################
+
+    def commit(done: action(?Exception) -> None) -> None:
+        if not _start("commit", done, _release):
+            return
+        # One record and no reload, so completion alone ends the job. A no-op
+        # means nothing was uncommitted: the device had already reverted.
+        _allow_noop = False
+        _log.info("software: committing", {"release": _release, "uuid": _uuid})
+        _rpcs.install_commit(_on_rpc(_gen, poll_period), commit_input(_uuid))
+
+    def commit_window(done: action(?int) -> None) -> None:
+        a = _activated_at
+        if a is None:
+            done(None)
+            return
+        secs, nanos = time.get_monotonic()
+        done(AUTO_ABORT_TIMER_MIN * 60 - (secs - a!))
+
+    ####################################################################
+    # rollback: abort the uncommitted release; device reloads
+    ####################################################################
+
+    def rollback(done: action(?Exception) -> None, previous: ?str) -> None:
+        if not _start("abort", done, _release):
+            return
+        _want = previous
+        _log.info("software: aborting, device will reload",
+                  {"previous": str(previous), "uuid": _uuid})
+        _rpcs.abort(_on_rpc(_gen, reload_poll_period), abort_input(_uuid))
 
     ####################################################################
     # polling -- the only completion signal an accepted RPC gives
@@ -406,13 +561,39 @@ actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
         if gen != _gen or not _busy():
             return
         _polls += 1
-        if _polls > MAX_POLLS:
+        limit = VERSION_MAX_POLLS if (_phase == "activate" or _phase == "abort") else MAX_POLLS
+        if _polls > limit:
             _finish(ValueError("software job {_phase} did not finish in time"))
             return
-        if _phase == "install":
+        if _phase == "abort":
             _poll_version(gen)
+        elif _phase == "activate":
+            if _activate_booting:
+                _poll_version(gen)
+            else:
+                _poll_activate(gen)
         else:
             _poll_records(gen)
+
+    def _poll_activate(gen: int) -> None:
+        # Watch the activate operation until it fails its prechecks or the
+        # session drops as the device reloads. A read error is the reload, not
+        # a failure, so switch to waiting for the release.
+        after poll_period: _poll(gen)
+        def on_oper(root: ?ygdata.Node, err: ?Exception) -> None:
+            if gen != _gen:
+                return
+            if err is not None:
+                _activate_booting = True
+                return
+            v = aggregate(root, _uuid, "", True)
+            if not v.done:
+                return
+            if v.failed:
+                _finish(ValueError("activate failed: {v.detail}"))
+                return
+            _activate_booting = True
+        dev.get(on_oper, records_filter())
 
     def _poll_records(gen: int) -> None:
         # Schedule the next poll before starting the read so a missing callback
@@ -423,15 +604,27 @@ actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
                 return
             if err is not None:
                 return
-            v = aggregate(root, _uuid, STAGE_DOWNLOAD)
+            v = aggregate(root, _uuid, _expect_stage, _allow_noop)
             if not v.done:
                 return
             if v.failed:
-                _finish(ValueError("staging failed: {v.detail}"))
+                _finish(ValueError("{_phase} failed: {v.detail}"))
                 return
-            _log.info("software: image staged", {"file": _filename})
-            _finish(None)
+            _log.info("software: {_phase} done", {"uuid": _uuid})
+            _end_phase()
         dev.get(on_oper, records_filter())
+
+    def _end_phase() -> None:
+        if _phase == "add":
+            _after_add()
+        else:
+            _finish(None)
+
+    def _reached(got: str) -> bool:
+        w = _want
+        if w is not None:
+            return releases_equal(got, w)
+        return not releases_equal(got, _release)
 
     def _poll_version(gen: int) -> None:
         after reload_poll_period: _poll(gen)
@@ -444,24 +637,17 @@ actor IosXeSoftwareDriver(dev: swdev.DeviceMgr, log_handler: logging.Handler,
             got = running_release(root)
             if got is None:
                 return
-            if releases_equal(got, _release):
-                _log.info("software: device booted the target release",
-                          {"release": got!})
-                _finish(None)
+            if _reached(got!):
+                _log.info("software: device booted", {"release": got!})
+                _end_phase()
         dev.get(on_version, version_filter())
 
     ####################################################################
-    # not in the MVP -- these continue without acting
+    # not implemented -- continues without acting
     ####################################################################
 
-    def rollback(done: action(?Exception) -> None, previous: ?str) -> None:
-        _log.info("software: rollback is not implemented, continuing",
-                  {"previous": str(previous)})
-        done(None)
-
     def cleanup(done: action(?Exception) -> None) -> None:
-        # Cleanup is not implemented. Keep the previous image for manual
-        # recovery.
+        # Keep the previous image for manual recovery.
         _log.info("software: cleanup is not implemented, continuing")
         done(None)
 
@@ -476,13 +662,8 @@ class IosXeSoftwareAdapter(swdev.SoftwareAdapter):
                  poll_period: float=POLL_PERIOD,
                  reload_poll_period: float=RELOAD_POLL_PERIOD):
         # The poll periods are parameters only so a test can drive them fast.
-        #
-        # Because they are defaulted, a device type cannot name this class as its
-        # `software_adapter_type` -- the compiler wants every keyword the
-        # constructor declares, and the field's type has four parameters. So a
-        # device type names a small factory that calls this with the defaults;
-        # `_fast_adapter` in adapters.test_software_iosxe is the pattern,
-        # winding the periods down instead of leaving them.
+        # A device type names a small factory that calls this with defaults;
+        # `_fast_adapter` in adapters.test_software_iosxe is the pattern.
         self._log_handler = log_handler
         self._driver = IosXeSoftwareDriver(dev, log_handler, poll_period,
                                           reload_poll_period)
@@ -494,8 +675,6 @@ class IosXeSoftwareAdapter(swdev.SoftwareAdapter):
         self._driver.check(done)
 
     def matches_release(self, running: ?str, target: str) -> bool:
-        # Per component, not as strings: the device says 17.18.3a where the
-        # image is called 17.18.03a.
         return releases_equal(running, target)
 
     def prepare(self, done: action(?Exception) -> None, release: str) -> None:
@@ -506,6 +685,12 @@ class IosXeSoftwareAdapter(swdev.SoftwareAdapter):
 
     def rollback(self, done: action(?Exception) -> None, previous: ?str) -> None:
         self._driver.rollback(done, previous)
+
+    def commit(self, done: action(?Exception) -> None) -> None:
+        self._driver.commit(done)
+
+    def commit_window(self, done: action(?int) -> None) -> None:
+        self._driver.commit_window(done)
 
     def cleanup(self, done: action(?Exception) -> None) -> None:
         self._driver.cleanup(done)

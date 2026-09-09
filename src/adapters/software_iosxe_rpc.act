@@ -30,7 +30,35 @@ SRC_DNODE_RPC_0: DRpc = DRpc(module='Cisco-IOS-XE-install-rpc', namespace='http:
     ])
 ])
 
-SRC_DNODE_RPC_1: DRpc = DRpc(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='xcopy', input=DInput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
+SRC_DNODE_RPC_1: DRpc = DRpc(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='activate', input=DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='auto-abort-timer-val', config=False, description='Minutes until the device aborts an uncommitted\nactivation. 30 is the smallest value the device accepts.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(30, 1200)])), units='minutes'),
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='version', config=False, description='Version of an already-added image, from\ninstall-version-state-info. Activating an added image by its\nbootflash path fails; it must be named by version.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='auto-abort-timer-val', config=False, description='Minutes until the device aborts an uncommitted\nactivation. 30 is the smallest value the device accepts.', mandatory=False, type=DTypeIntegerUnsigned(name='uint32', description=None, reference=None, exts=[], builtin_type='uint32', default=None, ranges=Ranges([(30, 1200)])), units='minutes'),
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='version', config=False, description='Version of an already-added image, from\ninstall-version-state-info. Activating an added image by its\nbootflash path fails; it must be named by version.', mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_2: DRpc = DRpc(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='install-commit', input=DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_3: DRpc = DRpc(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='abort', input=DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+    DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+]), children=[
+    DInput(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', children=[
+        DLeaf(module='Cisco-IOS-XE-install-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', prefix='install-ios-xe-rpc', name='uuid', config=False, mandatory=True, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
+    ])
+])
+
+SRC_DNODE_RPC_4: DRpc = DRpc(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='xcopy', input=DInput(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', children=[
     DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='uuid', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='source-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[])),
     DLeaf(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc', prefix='xcopy-ios-xe-rpc', name='destination-path', config=False, mandatory=False, type=DTypeString(name='string', description=None, reference=None, exts=[], builtin_type='string', default=None, length=None, patterns=[]))
@@ -50,7 +78,7 @@ SRC_DNODE_RPC_1: DRpc = DRpc(module='Cisco-IOS-XE-xcopy-rpc', namespace='http://
 SRC_DNODE: DRoot = DRoot(
     children=[],
     identities=[],
-    rpcs=[SRC_DNODE_RPC_0, SRC_DNODE_RPC_1],
+    rpcs=[SRC_DNODE_RPC_0, SRC_DNODE_RPC_1, SRC_DNODE_RPC_2, SRC_DNODE_RPC_3, SRC_DNODE_RPC_4],
     module_metadata={'http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc':('Cisco-IOS-XE-install-rpc', None), 'http://cisco.com/ns/yang/Cisco-IOS-XE-xcopy-rpc':('Cisco-IOS-XE-xcopy-rpc', None)},
 )
 
@@ -93,12 +121,14 @@ SRC_YANG_1: str = r"""module Cisco-IOS-XE-install-rpc {
   prefix install-ios-xe-rpc;
 
   description
-    "Pruned to `install`, which is the only install RPC the MVP sends. The real
-     module has ten, all of them input-only: they reply <ok/> meaning accepted,
-     and progress arrives in install-oper-data under the uuid.
+    "Pruned to the four RPCs the adapter sends: install (add), activate,
+     install-commit and abort. The real module has ten, all input-only: they
+     reply <ok/> meaning accepted, and progress arrives in install-oper-data
+     under the uuid.
 
-     With `one-shot` set, `install` adds the image, activates it, commits and
-     reloads. The adapter does not send a separate `activate` RPC.";
+     Without `one-shot`, `install` only adds the image. `activate` boots it
+     with an auto-abort timer; the device reverts unless `install-commit`
+     arrives before the timer runs out.";
 
   rpc install {
     input {
@@ -116,6 +146,36 @@ SRC_YANG_1: str = r"""module Cisco-IOS-XE-install-rpc {
           4096, so a URL xcopy accepts can be too long here.";
         type string;
       }
+    }
+  }
+
+  rpc activate {
+    input {
+      leaf uuid { type string; mandatory true; }
+      leaf auto-abort-timer-val {
+        description "Minutes until the device aborts an uncommitted
+          activation. 30 is the smallest value the device accepts.";
+        type uint32 { range "30 .. 1200"; }
+        units "minutes";
+      }
+      leaf version {
+        description "Version of an already-added image, from
+          install-version-state-info. Activating an added image by its
+          bootflash path fails; it must be named by version.";
+        type string;
+      }
+    }
+  }
+
+  rpc install-commit {
+    input {
+      leaf uuid { type string; mandatory true; }
+    }
+  }
+
+  rpc abort {
+    input {
+      leaf uuid { type string; mandatory true; }
     }
   }
 }
@@ -178,6 +238,73 @@ class Cisco_IOS_XE_install_rpc__install__input(yadata.MNode):
 
 
 _breaker3: None = None
+class Cisco_IOS_XE_install_rpc__activate__input(yadata.MNode):
+    uuid: str
+    auto_abort_timer_val: ?u64
+    version: ?str
+
+    mut def __init__(self, uuid: str, auto_abort_timer_val: ?u64, version: ?str) -> None:
+        self.uuid = uuid
+        self.auto_abort_timer_val = auto_abort_timer_val
+        self.version = version
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['Cisco-IOS-XE-install-rpc:activate', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_rpc__activate__input:
+        if n is not None:
+            return Cisco_IOS_XE_install_rpc__activate__input(uuid=n.get_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'uuid')), auto_abort_timer_val=n.get_opt_u64(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'auto-abort-timer-val')), version=n.get_opt_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'version')))
+        raise ValueError('Missing required subtree Cisco_IOS_XE_install_rpc__activate__input')
+
+    mut def copy(self) -> Cisco_IOS_XE_install_rpc__activate__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_rpc__activate__input.from_gdata(self.to_gdata())
+
+
+_breaker4: None = None
+class Cisco_IOS_XE_install_rpc__install_commit__input(yadata.MNode):
+    uuid: str
+
+    mut def __init__(self, uuid: str) -> None:
+        self.uuid = uuid
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['Cisco-IOS-XE-install-rpc:install-commit', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_rpc__install_commit__input:
+        if n is not None:
+            return Cisco_IOS_XE_install_rpc__install_commit__input(uuid=n.get_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'uuid')))
+        raise ValueError('Missing required subtree Cisco_IOS_XE_install_rpc__install_commit__input')
+
+    mut def copy(self) -> Cisco_IOS_XE_install_rpc__install_commit__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_rpc__install_commit__input.from_gdata(self.to_gdata())
+
+
+_breaker5: None = None
+class Cisco_IOS_XE_install_rpc__abort__input(yadata.MNode):
+    uuid: str
+
+    mut def __init__(self, uuid: str) -> None:
+        self.uuid = uuid
+
+    mut def to_gdata(self) -> ygdata.Node:
+        return yadata.from_adata(SRC_DNODE, self, loose=False, root_path=['Cisco-IOS-XE-install-rpc:abort', 'input'])
+
+    @staticmethod
+    mut def from_gdata(n: ?ygdata.Node) -> Cisco_IOS_XE_install_rpc__abort__input:
+        if n is not None:
+            return Cisco_IOS_XE_install_rpc__abort__input(uuid=n.get_str(ygdata.Id(NS_Cisco_IOS_XE_install_rpc, 'uuid')))
+        raise ValueError('Missing required subtree Cisco_IOS_XE_install_rpc__abort__input')
+
+    mut def copy(self) -> Cisco_IOS_XE_install_rpc__abort__input:
+        """Create a deep copy of this adata object"""
+        return Cisco_IOS_XE_install_rpc__abort__input.from_gdata(self.to_gdata())
+
+
+_breaker6: None = None
 class Cisco_IOS_XE_xcopy_rpc__xcopy__input(yadata.MNode):
     uuid: ?str
     source_path: ?str
@@ -202,7 +329,7 @@ class Cisco_IOS_XE_xcopy_rpc__xcopy__input(yadata.MNode):
         return Cisco_IOS_XE_xcopy_rpc__xcopy__input.from_gdata(self.to_gdata())
 
 
-_breaker4: None = None
+_breaker7: None = None
 class Cisco_IOS_XE_xcopy_rpc__xcopy__output(yadata.MNode):
     uuid: ?str
 
@@ -230,6 +357,30 @@ actor rpc_root(tp: ygdata.TreeProvider):
         if inp is not None:
             rpc_input = yadata.from_adata(SRC_DNODE, inp, False, ["Cisco-IOS-XE-install-rpc:install", "input"])
         rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'install'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    activate: action(cb: action(?Exception) -> None, inp: Cisco_IOS_XE_install_rpc__activate__input) -> None
+    def activate(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, False, ["Cisco-IOS-XE-install-rpc:activate", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'activate'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    install_commit: action(cb: action(?Exception) -> None, inp: Cisco_IOS_XE_install_rpc__install_commit__input) -> None
+    def install_commit(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, False, ["Cisco-IOS-XE-install-rpc:install-commit", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'install-commit'): rpc_input})
+        tp.rpc(lambda _, err: cb(err), rpc_gdata)
+
+    abort: action(cb: action(?Exception) -> None, inp: Cisco_IOS_XE_install_rpc__abort__input) -> None
+    def abort(cb, inp):
+        rpc_input = ygdata.Container()
+        if inp is not None:
+            rpc_input = yadata.from_adata(SRC_DNODE, inp, False, ["Cisco-IOS-XE-install-rpc:abort", "input"])
+        rpc_gdata = ygdata.Container({ygdata.Id('http://cisco.com/ns/yang/Cisco-IOS-XE-install-rpc', 'abort'): rpc_input})
         tp.rpc(lambda _, err: cb(err), rpc_gdata)
 
     xcopy: action(cb: action(?Cisco_IOS_XE_xcopy_rpc__xcopy__output, ?Exception) -> None, inp: ?Cisco_IOS_XE_xcopy_rpc__xcopy__input) -> None
