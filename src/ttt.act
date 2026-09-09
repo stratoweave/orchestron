@@ -455,7 +455,7 @@ def fold(want: set[gdata.SubscriptionSpec]) -> dict[u64, ?gdata.FNode]:
     nothing, or no filter, is everything."""
     branches: dict[u64, list[gdata.FNode]] = {}
     whole: set[u64] = set()
-    for spec in gdata.hack_sorted(iter(want)):           # a canonical union, whatever the set order
+    for spec in want:
         period = spec.period
         if period is not None:
             if period not in branches:
@@ -1313,7 +1313,7 @@ class _ContainerTransaction(_Transaction):
     # yield action
     def lock(self, actself, tid, out: ?Session, done, dbuf: ?swdb.Buffer=None):
         #print('####', tid, '(Container)', _format_path(self.path), 'lock', sorted(self.accum.keys()), err=True)
-        it = iter(gdata.hack_sorted(self.accum.keys()))
+        it = iter(sorted(self.accum.keys()))
         try:
             key = next(it)
             self.state = YieldState(it, key, tid, out, done, dbuf)
@@ -1354,7 +1354,7 @@ class _ContainerTransaction(_Transaction):
     # yield action
     def wait_complete(self, actself, tid, done):
         #print('####', tid, '(Container)', _format_path(self.path), 'wait_complete', list(self.accum.keys()), err=True)
-        it = iter(gdata.hack_sorted(self.elems.keys()))
+        it = iter(sorted(self.elems.keys()))
         try:
             key = next(it)
             self.state = YieldState(it, key, tid, None, done)

@@ -256,7 +256,7 @@ def subscription_delay(spec: ygdata.SubscriptionSpec) -> float:
 
 def merge_subscription_tree(want: set[ygdata.SubscriptionSpec], subs: dict[ygdata.SubscriptionSpec, SharedSubscription]) -> ?ygdata.Node:
     merged = None
-    for spec in ygdata.hack_sorted(iter(want)):
+    for spec in want:
         if spec in subs:
             sub = subs[spec]
             if sub.latest is not None:
