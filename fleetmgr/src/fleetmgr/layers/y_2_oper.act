@@ -164,7 +164,7 @@ class stratoweave_device__devices__device_entry(yadata.MNode):
 _breaker2: None = None
 class stratoweave_device__devices__device(yadata.MKeyedList[str, stratoweave_device__devices__device_entry]):
     mut def __init__(self, elements: list[stratoweave_device__devices__device_entry]=[]) -> None:
-        yadata.MKeyedList.__init__(self, lambda e, k: e.name == k, elements)
+        yadata.MKeyedList.__init__(self, lambda e: e.name, elements)
 
     mut def create(self, key: str, modset_id: ?str=None) -> stratoweave_device__devices__device_entry:
         e = self.get(key)
@@ -174,7 +174,7 @@ class stratoweave_device__devices__device(yadata.MKeyedList[str, stratoweave_dev
             return e
         name = key
         res = stratoweave_device__devices__device_entry(name=name, modset_id=modset_id)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod

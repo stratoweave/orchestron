@@ -10,7 +10,7 @@ actor main(env):
     wfc = file.WriteFileCap(file.FileCap(env.cap))
 
     try:
-        schema_yang = [swyang.rfs, swyang.stratoweave, swyang.ietf_inet_types, swyang.ietf_yang_types]
+        schema_yang = [swyang.rfs, swyang.ssh, swyang.stratoweave, swyang.ietf_inet_types, swyang.ietf_yang_types]
         y = yang.compile(schema_yang)
 
         # Emit the oper view first: the config-only prdaclass below strips

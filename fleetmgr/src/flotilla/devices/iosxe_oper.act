@@ -422,11 +422,11 @@ class Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_su
 _breaker5: None = None
 class Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry]):
     mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry]=[]) -> None:
-        self.elements = elements
+        self._elements = elements
 
     mut def create(self, txn_cmd: ?str=None, txn_status: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry:
         res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper__install_txn_summary_op_entry(txn_cmd=txn_cmd, txn_status=txn_status)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -475,11 +475,11 @@ class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry(yadata.MN
 _breaker7: None = None
 class Cisco_IOS_XE_install_oper__install_oper_data__install_oper(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry]):
     mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry]=[]) -> None:
-        self.elements = elements
+        self._elements = elements
 
     mut def create(self, op_uuid: ?str=None, op_id: ?str=None, op_status: ?str=None, op_done: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry:
         res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_entry(op_uuid=op_uuid, op_id=op_id, op_status=op_status, op_done=op_done)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -522,11 +522,11 @@ class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_t
 _breaker9: None = None
 class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry]):
     mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry]=[]) -> None:
-        self.elements = elements
+        self._elements = elements
 
     mut def create(self, txn_cmd: ?str=None, txn_status: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry:
         res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist__install_txn_sum_op_hist_entry(txn_cmd=txn_cmd, txn_status=txn_status)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod
@@ -575,11 +575,11 @@ class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry(yada
 _breaker11: None = None
 class Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist(yadata.MList[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry]):
     mut def __init__(self, elements: list[Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry]=[]) -> None:
-        self.elements = elements
+        self._elements = elements
 
     mut def create(self, op_uuid: ?str=None, op_id: ?str=None, op_status: ?str=None, op_done: ?str=None) -> Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry:
         res = Cisco_IOS_XE_install_oper__install_oper_data__install_oper_hist_entry(op_uuid=op_uuid, op_id=op_id, op_status=op_status, op_done=op_done)
-        self.elements.append(res)
+        self._append(res)
         return res
 
     @staticmethod

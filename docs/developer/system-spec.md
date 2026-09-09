@@ -50,7 +50,8 @@ cfs_layer.models.extend([
 inter_layer = stratoweave.build.Layer.from_dir(fc, "yang/inter")
 inter_layer.models.extend([swyang.stratoweave, swyang.ietf_inet_types])
 rfs_layer = stratoweave.build.Layer.from_dir(fc, "yang/rfs")
-rfs_layer.models.extend([swyang.stratoweave, swyang.rfs, swyang.ietf_inet_types])
+rfs_layer.models.extend([swyang.stratoweave, swyang.rfs, swyang.ssh,
+                         swyang.ietf_inet_types, swyang.ietf_yang_types])
 ```
 
 Each of these layers is built from a directory of YANG models, which define
@@ -62,6 +63,9 @@ modules that are shipped with StratoWeave:
 * `swyang.ietf_inet_types` includes common IETF-defined types.
 * `swyang.rfs` includes the StratoWeave-specific RFS schema, that is used in
  the RFS layer.
+* `swyang.ssh` provides reusable SSH client types and the `ssh-client-config`
+ grouping used by the RFS device model and application inventory models.
+* `swyang.ietf_yang_types` supplies the date and time types used by RFS.
 * `tmf.yang.ietf_yang_tmf_map` includes the TMF mapping schema, which is used
  to annotate YANG with TMF Service/Resource mapping instructions.
 * `tmf.yang.swtmf` and `tmf.yang.swtmf640` include the TMF640 store transform

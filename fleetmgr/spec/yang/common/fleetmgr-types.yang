@@ -6,6 +6,9 @@ module fleetmgr-types {
   import ietf-inet-types {
     prefix inet;
   }
+  import stratoweave-ssh {
+    prefix sw-ssh;
+  }
 
   grouping device-options {
     leaf description {
@@ -69,6 +72,13 @@ module fleetmgr-types {
       leaf key {
         type string;
       }
+    }
+
+    container ssh {
+      description
+        "SSH transport parameters used when connecting to this device. Applies
+         to every SSH-based adapter (NETCONF over SSH, CLI, ...).";
+      uses sw-ssh:ssh-client-config;
     }
 
     leaf approval-required {
